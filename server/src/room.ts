@@ -302,8 +302,12 @@ export function aiDecideAction(g: Game, pid: PlayerId): ActionRequest {
     case 'dajianke':
       if (members.length > 0) return { type: 'attack', targetId: members[0] };
       break;
+    case 'hero-today': {
+      // 绝境时赌运势：血量≤1 时抽取（20%暴毙 vs 80%获得更好面板）
+      if (me.hp <= 1) return { type: 'rollFortune' };
+      break;
+    }
     case 'dapihuai':
-    case 'hero-today':
     case 'laodaye':
     case 'default':
       break;

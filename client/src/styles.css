@@ -120,13 +120,25 @@ input, select {
 .reveal { margin-top: 12px; border-top: 1px dashed #2a2e3a; padding-top: 8px; }
 
 .log-scroll {
-  max-height: 260px; overflow-y: auto;
+  max-height: 300px; overflow-y: auto;
   background: #101218; border-radius: 8px; padding: 8px;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 12px;
 }
 .log-scroll.tall { max-height: 340px; }
-.log-line { padding: 1.5px 0; color: #b8c0cd; border-bottom: 1px solid #181b22; }
+.log-line { padding: 1.5px 0 1.5px 4px; color: #b8c0cd; border-left: 2px solid transparent; }
+.log-line.imp {
+  color: #f2f4f8;
+  border-left: 2px solid #ffd166;
+  background: rgba(255, 209, 102, 0.06);
+  font-weight: 600;
+  padding-left: 6px;
+  border-radius: 0 4px 4px 0;
+}
+.log-line.dim { color: #5d6472; }
+.log-line .log-icon { margin-right: 4px; }
+.log-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.log-header h3 { margin: 0; }
 
 /* 测试场 */
 .arena-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 12px; }

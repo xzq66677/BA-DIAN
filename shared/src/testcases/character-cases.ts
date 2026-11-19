@@ -391,18 +391,68 @@ export const CHARACTER_CASES: TestCase[] = [
 
   // ═══════════════ 20.7 今日勇者（随机数代表） ═══════════════
   {
-    id: 'TC-C060', name: '今日勇者：已确认面板（3血2攻）', category: 'character', charId: 'hero-today', seed: 260,
-    desc: '初始血量3攻击2；技能正文缺失标记（资料缺失，不编造）',
+    id: 'TC-C060', name: '今日勇者：基础面板（3血2攻）与运势技能入口', category: 'character', charId: 'hero-today', seed: 260,
+    desc: '初始血量3攻击2；拥有「抽取今日运势」技能（用户确认规则）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], 260);
       const okInit = g.players['A'].hp === 3 && g.players['A'].maxHp === 3;
+      const hasAction = g.charDef('A').actions?.some((a) => a.name === 'rollFortune') === true;
       g.players['B'].room = 'R1';
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const okAtk = hpOf(g, 'B') === 1; // 攻击2
-      const missing = (g.charDef('A') as { dataMissing?: string[] }).dataMissing?.length === 1;
-      return check(okInit && okAtk && missing, '3血2攻确认，攻击造成2伤，技能标记资料缺失',
-        `hpA=${g.players['A'].hp}, B=${hpOf(g, 'B')}, dataMissing=${missing}`, g);
+      const okAtk = hpOf(g, 'B') === 1; // 基础攻击2
+      return check(okInit && okAtk && hasAction, '初始3血2攻确认，普攻2伤，运势技能已注册',
+        `hpA=${g.players['A'].hp}, B=${hpOf(g, 'B')}, hasRollFortune=${hasAction}`, g);
+    }),
+  },
+  {
+    id: 'TC-C062', name: '今日勇者：运势掷出9 → 血6攻6且攻击生效', category: 'character', charId: 'hero-today', seed: 4,
+    desc: '种子4首次掷出9：面板变血6攻6；随后普攻造成6伤',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], 4);
+      g.players['B'].room = 'R1';
+      g.players['B'].hp = 6; g.players['B'].maxHp = 6;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'rollFortune' } });
+      const rolled = g.players['A'].hp === 6 && g.players['A'].maxHp === 6
+        && g.charState('A').attackOverride === 6;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
+      const okAtk = hpOf(g, 'B') === 0; // 6-6=0
+      return check(rolled && okAtk, '掷出9 → 血6攻6，普攻造成6伤淘汰B',
+        `面板=${rolled}(A hp=${g.players['A'].hp}), B=${hpOf(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C063', name: '今日勇者：运势掷出0 → 直接暴毙', category: 'character', charId: 'hero-today', seed: 7,
+    desc: '种子7首次掷出0：当场暴毙（游戏结束，对手获胜）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], 7);
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'rollFortune' } });
+      const dead = !isAlive(g, 'A');
+      const over = g.isOver() && g.winner === 'B';
+      const causeLogged = g.logs.some((l) => l.text.includes('运势极凶'));
+      return check(dead && over && causeLogged, '掷出0 → A 暴毙，B 获胜',
+        `A alive=${isAlive(g, 'A')}, winner=${g.winner}, log=${causeLogged}`, g);
+    }),
+  },
+  {
+    id: 'TC-C064', name: '今日勇者：运势掷出6 → 血4攻2（与初始面板不同可辨）', category: 'character', charId: 'hero-today', seed: 1,
+    desc: '种子1首次掷出6：面板变血4攻2；普攻造成2伤（攻击力覆盖生效）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], 1);
+      g.players['B'].room = 'R1';
+      g.players['B'].hp = 4; g.players['B'].maxHp = 4;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'rollFortune' } });
+      const rolled = g.players['A'].hp === 4 && g.players['A'].maxHp === 4
+        && g.charState('A').attackOverride === 2;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
+      const okAtk = hpOf(g, 'B') === 2; // 4-2=2
+      return check(rolled && okAtk, '掷出6 → 血4攻2，普攻造成2伤',
+        `面板=${rolled}(A hp=${g.players['A'].hp}), B=${hpOf(g, 'B')}`, g);
     }),
   },
   {

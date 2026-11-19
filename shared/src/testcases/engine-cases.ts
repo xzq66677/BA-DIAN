@@ -420,6 +420,20 @@ export const ENGINE_CASES: TestCase[] = [
 
   // ─── 随机数与复现 ────────────────────────────────────────────
   {
+    id: 'TC-E036', name: '喝牛奶：合法行动、无实际作用', category: 'engine', seed: 128,
+    desc: '喝牛奶（嘲讽）成功执行，血量与存活状态不变',
+    run: () => run(() => {
+      const g = makeGame(['A', 'B'], 128);
+      g.players['A'].hp = 2;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const r = g.submitAction('A', { type: 'milk' });
+      const ok = r.ok && hpOf(g, 'A') === 2 && isAlive(g, 'A')
+        && g.logs.some((l) => l.text.includes('牛奶') && l.text.includes('嘲讽'));
+      return check(ok, '喝牛奶成功，状态不变，日志含嘲讽说明',
+        `ok=${r.ok}, hp=${hpOf(g, 'A')}`, g);
+    }),
+  },
+  {
     id: 'TC-E031', name: '固定随机种子完全可复现', category: 'engine', seed: 123,
     desc: '同种子同操作序列 → 两局日志完全一致',
     run: () => run(() => {

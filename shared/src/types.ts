@@ -95,6 +95,8 @@ export interface LogEntry {
   phase: GamePhase;
   type: LogType;
   text: string;
+  /** 重点事件（伤害/淘汰/触发/判定结果/回合小结等，前端高亮） */
+  important?: boolean;
   data?: Record<string, unknown>;
 }
 

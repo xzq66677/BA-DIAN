@@ -18,7 +18,7 @@ export interface GameLike {
   rules: import('./types.js').RuleConfig;
   logs: import('./types.js').LogEntry[];
 
-  log(type: import('./types.js').LogType, text: string, data?: Record<string, unknown>): void;
+  log(type: import('./types.js').LogType, text: string, data?: Record<string, unknown>, important?: boolean): void;
   aliveIds(): PlayerId[];
   getPlayer(pid: PlayerId): import('./types.js').PlayerState;
   charState(pid: PlayerId): import('./types.js').CharRuntimeState;

@@ -9,7 +9,7 @@ export default function GamePage({ lobby, game, session, logs, onExit }: {
   lobby: LobbyState;
   game: GameSnapshot | null;
   session: SessionInfo;
-  logs: { seq: number; text: string }[];
+  logs: { seq: number; text: string; important?: boolean }[];
   onExit: () => void;
   onBackToLobby?: () => void;
 }) {
@@ -21,7 +21,7 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   lobby: LobbyState;
   game: GameSnapshot;
   session: SessionInfo;
-  logs: { seq: number; text: string }[];
+  logs: { seq: number; text: string; important?: boolean }[];
   onExit: () => void;
 }) {
   const myIds = session.identities;
@@ -303,6 +303,7 @@ function ActionForm({ game, identity, lobby }: {
   const options: { key: string; label: string; targetHint?: string; roomHint?: boolean }[] = [
     { key: 'move', label: '移动', roomHint: true },
     { key: 'heal', label: '回复' },
+    { key: 'milk', label: '喝牛奶（嘲讽）' },
     { key: 'skip', label: '跳过' },
   ];
   if (sameRoomTargets.length > 0 || otherRoomTargets.length > 0) options.unshift({ key: 'attack', label: '攻击', targetHint: 'attack' });
@@ -366,15 +367,31 @@ function ActionForm({ game, identity, lobby }: {
 
 // ─── 日志面板 ────────────────────────────────────────────────
 
-function LogPanel({ logs }: { logs: { seq: number; text: string }[] }) {
+function LogPanel({ logs }: { logs: { seq: number; text: string; important?: boolean }[] }) {
+  const [onlyKey, setOnlyKey] = useState(false);
+  const ICON: Record<string, string> = {
+    phase: '⏱️', judge: '🎲', order: '🔀', action: '🎬', damage: '⚔️',
+    heal: '💊', move: '🚶', eliminate: '💀', trigger: '✨', state: '🔧',
+    deferred: '💥', error: '❌', result: '🏆', info: 'ℹ️',
+  };
+  const shown = onlyKey ? logs.filter((l) => l.important) : logs;
   return (
     <div className="card log-card">
-      <h3>游戏日志</h3>
+      <div className="log-header">
+        <h3>游戏日志</h3>
+        <div className="btn-row">
+          <button className={`btn tiny ${onlyKey ? 'primary' : ''}`} onClick={() => setOnlyKey(true)}>⭐ 重点</button>
+          <button className={`btn tiny ${!onlyKey ? 'primary' : ''}`} onClick={() => setOnlyKey(false)}>全部</button>
+        </div>
+      </div>
       <div className="log-scroll">
-        {logs.slice().reverse().map((l) => (
-          <div key={l.seq} className="log-line">{l.text}</div>
+        {shown.slice().reverse().map((l) => (
+          <div key={l.seq} className={`log-line ${l.important ? 'imp' : 'dim'}`}>
+            <span className="log-icon">{ICON[l.type] || '·'}</span>{l.text}
+          </div>
         ))}
       </div>
     </div>
   );
 }
+

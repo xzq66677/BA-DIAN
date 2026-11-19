@@ -47,6 +47,8 @@ export class Game implements GameLike {
   private logSeq = 0;
   winner: PlayerId | null | undefined;
   judgeRecords: JudgeRoundRecord[] = [];
+  /** 本回合重点事件摘要（回合末输出小结） */
+  roundSummary: string[] = [];
   private deferredSeq = 0;
   private deathChainDepth = 0;
 
@@ -78,12 +80,12 @@ export class Game implements GameLike {
       this.histories[pc.id] = [];
     });
     this.entrantOrder = this.aliveIds();
-    this.log('phase', `游戏开始：${this.playerIds.length} 名玩家，随机种子 ${this.seed}`);
+    this.log('phase', `游戏开始：${this.playerIds.length} 名玩家，随机种子 ${this.seed}`, undefined, true);
     for (const pid of this.playerIds) {
       const p = this.players[pid];
       this.log('info', `${p.name}（${this.charName(pid)}）初始位置 ${p.originRoom}，血量 ${fmtNum(p.maxHp)}`);
     }
-    this.log('phase', `第 ${this.roundNo} 回合 · 初次判定开始（所有存活玩家隐藏出拳）`);
+    this.log('phase', `—— 第 ${this.roundNo} 回合 · 隐藏出拳 ——`, undefined, true);
   }
 
   // ─── 基础查询 ────────────────────────────────────────────────
@@ -121,7 +123,7 @@ export class Game implements GameLike {
     return this.phase === 'over';
   }
 
-  log(type: LogType, text: string, data?: Record<string, unknown>): void {
+  log(type: LogType, text: string, data?: Record<string, unknown>, important = false): void {
     this.logs.push({
       seq: ++this.logSeq,
       round: this.roundNo,
@@ -129,6 +131,7 @@ export class Game implements GameLike {
       phase: this.phase,
       type,
       text,
+      important,
       data,
     });
   }
@@ -141,7 +144,7 @@ export class Game implements GameLike {
     });
     if (holders.length === 1) return holders[0];
     if (holders.length >= 2) {
-      this.log('trigger', '领域对冲：多名领域持有者效果抵消，平局保持平局');
+      this.log('trigger', '领域对冲：多名领域持有者效果抵消，平局保持平局', undefined, true);
       return null;
     }
     return null;
@@ -245,7 +248,8 @@ export class Game implements GameLike {
     const winnersAlive = outcome.winners.filter((pid) => this.players[pid].alive);
     const losersDesc = outcome.losers.filter((pid) => this.players[pid].alive)
       .map((pid) => this.players[pid].name).join('、');
-    this.log('judge', `初次判定结果：${winnersAlive.map((pid) => this.players[pid].name).join('、')} 获得行动资格${losersDesc ? `；${losersDesc} 本回合无资格` : ''}`);
+    this.log('judge', `⭐ 初次判定结果：${winnersAlive.map((pid) => this.players[pid].name).join('、')} 获得行动资格${losersDesc ? `；${losersDesc} 无资格` : ''}`, undefined, true);
+    this.roundSummary.push(`${winnersAlive.map((pid) => this.players[pid].name).join('、')} 获得行动资格`);
 
     if (this.checkWin()) return;
 
@@ -289,7 +293,7 @@ export class Game implements GameLike {
     this.qualified = winners.filter((pid) => this.players[pid].alive);
     this.queue = aliveOrder;
     this.actIndex = 0;
-    this.log('order', `二次判定完成，行动顺序：${aliveOrder.map((pid) => this.players[pid].name).join(' → ')}`);
+    this.log('order', `⭐ 行动顺序（输者先动）：${aliveOrder.map((pid) => this.players[pid].name).join(' → ')}`, undefined, true);
     this.phase = 'act';
     this.advanceQueue(true);
   }
@@ -330,7 +334,8 @@ export class Game implements GameLike {
 
     const res = this.executeAction(pid, req);
     if (!res.ok) return res; // 非法行动：不修改状态、不消耗行动
-    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`);
+    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, undefined, true);
+    this.roundSummary.push(`${p.name} ${this.actionLabel(req)}`);
     if ((this.phase as GamePhase) === 'over') return { ok: true };
     this.actIndex++;
     this.advanceQueue();
@@ -350,6 +355,7 @@ export class Game implements GameLike {
       case 'hide': return '躲藏';
       case 'seek': return `找出来（${req.targetId ? this.players[req.targetId].name : '?'}）`;
       case 'aim': return `瞄准（${req.targetId ? this.players[req.targetId].name : '?'}）`;
+      case 'milk': return '喝牛奶（嘲讽）';
       case 'skip': return '跳过';
       default: {
         const cd = this.charDef(this.currentActor() || this.playerIds[0]);
@@ -369,6 +375,7 @@ export class Game implements GameLike {
       case 'hide': return this.actHide(pid, req);
       case 'seek': return this.actSeek(pid, req);
       case 'aim': return this.actAim(pid, req);
+      case 'milk': return this.actMilk(pid);
       case 'skip': {
         if (!this.rules.allowSkip) return { ok: false, error: '本局不允许跳过' };
         return { ok: true };
@@ -397,7 +404,7 @@ export class Game implements GameLike {
       p.hidden = false;
       this.log('state', `${p.name} 移动后现身（离开躲藏）`);
     }
-    this.log('move', `${p.name} 从 ${from} 移动到 ${room}`);
+    this.log('move', `${p.name} 从 ${from} 移动到 ${room}`, undefined, true);
     return { ok: true };
   }
 
@@ -442,7 +449,7 @@ export class Game implements GameLike {
       ?? (ranged
         ? (cd.rangedDamage ?? cd.attack ?? this.rules.defaultAttack)
         : (cd.meleeDamage ?? cd.attack ?? this.rules.defaultAttack));
-    this.log('damage', `${this.players[pid].name} ${ranged ? '远程' : '近战'}攻击 ${tp.name}（伤害 ${fmtNum(amount)}）`);
+    this.log('damage', `${this.players[pid].name} ${ranged ? '远程' : '近战'}攻击 ${tp.name}（伤害 ${fmtNum(amount)}）`, undefined, true);
     this.applyDamage({
       target: targetId,
       amount,
@@ -457,7 +464,7 @@ export class Game implements GameLike {
     const p = this.players[pid];
     const before = p.hp;
     p.hp = p.maxHp;
-    this.log('heal', `${p.name} 回复：${fmtNum(before)} → ${fmtNum(p.hp)}（满血）`);
+    this.log('heal', `${p.name} 回复：${fmtNum(before)} → ${fmtNum(p.hp)}（满血）`, undefined, true);
     return { ok: true };
   }
 
@@ -491,6 +498,12 @@ export class Game implements GameLike {
     if (targetId === pid) return { ok: false, error: '不能瞄准自己' };
     this.charState(pid).aim = targetId;
     this.log('state', `${this.players[pid].name} 瞄准了 ${this.players[targetId].name}`);
+    return { ok: true };
+  }
+
+  /** 喝牛奶：嘲讽性质，无实际作用（用户确认） */
+  private actMilk(pid: PlayerId): ActionResult {
+    this.log('action', `${this.players[pid].name} 喝了一口牛奶，向在场所有人发出嘲讽 🥛（无实际效果）`, undefined, true);
     return { ok: true };
   }
 
@@ -552,12 +565,12 @@ export class Game implements GameLike {
 
     // 4. 结算
     if (req.instakill) {
-      this.log('damage', `${tp.name} 受到秒杀效果（${req.tag || '伤害'}${req.segment ? ` 第${req.segment.index}/${req.segment.total}段` : ''}）`);
+      this.log('damage', `${tp.name} 受到秒杀效果（${req.tag || '伤害'}${req.segment ? ` 第${req.segment.index}/${req.segment.total}段` : ''}）`, undefined, true);
       tp.hp = 0;
     } else {
       const before = tp.hp;
       tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
-      this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`);
+      this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, undefined, true);
     }
 
     // 5. 附加效果（转移伤害不随转移）
@@ -588,7 +601,8 @@ export class Game implements GameLike {
     p.hidden = false;
     p.invisible = false;
     p.hp = 0;
-    this.log('eliminate', `${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}），初始位置 ${p.originRoom} 保留`);
+    this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, undefined, true);
+    this.roundSummary.push(`${p.name} 被淘汰（${cause}）`);
     this.qualified = this.qualified.filter((x) => x !== pid);
     // 注意：queue 不在此处过滤——已行动过的索引不应因淘汰而移位；
     // 推进队列时会跳过死亡玩家（advanceQueue）。
@@ -614,14 +628,14 @@ export class Game implements GameLike {
     if (alive.length === 1) {
       this.phase = 'over';
       this.winner = alive[0];
-      this.log('result', `游戏结束：${this.players[alive[0]].name}（${this.charName(alive[0])}）获得胜利！`);
+      this.log('result', `🏆 游戏结束：${this.players[alive[0]].name}（${this.charName(alive[0])}）获得胜利！`, undefined, true);
       this.cancelDeferredOnGameOver();
       return true;
     }
     if (alive.length === 0) {
       this.phase = 'over';
       this.winner = null;
-      this.log('result', '游戏结束：所有玩家同时淘汰，平局');
+      this.log('result', '游戏结束：所有玩家同时淘汰，平局', undefined, true);
       this.cancelDeferredOnGameOver();
       return true;
     }
@@ -640,6 +654,11 @@ export class Game implements GameLike {
   private endRound(): void {
     if (this.phase === 'over') return;
     this.phase = 'roundEnd';
+    if (this.roundSummary.length > 0) {
+      this.log('info', `📋 第 ${this.roundNo} 回合小结：${this.roundSummary.join('；')}`, undefined, true);
+    } else {
+      this.log('info', `📋 第 ${this.roundNo} 回合小结：无人获得行动资格，平稳度过`, undefined, true);
+    }
     this.log('phase', `第 ${this.roundNo} 回合行动结束，进入回合末结算`);
 
     // 角色回合末钩子
@@ -659,7 +678,7 @@ export class Game implements GameLike {
         if ((this.phase as GamePhase) === 'over') return;
       } else if (ev.kind === 'ivan') {
         const members = this.roomMembers(ev.room);
-        this.log('deferred', `大伊万在 ${ev.room} 爆炸！爆炸时房间内成员：${members.length ? members.map((pid) => this.players[pid].name).join('、') : '（无存活玩家）'}`);
+        this.log('deferred', `💥 大伊万在 ${ev.room} 爆炸！爆炸时房间内成员：${members.length ? members.map((pid) => this.players[pid].name).join('、') : '（无存活玩家）'}`, undefined, true);
         for (const pid of members) {
           this.applyDamage({
             target: pid,
@@ -686,8 +705,9 @@ export class Game implements GameLike {
     this.actIndex = 0;
     this.judgeRecords = [];
     this.entrantOrder = this.aliveIds();
+    this.roundSummary = [];
     this.phase = 'rps1';
-    this.log('phase', `—— 第 ${this.roundNo} 回合 · 初次判定开始 ——`);
+    this.log('phase', `—— 第 ${this.roundNo} 回合 · 隐藏出拳 ——`, undefined, true);
   }
 
   addDeferred(ev: Omit<DeferredEvent, 'id'>): void {

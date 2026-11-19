@@ -37,6 +37,7 @@ export interface SnapPlayer {
 export interface SnapLog {
   seq: number; round: number; sub: number;
   phase: string; type: string; text: string;
+  important?: boolean;
 }
 
 export interface GameSnapshot {
