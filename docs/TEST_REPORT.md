@@ -1,7 +1,7 @@
 # 拔典 · 测试报告
 
 > 测试执行时间：2026-11-19 15:20 — 16:15（自主开发窗口内）
-> 最终结果：**4 个测试文件 / 109 个用例，全部通过（0 失败 / 0 跳过）**（2026-11-19 三轮更新：+今日勇者第一回合限定、+房间列表/聊天集成）
+> 最终结果：**5 个测试文件 / 114 个用例，全部通过（0 失败 / 0 跳过）**（2026-11-19 四轮更新：+AI选角、+真实浏览器E2E×4）
 > 执行方式：`npm test`（vitest run），真实运行，无未执行的"宣称通过"项。
 
 ## 一、测试组成
@@ -9,7 +9,8 @@
 | 文件 | 用例数 | 内容 |
 |---|---|---|
 | tests/shared-cases.test.ts | 94 | 共享测试用例数据（与机制测试场同源） |
-| tests/integration/socket.test.ts | 7 | 真实 Socket.IO 联机集成（含房间列表/聊天） |
+| tests/integration/socket.test.ts | 8 | 真实 Socket.IO 联机集成（含房间列表/聊天/AI选角） |
+| tests/ui/e2e.test.ts | 4 | **真实 Chromium 端到端**（此前被系统库阻塞，sudo 安装后解锁） |
 | tests/integration/ai-sim.test.ts | 4 | AI 自动对局回归 |
 | tests/ui/components.test.tsx | 4 | React 组件渲染（jsdom） |
 
@@ -38,7 +39,7 @@
 | 单设备多人 | ✅ 集成测试覆盖（同连接双身份提交）；UI 遮罩流程有组件级验证 | socket.test / components.test |
 | AI 对局 | ✅ 3人/10人局真实跑至终局 | ai-sim.test |
 | 机制测试场 | ✅ 浏览器环境（jsdom）内全量运行 PASS | components.test |
-| 真实 Chromium 点击测试 | ⚠️ 未完成 | 服务器缺图形系统库（libatk 等）且无 sudo 安装权限；已尝试 Playwright 安装。以 jsdom 组件测试 + socket 集成测试替代覆盖 |
+| 真实 Chromium 点击测试 | ✅ 实际运行通过 | 用户授权 sudo 后安装系统库（playwright install-deps）；4 条 E2E：首页卡池9图真实加载/单人开局+隐藏出拳+AI推进/大厅AI选角+改角+聊天/测试场全量PASS |
 
 ## 三、发现并修复的缺陷（回归确认）
 
@@ -57,6 +58,7 @@
 | B-011 | 测试驱动器在行动被拒后死循环 | actQueue 失败即停 | 全部用例 |
 | B-012 | 旧编译产物（.js）误落盘源码树导致 vitest 加载旧代码（测试/运行时行为不一致） | 清理 shared/src 下所有 .js/.map，重跑全量回归 | 107 用例全过 |
 | B-013 | 聊天广播早于 ack 到达，测试后注册监听漏收（竞态） | 测试先注册监听再发送（与 B-005 同类） | socket 集成测试 |
+| B-014 | 前端修改后未重建 dist，真实浏览器测试加载旧包（行为不一致） | 构建→测试流程固化；E2E 前强制 build | E2E 4/4 |
 
 ## 四、未执行/未覆盖
 

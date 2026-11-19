@@ -139,6 +139,46 @@ describe('拔典联机系统', () => {
     host.disconnect();
   });
 
+  it('AI 角色选择：随机 / 手动指定 / 房主改角色', async () => {
+    const host = await connect();
+    const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(
+      host, 'room:create', { name: 'AI选角测试' },
+    );
+    const code = createRes.code;
+    const me = createRes.seats[0];
+
+    // 随机角色 AI
+    await emit(host, 'room:addAI', { code, playerId: me.playerId, token: me.token, count: 2, charId: 'random' });
+    // 指定角色 AI
+    await emit(host, 'room:addAI', { code, playerId: me.playerId, token: me.token, count: 1, charId: 'gojo' });
+    // 广播随 addAI 已发；此时注册监听，用 game:state 触发一次广播取最新座位表
+    const upd2Promise = new Promise<Record<string, unknown>>((resolve) => host.once('room:update', resolve));
+    await emit(host, 'game:state', { code });
+    const upd2 = await upd2Promise;
+    const seats = (upd2.lobby as { seats: { charId: string; type: string }[] }).seats;
+    const aiSeats = seats.filter((x) => x.type === 'ai');
+    expect(aiSeats).toHaveLength(3);
+    expect(aiSeats.filter((x) => x.charId === 'gojo')).toHaveLength(1);
+    // 随机的两个都应是注册表内的合法角色
+    const { CHARACTERS } = await import('../../shared/src/characters/index.js');
+    for (const a of aiSeats) expect(CHARACTERS[a.charId]).toBeTruthy();
+
+    // 房主为已有 AI 改角色
+    const aiId = (upd2.lobby as { seats: { playerId: string; type: string }[] }).seats
+      .filter((x) => x.type === 'ai')[0].playerId;
+    const upd3Promise = new Promise<Record<string, unknown>>((resolve) => host.once('room:update', resolve));
+    const setRes = await emit<{ ok: boolean }>(host, 'room:setChar', { code, playerId: me.playerId, token: me.token, charId: 'dajianke', targetId: aiId });
+    expect(setRes.ok).toBe(true);
+    const upd3 = await upd3Promise;
+    const changed = (upd3.lobby as { seats: { playerId: string; charId: string }[] }).seats.find((x) => x.playerId === aiId);
+    expect(changed?.charId).toBe('dajianke');
+
+    // 非房主不能为 AI 改角色（本房间只有房主一人，直接测错误令牌）
+    const badSet = await emit<{ ok: boolean }>(host, 'room:setChar', { code, playerId: me.playerId, token: 'bad', charId: 'gojo', targetId: aiId });
+    expect(badSet.ok).toBe(false);
+    host.disconnect();
+  });
+
   it('断线重连：令牌恢复身份与房间状态', async () => {
     const host = await connect();
     const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(

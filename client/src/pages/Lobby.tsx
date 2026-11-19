@@ -12,6 +12,7 @@ export default function Lobby({ lobby, session, onExit }: {
   const me = session.identities[0];
   const isHost = lobby.hostSeat === me.playerId;
   const [copied, setCopied] = useState(false);
+  const [aiCharId, setAiCharId] = useState('random');
   const [chatText, setChatText] = useState('');
   const chatLogRef = useRef<HTMLDivElement | null>(null);
   const chat: { name: string; text: string; ts: number }[] = lobby.chat || [];
@@ -77,6 +78,15 @@ export default function Lobby({ lobby, session, onExit }: {
                       >
                         {CHARACTER_LIST.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
+                    ) : isHost && s.type === 'ai' ? (
+                      <select
+                        value={s.charId}
+                        onChange={(e) => net.setChar(lobby.code, me.playerId, me.token, e.target.value, s.playerId)}
+                        style={{ width: '100%', minHeight: 24, fontSize: 11, padding: '2px' }}
+                        title="房主可为AI改角色"
+                      >
+                        {CHARACTER_LIST.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
                     ) : (
                       <>{cd?.name}{s.type === 'ai' ? ' · AI' : s.type === 'local' ? ' · 本机' : ''}{s.connected ? '' : ' · 离线'}</>
                     )}
@@ -90,7 +100,15 @@ export default function Lobby({ lobby, session, onExit }: {
             })}
           </div>
           <div className="btn-row" style={{ marginTop: 14 }}>
-            {isHost && <button className="tcg-btn ghost" onClick={() => net.addAI(lobby.code, me.playerId, me.token, 1)}>+ 添加 AI</button>}
+            {isHost && (
+              <>
+                <select value={aiCharId} onChange={(e) => setAiCharId(e.target.value)} style={{ minWidth: 150 }}>
+                  <option value="random">AI 角色：🎲 随机</option>
+                  {CHARACTER_LIST.map((c) => <option key={c.id} value={c.id}>AI 角色：{c.name}</option>)}
+                </select>
+                <button className="tcg-btn ghost" onClick={() => net.addAI(lobby.code, me.playerId, me.token, 1, aiCharId)}>+ 添加 AI</button>
+              </>
+            )}
             {isHost && <button className="tcg-btn" disabled={lobby.seats.length < 2} onClick={async () => {
               const r = await net.start(lobby.code, me.playerId, me.token) as { ok: boolean; error?: string };
               if (!r.ok) alert(r.error || '开始失败');

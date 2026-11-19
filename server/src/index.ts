@@ -146,25 +146,41 @@ io.on('connection', (socket: Socket) => {
   });
 
   // ── 大厅操作 ──
-  socket.on('room:setChar', (data: { code: string; playerId: PlayerId; token: string; charId: string }, ack?: (r: unknown) => void) => {
+  socket.on('room:setChar', (data: { code: string; playerId: PlayerId; token: string; charId: string; targetId?: PlayerId }, ack?: (r: unknown) => void) => {
     const room = getRoom(data.code || '');
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     const seat = room.seatOf(data.playerId);
     if (!seat || seat.token !== data.token) { ack?.({ ok: false, error: '身份验证失败' }); return; }
-    if (CHARACTERS[data.charId]) seat.charId = data.charId;
+    if (!CHARACTERS[data.charId]) { ack?.({ ok: false, error: '未知角色' }); return; }
+    // targetId 提供时：房主可修改 AI 座位的角色；否则只能改自己的
+    if (data.targetId && data.targetId !== data.playerId) {
+      const target = room.seatOf(data.targetId);
+      if (!target) { ack?.({ ok: false, error: '目标座位不存在' }); return; }
+      if (target.type !== 'ai') { ack?.({ ok: false, error: '只能为AI座位改角色（真人座位由本人选择）' }); return; }
+      if (!room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可为AI选角色' }); return; }
+      target.charId = data.charId;
+    } else {
+      seat.charId = data.charId;
+    }
     ack?.({ ok: true });
     broadcastRoom(room);
   });
 
-  socket.on('room:addAI', (data: { code: string; playerId: PlayerId; token: string; count?: number }, ack?: (r: unknown) => void) => {
+  socket.on('room:addAI', (data: { code: string; playerId: PlayerId; token: string; count?: number; charId?: string }, ack?: (r: unknown) => void) => {
     const room = getRoom(data.code || '');
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     const seat = room.seatOf(data.playerId);
     if (!seat || !room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可添加AI' }); return; }
     const count = Math.min(data.count ?? 1, 20 - room.seats.length);
-    for (let i = 0; i < count; i++) room.addSeat(`AI_${room.seats.length + 1}`, 'default', 'ai');
-    ack?.({ ok: true });
+    for (let i = 0; i < count; i++) {
+      // 角色选择：显式指定 > 随机（注册表内随机）
+      const wanted = data.charId && data.charId !== 'random' && CHARACTERS[data.charId] ? data.charId : undefined;
+      const cid = wanted ?? Object.keys(CHARACTERS)[Math.floor(Math.random() * Object.keys(CHARACTERS).length)];
+      room.addSeat(`AI_${room.seats.length + 1}`, cid, 'ai');
+    }
+    ack?.({ ok: true, charId: data.charId });
     broadcastRoom(room);
+    broadcastLobby();
   });
 
   socket.on('room:removeSeat', (data: { code: string; playerId: PlayerId; token: string; targetId: PlayerId }, ack?: (r: unknown) => void) => {

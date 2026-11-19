@@ -9,7 +9,7 @@
 
 ## 环境限制（本次执行环境）
 
-7. **真实 Chromium 端到端点击测试未完成**：服务器缺图形系统库（libatk/libgbm 等）且无 sudo 权限安装。Playwright + Chromium 已成功下载但无法启动。UI 由 jsdom 组件测试覆盖（真实 React 渲染 + 真实引擎快照 + 测试场全量运行）。
+7. **真实 Chromium 端到端点击测试已完成**（2026-11-19：用户授权 sudo，安装系统库后解锁）。systemd 服务 badian.service 已配置（开机自启/崩溃重启）。注意：快速隧道（trycloudflare）地址在服务器重启后会变化，需要重新启动隧道并告知新地址。
 8. **未部署公网**：本地生产模式（`npm start`，:3100）验证通过；联机部署需自行提供 HTTPS 反代（Socket.IO 客户端用同源相对路径连接）。
 
 ## 素材说明

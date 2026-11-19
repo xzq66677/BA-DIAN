@@ -141,11 +141,11 @@ class Net {
   reconnect(code: string, playerId: string, token: string) {
     return this.emit('room:reconnect', { code, playerId, token });
   }
-  setChar(code: string, playerId: string, token: string, charId: string) {
-    return this.emit('room:setChar', { code, playerId, token, charId });
+  setChar(code: string, playerId: string, token: string, charId: string, targetId?: string) {
+    return this.emit('room:setChar', { code, playerId, token, charId, targetId });
   }
-  addAI(code: string, playerId: string, token: string, count: number) {
-    return this.emit('room:addAI', { code, playerId, token, count });
+  addAI(code: string, playerId: string, token: string, count: number, charId?: string) {
+    return this.emit('room:addAI', { code, playerId, token, count, charId });
   }
   removeSeat(code: string, playerId: string, token: string, targetId: string) {
     return this.emit('room:removeSeat', { code, playerId, token, targetId });

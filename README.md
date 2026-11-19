@@ -24,6 +24,8 @@ npm run build
 # 4. 启动（生产模式：服务端 + 静态客户端）
 npm start
 # → http://localhost:3100（端口可用环境变量 PORT 覆盖）
+# 本机已配置 systemd 服务（开机自启/崩溃重启）：
+#   sudo systemctl restart badian && journalctl -u badian -f
 
 # 开发模式（可选）
 npm run dev:server    # tsx watch 服务端 :3100
@@ -33,6 +35,7 @@ npm run dev:client    # vite dev 客户端 :5173（代理到 :3100）
 打开浏览器访问 `http://localhost:3100`（TCG 卡桌风格界面：深色卡桌 + 游戏王风角色卡 + 技能卡行动坞）：
 
 - **大厅**：房间列表实时刷新、点击加入；角色卡池展示墙（点击看卡面与台词）
+- **AI 选角**：房主添加 AI 时可指定角色或随机（默认随机）；房主可随时更改已加入 AI 的角色
 
 - **单人开局**：填昵称 + AI 数量 → 直接开局
 - **创建房间**：获得 4 位邀请码 → 朋友在「加入房间」输入码加入 → 房主开始游戏
@@ -81,7 +84,7 @@ docs/                规则/架构/测试报告/已知问题/角色原始数据
 ## 测试
 
 ```bash
-npm test   # 109 用例：核心规则 36 + 角色机制 38 + 复杂交互 14 + 联机集成 7 + AI回归 4 + UI组件 4
+npm test   # 114 用例：含真实 Chromium E2E（核心规则36 + 角色机制38 + 复杂交互14 + 联机集成8 + AI回归4 + UI组件4 + E2E4）
 ```
 
 详见 `docs/TEST_REPORT.md`。
