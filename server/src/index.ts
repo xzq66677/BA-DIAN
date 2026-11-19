@@ -58,6 +58,12 @@ function getRoom(code: string): Room | undefined {
 }
 
 /** 广播房间状态（大厅 + 游戏快照 + 增量日志） */
+/** 向全部客户端广播房间列表（大厅房间列表用） */
+function broadcastLobby(): void {
+  const list = [...rooms.values()].map((r) => r.listEntry());
+  io.emit('lobby:rooms', { rooms: list });
+}
+
 function broadcastRoom(room: Room): void {
   const lastLogSeq = (room as unknown as { _lastLogSeq?: number })._lastLogSeq ?? 0;
   const snap = room.game ? room.game.snapshot() : null;
@@ -101,6 +107,7 @@ io.on('connection', (socket: Socket) => {
       socket.data.roomCode = code;
       ack?.({ ok: true, code, seats: room.seats.map((s) => ({ playerId: s.playerId, name: s.name, token: s.token })) });
       broadcastRoom(room);
+      broadcastLobby();
     } catch (e) {
       ack?.({ ok: false, error: (e as Error).message });
     }
@@ -119,6 +126,7 @@ io.on('connection', (socket: Socket) => {
     socket.data.roomCode = room.code;
     ack?.({ ok: true, code: room.code, seats: room.seats.map((s) => ({ playerId: s.playerId, name: s.name, token: s.token })) });
     broadcastRoom(room);
+    broadcastLobby();
   });
 
   // ── 断线重连（令牌恢复身份） ──
@@ -134,6 +142,7 @@ io.on('connection', (socket: Socket) => {
     ack?.({ ok: true, code: room.code, playerId: seat.playerId, name: seat.name });
     // 重连后权限检查：状态照常下发，禁止通过重连绕过行动限制（提交仍校验当前行动者）
     broadcastRoom(room);
+    broadcastLobby();
   });
 
   // ── 大厅操作 ──
@@ -177,6 +186,7 @@ io.on('connection', (socket: Socket) => {
     if (!r.ok) { ack?.(r); return; }
     ack?.({ ok: true, seed: room.game?.seed });
     broadcastRoom(room);
+    broadcastLobby();
   });
 
   socket.on('room:restart', (data: { code: string; playerId: PlayerId; token: string }, ack?: (r: unknown) => void) => {
@@ -186,6 +196,7 @@ io.on('connection', (socket: Socket) => {
     const r = room.restart();
     ack?.(r);
     broadcastRoom(room);
+    broadcastLobby();
   });
 
   socket.on('room:leave', (data: { code: string; playerId: PlayerId; token: string }, ack?: (r: unknown) => void) => {
@@ -200,6 +211,7 @@ io.on('connection', (socket: Socket) => {
       room.dispose();
       rooms.delete(room.code);
       ack?.({ ok: true, dissolved: true });
+      broadcastLobby();
       return;
     }
     // 游戏中离开：该玩家标记断线（对局继续，超时自动代打）
@@ -248,6 +260,27 @@ io.on('connection', (socket: Socket) => {
     }
     broadcastRoom(room);
   });
+
+  // ── 大厅房间列表请求 ──
+  socket.on('lobby:roomsReq', (_data: unknown, ack?: (r: unknown) => void) => {
+    ack?.({ ok: true, rooms: [...rooms.values()].map((r) => r.listEntry()) });
+  });
+
+  // ── 房间聊天（等待界面交流） ──
+  socket.on('room:chat', (data: { code: string; playerId: PlayerId; token: string; text: string }, ack?: (r: unknown) => void) => {
+    const room = getRoom(data.code || '');
+    if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
+    const seat = room.seatOf(data.playerId);
+    if (!seat || seat.token !== data.token) { ack?.({ ok: false, error: '身份验证失败' }); return; }
+    const text = (data.text || '').trim();
+    if (!text) { ack?.({ ok: false, error: '消息为空' }); return; }
+    room.addChat(seat.name, text);
+    ack?.({ ok: true });
+    broadcastRoom(room);
+  });
+
+  // 新客户端连接时推送房间列表
+  socket.emit('lobby:rooms', { rooms: [...rooms.values()].map((r) => r.listEntry()) });
 });
 
 /** 启动监听（作为主模块运行时自动调用；测试可手动调用） */

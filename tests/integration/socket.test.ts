@@ -163,6 +163,39 @@ describe('拔典联机系统', () => {
     reconnected.disconnect();
   });
 
+  it('大厅房间列表与房间聊天', async () => {
+    const host = await connect();
+    const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(
+      host, 'room:create', { name: '列表测试' },
+    );
+    const code = createRes.code;
+    const me = createRes.seats[0];
+
+    // 请求房间列表
+    const listRes = await emit<{ ok: boolean; rooms: { code: string; hostName: string }[] }>(host, 'lobby:roomsReq', {});
+    expect(listRes.ok).toBe(true);
+    expect(listRes.rooms.some((r) => r.code === code && r.hostName === '列表测试')).toBe(true);
+
+    // 先注册监听再发聊天（避免竞态漏掉广播）
+    const updPromise = new Promise<Record<string, unknown>>((resolve) => host.once('room:update', resolve));
+    // 聊天
+    const chatRes = await emit<{ ok: boolean }>(host, 'room:chat', { code, playerId: me.playerId, token: me.token, text: '大家好！' });
+    expect(chatRes.ok).toBe(true);
+    // 错误令牌聊天被拒绝
+    const badChat = await emit<{ ok: boolean }>(host, 'room:chat', { code, playerId: me.playerId, token: 'bad', text: 'hack' });
+    expect(badChat.ok).toBe(false);
+    // 空消息被拒绝
+    const emptyChat = await emit<{ ok: boolean }>(host, 'room:chat', { code, playerId: me.playerId, token: me.token, text: '  ' });
+    expect(emptyChat.ok).toBe(false);
+
+    // room:update 携带聊天记录
+    const upd = await updPromise;
+    const chat = ((upd.lobby as { chat: { text: string }[] }).chat || []).map((c) => c.text);
+    expect(chat).toContain('大家好！');
+
+    host.disconnect();
+  });
+
   it('非法操作：非当前行动者提交被拒绝、令牌校验失败', async () => {
     const host = await connect();
     const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(

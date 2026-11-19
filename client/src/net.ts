@@ -23,7 +23,17 @@ export interface LobbyState {
   state: 'lobby' | 'playing' | 'over';
   hostSeat: string | null;
   seats: LobbySeat[];
+  chat: { name: string; text: string; ts: number }[];
   config: { submitTimeoutMs: number; turnTimeoutMs: number };
+}
+
+export interface RoomListEntry {
+  code: string;
+  state: 'lobby' | 'playing' | 'over';
+  seatCount: number;
+  humans: number;
+  hostName: string;
+  updatedAt: number;
 }
 
 export interface SnapPlayer {
@@ -71,6 +81,7 @@ class Net {
   private socket: Socket | null = null;
   identities: Identity[] = [];
   listeners: ((u: RoomUpdate) => void)[] = [];
+  lobbyRoomsListeners: ((rooms: RoomListEntry[]) => void)[] = [];
   connected = false;
 
   connect(): Promise<void> {
@@ -85,6 +96,9 @@ class Net {
       this.socket.on('room:update', (u: RoomUpdate) => {
         for (const fn of this.listeners) fn(u);
       });
+      this.socket.on('lobby:rooms', (r: { rooms: RoomListEntry[] }) => {
+        for (const fn of this.lobbyRoomsListeners) fn(r.rooms);
+      });
       setTimeout(() => reject(new Error('连接超时')), 8000);
     });
   }
@@ -94,6 +108,21 @@ class Net {
     return () => {
       this.listeners = this.listeners.filter((f) => f !== fn);
     };
+  }
+
+  onLobbyRooms(fn: (rooms: RoomListEntry[]) => void): () => void {
+    this.lobbyRoomsListeners.push(fn);
+    return () => {
+      this.lobbyRoomsListeners = this.lobbyRoomsListeners.filter((f) => f !== fn);
+    };
+  }
+
+  chat(code: string, playerId: string, token: string, text: string) {
+    return this.emit('room:chat', { code, playerId, token, text });
+  }
+
+  requestLobbyRooms() {
+    return this.emit('lobby:roomsReq', {});
   }
 
   private emit(event: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {

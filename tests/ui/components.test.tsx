@@ -21,24 +21,27 @@ import { ALL_CASES } from '../../shared/src/testcases/index.js';
 import { makeGame, playThrows } from '../../shared/src/testcases/helpers.js';
 import type { GameSnapshot } from '../../client/src/net.js';
 
-describe('首页 UI', () => {
-  it('渲染标题、开局按钮、加入房间输入框与测试场入口', () => {
+describe('首页 UI（TCG风格）', () => {
+  it('渲染标题、角色卡池、开局按钮、房间列表与测试场入口', () => {
     render(<Home onEnter={() => {}} onArena={() => {}} />);
-    expect(screen.getByText('拔典', { exact: true })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '创建房间' })).toBeTruthy();
+    expect(screen.getByText(/拔 典/)).toBeTruthy();
+    expect(screen.getByText(/角色卡池/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /创建房间/ })).toBeTruthy();
     // 设置 AI 数量后按钮变为单人开局
     const selects = screen.getAllByRole('combobox');
     fireEvent.change(selects[2], { target: { value: '2' } });
     expect(screen.getByRole('button', { name: /单人开局/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: '加入房间' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '进入测试场' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /机制测试场/ })).toBeTruthy();
     expect(screen.getByPlaceholderText('4位邀请码')).toBeTruthy();
+    // 房间列表容器
+    expect(screen.getByText(/房间列表/)).toBeTruthy();
   });
 
-  it('点击「进入测试场」触发回调', () => {
+  it('点击「机制测试场」触发回调', () => {
     let called = false;
     render(<Home onEnter={() => {}} onArena={() => { called = true; }} />);
-    fireEvent.click(screen.getByRole('button', { name: '进入测试场' }));
+    fireEvent.click(screen.getByRole('button', { name: /机制测试场/ }));
     expect(called).toBe(true);
   });
 });
@@ -87,23 +90,23 @@ const LOBBY = {
   config: { submitTimeoutMs: 30000, turnTimeoutMs: 30000 },
 };
 
-describe('游戏页 UI（真实引擎快照渲染）', () => {
-  it('渲染玩家面板/房间分布/日志/判定记录', () => {
+describe('游戏页 UI（TCG战场·真实引擎快照渲染）', () => {
+  it('渲染战场场地/角色卡/行动坞/战斗日志', () => {
     const snap = buildSnapshot();
     render(
       <GamePage
         lobby={LOBBY}
         game={snap}
         session={{ code: 'TEST', identities: [{ playerId: 'A', name: 'A', token: 't' }] }}
-        logs={snap.logs.map((l) => ({ seq: l.seq, text: `[R${l.round}] ${l.text}` }))}
+        logs={snap.logs.map((l) => ({ seq: l.seq, text: `[R${l.round}] ${l.text}`, important: l.important }))}
         onExit={() => {}}
       />,
     );
     const text = document.body.textContent || '';
-    expect(text).toContain('玩家状态');
-    expect(text).toContain('房间分布');
-    expect(text).toContain('游戏日志');
-    expect(text).toContain('回合');
-    expect(text).toContain('拔棍'); // 角色名渲染
+    expect(text).toContain('战斗日志'); // 日志面板
+    expect(text).toContain('行动坞'); // 行动坞
+    expect(text).toContain('◈ R1'); // 房间场地
+    expect(text).toContain('回合'); // 回合指示
+    expect(text).toContain('A'); // 玩家名（卡面铭牌）
   });
 });

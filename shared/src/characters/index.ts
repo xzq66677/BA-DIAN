@@ -287,15 +287,15 @@ const xiaonuhai: CharDef = {
   ],
 };
 
-/** 7. 今日勇者：抽取今日运势（用户确认规则）——随机数决定面板，0/1 暴毙 */
+/** 7. 今日勇者：抽取今日运势（用户确认规则）——随机数决定面板，0/1 暴毙；仅第一回合可用、每周一次 */
 const jinriyongzhe: CharDef = {
   id: 'hero-today',
   name: '今日勇者',
-  desc: '血量3攻击2（初始面板）。技能「抽取今日运势」：掷 0-9 随机数——0/1 直接暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。',
+  desc: '血量3攻击2（初始面板）。技能「抽取今日运势」：掷 0-9 随机数——0/1 直接暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。只能在对局第一回合使用，每局限一次。',
   hp: 3,
   attack: 2,
   attackType: 'melee',
-  init: () => ({ attackOverride: undefined as number | undefined }),
+  init: () => ({ attackOverride: undefined as number | undefined, fortuneUsed: false }),
   /** 运势转换后的攻击力覆盖（仅近战；未抽取时用基础攻击2） */
   dynamicDamage: ({ game, actor, ranged }) => {
     const st = game.charState(actor);
@@ -306,11 +306,17 @@ const jinriyongzhe: CharDef = {
     {
       name: 'rollFortune',
       label: '抽取今日运势',
-      desc: '掷 0-9 随机数转换面板：0/1 暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。',
+      desc: '掷 0-9 随机数转换面板：0/1 暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。仅第一回合可用，每局限一次。',
       targetHint: 'none',
+      validate: (ctx) => {
+        if (ctx.game.roundNo !== 1) return '「抽取今日运势」只能在第一回合使用';
+        if (ctx.game.charState(ctx.actor).fortuneUsed === true) return '「抽取今日运势」每局限用一次';
+        return null;
+      },
       execute: (ctx) => {
         const game = ctx.game;
         const me = game.getPlayer(ctx.actor);
+        game.charState(ctx.actor).fortuneUsed = true;
         const n = game.rng.int(10); // 0-9（游戏随机流，可复现）
         const table: Array<{ hp?: number; atk?: number; death?: boolean }> = [
           { death: true }, { death: true },
@@ -323,7 +329,7 @@ const jinriyongzhe: CharDef = {
         ];
         const r = table[n];
         if (r.death) {
-          game.log('trigger', `🎰 今日勇者抽取运势：掷出 ${n} —— 运势极凶，当场暴毙！`, undefined, true);
+          game.log('trigger', `🎰 今日勇者抽取运势（第一回合限定）：掷出 ${n} —— 运势极凶，当场暴毙！`, undefined, true);
           game.eliminate(ctx.actor, 'fortune-death');
           return;
         }

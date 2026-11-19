@@ -29,6 +29,12 @@ export interface RoomConfig {
 
 export type RoomState = 'lobby' | 'playing' | 'over';
 
+export interface ChatMessage {
+  name: string;
+  text: string;
+  ts: number;
+}
+
 export class Room {
   code: string;
   hostSeat: PlayerId | null = null;
@@ -37,6 +43,8 @@ export class Room {
   config: RoomConfig;
   game: Game | null = null;
   createdAt = Date.now();
+  /** 房间聊天记录（等待界面交流用） */
+  chat: ChatMessage[] = [];
   /** 出拳/行动超时定时器 */
   private submitTimer: ReturnType<typeof setTimeout> | null = null;
   private actTimer: ReturnType<typeof setTimeout> | null = null;
@@ -239,8 +247,27 @@ export class Room {
         playerId: s.playerId, name: s.name, charId: s.charId, type: s.type,
         connected: s.connected,
       })),
+      chat: this.chat.slice(-50),
       config: { submitTimeoutMs: this.config.submitTimeoutMs, turnTimeoutMs: this.config.turnTimeoutMs },
     };
+  }
+
+  /** 大厅房间列表条目（公开信息） */
+  listEntry(): Record<string, unknown> {
+    const host = this.seats.find((s) => s.playerId === this.hostSeat);
+    return {
+      code: this.code,
+      state: this.state,
+      seatCount: this.seats.length,
+      humans: this.seats.filter((s) => s.type !== 'ai').length,
+      hostName: host?.name || '?',
+      updatedAt: Date.now(),
+    };
+  }
+
+  addChat(name: string, text: string): void {
+    this.chat.push({ name, text: text.slice(0, 200), ts: Date.now() });
+    if (this.chat.length > 50) this.chat = this.chat.slice(-50);
   }
 }
 
@@ -303,8 +330,8 @@ export function aiDecideAction(g: Game, pid: PlayerId): ActionRequest {
       if (members.length > 0) return { type: 'attack', targetId: members[0] };
       break;
     case 'hero-today': {
-      // 绝境时赌运势：血量≤1 时抽取（20%暴毙 vs 80%获得更好面板）
-      if (me.hp <= 1) return { type: 'rollFortune' };
+      // 绝境时赌运势：第一回合且血量≤1 时抽取（20%暴毙 vs 80%获得更好面板）
+      if (g.roundNo === 1 && me.hp <= 1 && st.fortuneUsed !== true) return { type: 'rollFortune' };
       break;
     }
     case 'dapihuai':

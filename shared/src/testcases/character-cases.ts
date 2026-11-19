@@ -438,6 +438,23 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
+    id: 'TC-C065', name: '今日勇者：第二回合使用运势被拒绝', category: 'character', charId: 'hero-today', seed: 1,
+    desc: '「抽取今日运势」仅第一回合可用（用户确认）；第二回合提交被拒且不消耗行动',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], 1);
+      g.players['B'].room = 'R1';
+      // 第一回合跳过（不用技能）
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'skip' } });
+      // 第二回合尝试抽运势
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const r = g.submitAction('A', { type: 'rollFortune' });
+      const ok = !r.ok && (r.error || '').includes('第一回合') && g.charState('A').fortuneUsed !== true && isAlive(g, 'A');
+      return check(ok, '第二回合拒绝（提示仅第一回合可用），未消耗行动',
+        `ok=${r.ok}, error=${r.error}`, g);
+    }),
+  },
+  {
     id: 'TC-C064', name: '今日勇者：运势掷出6 → 血4攻2（与初始面板不同可辨）', category: 'character', charId: 'hero-today', seed: 1,
     desc: '种子1首次掷出6：面板变血4攻2；普攻造成2伤（攻击力覆盖生效）',
     run: () => run(() => {
