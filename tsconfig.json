@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["shared/src/**/*.ts", "server/src/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "client"]
+}

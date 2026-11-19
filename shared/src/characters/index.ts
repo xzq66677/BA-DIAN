@@ -1,0 +1,393 @@
+/**
+ * 拔典 · 角色注册表
+ * 9 个首轮验证角色 + 老大爷（用于领域对冲测试）+ 默认角色（无业游民）
+ *
+ * 数据来源：docs/角色速查表-原始数据.md（拔典1/拔典2 OCR 整理表）
+ * OCR 存疑或资料缺失处均在 desc/dataMissing 中标注，并写入 docs/GAME_RULES.md 规则假设。
+ */
+
+import type { CharDef } from '../chardef.js';
+import { fmtNum } from '../types.js';
+
+/** 默认角色：无业游民（无被动，未选上角色者默认此角色） */
+const defaultChar: CharDef = {
+  id: 'default',
+  name: '无业游民',
+  desc: '无被动（原稿：未选上角色者默认此角色）。血量3，攻击1。',
+};
+
+/** 1. 拔棍：需先拔棍才能造成伤害；无视躲避（含隐身、躲藏）直伤 */
+const bagun: CharDef = {
+  id: 'bagun',
+  name: '拔棍',
+  desc: '血量3攻击1。需先「拔棍」才能造成伤害；拔棍状态下攻击无视躲避（含隐身、躲藏）。',
+  hp: 3,
+  attack: 1,
+  attackType: 'melee',
+  ignoreHide: true,
+  init: () => ({ stickDrawn: false }),
+  validateAttack: (ctx) => {
+    if (!ctx.game.charState(ctx.actor).stickDrawn) return '未拔棍，无法造成伤害（先使用「拔棍」行动）';
+    return null;
+  },
+  actions: [
+    {
+      name: 'toggleStick',
+      label: '拔棍/收棍',
+      desc: '切换拔棍状态。未拔棍时攻击无法造成伤害。',
+      targetHint: 'none',
+      execute: (ctx) => {
+        const st = ctx.game.charState(ctx.actor);
+        st.stickDrawn = !st.stickDrawn;
+        ctx.game.log('state', `${ctx.game.getPlayer(ctx.actor).name} ${st.stickDrawn ? '拔出了棍子' : '收回了棍子'}`);
+      },
+    },
+  ],
+};
+
+/** 2. 吹箫哥：仅能远程攻击，需瞄准吹箫，无法近战 */
+const chuixiao: CharDef = {
+  id: 'chuixiao',
+  name: '吹箫哥',
+  desc: '血量3攻击1。仅能远程攻击（异房间），需先「瞄准」目标（基础行动）；无法近战。',
+  hp: 3,
+  attack: 1,
+  attackType: 'ranged',
+  rangedCapable: true,
+  rangedNeedsAim: true,
+};
+
+/** 3. 五条悟：近战3伤；远程需瞄准2伤；领域展开后远程免瞄准、平局算胜；存在领域对冲 */
+const gojo: CharDef = {
+  id: 'gojo',
+  name: '五条悟',
+  desc: '血量3。近战3伤；远程2伤需瞄准。领域展开后：远程免瞄准、判定平局算五条悟胜。存在领域对冲（多名领域持有者效果抵消）。',
+  hp: 3,
+  attack: 3,
+  meleeDamage: 3,
+  rangedDamage: 2,
+  attackType: 'both',
+  rangedCapable: true,
+  rangedNeedsAim: true,
+  aimExemptWhenDomain: true,
+  domainTieWin: true,
+  init: () => ({ domain: false }),
+  actions: [
+    {
+      name: 'domain',
+      label: '领域展开',
+      desc: '展开领域（持续生效）：远程攻击免瞄准；判定平局时算五条悟胜（与其他领域持有者对冲时抵消）。',
+      targetHint: 'none',
+      validate: (ctx) => ctx.game.charState(ctx.actor).domain ? '领域已展开' : null,
+      execute: (ctx) => {
+        ctx.game.charState(ctx.actor).domain = true;
+        ctx.game.log('trigger', `${ctx.game.getPlayer(ctx.actor).name} 展开领域！远程免瞄准，平局算其胜`);
+      },
+    },
+  ],
+};
+
+/** 3b. 老大爷：与五条悟同体系（近3远2；领域内近5远3，平局算胜），用于领域对冲验证 */
+const laodaye: CharDef = {
+  id: 'laodaye',
+  name: '老大爷',
+  desc: '血量3。近战3伤远程2伤；领域展开后平局算老大爷赢、近战5伤远程3伤。与五条悟等领域对冲。',
+  hp: 3,
+  attack: 3,
+  meleeDamage: 3,
+  rangedDamage: 2,
+  attackType: 'both',
+  rangedCapable: true,
+  domainTieWin: true,
+  init: () => ({ domain: false, boosted: false }),
+  dynamicDamage: ({ game, actor, ranged }) => {
+    const st = game.charState(actor);
+    if (st.domain === true && st.boosted === true) return ranged ? 3 : 5;
+    return undefined;
+  },
+  actions: [
+    {
+      name: 'domain',
+      label: '领域展开',
+      desc: '展开领域：平局算老大爷胜；领域内近战5伤远程3伤。与其它领域对冲时平局效果抵消。',
+      targetHint: 'none',
+      validate: (ctx) => ctx.game.charState(ctx.actor).domain ? '领域已展开' : null,
+      execute: (ctx) => {
+        ctx.game.charState(ctx.actor).domain = true;
+        ctx.game.log('trigger', `${ctx.game.getPlayer(ctx.actor).name} 展开领域！近战5伤远程3伤，平局算其胜`);
+      },
+    },
+    {
+      name: 'boostAttack',
+      label: '领域强化',
+      desc: '领域内近战5伤/远程3伤（开关）。',
+      targetHint: 'none',
+      validate: (ctx) => ctx.game.charState(ctx.actor).domain ? null : '需先展开领域',
+      execute: (ctx) => {
+        const st = ctx.game.charState(ctx.actor);
+        st.boosted = !st.boosted;
+        ctx.game.log('trigger', `${ctx.game.getPlayer(ctx.actor).name} ${st.boosted ? '强化' : '取消强化'}领域攻击（近5/远3）`);
+      },
+    },
+  ],
+};
+
+/** 4. 马保国：混元形意太极（受伤判定反弹）、闪电五连鞭、不讲武德 */
+const mabaoguo: CharDef = {
+  id: 'mabaoguo',
+  name: '马保国',
+  desc: '血量4攻击1。混元形意太极：除大伊万爆、肉山坐外，受到伤害时判定（种子代掷），赢则原伤反弹给来源（可选）。闪电五连鞭：5场判定按胜次扣敌20/40/60/80/100%血。不讲武德：被击杀后5局判定，赢3局带走对面（同时死亡）。',
+  hp: 4,
+  attack: 1,
+  attackType: 'melee',
+  init: () => ({ taijiAuto: true }),
+  damageHookStage: 'defense',
+  onBeforeDamage: (ctx) => {
+    const { game, req, owner } = ctx;
+    const self = owner;
+    if (req.target !== self) return; // 仅对指向自己的伤害进行太极判定
+    const st = game.charState(self);
+    if (st.taijiAuto === false) return; // 可选：选择不触发
+    if (req.noReflect || req.reflected) return; // 大伊万爆/肉山坐/已反弹伤害不再判定
+    if (!req.source || req.source === self) return;
+    if (!game.players[req.source] || !game.players[req.source].alive) return;
+    game.log('trigger', `马保国混元形意太极：${game.players[req.source].name} 的伤害需进行判定`);
+    const result = game.rollJudge(self, req.source, '太极判定');
+    if (result === 'win') {
+      game.log('trigger', `太极判定成功！原伤 ${fmtNum(req.amount)} 反弹给 ${game.players[req.source].name}`);
+      req.target = req.source;
+      req.reflected = true;
+      req.transferred = false;
+    }
+  },
+  onDeath: (ctx) => {
+    const { game, player, killer, cause } = ctx;
+    if (!killer || !game.players[killer] || !game.players[killer].alive) return;
+    if (cause === 'bujiangwude') return; // 不讲武德造成的死亡不再触发
+    game.log('trigger', `不讲武德！${game.players[player].name} 被击杀，与 ${game.players[killer].name} 进行5局判定`);
+    let wins = 0;
+    for (let i = 1; i <= 5; i++) {
+      const r = game.rollJudge(player, killer, `不讲武德第${i}局`);
+      if (r === 'win') wins++;
+    }
+    if (wins >= 3) {
+      game.log('trigger', `不讲武德成功（${wins}/5局）！${game.players[killer].name} 同时死亡`);
+      game.eliminate(killer, 'bujiangwude', player);
+    } else {
+      game.log('trigger', `不讲武德失败（${wins}/5局），${game.players[killer].name} 存活`);
+    }
+  },
+  actions: [
+    {
+      name: 'whip5',
+      label: '闪电五连鞭',
+      desc: '对同房间一名敌人进行5场判定（种子代掷），按胜次造成其最大血量 20/40/60/80/100% 的伤害。',
+      targetHint: 'sameRoomPlayer',
+      validate: (ctx) => {
+        const t = ctx.params.targetId;
+        if (!t || !ctx.game.players[t]) return '目标不存在';
+        if (!ctx.game.players[t].alive) return '目标已淘汰';
+        if (!ctx.game.isSameRoom(ctx.actor, t)) return '闪电五连鞭需与目标同房间';
+        if (t === ctx.actor) return '不能对自己使用';
+        return null;
+      },
+      execute: (ctx) => {
+        const game = ctx.game;
+        const t = ctx.params.targetId!;
+        const tp = game.players[t];
+        game.log('trigger', `${game.players[ctx.actor].name} 对 ${tp.name} 发动闪电五连鞭！`);
+        let wins = 0;
+        for (let i = 1; i <= 5; i++) {
+          const r = game.rollJudge(ctx.actor, t, `五连鞭第${i}鞭`);
+          if (r === 'win') wins++;
+        }
+        const dmg = Math.round(wins * 0.2 * tp.maxHp * 10000) / 10000;
+        if (dmg > 0) {
+          game.log('damage', `五连鞭命中 ${wins}/5，造成 ${fmtNum(dmg)} 伤害（${wins*20}% 最大血量）`);
+          game.applyDamage({ target: t, amount: dmg, source: ctx.actor, dtype: 'physical', tag: 'whip' });
+        } else {
+          game.log('damage', `五连鞭 0/5 命中，未造成伤害`);
+        }
+      },
+    },
+  ],
+};
+
+/** 5. 伍六七（五六七）：3段AOE，每段对攻击时所在房间所有玩家造成1伤，段独立结算 */
+const wuliuqi: CharDef = {
+  id: 'wuliuqi',
+  name: '伍六七',
+  desc: '血量3。攻击为3段AOE：每段对攻击发动时所在房间内所有玩家（默认不含自己）造成1伤；释放房间固定为攻击时所在房间；每段独立结算。',
+  hp: 3,
+  attack: 1,
+  attackType: 'both',
+  init: () => ({ hitSelf: false }),
+  onAttackAction: (ctx, targetId) => {
+    const game = ctx.game;
+    const actor = ctx.actor;
+    if (!game.isSameRoom(actor, targetId)) {
+      return { ok: false, error: '伍六七的AOE以当前房间为释放房间，需指定同房间目标确认释放' };
+    }
+    const st = game.charState(actor);
+    const room = game.getPlayer(actor).room;
+    const targets = game.roomMembers(room).filter((pid) => {
+      if (pid === actor && st.hitSelf !== true) return false;
+      return true;
+    });
+    game.log('damage', `伍六七释放三段AOE！释放房间 ${room}（攻击时固定），目标快照：${targets.map((pid) => game.players[pid].name).join('、') || '无'}`);
+    for (let seg = 1; seg <= 3; seg++) {
+      for (const pid of targets) {
+        if (!game.players[pid].alive) continue; // 每段独立结算，段间死亡不再受击
+        game.applyDamage({
+          target: pid,
+          amount: 1,
+          source: actor,
+          dtype: 'physical',
+          aoe: true,
+          segment: { index: seg, total: 3 },
+          tag: 'wuliuqi-aoe',
+        });
+        if (game.isOver()) return { ok: true };
+      }
+    }
+    return { ok: true };
+  },
+};
+
+/** 6. 卖大伊万的小女孩：掷大伊万至任意房间（含自己），回合末爆炸，动态判定成员 */
+const xiaonuhai: CharDef = {
+  id: 'ivan-girl',
+  name: '卖大伊万的小女孩',
+  desc: '掷一颗大伊万至任意房间（含自己所在房间）。爆炸时间：所有人行动结束后（回合末）；爆炸时动态判定目标房间内成员并全部毁灭（秒杀，不触发反弹类被动）。',
+  hp: 3,
+  attack: 1,
+  attackType: 'melee',
+  actions: [
+    {
+      name: 'throwIvan',
+      label: '投掷大伊万',
+      desc: '向任意房间（含自己所在房间）投掷大伊万，所有人行动结束后爆炸，毁灭爆炸时房间内所有玩家。',
+      roomHint: true,
+      validate: (ctx) => {
+        const room = ctx.params.room;
+        if (!room || !ctx.game.roomIds.includes(room)) return `非法目标房间：${room}`;
+        return null;
+      },
+      execute: (ctx) => {
+        const game = ctx.game;
+        const room = ctx.params.room!;
+        const explodeRound = game.rules.ivanExplodeTiming === 'nextRoundEnd' ? game.roundNo + 1 : game.roundNo;
+        game.addDeferred({
+          kind: 'ivan', room, explodeRound,
+          source: ctx.actor, createdAtRound: game.roundNo,
+        });
+        game.log('deferred', `${game.getPlayer(ctx.actor).name} 向 ${room} 投掷大伊万！将在第 ${explodeRound} 回合所有人行动结束后爆炸`);
+      },
+    },
+  ],
+};
+
+/** 7. 今日勇者：原稿仅给出「初始血量3，攻击2」，具体效果随血量变化，正文缺失（OCR） */
+const jinriyongzhe: CharDef = {
+  id: 'hero-today',
+  name: '今日勇者',
+  desc: '血量3攻击2。原稿正文缺失（OCR 严重缺失），仅确认基础面板；作为游戏通用随机模块测试代表角色。',
+  hp: 3,
+  attack: 2,
+  attackType: 'melee',
+  dataMissing: ['技能正文缺失：原稿仅剩「初始血量3，攻击2」'],
+};
+
+/** 8. 大贱客：在场自动吸引全场伤害（仅伤害，不转移效果；精神伤害不转移）；辱骂三次致死 */
+const dajianke: CharDef = {
+  id: 'dajianke',
+  name: '大贱客',
+  desc: '血量3。被动：在场时自动吸引全场非精神伤害（含AOE与延迟伤害）——伤害转移至大贱客，仅转移伤害数值，不转移附加效果。精神伤害不转移。攻击为辱骂（精神）：同一目标累计3次致死。',
+  hp: 3,
+  attack: 1,
+  attackType: 'both',
+  attackDtype: 'mental',
+  damageHookStage: 'transfer',
+  init: () => ({ insults: {} as Record<string, number> }),
+  onBeforeDamage: (ctx) => {
+    const { game, req } = ctx;
+    const me = game.playerIds.find((pid) => game.charDef(pid).id === 'dajianke' && game.players[pid].alive);
+    if (!me) return;
+    if (req.target === me) return; // 已指向自己的伤害不转移
+    if (req.dtype === 'mental') return; // 精神伤害不转移
+    if (req.transferred) return; // 已转移伤害不再转移
+    game.log('trigger', `大贱客被动：${game.players[req.target].name} 承受的 ${fmtNum(req.amount)} 伤害（${req.tag || '普通'}）被吸引至大贱客（不转移附加效果）`);
+    req.target = me;
+    req.transferred = true;
+    req.effects = undefined; // 仅转移伤害，不转移效果
+  },
+  onAttackAction: (ctx, targetId) => {
+    const game = ctx.game;
+    const actor = ctx.actor;
+    const tp = game.players[targetId];
+    if (!game.isSameRoom(actor, targetId)) {
+      return { ok: false, error: '辱骂需与目标同房间（规则假设，待确认）' };
+    }
+    const st = game.charState(actor) as { insults: Record<string, number> };
+    st.insults[targetId] = (st.insults[targetId] || 0) + 1;
+    const n = st.insults[targetId];
+    game.log('damage', `${game.players[actor].name} 辱骂 ${tp.name}（精神攻击，累计 ${n}/3，无视躲避）`);
+    if (n >= 3) {
+      game.log('trigger', `${tp.name} 被辱骂累计3次，精神致死！`);
+      game.eliminate(targetId, 'insult', actor);
+      st.insults[targetId] = 0; // 状态重置
+    }
+    return { ok: true };
+  },
+};
+
+/** 9. 大屁孩：判定历史三不同→暴走精神攻击；三同→自爆；跨回合记忆 */
+const dapihuai: CharDef = {
+  id: 'dapihuai',
+  name: '大屁孩',
+  desc: '连续三次判定结果出现三种不同情况（赢平输任意组合）→ 暴走：随机一名玩家受到精神攻击；连续三次相同（赢赢赢/平平平/输输输）→ 自爆。判定历史跨回合记忆。',
+  hp: 3,
+  attack: 1,
+  attackType: 'melee',
+  onJudgeAppend: (ctx) => {
+    const { game, player, stage } = ctx;
+    const h = game.judgeHistory(player);
+    if (h.length < 3) return;
+    const last3 = h.slice(-3);
+    const distinct = new Set(last3);
+    if (distinct.size === 3) {
+      game.judgeHistory(player).length = 0; // 触发后重置历史
+      game.log('trigger', `大屁孩判定历史 [${last3.join(',')}] 三种不同结果 → 暴走！（${stage}判定阶段）`);
+      const others = game.aliveIds().filter((pid) => pid !== player);
+      if (others.length === 0) return;
+      const target = game.rng.pick(others);
+      game.log('damage', `大屁孩暴走：对随机玩家 ${game.players[target].name} 发动精神攻击（伤害 ${fmtNum(game.rules.berserkDamage)}，规则假设值）`);
+      game.applyDamage({
+        target, amount: game.rules.berserkDamage,
+        source: player, dtype: 'mental', bypassHide: true, tag: 'berserk',
+      });
+      return;
+    }
+    if (distinct.size === 1) {
+      game.judgeHistory(player).length = 0;
+      game.log('trigger', `大屁孩判定历史 [${last3.join(',')}] 三连相同结果 → 自爆！（${stage}判定阶段）`);
+      game.eliminate(player, 'selfdestruct');
+    }
+  },
+};
+
+export const CHARACTERS: Record<string, CharDef> = {
+  default: defaultChar,
+  bagun,
+  chuixiao,
+  gojo,
+  laodaye,
+  mabaoguo,
+  wuliuqi,
+  'ivan-girl': xiaonuhai,
+  'hero-today': jinriyongzhe,
+  dajianke,
+  dapihuai,
+};
+
+export const CHARACTER_LIST: CharDef[] = Object.values(CHARACTERS);
