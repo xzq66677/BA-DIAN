@@ -11,8 +11,8 @@
     "dev:client": "vite client",
     "build": "npm run build:server && npm run build:client",
     "build:server": "tsc -p server/tsconfig.json",
-    "build:client": "vite client build",
-    "start": "node server/dist/index.js"
+    "build:client": "vite build client",
+    "start": "node server/dist/server/src/index.js"
   },
   "dependencies": {
     "express": "^4.21.2",

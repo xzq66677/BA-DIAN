@@ -8,6 +8,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server, type Socket } from 'socket.io';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Room } from './room.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
@@ -15,7 +16,19 @@ import type { PlayerId, ActionRequest, Throw } from '../../shared/src/types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3100);
-const CLIENT_DIST = path.resolve(__dirname, '../../client/dist');
+
+/** 兼容源码布局（server/src）与编译布局（server/dist/server/src）的客户端静态目录查找 */
+function findClientDist(): string {
+  const candidates = [
+    path.resolve(__dirname, '../../client/dist'),
+    path.resolve(__dirname, '../../../../client/dist'),
+  ];
+  for (const c of candidates) {
+    if (existsSync(path.join(c, 'index.html'))) return c;
+  }
+  return candidates[0];
+}
+const CLIENT_DIST = process.env.CLIENT_DIST || findClientDist();
 
 const app = express();
 app.use(express.static(CLIENT_DIST));
