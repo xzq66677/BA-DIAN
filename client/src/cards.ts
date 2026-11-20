@@ -19,6 +19,18 @@ export interface CardMeta {
 }
 
 export const CARD_META: Record<string, CardMeta> = {
+  default: {
+    img: './cards/default.webp', thumb: './cards/default-thumb.webp', no: '09',
+    skills: '【无被动】·【默认角色】',
+    mech: '无被动、无技能；未选上角色者默认使用此角色。血量2，攻击1（原稿攻击栏为「-」，按默认1处理）。',
+    quote: '别人挑剩下的，就站我这儿。',
+  },
+  laodaye: {
+    img: './cards/laodaye.webp', thumb: './cards/laodaye-thumb.webp', no: '58',
+    skills: '【近3远2】·【领域展开】·【平局归我】·【对冲】',
+    mech: '近战3伤、远程2伤（默认免瞄准）；领域展开后平局算老大爷赢，近战5伤、远程3伤，与五条悟形成领域对冲。血量3、攻击3。（完全体领域内远程必中，未实装）',
+    quote: '年轻，进了这圈平局归我，近战还得再添两分。',
+  },
   bagun: {
     img: './cards/bagun.webp', thumb: './cards/bagun-thumb.webp', no: '01',
     skills: '【未拔】·【洞悉】',

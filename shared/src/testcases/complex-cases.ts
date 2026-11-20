@@ -77,8 +77,8 @@ export const COMPLEX_CASES: TestCase[] = [
       playThrows(g, [{ W: 'rock', D: 'scissors', B: 'scissors' }]); // W 胜（rock 组胜 scissors 组）
       actQueue(g, { W: { type: 'attack', targetId: 'B' } });
       // 段内目标顺序 [D,B]：段1 D-2(hp2)；段2 D-2 死亡（B的段2转移伤害为致死一击）；段3 D 已死跳过，B -1(hp2)
-      const ok = !isAlive(g, 'D') && hpOf(g, 'B') === 2;
-      return check(ok, `D 被吸伤死亡（承受4伤），段3 落在 B（hp=2）`,
+      const ok = !isAlive(g, 'D') && hpOf(g, 'B') === 1;
+      return check(ok, `D 被吸伤死亡（承受4伤），段3 落在 B（hp=1）`,
         `D=${hpOf(g, 'D')}, B=${hpOf(g, 'B')}`, g);
     }),
   },
@@ -183,10 +183,9 @@ export const COMPLEX_CASES: TestCase[] = [
       playThrows(g, [{ W: 'rock', D: 'scissors', B: 'scissors' }]); // W 胜
       actQueue(g, { W: { type: 'attack', targetId: 'B' } });
       const transferred = g.logs.some((l) => l.text.includes('被吸引至大贱客'));
-      // 段1-2全部转移至D（D hp 3→1），段3时 D 已死（段2的转移伤害致死）→ 段3落在 B（hp 3→1... 实为2段转移+1段自身）
-      // 精确顺序：段1 D-1(2)；段2 转移 D-1(1)；段3 前段2的B伤害转移 D-1(0)死；段3 B 无转移对象 -1(2)... 以实际段序为准：B 受 1 段直伤
-      const ok = transferred && !isAlive(g, 'D') && hpOf(g, 'B') === 1;
-      return check(ok, '躲藏目标被AOE命中且伤害转移（D 死后剩余段正常落在 B）', `transferred=${transferred}, B=${hpOf(g, 'B')}, D=${hpOf(g, 'D')}`, g);
+      // 段内目标顺序 [D,B]：段1 D-1(2)+转移D-1(1)；段2 D-1(0)死，B无转移对象-1(1)；段3 B-1(0)死
+      const ok = transferred && !isAlive(g, 'D') && hpOf(g, 'B') === 0 && !isAlive(g, 'B');
+      return check(ok, '躲藏目标被AOE命中且伤害转移；D 死后剩余段落在 B（血量2耗尽）', `transferred=${transferred}, B=${hpOf(g, 'B')}, D=${hpOf(g, 'D')}`, g);
     }),
   },
   {

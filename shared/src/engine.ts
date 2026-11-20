@@ -334,7 +334,12 @@ export class Game implements GameLike {
 
     const res = this.executeAction(pid, req);
     if (!res.ok) return res; // 非法行动：不修改状态、不消耗行动
-    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, undefined, true);
+    const fx = req.type === 'attack' ? 'attack'
+      : req.type === 'move' ? 'move'
+      : req.type === 'heal' ? 'heal'
+      : req.type === 'milk' ? 'milk'
+      : 'skill';
+    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, { pid, fx, label: this.actionLabel(req) }, true);
     this.roundSummary.push(`${p.name} ${this.actionLabel(req)}`);
     if ((this.phase as GamePhase) === 'over') return { ok: true };
     this.actIndex++;
@@ -404,7 +409,7 @@ export class Game implements GameLike {
       p.hidden = false;
       this.log('state', `${p.name} 移动后现身（离开躲藏）`);
     }
-    this.log('move', `${p.name} 从 ${from} 移动到 ${room}`, undefined, true);
+    this.log('move', `${p.name} 从 ${from} 移动到 ${room}`, { pid }, true);
     return { ok: true };
   }
 
@@ -464,7 +469,7 @@ export class Game implements GameLike {
     const p = this.players[pid];
     const before = p.hp;
     p.hp = p.maxHp;
-    this.log('heal', `${p.name} 回复：${fmtNum(before)} → ${fmtNum(p.hp)}（满血）`, undefined, true);
+    this.log('heal', `${p.name} 回复：${fmtNum(before)} → ${fmtNum(p.hp)}（满血）`, { pid }, true);
     return { ok: true };
   }
 
@@ -570,7 +575,7 @@ export class Game implements GameLike {
     } else {
       const before = tp.hp;
       tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
-      this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, undefined, true);
+      this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, { target: tp.id, source: req.source }, true);
     }
 
     // 5. 附加效果（转移伤害不随转移）

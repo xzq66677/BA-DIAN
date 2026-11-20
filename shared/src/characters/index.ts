@@ -9,11 +9,12 @@
 import type { CharDef } from '../chardef.js';
 import { fmtNum } from '../types.js';
 
-/** 默认角色：无业游民（无被动，未选上角色者默认此角色） */
+/** 默认角色：无业游民（无被动，未选上角色者默认此角色）。血量2——速查表原稿+用户卡面确认 */
 const defaultChar: CharDef = {
   id: 'default',
   name: '无业游民',
-  desc: '无被动（原稿：未选上角色者默认此角色）。血量3，攻击1。',
+  desc: '无被动（原稿：未选上角色者默认此角色）。血量2，攻击1（原稿攻击栏「-」，按默认1处理）。',
+  hp: 2,
 };
 
 /** 1. 拔棍：需先拔棍才能造成伤害；无视躲避（含隐身、躲藏）直伤 */
@@ -81,7 +82,7 @@ const gojo: CharDef = {
       validate: (ctx) => ctx.game.charState(ctx.actor).domain ? '领域已展开' : null,
       execute: (ctx) => {
         ctx.game.charState(ctx.actor).domain = true;
-        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！远程免瞄准，平局算其胜`, undefined, true);
+        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！远程免瞄准，平局算其胜`, { pid: ctx.actor }, true);
       },
     },
   ],
@@ -114,7 +115,7 @@ const laodaye: CharDef = {
       validate: (ctx) => ctx.game.charState(ctx.actor).domain ? '领域已展开' : null,
       execute: (ctx) => {
         ctx.game.charState(ctx.actor).domain = true;
-        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！近战5伤远程3伤，平局算其胜`, undefined, true);
+        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！近战5伤远程3伤，平局算其胜`, { pid: ctx.actor }, true);
       },
     },
     {

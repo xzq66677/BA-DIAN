@@ -20,7 +20,7 @@ export default function App() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [game, setGame] = useState<GameSnapshot | null>(null);
-  const [logs, setLogs] = useState<{ seq: number; text: string; important?: boolean }[]>([]);
+  const [logs, setLogs] = useState<{ seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[]>([]);
   const [err, setErr] = useState('');
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function App() {
         if (u.newLogs && u.newLogs.length > 0) {
           setLogs((prev) => {
             const have = new Set(prev.map((l) => l.seq));
-            const add = u.newLogs.filter((l) => !have.has(l.seq)).map((l) => ({ seq: l.seq, text: `[R${l.round}] ${l.text}`, important: l.important === true }));
+            const add = u.newLogs.filter((l) => !have.has(l.seq)).map((l) => ({ seq: l.seq, text: `[R${l.round}] ${l.text}`, important: l.important === true, type: l.type, data: l.data }));
             const merged = [...prev, ...add];
             return merged.slice(-800);
           });

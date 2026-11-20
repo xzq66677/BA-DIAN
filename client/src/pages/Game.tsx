@@ -20,7 +20,7 @@ export default function GamePage({ lobby, game, session, logs, onExit }: {
   lobby: LobbyState;
   game: GameSnapshot | null;
   session: SessionInfo;
-  logs: { seq: number; text: string; important?: boolean }[];
+  logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[];
   onExit: () => void;
 }) {
   if (!game) return <div className="tcg-app"><div className="tcg-panel" style={{ margin: 20 }}>等待游戏状态…</div></div>;
@@ -43,7 +43,7 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   lobby: LobbyState;
   game: GameSnapshot;
   session: SessionInfo;
-  logs: { seq: number; text: string; important?: boolean }[];
+  logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[];
   onExit: () => void;
 }) {
   const myIds = session.identities;
@@ -56,6 +56,28 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   const [selTarget, setSelTarget] = useState('');
   const [selRoom, setSelRoom] = useState('');
   const [actMsg, setActMsg] = useState('');
+
+  // 动作特效：从新增日志提取（行动/伤害/触发 → 卡牌表情动画）
+  const [actionFx, setActionFx] = useState<Record<string, { kind: string; key: number }>>({});
+  const lastFxSeq = useRef(0);
+  useEffect(() => {
+    const newEntries = logs.filter((l) => l.seq > lastFxSeq.current && l.data);
+    if (newEntries.length === 0) return;
+    lastFxSeq.current = Math.max(...newEntries.map((l) => l.seq));
+    setActionFx((prev) => {
+      const next = { ...prev };
+      for (const l of newEntries) {
+        const d = l.data as { pid?: string; fx?: string; source?: string };
+        if (!d) continue;
+        const kind = d.fx || (l.type === 'damage' && d.source ? 'attack' : l.type === 'trigger' ? 'skill' : '');
+        const pid = d.pid || (kind === 'attack' ? d.source : '');
+        if (kind && pid) next[pid] = { kind, key: l.seq };
+      }
+      return next;
+    });
+    const t = setTimeout(() => setActionFx({}), 1400);
+    return () => clearTimeout(t);
+  }, [logs]);
 
   // 伤害闪烁 + 飘字（记录血量变化量）
   const prevHp = useRef<Record<string, number>>({});
@@ -79,6 +101,25 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   // 角色详情弹层
   const [detailId, setDetailId] = useState<string | null>(null);
   const detailPlayer = detailId ? game.players.find((p) => p.id === detailId) : null;
+  // 局内发言
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatText, setChatText] = useState('');
+  const chatLogRef = useRef<HTMLDivElement | null>(null);
+  const chat: { name: string; text: string; ts: number }[] = (lobby as unknown as { chat?: { name: string; text: string; ts: number }[] }).chat || [];
+  useEffect(() => {
+    if (chatLogRef.current) chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
+  }, [chat.length, chatOpen]);
+  async function sendChat() {
+    const text = chatText.trim();
+    if (!text) return;
+    setChatText('');
+    await net.chat(lobby.code, meId, myIds[0].token, text);
+  }
+  async function kickPlayer(targetId: string, name: string) {
+    const r = await net.kick(lobby.code, meId, myIds[0].token, targetId) as { ok: boolean; error?: string };
+    if (!r.ok) setActMsg(r.error || '踢人失败');
+    else setDetailId(null);
+  }
 
   // 当前行动者是否为我方身份
   const myTurnId = myIds.find((i) => i.playerId === game.currentActor);
@@ -88,7 +129,7 @@ function GameInner({ lobby, game, session, logs, onExit }: {
     if (!me) return [];
     const cd = CHARACTERS[me.charId] || CHARACTERS['default'];
     const list: ActionOption[] = [
-      { key: 'attack', label: '攻击', desc: `近战攻击同房间目标（伤害 ${atkOf(me)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? '（远程需先瞄准）' : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', targetHint: 'attack' },
+      { key: 'attack', label: '攻击', desc: `近战攻击同房间目标（伤害 ${atkOf(me)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? ((cd.aimExemptWhenDomain && me.char.domain === true) ? '（领域生效免瞄准）' : '（远程需先瞄准）') : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', targetHint: 'attack' },
       { key: 'move', label: '移动', desc: '移动到任意玩家的初始房间（移动后现身）', typeLabel: '基础', roomHint: true },
       { key: 'heal', label: '回复', desc: '回复至满血', typeLabel: '基础' },
       { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础' },
@@ -177,6 +218,7 @@ function GameInner({ lobby, game, session, logs, onExit }: {
         <span className="tcg-chip">存活 {game.aliveCount}</span>
         <span className="tcg-chip">种子 {game.seed}</span>
         <span style={{ flex: 1 }} />
+        <button className="tcg-btn ghost" onClick={() => setChatOpen(true)}>💬 发言</button>
         {isHost && game.phase === 'over' && (
           <button className="tcg-btn" onClick={() => net.restart(lobby.code, meId, myIds[0].token)}>重新开始</button>
         )}
@@ -214,6 +256,7 @@ function GameInner({ lobby, game, session, logs, onExit }: {
                         isTargetable={!!selAction?.targetHint && validTargets.some((t) => t.id === p.id)}
                         submitted={game.phase === 'rps1' && game.submittedIds.includes(p.id)}
                         flashDelta={flashMap[p.id]}
+                        fx={actionFx[p.id]?.kind}
                         onClick={() => {
                           if (selAction?.targetHint && validTargets.some((t) => t.id === p.id)) {
                             setSelTarget(p.id);
@@ -325,7 +368,41 @@ function GameInner({ lobby, game, session, logs, onExit }: {
         </section>
       </div>
 
-      {detailPlayer && <CardDetail p={detailPlayer} onClose={() => setDetailId(null)} />}
+      {detailPlayer && (
+        <CardDetail
+          p={detailPlayer}
+          onClose={() => setDetailId(null)}
+          canKick={isHost && detailPlayer.id !== meId && detailPlayer.alive}
+          onKick={() => kickPlayer(detailPlayer.id, detailPlayer.name)}
+        />
+      )}
+
+      {chatOpen && (
+        <div className="card-detail" onClick={() => setChatOpen(false)}>
+          <div className="card-detail-inner chat-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>💬 局内发言</h3>
+            <div className="chat-box">
+              <div className="chat-log" ref={chatLogRef}>
+                {chat.length === 0 && <div className="muted">还没有发言，来一句嘲讽吧</div>}
+                {chat.map((m, i) => (
+                  <div key={i} className="chat-line"><b>{m.name}</b>：{m.text}</div>
+                ))}
+              </div>
+              <div className="chat-input-row">
+                <input
+                  value={chatText}
+                  onChange={(e) => setChatText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') sendChat(); }}
+                  placeholder="输入发言…"
+                  maxLength={200}
+                />
+                <button className="tcg-btn" onClick={sendChat}>发送</button>
+              </div>
+            </div>
+            <button className="tcg-btn" style={{ marginTop: 12, width: '100%' }} onClick={() => setChatOpen(false)}>关闭</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -338,7 +415,9 @@ function hiddenSameRoomCount(game: GameSnapshot, meId: string): number {
 
 // ── 角色卡（游戏王风卡面 + 动态数据） ─────────────────────
 
-function CharCardView({ p, game, meId, isMine, isTargetable, submitted, flashDelta, onClick }: {
+const FX_ICON: Record<string, string> = { attack: '⚔️', heal: '💊', move: '🚶', milk: '🥛', skill: '✨' };
+
+function CharCardView({ p, game, meId, isMine, isTargetable, submitted, flashDelta, fx, onClick }: {
   p: SnapPlayer;
   game: GameSnapshot;
   meId: string;
@@ -346,6 +425,7 @@ function CharCardView({ p, game, meId, isMine, isTargetable, submitted, flashDel
   isTargetable: boolean;
   submitted: boolean;
   flashDelta?: number;
+  fx?: string;
   onClick: () => void;
 }) {
   const meta = cardMeta(p.charId);
@@ -385,13 +465,18 @@ function CharCardView({ p, game, meId, isMine, isTargetable, submitted, flashDel
       {flashDelta !== undefined && !dead && (
         <span className="dmg-float">-{fmtHp(flashDelta)}</span>
       )}
+      {fx && !dead && (
+        <span className={`fx-anim fx-${fx}`} key={`${p.id}-${fx}`}>
+          <span className="fx-icon">{FX_ICON[fx] || '✨'}</span>
+        </span>
+      )}
     </div>
   );
 }
 
 // ── 卡牌详情弹层 ─────────────────────────────────────────
 
-function CardDetail({ p, onClose }: { p: SnapPlayer; onClose: () => void }) {
+function CardDetail({ p, onClose, canKick, onKick }: { p: SnapPlayer; onClose: () => void; canKick?: boolean; onKick?: () => void }) {
   const meta = cardMeta(p.charId);
   return (
     <div className="card-detail" onClick={onClose}>
@@ -405,6 +490,9 @@ function CardDetail({ p, onClose }: { p: SnapPlayer; onClose: () => void }) {
           当前状态：HP {fmtHp(p.hp)}/{fmtHp(p.maxHp)} · 房间 {p.room} · {p.alive ? (p.hidden ? '躲藏中' : p.invisible ? '隐身中' : '存活') : '已淘汰'}
         </div>
         <button className="tcg-btn" style={{ marginTop: 12, width: '100%' }} onClick={onClose}>关闭</button>
+        {canKick && onKick && (
+          <button className="tcg-btn danger" style={{ marginTop: 8, width: '100%' }} onClick={onKick}>⚖ 房主踢出该玩家</button>
+        )}
       </div>
     </div>
   );
@@ -468,7 +556,7 @@ function ThrowPrivacy({ myIds, game, lobby }: {
 
 // ── 日志面板 ─────────────────────────────────────────────
 
-function LogPanel({ logs }: { logs: { seq: number; text: string; important?: boolean }[] }) {
+function LogPanel({ logs }: { logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[] }) {
   const [onlyKey, setOnlyKey] = useState(false);
   const ICON: Record<string, string> = {
     phase: '⏱️', judge: '🎲', order: '🔀', action: '🎬', damage: '⚔️',

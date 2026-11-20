@@ -175,6 +175,9 @@ class Net {
   start(code: string, playerId: string, token: string, seed?: number) {
     return this.emit('room:start', { code, playerId, token, seed });
   }
+  kick(code: string, playerId: string, token: string, targetId: string) {
+    return this.emit('room:kick', { code, playerId, token, targetId });
+  }
   restart(code: string, playerId: string, token: string) {
     return this.emit('room:restart', { code, playerId, token });
   }

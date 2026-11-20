@@ -27,7 +27,7 @@ export const CHARACTER_CASES: TestCase[] = [
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'bagun' }, 'B'], 201);
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 3 && g.currentActor() === 'A'; // 行动未消耗
+      const ok = hpOf(g, 'B') === 2 && g.currentActor() === 'A'; // 行动未消耗
       return check(ok, '攻击被拒绝（未拔棍），B 满血，A 仍待行动', `hp=${hpOf(g, 'B')}, error日志=${g.logs.filter(l=>l.type==='error').length}`, g);
     }),
   },
@@ -39,8 +39,8 @@ export const CHARACTER_CASES: TestCase[] = [
       g.players['B'].room = 'R1';
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'toggleStick' } });
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 2 && g.charState('A').stickDrawn === true;
-      return check(ok, 'B HP=2，拔棍状态保持', `hp=${hpOf(g, 'B')}, stickDrawn=${g.charState('A').stickDrawn}`, g);
+      const ok = hpOf(g, 'B') === 1 && g.charState('A').stickDrawn === true;
+      return check(ok, 'B HP=1，拔棍状态保持', `hp=${hpOf(g, 'B')}, stickDrawn=${g.charState('A').stickDrawn}`, g);
     }),
   },
   {
@@ -53,8 +53,8 @@ export const CHARACTER_CASES: TestCase[] = [
       g.players['B'].invisible = true;
       g.charState('A').stickDrawn = true;
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 2;
-      return check(ok, 'B HP=2（无视躲避直伤）', `hp=${hpOf(g, 'B')}`, g);
+      const ok = hpOf(g, 'B') === 1;
+      return check(ok, 'B HP=1（无视躲避直伤）', `hp=${hpOf(g, 'B')}`, g);
     }),
   },
   {
@@ -67,7 +67,7 @@ export const CHARACTER_CASES: TestCase[] = [
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'toggleStick' } });
       const drawnAfter = g.charState('A').stickDrawn === false;
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const ok = drawnAfter && hpOf(g, 'B') === 3;
+      const ok = drawnAfter && hpOf(g, 'B') === 2;
       return check(ok, '收棍后攻击拒绝，B 满血', `stickDrawn=${g.charState('A').stickDrawn}, hp=${hpOf(g, 'B')}`, g);
     }),
   },
@@ -80,7 +80,7 @@ export const CHARACTER_CASES: TestCase[] = [
       const g = makeGame([{ id: 'A', char: 'chuixiao' }, { id: 'B', char: 'chuixiao' }], 210);
       g.players['B'].room = 'R1'; // 同房间
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 3 && g.currentActor() === 'A';
+      const ok = hpOf(g, 'B') === 3 && g.currentActor() === 'A'; // B 是吹箫哥（血量3）
       return check(ok, '近战拒绝，B 满血', `hp=${hpOf(g, 'B')}`, g);
     }),
   },
@@ -91,11 +91,11 @@ export const CHARACTER_CASES: TestCase[] = [
       const g = makeGame([{ id: 'A', char: 'chuixiao' }, 'B'], 211);
       // A、B 初始异房间（R1、R2）
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const rejected = hpOf(g, 'B') === 3;
+      const rejected = hpOf(g, 'B') === 2;
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'aim', targetId: 'B' } });
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B', ranged: true } });
-      const ok = rejected && hpOf(g, 'B') === 2 && g.charState('A').aim === undefined;
-      return check(ok, '未瞄准拒绝；瞄准后命中 B HP=2，瞄准已消耗', `hp=${hpOf(g, 'B')}, aim=${g.charState('A').aim}`, g);
+      const ok = rejected && hpOf(g, 'B') === 1 && g.charState('A').aim === undefined;
+      return check(ok, '未瞄准拒绝；瞄准后命中 B HP=1，瞄准已消耗', `hp=${hpOf(g, 'B')}, aim=${g.charState('A').aim}`, g);
     }),
   },
   {
@@ -106,7 +106,7 @@ export const CHARACTER_CASES: TestCase[] = [
       winRound(g, { A: 'rock', B: 'scissors', C: 'rock' }, { A: { type: 'aim', targetId: 'B' } });
       // 下一回合攻击 C
       winRound(g, { A: 'rock', B: 'scissors', C: 'rock' }, { A: { type: 'attack', targetId: 'C', ranged: true } });
-      const ok = hpOf(g, 'C') === 3 && g.charState('A').aim === 'B';
+      const ok = hpOf(g, 'C') === 2 && g.charState('A').aim === 'B';
       return check(ok, '攻击 C 被拒绝，C 满血，瞄准仍保持', `hpC=${hpOf(g, 'C')}, aim=${g.charState('A').aim}`, g);
     }),
   },
@@ -128,11 +128,12 @@ export const CHARACTER_CASES: TestCase[] = [
     desc: '未瞄准远程拒绝 → 瞄准后2伤 → 展开领域后远程免瞄准',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'gojo' }, 'B'], 221);
+      g.players['B'].hp = 4; g.players['B'].maxHp = 4;
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B', ranged: true } });
-      const step1 = hpOf(g, 'B') === 3; // 未瞄准拒绝
+      const step1 = hpOf(g, 'B') === 4; // 未瞄准拒绝
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'aim', targetId: 'B' } });
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B', ranged: true } });
-      const step2 = hpOf(g, 'B') === 1; // 瞄准后2伤
+      const step2 = hpOf(g, 'B') === 2; // 瞄准后2伤
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'domain' } });
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B', ranged: true } });
       const step3 = hpOf(g, 'B') === 0 && g.charState('A').domain === true; // 领域免瞄准
@@ -169,6 +170,7 @@ export const CHARACTER_CASES: TestCase[] = [
     desc: '远程攻击（异房间）无需瞄准直接命中；仅 rangedNeedsAim 角色（吹箫哥/五条悟）需瞄准',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'laodaye' }, 'B'], 225);
+      g.players['B'].hp = 3; g.players['B'].maxHp = 3;
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B', ranged: true } });
       const ok = hpOf(g, 'B') === 1; // 3 - 2(远程) = 1，未被瞄准拦截
@@ -229,10 +231,10 @@ export const CHARACTER_CASES: TestCase[] = [
       actQueue(g, { A: { type: 'whip5', targetId: 'B' } });
       const whipLog = g.logs.find((l) => l.text.includes('五连鞭命中'));
       const expectedWins = whipLog ? parseInt(whipLog.text.match(/(\d)\/5/)?.[1] || '0') : -1;
-      const expectedDmg = expectedWins * 0.2 * 3;
-      const actualDmg = 3 - hpOf(g, 'B');
+      const expectedDmg = expectedWins * 0.2 * 2;
+      const actualDmg = 2 - hpOf(g, 'B');
       const ok = !!whipLog && Math.abs(actualDmg - expectedDmg) < 0.0001;
-      return check(ok, `伤害=胜次×20%×3（胜次=${expectedWins}，期望伤害=${expectedDmg}）`,
+      return check(ok, `伤害=胜次×20%×2（胜次=${expectedWins}，期望伤害=${expectedDmg}）`,
         `日志=${whipLog?.text}, 实际伤害=${actualDmg}`, g);
     }),
   },
@@ -321,7 +323,7 @@ export const CHARACTER_CASES: TestCase[] = [
       g.players['B'].room = 'R1';
       playThrows(g, [{ A: 'rock', B: 'scissors', D: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'D') === 3 && !isAlive(g, 'B');
+      const ok = hpOf(g, 'D') === 2 && !isAlive(g, 'B');
       return check(ok, 'R2 的 D 未受击，R1 的 B 被淘汰', `D hp=${hpOf(g, 'D')}, B alive=${isAlive(g, 'B')}`, g);
     }),
   },
@@ -406,6 +408,7 @@ export const CHARACTER_CASES: TestCase[] = [
     desc: '初始血量3攻击2；拥有「抽取今日运势」技能（用户确认规则）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], 260);
+      g.players['B'].hp = 3; g.players['B'].maxHp = 3;
       const okInit = g.players['A'].hp === 3 && g.players['A'].maxHp === 3;
       const hasAction = g.charDef('A').actions?.some((a) => a.name === 'rollFortune') === true;
       g.players['B'].room = 'R1';
@@ -515,7 +518,7 @@ export const CHARACTER_CASES: TestCase[] = [
       playThrows(g, [{ A: 'rock', B: 'rock', D: 'scissors' }]); // A、D 胜
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
       const transferred = g.logs.some((l) => l.text.includes('被吸引至大贱客'));
-      const ok = transferred && hpOf(g, 'D') === 2 && hpOf(g, 'B') === 3;
+      const ok = transferred && hpOf(g, 'D') === 2 && hpOf(g, 'B') === 2;
       return check(ok, '伤害转移：大贱客 HP 3→2，B 未受伤', `D=${hpOf(g, 'D')}, B=${hpOf(g, 'B')}, transferred=${transferred}`, g);
     }),
   },
@@ -530,8 +533,8 @@ export const CHARACTER_CASES: TestCase[] = [
       actQueue(g, { W: { type: 'attack', targetId: 'B' } });
       // 段内顺序 [D,B]：D 直接承受（自己是目标不转移），B 的伤害转移至 D。
       // 段1：D -2（hp1）；段2：D -1 死亡 → B 的伤害无转移对象 → B -1（hp2）；段3：B -1（hp1）
-      const ok = !isAlive(g, 'D') && hpOf(g, 'B') === 1 && hpOf(g, 'W') === 3;
-      return check(ok, '伤害全部流向大贱客直至其死亡；其后伤害正常落在 B',
+      const ok = !isAlive(g, 'D') && hpOf(g, 'B') === 0 && hpOf(g, 'W') === 3;
+      return check(ok, '伤害全部流向大贱客直至其死亡；其后伤害落在 B（血量2耗尽）',
         `D=${hpOf(g, 'D')}, B=${hpOf(g, 'B')}, W=${hpOf(g, 'W')}`, g);
     }),
   },
@@ -542,8 +545,8 @@ export const CHARACTER_CASES: TestCase[] = [
       const g = makeGame([{ id: 'D', char: 'dajianke' }, 'A', 'B'], 272);
       // 直接施加精神伤害（如辱骂/暴走类）：不转移
       g.applyDamage({ target: 'B', amount: 1, source: 'A', dtype: 'mental', bypassHide: true, tag: 'test-mental' });
-      const ok = hpOf(g, 'B') === 2 && hpOf(g, 'D') === 3;
-      return check(ok, '精神伤害正常落在 B（HP 3→2），大贱客未承受', `B=${hpOf(g, 'B')}, D=${hpOf(g, 'D')}`, g);
+      const ok = hpOf(g, 'B') === 1 && hpOf(g, 'D') === 3;
+      return check(ok, '精神伤害正常落在 B（HP 2→1），大贱客未承受', `B=${hpOf(g, 'B')}, D=${hpOf(g, 'D')}`, g);
     }),
   },
   {
@@ -559,7 +562,7 @@ export const CHARACTER_CASES: TestCase[] = [
       playThrows(g, [{ A: 'rock', B: 'scissors', D: 'paper' }]);
       playThrows(g, [{ A: 'rock', B: 'rock', D: 'paper' }]); // D 胜
       actQueue(g, { D: { type: 'skip' } });
-      const ok = hpOf(g, 'D') === 1 && hpOf(g, 'B') === 3;
+      const ok = hpOf(g, 'D') === 1 && hpOf(g, 'B') === 2;
       return check(ok, '延迟2伤转移至大贱客（HP 3→1），B 未受伤', `D=${hpOf(g, 'D')}, B=${hpOf(g, 'B')}`, g);
     }),
   },
@@ -625,12 +628,12 @@ export const CHARACTER_CASES: TestCase[] = [
       // 直接构造：追加 tie 后检查——需要 win,tie,lose / 任意排列
       const g2 = makeGame([{ id: 'P', char: 'dapihuai' }, 'A', 'B'], 280);
       g2.judgeHistory('P').push('win', 'lose');
-      const targetHpBefore = Math.min(g2.players['A'].hp, g2.players['B'].hp);
+      const targetHpBefore = Math.min(g2.players['A'].hp, g2.players['B'].hp); // 默认角色血量2
       playThrows(g2, [{ P: 'rock', A: 'rock', B: 'rock' }]); // 全同拳 → P 追加 tie → [win,lose,tie] 三不同 → 暴走
       const berserk = g2.logs.some((l) => l.text.includes('暴走'));
-      const someoneHurt = g2.players['A'].hp < 3 || g2.players['B'].hp < 3;
+      const someoneHurt = g2.players['A'].hp < 2 || g2.players['B'].hp < 2;
       const histReset = g2.judgeHistory('P').length === 0;
-      const ok = berserk && someoneHurt && histReset && targetHpBefore === 3;
+      const ok = berserk && someoneHurt && histReset && targetHpBefore === 2;
       return check(ok, '三不同 → 暴走精神攻击（1伤），历史重置',
         `berserk=${berserk}, hurt=${someoneHurt}, reset=${histReset}, A=${g2.players['A'].hp}, B=${g2.players['B'].hp}`, g2);
     }),

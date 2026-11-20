@@ -192,9 +192,37 @@ io.on('connection', (socket: Socket) => {
     const seat = room.seatOf(data.playerId);
     if (!seat || !room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可移除玩家' }); return; }
     if (data.targetId === data.playerId) { ack?.({ ok: false, error: '不能移除自己' }); return; }
+    // 对局中移除 = 引擎内淘汰（防止留僵尸玩家）
+    if (room.state === 'playing' && room.game) {
+      const gp = room.game.players[data.targetId];
+      if (gp && gp.alive) room.game.eliminate(data.targetId, 'kicked', data.playerId);
+    }
     room.removeSeat(data.targetId);
     ack?.({ ok: true });
     broadcastRoom(room);
+    broadcastLobby();
+  });
+
+  // 房主踢人（大厅与对局中均可用；对局中=淘汰）
+  socket.on('room:kick', (data: { code: string; playerId: PlayerId; token: string; targetId: PlayerId }, ack?: (r: unknown) => void) => {
+    const room = getRoom(data.code || '');
+    if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
+    if (!room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可踢人' }); return; }
+    if (data.targetId === data.playerId) { ack?.({ ok: false, error: '不能踢自己' }); return; }
+    const target = room.seatOf(data.targetId);
+    if (!target) { ack?.({ ok: false, error: '目标不在房间' }); return; }
+    if (room.state === 'playing' && room.game) {
+      const gp = room.game.players[data.targetId];
+      if (gp && gp.alive) {
+        room.game.log('info', `⚖ ${gp.name} 被房主踢出对局`, { pid: data.targetId }, true);
+        room.game.eliminate(data.targetId, 'kicked', data.playerId);
+      }
+    }
+    room.addChat('系统', `${target.name} 被房主移出房间`);
+    room.removeSeat(data.targetId);
+    ack?.({ ok: true });
+    broadcastRoom(room);
+    broadcastLobby();
   });
 
   socket.on('room:start', (data: { code: string; playerId: PlayerId; token: string; seed?: number }, ack?: (r: unknown) => void) => {

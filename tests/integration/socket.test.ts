@@ -231,6 +231,38 @@ describe('拔典联机系统', () => {
     host.disconnect();
   });
 
+  it('房主踢人：对局中踢人=淘汰+移除；非房主拒绝', async () => {
+    const host = await connect();
+    const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(
+      host, 'room:create', { name: '踢人测试' },
+    );
+    const code = createRes.code;
+    const me = createRes.seats[0];
+    await emit(host, 'room:addAI', { code, playerId: me.playerId, token: me.token, count: 2, charId: 'random' });
+    // 注册监听再开始
+    const updPromise = new Promise<Record<string, unknown>>((resolve) => host.once('room:update', resolve));
+    await emit(host, 'room:start', { code, playerId: me.playerId, token: me.token, seed: 900 });
+
+    // 出拳阶段先踢一个 AI（对局中 → 引擎内淘汰）
+    const lobby0 = (await updPromise).lobby as { seats: { playerId: string; name: string }[] };
+    const aiId = lobby0.seats.find((x) => x.name.startsWith('AI'))!.playerId;
+    const upd2Promise = new Promise<Record<string, unknown>>((resolve) => host.once('room:update', resolve));
+    const kickRes = await emit<{ ok: boolean }>(host, 'room:kick', { code, playerId: me.playerId, token: me.token, targetId: aiId });
+    expect(kickRes.ok).toBe(true);
+    const upd2 = await upd2Promise;
+    const game = upd2.game as { players: { id: string; alive: boolean }[] } | null;
+    expect(game).toBeTruthy();
+    expect(game!.players.find((p) => p.id === aiId)?.alive).toBe(false);
+    // 座位已移除
+    const lobby1 = upd2.lobby as { seats: { playerId: string }[] };
+    expect(lobby1.seats.find((s2) => s2.playerId === aiId)).toBeUndefined();
+
+    // 非房主令牌踢人被拒
+    const badKick = await emit<{ ok: boolean }>(host, 'room:kick', { code, playerId: me.playerId, token: 'bad', targetId: me.playerId });
+    expect(badKick.ok).toBe(false);
+    host.disconnect();
+  });
+
   it('大厅房间列表与房间聊天', async () => {
     const host = await connect();
     const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(

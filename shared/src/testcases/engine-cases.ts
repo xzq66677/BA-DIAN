@@ -253,8 +253,8 @@ export const ENGINE_CASES: TestCase[] = [
       g.players['B'].room = 'R1';
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 2 && isAlive(g, 'B');
-      return check(ok, 'B HP=2', `B.hp=${hpOf(g, 'B')}`, g);
+      const ok = hpOf(g, 'B') === 1 && isAlive(g, 'B');
+      return check(ok, 'B HP=1（血量2-1）', `B.hp=${hpOf(g, 'B')}`, g);
     }),
   },
   {
@@ -264,7 +264,7 @@ export const ENGINE_CASES: TestCase[] = [
       const g = makeGame(['A', 'B'], 110);
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       const r = g.submitAction('A', { type: 'attack', targetId: 'B', ranged: true });
-      const ok = !r.ok && hpOf(g, 'B') === 3;
+      const ok = !r.ok && hpOf(g, 'B') === 2;
       return check(ok, '拒绝异房间近战攻击，B 未受伤', `ok=${r.ok}, error=${r.error}`, g);
     }),
   },
@@ -315,8 +315,8 @@ export const ENGINE_CASES: TestCase[] = [
       g.players['A'].hp = 1;
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'heal' } });
-      const ok = hpOf(g, 'A') === 3;
-      return check(ok, 'A HP=3（满血）', `A.hp=${hpOf(g, 'A')}`, g);
+      const ok = hpOf(g, 'A') === 2;
+      return check(ok, 'A HP=2（满血）', `A.hp=${hpOf(g, 'A')}`, g);
     }),
   },
   {
@@ -326,8 +326,8 @@ export const ENGINE_CASES: TestCase[] = [
       const g = makeGame(['A', 'B'], 115);
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       const r = g.submitAction('A', { type: 'heal' });
-      const ok = r.ok && hpOf(g, 'A') === 3;
-      return check(ok, '满血回复合法，HP 仍为 3', `ok=${r.ok}, hp=${hpOf(g, 'A')}`, g);
+      const ok = r.ok && hpOf(g, 'A') === 2;
+      return check(ok, '满血回复合法，HP 仍为 2', `ok=${r.ok}, hp=${hpOf(g, 'A')}`, g);
     }),
   },
   {
@@ -340,7 +340,7 @@ export const ENGINE_CASES: TestCase[] = [
       actQueue(g, { A: { type: 'heal' } });
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'heal' } });
-      const ok = hpOf(g, 'A') === 3;
+      const ok = hpOf(g, 'A') === 2;
       return check(ok, '跨回合重复回复成功', `hp=${hpOf(g, 'A')}`, g);
     }),
   },
@@ -354,7 +354,7 @@ export const ENGINE_CASES: TestCase[] = [
       g.players['B'].hidden = true;
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       const r = g.submitAction('A', { type: 'attack', targetId: 'B' });
-      const ok = !r.ok && hpOf(g, 'B') === 3;
+      const ok = !r.ok && hpOf(g, 'B') === 2;
       return check(ok, '躲藏目标无法被锁定，B 未受伤', `ok=${r.ok}, error=${r.error}`, g);
     }),
   },
