@@ -40,6 +40,17 @@ function emit<T = Record<string, unknown>>(s: ClientSocket, event: string, data:
   });
 }
 
+/** 等到收到携带对局状态（game 非空）的 room:update —— 消除 ack/广播竞态 */
+function waitForGame(s: ClientSocket, timeoutMs = 8000): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => { s.off('room:update', h); reject(new Error('等待对局状态超时')); }, timeoutMs);
+    const h = (u: Record<string, unknown>) => {
+      if (u.game) { clearTimeout(t); s.off('room:update', h); resolve(u); }
+    };
+    s.on('room:update', h);
+  });
+}
+
 function waitFor(s: ClientSocket, event: string, timeoutMs = 5000): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`等待事件 ${event} 超时`)), timeoutMs);
@@ -158,7 +169,7 @@ describe('拔典联机系统', () => {
     const seats = (upd2.lobby as { seats: { charId: string; type: string }[] }).seats;
     const aiSeats = seats.filter((x) => x.type === 'ai');
     expect(aiSeats).toHaveLength(3);
-    expect(aiSeats.filter((x) => x.charId === 'gojo')).toHaveLength(1);
+    expect(aiSeats.filter((x) => x.charId === 'gojo').length).toBeGreaterThanOrEqual(1); // 随机也可能抽中五条悟
     // 随机的两个都应是注册表内的合法角色
     const { CHARACTERS } = await import('../../shared/src/characters/index.js');
     for (const a of aiSeats) expect(CHARACTERS[a.charId]).toBeTruthy();
@@ -261,6 +272,69 @@ describe('拔典联机系统', () => {
     const badKick = await emit<{ ok: boolean }>(host, 'room:kick', { code, playerId: me.playerId, token: 'bad', targetId: me.playerId });
     expect(badKick.ok).toBe(false);
     host.disconnect();
+  });
+
+  it('解散房间 / 对局中退出=淘汰 / 一人一房间 / 名字必填', { timeout: 20000 }, async () => {
+    // —— 名字必填 ——
+    const anon = await connect();
+    const noName = await emit<{ ok: boolean; error?: string }>(anon, 'room:create', { name: '  ' });
+    expect(noName.ok).toBe(false);
+    expect(noName.error).toContain('昵称');
+    anon.disconnect();
+
+    // —— 一人一房间 ——
+    const host = await connect();
+    const c1 = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(host, 'room:create', { name: '房主甲' });
+    const code1 = c1.code;
+    const guard = await emit<{ ok: boolean; error?: string }>(host, 'room:join', { code: 'ZZZZ', name: '房主甲' });
+    expect(guard.ok).toBe(false);
+    expect(guard.error).toContain('你已在房间');
+    host.disconnect();
+
+    // —— 解散房间：成员收到 dissolved，房间从列表消失 ——
+    const owner = await connect();
+    const c2 = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(owner, 'room:create', { name: '解散测试' });
+    const code2 = c2.code;
+    const member = await connect();
+    await emit(member, 'room:join', { code: code2, name: '成员乙' });
+    const dissolvedPromise = new Promise<{ code: string }>((resolve) => member.once('room:dissolved', resolve));
+    // 非房主解散被拒
+    const badDissolve = await emit<{ ok: boolean }>(member, 'room:dissolve', { code: code2, playerId: 'x', token: 'y' });
+    expect(badDissolve.ok).toBe(false);
+    // 房主解散
+    const dissolveRes = await emit<{ ok: boolean }>(owner, 'room:dissolve', { code: code2, playerId: c2.seats[0].playerId, token: c2.seats[0].token });
+    expect(dissolveRes.ok).toBe(true);
+    const dissolved = await dissolvedPromise;
+    expect(dissolved.code).toBe(code2);
+    // 房间从列表消失
+    const listRes = await emit<{ ok: boolean; rooms: { code: string }[] }>(owner, 'lobby:roomsReq', {});
+    expect(listRes.rooms.find((r) => r.code === code2)).toBeUndefined();
+    owner.disconnect();
+    member.disconnect();
+
+    // —— 对局中退出 = 淘汰（由留在房间的成员观察） ——
+    const host2 = await connect();
+    const c3 = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(host2, 'room:create', { name: '退出测试' });
+    const code3 = c3.code;
+    const h2 = c3.seats[0];
+    const guest = await connect();
+    await emit(guest, 'room:join', { code: code3, name: '观察员' });
+    await emit(host2, 'room:addAI', { code: code3, playerId: h2.playerId, token: h2.token, count: 1, charId: 'random' });
+    await emit(host2, 'room:start', { code: code3, playerId: h2.playerId, token: h2.token, seed: 950 });
+    const upd = await waitForGame(guest);
+    expect((upd.game as { phase: string }).phase).toBe('rps1');
+    // 房主退出 → 引擎内淘汰 → 观察员收到广播
+    const upd2Promise = waitForGame(guest);
+    const leaveRes = await emit<{ ok: boolean }>(host2, 'room:leave', { code: code3, playerId: h2.playerId, token: h2.token });
+    expect(leaveRes.ok).toBe(true);
+    const upd2 = await upd2Promise;
+    const game = upd2.game as { players: { id: string; alive: boolean }[] };
+    expect(game.players.find((p) => p.id === h2.playerId)?.alive).toBe(false);
+    // 座位已移除
+    const lobby1 = upd2.lobby as { seats: { playerId: string }[] };
+    expect(lobby1.seats.find((x) => x.playerId === h2.playerId)).toBeUndefined();
+    host2.disconnect();
+    guest.disconnect();
   });
 
   it('大厅房间列表与房间聊天', async () => {

@@ -40,6 +40,11 @@ export default function Lobby({ lobby, session, onExit }: {
     await net.leave(lobby.code, me.playerId, me.token);
     onExit();
   }
+  async function dissolve() {
+    const r = await net.dissolve(lobby.code, me.playerId, me.token) as { ok: boolean; error?: string };
+    if (!r.ok) alert(r.error || '解散失败');
+    // 服务端会广播 room:dissolved，App 统一处理回首页
+  }
 
   return (
     <div className="tcg-app tcg-lobby">
@@ -49,7 +54,8 @@ export default function Lobby({ lobby, session, onExit }: {
           <span style={{ fontSize: 28, fontWeight: 900, letterSpacing: 6, color: 'var(--gold-2)', fontFamily: 'monospace', background: 'rgba(216,176,74,0.1)', padding: '4px 16px', borderRadius: 10, border: '1px solid var(--gold-dim)' }}>{lobby.code}</span>
           <button className="tcg-btn ghost" onClick={copyCode}>{copied ? '✓ 已复制' : '📋 复制邀请码'}</button>
           <span style={{ flex: 1 }} />
-          <button className="tcg-btn danger" onClick={leave}>离开房间</button>
+          {isHost && <button className="tcg-btn danger" onClick={dissolve}>💥 解散房间</button>}
+          <button className="tcg-btn ghost" onClick={leave}>离开房间</button>
         </div>
         <p className="muted" style={{ marginTop: 10 }}>
           把邀请码发给朋友加入；房主：<b style={{ color: 'var(--gold-2)' }}>{lobby.seats.find((s) => s.playerId === lobby.hostSeat)?.name || '?'}</b>

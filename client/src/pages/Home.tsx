@@ -7,7 +7,7 @@ export default function Home({ onEnter, onArena }: {
   onEnter: (code: string, identities: { playerId: string; name: string; token: string }[]) => void;
   onArena: () => void;
 }) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => localStorage.getItem('badian-name') || '');
   const [joinCode, setJoinCode] = useState('');
   const [localCount, setLocalCount] = useState(1);
   const [aiCount, setAiCount] = useState(0);
@@ -33,7 +33,9 @@ export default function Home({ onEnter, onArena }: {
   }
 
   async function createRoom(autoStart: boolean) {
+    if (!name.trim()) { setError('请先填写昵称'); return; }
     await wrap(async () => {
+      localStorage.setItem('badian-name', name.trim());
       await net.connect();
       const myName = name.trim() || '玩家1';
       const localNames = Array.from({ length: localCount }, (_, i) => (localCount === 1 ? myName : `${myName}${i + 1}`));
@@ -50,7 +52,9 @@ export default function Home({ onEnter, onArena }: {
   }
 
   async function joinRoom(code?: string) {
+    if (!name.trim()) { setError('请先填写昵称'); return; }
     await wrap(async () => {
+      localStorage.setItem('badian-name', name.trim());
       await net.connect();
       const target = (code || joinCode).trim().toUpperCase();
       const r = await net.joinRoom(target, name.trim() || '玩家', charId) as { ok: boolean; code?: string; seats?: { playerId: string; name: string; token: string }[]; error?: string };
@@ -95,7 +99,7 @@ export default function Home({ onEnter, onArena }: {
         <div className="tcg-panel">
           <h2>🎴 开启对局</h2>
           <label className="field">
-            <span>昵称</span>
+            <span>① 昵称（必填，本设备会记住）</span>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="输入昵称" maxLength={12} />
           </label>
           <label className="field">
@@ -119,10 +123,10 @@ export default function Home({ onEnter, onArena }: {
             </select>
           </label>
           <div className="btn-row">
-            <button className="tcg-btn" disabled={busy} onClick={() => createRoom(true)}>
+            <button className="tcg-btn" disabled={busy || !name.trim()} onClick={() => createRoom(true)}>
               {aiCount > 0 ? '⚔ 单人开局（+AI）' : '⚔ 创建房间'}
             </button>
-            <button className="tcg-btn ghost" disabled={busy} onClick={() => createRoom(false)}>仅创建（邀请好友）</button>
+            <button className="tcg-btn ghost" disabled={busy || !name.trim()} onClick={() => createRoom(false)}>仅创建（邀请好友）</button>
             <button className="tcg-btn ghost" onClick={() => setShowRules(true)}>📖 规则</button>
           </div>
           <hr className="sep" />
@@ -130,7 +134,7 @@ export default function Home({ onEnter, onArena }: {
             <span>加入房间（邀请码）</span>
             <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="4位邀请码" maxLength={4} />
           </label>
-          <button className="tcg-btn" disabled={busy || joinCode.trim().length < 4} onClick={() => joinRoom()}>加入房间</button>
+          <button className="tcg-btn" disabled={busy || joinCode.trim().length < 4 || !name.trim()} onClick={() => joinRoom()}>加入房间</button>
           <button className="tcg-btn ghost" onClick={onArena}>🧪 机制测试场</button>
           {error && <div className="error-text">{error}</div>}
         </div>
@@ -148,7 +152,7 @@ export default function Home({ onEnter, onArena }: {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span className={`ri-state ${r.state}`}>{r.state === 'lobby' ? '等待中' : r.state === 'playing' ? '对战中' : '已结束'}</span>
                   {r.state === 'lobby' && (
-                    <button className="tcg-btn" style={{ padding: '5px 12px', fontSize: 12 }} disabled={busy} onClick={() => joinRoom(r.code)}>加入</button>
+                    <button className="tcg-btn" style={{ padding: '5px 12px', fontSize: 12 }} disabled={busy || !name.trim()} title={name.trim() ? '' : '请先填写昵称'} onClick={() => joinRoom(r.code)}>加入</button>
                   )}
                 </div>
               </div>

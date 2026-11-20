@@ -101,6 +101,9 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   // 角色详情弹层
   const [detailId, setDetailId] = useState<string | null>(null);
   const detailPlayer = detailId ? game.players.find((p) => p.id === detailId) : null;
+  // 胜负判定弹层（新对局自动复位）
+  const [winDismissed, setWinDismissed] = useState(false);
+  useEffect(() => { if (game.phase !== 'over') setWinDismissed(false); }, [game.phase]);
   // 局内发言
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
@@ -222,10 +225,40 @@ function GameInner({ lobby, game, session, logs, onExit }: {
         {isHost && game.phase === 'over' && (
           <button className="tcg-btn" onClick={() => net.restart(lobby.code, meId, myIds[0].token)}>重新开始</button>
         )}
-        <button className="tcg-btn ghost" onClick={onExit}>退出</button>
+        <button className="tcg-btn ghost" onClick={async () => { await net.leave(lobby.code, meId, myIds[0].token); onExit(); }}>退出房间</button>
       </header>
 
-      {game.phase === 'over' && (
+      {game.phase === 'over' && !winDismissed && (
+        <div className="win-overlay" onClick={() => setWinDismissed(true)}>
+          <div className="win-modal anim-in" onClick={(e) => e.stopPropagation()}>
+            {game.winner ? (
+              <>
+                <div className="win-title">🏆 胜 负 判 定</div>
+                {(() => {
+                  const wp = game.players.find((p) => p.id === game.winner);
+                  const meta = wp ? cardMeta(wp.charId) : undefined;
+                  return meta?.img ? <img className="win-art" src={meta.img} alt={wp?.charName} /> : null;
+                })()}
+                <h1 className="win-name">{game.players.find((p) => p.id === game.winner)?.name}</h1>
+                <div className="win-sub">
+                  使用「{game.players.find((p) => p.id === game.winner)?.charName}」 · HP {fmtHp(game.players.find((p) => p.id === game.winner)?.hp ?? 0)}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="win-title">☠ 平 局</div>
+                <h1 className="win-name">全员同时淘汰</h1>
+              </>
+            )}
+            <div className="win-btns">
+              {isHost && <button className="tcg-btn" onClick={() => { setWinDismissed(true); net.restart(lobby.code, meId, myIds[0].token); }}>🔄 再来一局</button>}
+              <button className="tcg-btn ghost" onClick={async () => { setWinDismissed(true); await net.leave(lobby.code, meId, myIds[0].token); onExit(); }}>离开房间</button>
+              <button className="tcg-btn ghost" onClick={() => setWinDismissed(true)}>查看战场</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {game.phase === 'over' && winDismissed && (
         <div className="winner-banner">
           {game.winner ? `🏆 ${game.players.find((p) => p.id === game.winner)?.name} 获胜！` : '☠ 平局 · 全员同时淘汰'}
         </div>

@@ -512,6 +512,42 @@
 }
 .privacy-veil .pv-name { font-size: 16px; color: var(--gold-2); font-weight: 800; letter-spacing: 2px; margin: 6px 0; }
 
+/* ── 胜负判定弹层 ───────────────────────────────── */
+.win-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(4, 6, 10, 0.86);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.win-modal {
+  text-align: center;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(216,176,74,0.28), transparent 60%),
+    linear-gradient(180deg, #241a0c, #15100a);
+  border: 3px solid var(--gold);
+  border-radius: 18px;
+  padding: 26px 30px;
+  max-width: 460px;
+  width: 100%;
+  box-shadow: 0 0 60px rgba(216,176,74,0.35);
+}
+.win-title { color: var(--gold-2); letter-spacing: 8px; font-size: 15px; margin-bottom: 12px; }
+.win-art {
+  width: 190px;
+  border-radius: 12px;
+  border: 3px solid var(--gold);
+  box-shadow: 0 0 40px rgba(216,176,74,0.5);
+  animation: card-in 0.5s ease;
+}
+.win-name { color: #fff; font-size: 32px; letter-spacing: 6px; margin: 14px 0 4px; text-shadow: 0 0 20px rgba(216,176,74,0.6); }
+.win-sub { color: var(--gold-2); font-size: 13px; margin-bottom: 6px; }
+.win-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+
 /* ── 胜利横幅 ───────────────────────────────────── */
 .winner-banner {
   margin: 0 14px;

@@ -85,6 +85,7 @@ class Net {
   listeners: ((u: RoomUpdate) => void)[] = [];
   reconnectListeners: (() => void)[] = [];
   lobbyRoomsListeners: ((rooms: RoomListEntry[]) => void)[] = [];
+  dissolvedListeners: ((code: string) => void)[] = [];
   connected = false;
 
   connect(): Promise<void> {
@@ -113,6 +114,9 @@ class Net {
       this.socket.on('lobby:rooms', (r: { rooms: RoomListEntry[] }) => {
         for (const fn of this.lobbyRoomsListeners) fn(r.rooms);
       });
+      this.socket.on('room:dissolved', (r: { code: string }) => {
+        for (const fn of this.dissolvedListeners) fn(r.code);
+      });
       setTimeout(() => reject(new Error('连接超时')), 8000);
     });
   }
@@ -129,6 +133,13 @@ class Net {
     this.listeners.push(fn);
     return () => {
       this.listeners = this.listeners.filter((f) => f !== fn);
+    };
+  }
+
+  onDissolved(fn: (code: string) => void): () => void {
+    this.dissolvedListeners.push(fn);
+    return () => {
+      this.dissolvedListeners = this.dissolvedListeners.filter((f) => f !== fn);
     };
   }
 
@@ -174,6 +185,9 @@ class Net {
   }
   start(code: string, playerId: string, token: string, seed?: number) {
     return this.emit('room:start', { code, playerId, token, seed });
+  }
+  dissolve(code: string, playerId: string, token: string) {
+    return this.emit('room:dissolve', { code, playerId, token });
   }
   kick(code: string, playerId: string, token: string, targetId: string) {
     return this.emit('room:kick', { code, playerId, token, targetId });

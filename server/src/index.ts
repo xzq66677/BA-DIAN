@@ -87,7 +87,19 @@ function broadcastRoom(room: Room): void {
 
 io.on('connection', (socket: Socket) => {
   // ── 创建房间 ──
+  /** 该 socket 已在的未结束房间（一人不进多个房间） */
+  function socketActiveRoom(socket: Socket): Room | undefined {
+    const code = socket.data.roomCode as string | undefined;
+    if (!code) return undefined;
+    const room = rooms.get(code);
+    if (!room) return undefined;
+    return room.seatBySocket(socket.id).length > 0 ? room : undefined;
+  }
+
   socket.on('room:create', (data: { name: string; charId?: string; localPlayers?: string[] }, ack?: (r: unknown) => void) => {
+    const active = socketActiveRoom(socket);
+    if (active) { ack?.({ ok: false, error: `你已在房间 ${active.code} 中，请先退出该房间` }); return; }
+    if (!data.name || !data.name.trim()) { ack?.({ ok: false, error: '请先填写昵称' }); return; }
     try {
       const code = genRoomCode();
       const room = new Room(code);
@@ -116,6 +128,9 @@ io.on('connection', (socket: Socket) => {
 
   // ── 加入房间 ──
   socket.on('room:join', (data: { code: string; name: string; charId?: string }, ack?: (r: unknown) => void) => {
+    const active = socketActiveRoom(socket);
+    if (active && active.code !== (data.code || '').toUpperCase()) { ack?.({ ok: false, error: `你已在房间 ${active.code} 中，请先退出该房间` }); return; }
+    if (!data.name || !data.name.trim()) { ack?.({ ok: false, error: '请先填写昵称' }); return; }
     const room = getRoom(data.code || '');
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     if (room.state !== 'lobby') { ack?.({ ok: false, error: '游戏已开始，无法加入' }); return; }
@@ -198,6 +213,9 @@ io.on('connection', (socket: Socket) => {
       if (gp && gp.alive) room.game.eliminate(data.targetId, 'kicked', data.playerId);
     }
     room.removeSeat(data.targetId);
+    // 目标若与本 socket 绑定且无其他座位，清理房间绑定
+    for (const st of room.seatBySocket(socket.id)) { void st; }
+    if (room.seatBySocket(socket.id).length === 0 && socket.data.roomCode === room.code) socket.data.roomCode = undefined;
     ack?.({ ok: true });
     broadcastRoom(room);
     broadcastLobby();
@@ -251,7 +269,16 @@ io.on('connection', (socket: Socket) => {
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     const seat = room.seatOf(data.playerId);
     if (!seat || seat.token !== data.token) { ack?.({ ok: false, error: '身份验证失败' }); return; }
+    // 对局中退出 = 引擎内淘汰（不留僵尸玩家），日志公示
+    if (room.state === 'playing' && room.game) {
+      const gp = room.game.players[data.playerId];
+      if (gp && gp.alive) {
+        room.game.log('info', `🚪 ${gp.name} 主动退出对局`, { pid: data.playerId }, true);
+        room.game.eliminate(data.playerId, 'left');
+      }
+    }
     room.removeSeat(data.playerId);
+    if (room.seatBySocket(socket.id).length === 0) socket.data.roomCode = undefined;
     socket.leave(room.code);
     // 房主离开且无人可继任 → 解散
     if (room.seats.length === 0) {
@@ -306,6 +333,28 @@ io.on('connection', (socket: Socket) => {
       seat.socketId = undefined;
     }
     broadcastRoom(room);
+  });
+
+  // ── 房主解散房间（全员退出并销毁房间） ──
+  socket.on('room:dissolve', (data: { code: string; playerId: PlayerId; token: string }, ack?: (r: unknown) => void) => {
+    const room = getRoom(data.code || '');
+    if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
+    if (!room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可解散房间' }); return; }
+    const seat = room.seatOf(data.playerId);
+    if (!seat || seat.token !== data.token) { ack?.({ ok: false, error: '身份验证失败' }); return; }
+    // 通知房间内所有客户端
+    io.to(room.code).emit('room:dissolved', { code: room.code });
+    // 清除成员 socket 的房间绑定（避免残留阻断后续加入）
+    for (const seat2 of room.seats) {
+      if (seat2.socketId) {
+        const s2 = io.sockets.sockets.get(seat2.socketId);
+        if (s2) s2.data.roomCode = undefined;
+      }
+    }
+    room.dispose();
+    rooms.delete(room.code);
+    ack?.({ ok: true });
+    broadcastLobby();
   });
 
   // ── 大厅房间列表请求 ──

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Home from './pages/Home.js';
 import Lobby from './pages/Lobby.js';
 import GamePage from './pages/Game.js';
@@ -71,6 +71,16 @@ export default function App() {
     } catch { /* ignore */ }
   }, [session]);
 
+  // 房间被解散时：提示并回到首页（exitSession 经 ref 引用，避免 effect 闭包过期）
+  const exitRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const off = net.connect().then(() => net.onDissolved((code) => {
+      setErr(`房间 ${code} 已被房主解散`);
+      exitRef.current();
+    }));
+    return () => { off.then((f) => f()).catch(() => {}); };
+  }, []);
+
   const enterSession = (code: string, identities: { playerId: string; name: string; token: string }[]) => {
     const s: SessionInfo = { code, identities };
     setSession(s);
@@ -89,6 +99,7 @@ export default function App() {
     setLogs([]);
     setPage('home');
   };
+  exitRef.current = exitSession;
 
   if (page === 'arena') {
     return <Arena onBack={() => setPage(session ? (lobby?.state === 'lobby' ? 'lobby' : 'game') : 'home')} />;
