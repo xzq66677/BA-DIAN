@@ -22,6 +22,8 @@ export default function App() {
   const [game, setGame] = useState<GameSnapshot | null>(null);
   const [logs, setLogs] = useState<{ seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[]>([]);
   const [err, setErr] = useState('');
+  /** 已渲染的局号（新开一局要清空上一局的战斗日志） */
+  const gameNoRef = useRef<number | null>(null);
 
   useEffect(() => {
     let off: (() => void) | undefined;
@@ -29,10 +31,17 @@ export default function App() {
       off = net.onUpdate((u) => {
         setLobby(u.lobby);
         if (u.game) setGame(u.game);
+        // 局号变化 = 同一房间开新一局：丢弃上一局日志（服务端 seq 已跨局续接，
+        // 若不清理会看到两局日志首尾相接，且 [R1] 之类回合号重复，容易误以为「日志不再更新」）
+        const gNo = u.lobby.gameNo ?? null;
+        const newGame = gNo !== null && gameNoRef.current !== null && gNo !== gameNoRef.current;
+        if (gNo !== null) gameNoRef.current = gNo;
+        if (newGame) setLogs([]);
         if (u.newLogs && u.newLogs.length > 0) {
           setLogs((prev) => {
             const have = new Set(prev.map((l) => l.seq));
             const add = u.newLogs.filter((l) => !have.has(l.seq)).map((l) => ({ seq: l.seq, text: `[R${l.round}] ${l.text}`, important: l.important === true, type: l.type, data: l.data }));
+            if (add.length === 0) return prev;
             const merged = [...prev, ...add];
             return merged.slice(-800);
           });

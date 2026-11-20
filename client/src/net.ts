@@ -21,6 +21,8 @@ export interface LobbySeat {
 export interface LobbyState {
   code: string;
   state: 'lobby' | 'playing' | 'over';
+  /** 第几局（1 起，重开累加）：变化即代表新一局，战斗日志需清空重来 */
+  gameNo?: number;
   hostSeat: string | null;
   seats: LobbySeat[];
   chat: { name: string; text: string; ts: number }[];

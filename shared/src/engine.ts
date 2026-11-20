@@ -23,6 +23,14 @@ export interface GameConfig {
   rules?: Partial<RuleConfig>;
   /** 角色注册表（id → CharDef） */
   chars: Record<string, CharDef>;
+  /**
+   * 日志序号起点（默认 0，即本局日志 seq 从 1 开始）。
+   *
+   * 同一房间连打多局时，服务端会把上一局的最大 seq 传进来，保证**整个房间内 seq 单调递增**。
+   * 客户端与服务端都靠 `seq > lastSeq` 做增量与去重，若每局从 1 重新计数，
+   * 第二局的日志会被全部当成「已收到」而丢弃（bug B-023）。
+   */
+  logSeqOffset?: number;
 }
 
 export class Game implements GameLike {
@@ -66,6 +74,8 @@ export class Game implements GameLike {
   constructor(config: GameConfig) {
     this.seed = config.seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
     this.rng = new RNG(this.seed);
+    // 日志序号可续接上一局（同房间多局时保证单调递增，见 GameConfig.logSeqOffset）
+    this.logSeq = config.logSeqOffset ?? 0;
     this.rules = { ...DEFAULT_RULES, ...(config.rules || {}) };
     this.chars = config.chars;
     config.players.forEach((pc, i) => {

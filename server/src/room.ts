@@ -89,6 +89,17 @@ export class Room {
   private recording: ReplayRecord | null = null;
   private lastFrameSig = '';
   private lastFrameLogSeq = 0;
+  /**
+   * 房间内日志序号游标（跨局单调递增）。
+   *
+   * 引擎的 `logSeq` 是**每局**从 1 开始的；同一房间连打多局时若直接复用，
+   * 第二局的 seq 会与第一局撞号，服务端增量与客户端去重都会把新日志当旧日志丢掉
+   * （表现为「第二局之后战斗日志不再更新」，bug B-023）。
+   * 因此每开一局把上一局的最大 seq 作为新局的起点。
+   */
+  private logSeqCursor = 0;
+  /** 第几局（1 起；重开累加。客户端据此清空上一局日志） */
+  private gameNo = 0;
 
   constructor(code: string, config?: Partial<RoomConfig>) {
     this.code = code;
@@ -160,7 +171,12 @@ export class Room {
       id: s.playerId, name: s.name, charId: s.charId, type: s.type,
     }));
     const usedSeed = seed ?? this.config.seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
-    this.game = new Game({ seed: usedSeed, players, chars: CHARACTERS, rules: this.config.rules });
+    this.gameNo++;
+    this.game = new Game({
+      seed: usedSeed, players, chars: CHARACTERS, rules: this.config.rules,
+      // 续接上一局的日志序号，保证同一房间内 seq 单调递增（否则第二局日志会被当成重复丢弃）
+      logSeqOffset: this.logSeqCursor,
+    });
     this.state = 'playing';
     this.interactions = [];
     this.interactionCounts = {};
@@ -168,6 +184,7 @@ export class Room {
     this.startRecording();
     // AI 自动出拳
     this.kickAI();
+    this.syncLogSeqCursor();
     // 有 AI 才需要看门狗（真人局不存在等待 AI 的场景）
     if (this.seats.some((s) => s.type === 'ai')) this.startAIWatchdog();
     this.armSubmitTimeout();
@@ -199,6 +216,7 @@ export class Room {
   private afterGameMutation(): void {
     if (!this.game) return;
     this.kickAI();
+    this.syncLogSeqCursor();
     this.captureFrame();
     if (this.game.isOver()) {
       this.state = 'over';
@@ -211,6 +229,14 @@ export class Room {
     if (this.game.phase === 'rps1') this.armSubmitTimeout();
     if (this.game.phase === 'act') this.armActTimeout();
     this.onBroadcast(this);
+  }
+
+  /** 把游标推到本局当前最大日志序号（只增不减），供下一局续接 */
+  private syncLogSeqCursor(): void {
+    const logs = this.game?.logs;
+    if (!logs || logs.length === 0) return;
+    const last = logs[logs.length - 1].seq;
+    if (last > this.logSeqCursor) this.logSeqCursor = last;
   }
 
   /** AI 行动驱动（AI 与真人使用同一引擎接口，难度决定决策质量） */
@@ -351,6 +377,8 @@ export class Room {
   /** 重置房间（重开游戏） */
   restart(): { ok: boolean; error?: string } {
     if (this.state === 'lobby') return { ok: false, error: '房间尚未开始过' };
+    // 丢弃本局前先把日志游标推到本局最大 seq，下一局续接，避免 seq 回退撞号
+    this.syncLogSeqCursor();
     this.state = 'lobby';
     this.game = null;
     this.recording = null;
@@ -510,6 +538,8 @@ export class Room {
     return {
       code: this.code,
       state: this.state,
+      /** 第几局（重开累加）：客户端据此清空上一局战斗日志 */
+      gameNo: this.gameNo,
       hostSeat: this.hostSeat,
       seats: this.seats.map((s) => ({
         playerId: s.playerId, name: s.name, charId: s.charId, type: s.type,
