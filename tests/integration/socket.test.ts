@@ -121,32 +121,48 @@ describe('拔典联机系统', () => {
 
     // 先注册监听器再开始游戏（避免错过首条广播造成驱动死锁）
     const overPromise = waitFor(host, 'game:over', 50000);
-    host.on('room:update', (u: Record<string, unknown>) => {
-      const game = u.game as Record<string, unknown> | null;
+    // 单人 vs AI 房间不再布防超时（T-901），因此驱动必须自身健壮：
+    // 以最近一次快照为准，事件触发 + 400ms 心跳双重驱动；行动被拒时回退跳过，避免永久卡死。
+    let lastGame: Record<string, unknown> | null = null;
+    const drive = () => {
+      const game = lastGame;
       if (!game) return;
       if (game.phase === 'rps1') {
         const throws = ['rock', 'scissors', 'paper'];
         host.emit('game:throw', { code, playerId: me.playerId, token: me.token, throw: throws[Math.floor(Math.random() * 3)] }, () => {});
       } else if (game.phase === 'act') {
         const cur = game.currentActor as string | null;
-        if (cur === me.playerId) {
-          const players = game.players as { id: string; alive: boolean; room: string; hidden: boolean }[];
-          const meP = players.find((p) => p.id === me.playerId)!;
-          const sameRoom = players.filter((p) => p.alive && p.id !== me.playerId && p.room === meP.room && !p.hidden);
-          const others = players.filter((p) => p.alive && p.id !== me.playerId);
-          let action: Record<string, unknown>;
-          if (sameRoom.length > 0) action = { type: 'attack', targetId: sameRoom[0].id };
-          else if (others.length > 0) action = { type: 'move', room: others[0].room };
-          else action = { type: 'skip' };
-          host.emit('game:action', { code, playerId: me.playerId, token: me.token, action }, () => {});
-        }
+        if (cur !== me.playerId) return;
+        const players = game.players as { id: string; alive: boolean; room: string; hidden: boolean }[];
+        const meP = players.find((p) => p.id === me.playerId);
+        const sameRoom = players.filter((p) => p.alive && p.id !== me.playerId && p.room === meP?.room && !p.hidden);
+        const others = players.filter((p) => p.alive && p.id !== me.playerId);
+        let action: Record<string, unknown>;
+        if (sameRoom.length > 0) action = { type: 'attack', targetId: sameRoom[0].id };
+        else if (others.length > 0) action = { type: 'move', room: others[0].room };
+        else action = { type: 'skip' };
+        const send = (act: Record<string, unknown>, retry: boolean) => {
+          host.emit('game:action', { code, playerId: me.playerId, token: me.token, action: act }, (res?: { ok?: boolean }) => {
+            if (retry && res && res.ok === false) send({ type: 'skip' }, false);
+          });
+        };
+        send(action, true);
       }
+    };
+    host.on('room:update', (u: Record<string, unknown>) => {
+      lastGame = (u.game as Record<string, unknown> | null) ?? null;
+      drive();
     });
-    // 监听就绪后再开始
-    const startRes = await emit<{ ok: boolean }>(host, 'room:start', { code, playerId: me.playerId, token: me.token, seed: 777 });
-    expect(startRes.ok).toBe(true);
-    const over = await overPromise;
-    expect(over).toBeTruthy();
+    const heartbeat = setInterval(drive, 400);
+    try {
+      // 监听就绪后再开始
+      const startRes = await emit<{ ok: boolean }>(host, 'room:start', { code, playerId: me.playerId, token: me.token, seed: 777 });
+      expect(startRes.ok).toBe(true);
+      const over = await overPromise;
+      expect(over).toBeTruthy();
+    } finally {
+      clearInterval(heartbeat);
+    }
     host.disconnect();
   });
 

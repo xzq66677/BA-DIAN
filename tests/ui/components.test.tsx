@@ -132,3 +132,64 @@ describe('游戏页 UI（TCG战场·真实引擎快照渲染）', () => {
     expect(document.querySelectorAll('.rb-card').length).toBeGreaterThanOrEqual(3);
   });
 });
+
+// ─── 自身技能（引擎里 targetHint: 'none'）不需要选目标 ─────────────
+
+function buildActSnapshot(charId: string): GameSnapshot {
+  const g = makeGame([{ id: 'A', char: charId }, 'B'], 7);
+  // A 出石头赢 B 的剪刀 → A 获得行动资格，成为当前行动者
+  playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+  return g.snapshot() as unknown as GameSnapshot;
+}
+
+const lobbyFor = (charId: string) => ({
+  code: 'TEST',
+  state: 'playing' as const,
+  hostSeat: 'A',
+  seats: [
+    { playerId: 'A', name: 'A', charId, type: 'human' as const, connected: true },
+    { playerId: 'B', name: 'B', charId: 'default', type: 'ai' as const, connected: true },
+  ],
+  config: { submitTimeoutMs: 30000, turnTimeoutMs: 30000 },
+});
+
+describe('自身技能不需要选目标（领域展开 / 抽取今日运势 / 领域强化）', () => {
+  it.each([
+    ['hero-today', '抽取今日运势'],
+    ['gojo', '领域展开'],
+    ['laodaye', '领域强化'],
+  ])('%s 的「%s」选中后可直接确认发动，不出现目标提示', (charId, label) => {
+    const snap = buildActSnapshot(charId);
+    expect(snap.phase).toBe('act');
+    expect(snap.currentActor).toBe('A');
+
+    render(
+      <GamePage
+        lobby={lobbyFor(charId)}
+        game={snap}
+        session={{ code: 'TEST', identities: [{ playerId: 'A', name: 'A', token: 't' }] }}
+        logs={[]}
+        onExit={() => {}}
+      />,
+    );
+
+    const card = Array.from(document.querySelectorAll('.scard')).find((el) =>
+      el.textContent?.includes(label),
+    ) as HTMLElement | undefined;
+    expect(card).toBeTruthy();
+    // 技能卡上不应标「需选择目标」
+    expect(card!.textContent).not.toContain('需选择目标');
+
+    fireEvent.click(card!);
+    const bar = document.querySelector('.confirm-bar') as HTMLElement;
+    expect(bar).toBeTruthy();
+    expect(bar.textContent).toContain(label);
+    expect(bar.textContent).not.toContain('目标'); // 不再要求「点击战场高亮卡牌」
+
+    const okBtn = Array.from(bar.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('确认发动'),
+    ) as HTMLButtonElement;
+    expect(okBtn).toBeTruthy();
+    expect(okBtn.disabled).toBe(false); // 无需选目标 → 直接可发动
+  });
+});

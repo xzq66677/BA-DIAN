@@ -74,6 +74,11 @@ export class Room {
   /** 出拳/行动超时定时器 */
   private submitTimer: ReturnType<typeof setTimeout> | null = null;
   private actTimer: ReturnType<typeof setTimeout> | null = null;
+  /** AI 看门狗（进行中才运行，结束时清理） */
+  private aiWatchdog: ReturnType<typeof setInterval> | null = null;
+  /** 看门狗：上一次尝试的现场签名与连续无效次数（防止同一现场无限重试刷广播） */
+  private aiWatchdogSig = '';
+  private aiWatchdogTries = 0;
   /** 事件回调（由 ServerHost 注入） */
   onBroadcast: (room: Room) => void = () => {};
   onGameOver: (room: Room) => void = () => {};
@@ -163,6 +168,8 @@ export class Room {
     this.startRecording();
     // AI 自动出拳
     this.kickAI();
+    // 有 AI 才需要看门狗（真人局不存在等待 AI 的场景）
+    if (this.seats.some((s) => s.type === 'ai')) this.startAIWatchdog();
     this.armSubmitTimeout();
     this.captureFrame();
     this.onBroadcast(this);
@@ -242,10 +249,68 @@ export class Room {
     }
   }
 
+  /**
+   * AI 看门狗：房间进行中每 1.2s 检查一次「是否仍在等 AI 决策」。
+   *
+   * 正常情况下 kickAI 在每次状态变更后已经把 AI 走完，这里永远是空转。
+   * 但只要有一次驱动被异常打断（广播/录像抛错、极端重入），旧行为就会靠 30s/45s 超时兜底；
+   * 而单人 vs AI 房间不再布防超时（见 needsTimeout），一旦卡住就永久卡住。
+   * 因此加一层只驱动 AI、绝不替真人行动的兜底泵。
+   */
+  private startAIWatchdog(): void {
+    if (this.aiWatchdog) return;
+    this.aiWatchdog = setInterval(() => {
+      try {
+        const g = this.game;
+        if (!g || this.state !== 'playing' || g.isOver()) return;
+        const pendingAIThrow = g.phase === 'rps1'
+          && this.seats.some((s) => s.type === 'ai' && g.players[s.playerId]?.alive && !g.submittedIds.includes(s.playerId));
+        const cur = g.currentActor();
+        const aiTurn = g.phase === 'act' && !!cur && this.seatOf(cur)?.type === 'ai';
+        // 现场签名：同一现场连续 3 次驱动都推不动就不再重试，避免刷广播
+        const sig = `${g.phase}|${g.roundNo}|${g.subRound}|${g.submittedIds.length}|${g.actIndex}|${g.queue.length}`;
+        if (!pendingAIThrow && !aiTurn) {
+          this.aiWatchdogSig = sig;
+          this.aiWatchdogTries = 0;
+          return;
+        }
+        if (sig === this.aiWatchdogSig) {
+          if (this.aiWatchdogTries >= 3) return;
+          this.aiWatchdogTries++;
+        } else {
+          this.aiWatchdogSig = sig;
+          this.aiWatchdogTries = 1;
+        }
+        // 复用统一变更收口：kickAI + 录帧 + 终局判定 + 超时布防 + 广播
+        this.afterGameMutation();
+      } catch (e) {
+        console.error('[room] AI 看门狗异常：', e);
+      }
+    }, 1200);
+    (this.aiWatchdog as unknown as { unref?: () => void }).unref?.();
+  }
+
+  private stopAIWatchdog(): void {
+    if (this.aiWatchdog) { clearInterval(this.aiWatchdog); this.aiWatchdog = null; }
+  }
+
+  /**
+   * 是否布防「出拳/行动超时」。
+   *
+   * 超时的存在意义只有一个：别让别人干等你。所以只在**房间里还有别人在等**时才布防：
+   * - ≥2 名真人 → 布防（一人挂机会拖死全桌）
+   * - 单人 vs AI（1 真人 + N AI）→ 不布防。AI 是即时应答的，没有任何人在等你，
+   *   超时代掷 / 自动跳过只会打断你自己的思考（用户确认 2026-11-20）
+   * - 单设备多人（type: 'local'）→ 不布防，所有人都在同一块屏幕上，不存在网络等待
+   */
+  private needsTimeout(): boolean {
+    return this.seats.filter((s) => s.type === 'human').length >= 2;
+  }
+
   /** 出拳超时：系统代掷（不泄露原选择——本来就没有） */
   private armSubmitTimeout(): void {
     this.disarmSubmitTimeout();
-    if (this.config.submitTimeoutMs <= 0) return;
+    if (this.config.submitTimeoutMs <= 0 || !this.needsTimeout()) return;
     this.submitTimer = setTimeout(() => {
       if (this.game && this.game.phase === 'rps1') {
         this.game.forceFillThrows();
@@ -258,10 +323,10 @@ export class Room {
     if (this.submitTimer) { clearTimeout(this.submitTimer); this.submitTimer = null; }
   }
 
-  /** 行动超时：自动跳过 */
+  /** 行动超时：自动跳过（同样只在有人等的时候布防） */
   private armActTimeout(): void {
     this.disarmActTimeout();
-    if (this.config.turnTimeoutMs <= 0) return;
+    if (this.config.turnTimeoutMs <= 0 || !this.needsTimeout()) return;
     this.actTimer = setTimeout(() => {
       if (this.game && this.game.phase === 'act') {
         const cur = this.game.currentActor();
@@ -280,6 +345,7 @@ export class Room {
   private disarmAll(): void {
     this.disarmSubmitTimeout();
     this.disarmActTimeout();
+    this.stopAIWatchdog();
   }
 
   /** 重置房间（重开游戏） */

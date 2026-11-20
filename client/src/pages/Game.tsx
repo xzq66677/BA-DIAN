@@ -181,7 +181,9 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
     for (const a of cd.actions || []) {
       list.push({
         key: a.name, label: a.label, desc: a.desc, typeLabel: '技能',
-        targetHint: a.targetHint, roomHint: a.roomHint,
+        // 'none' 表示自身技能（领域展开 / 抽取今日运势 / 强化攻击等）：不选目标、不设房间，直接确认发动
+        targetHint: a.targetHint && a.targetHint !== 'none' ? a.targetHint : undefined,
+        roomHint: a.roomHint,
       });
     }
     return list;
