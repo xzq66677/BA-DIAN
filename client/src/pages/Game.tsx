@@ -104,24 +104,9 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   // 胜负判定弹层（新对局自动复位）
   const [winDismissed, setWinDismissed] = useState(false);
   useEffect(() => { if (game.phase !== 'over') setWinDismissed(false); }, [game.phase]);
-  // 局内发言
-  const [chatOpen, setChatOpen] = useState(false);
+  // 局内发言（底部常驻面板，实时显示）
   const [chatText, setChatText] = useState('');
-  const [unread, setUnread] = useState(0);
-  const seenChatLen = useRef(0);
-  const chatLogRef = useRef<HTMLDivElement | null>(null);
   const chat: { name: string; text: string; ts: number }[] = (lobby as unknown as { chat?: { name: string; text: string; ts: number }[] }).chat || [];
-  useEffect(() => {
-    if (chatOpen) {
-      seenChatLen.current = chat.length;
-      setUnread(0);
-      if (chatLogRef.current) chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
-    } else {
-      const delta = chat.length - seenChatLen.current;
-      if (delta > 0) setUnread((u) => u + delta);
-      seenChatLen.current = chat.length;
-    }
-  }, [chat.length, chatOpen]);
   async function sendChat() {
     const text = chatText.trim();
     if (!text) return;
@@ -225,7 +210,7 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   const pendingLocalIds = myIds.filter((i) => game.players.find((p) => p.id === i.playerId)?.alive && !game.submittedIds.includes(i.playerId));
 
   return (
-    <div className="tcg-app">
+    <div className="tcg-app has-chat">
       <header className="tcg-header">
         <span className="tcg-logo">拔典</span>
         <span className="tcg-chip">房间 {lobby.code}</span>
@@ -234,7 +219,6 @@ function GameInner({ lobby, game, session, logs, onExit }: {
         <span className="tcg-chip">存活 {game.aliveCount}</span>
         <span className="tcg-chip">种子 {game.seed}</span>
         <span style={{ flex: 1 }} />
-        <button className="tcg-btn ghost" onClick={() => setChatOpen(true)}>💬 发言</button>
         {isHost && game.phase === 'over' && (
           <button className="tcg-btn" onClick={() => net.restart(lobby.code, meId, myIds[0].token)}>重新开始</button>
         )}
@@ -397,6 +381,23 @@ function GameInner({ lobby, game, session, logs, onExit }: {
                       ))}
                     </select>
                   )}
+                  {(() => {
+                    if (selAction.key !== 'attack' || !selTarget || !me) return null;
+                    const cd = CHARACTERS[me.charId] || CHARACTERS['default'];
+                    const tgt = game.players.find((x) => x.id === selTarget);
+                    if (!tgt || !cd.rangedNeedsAim || tgt.room === me.room) return null;
+                    if (cd.aimExemptWhenDomain && me.char.domain === true) return null;
+                    if (me.char.aim === selTarget) return null;
+                    return (
+                      <span className="aim-warn">⚠ 远程攻击需先瞄准
+                        <button className="tcg-btn" style={{ padding: '3px 10px', fontSize: 12, marginLeft: 6 }}
+                          onClick={async () => {
+                            const r = await net.submitAction(lobby.code, myTurnId!.playerId, myTurnId!.token, { type: 'aim', targetId: selTarget }) as { ok: boolean; error?: string };
+                            if (!r.ok) setActMsg(r.error || '瞄准失败'); else resetSelection();
+                          }}>一键瞄准该目标</button>
+                      </span>
+                    );
+                  })()}
                   <button className="tcg-btn" disabled={!!selAction.targetHint && !selTarget} onClick={confirmAction}>确认发动</button>
                   <button className="tcg-btn ghost" onClick={resetSelection}>取消</button>
                   {actMsg && <span className="error-text">{actMsg}</span>}
@@ -442,35 +443,55 @@ function GameInner({ lobby, game, session, logs, onExit }: {
         />
       )}
 
-      <button className="chat-fab" title="局内发言" onClick={() => setChatOpen(true)}>
-        💬{unread > 0 && <span className="unread">{unread > 99 ? '99+' : unread}</span>}
-      </button>
+      <ChatDock
+        chat={chat}
+        chatText={chatText}
+        setChatText={setChatText}
+        onSend={sendChat}
+      />
+    </div>
+  );
+}
 
-      {chatOpen && (
-        <div className="card-detail" onClick={() => setChatOpen(false)}>
-          <div className="card-detail-inner chat-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>💬 局内发言</h3>
-            <div className="chat-box">
-              <div className="chat-log" ref={chatLogRef}>
-                {chat.length === 0 && <div className="muted">还没有发言，来一句嘲讽吧</div>}
-                {chat.map((m, i) => (
-                  <div key={i} className="chat-line"><b>{m.name}</b>：{m.text}</div>
-                ))}
-              </div>
-              <div className="chat-input-row">
-                <input
-                  value={chatText}
-                  onChange={(e) => setChatText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') sendChat(); }}
-                  placeholder="输入发言…"
-                  maxLength={200}
-                />
-                <button className="tcg-btn" onClick={sendChat}>发送</button>
-              </div>
-            </div>
-            <button className="tcg-btn" style={{ marginTop: 12, width: '100%' }} onClick={() => setChatOpen(false)}>关闭</button>
+/** 底部常驻局内发言（实时滚动） */
+function ChatDock({ chat, chatText, setChatText, onSend }: {
+  chat: { name: string; text: string; ts: number }[];
+  chatText: string;
+  setChatText: (v: string) => void;
+  onSend: () => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight;
+  }, [chat.length, collapsed]);
+  return (
+    <div className={`chat-dock ${collapsed ? 'collapsed' : ''}`}>
+      <div className="chat-dock-head">
+        <span>💬 局内发言{chat.length > 0 ? `（${chat.length}）` : ''}</span>
+        <button className="tcg-btn ghost tiny" onClick={() => setCollapsed((c) => !c)}>
+          {collapsed ? '展开 ▲' : '收起 ▼'}
+        </button>
+      </div>
+      {!collapsed && (
+        <>
+          <div className="chat-dock-log" ref={boxRef}>
+            {chat.length === 0 && <div className="muted">还没有发言，打个招呼或嘲讽一下</div>}
+            {chat.map((m, i) => (
+              <div key={i} className="chat-line"><b>{m.name}</b>：{m.text}</div>
+            ))}
           </div>
-        </div>
+          <div className="chat-dock-input">
+            <input
+              value={chatText}
+              onChange={(e) => setChatText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }}
+              placeholder="输入发言，回车发送…"
+              maxLength={200}
+            />
+            <button className="tcg-btn" onClick={onSend}>发送</button>
+          </div>
+        </>
       )}
     </div>
   );

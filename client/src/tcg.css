@@ -455,6 +455,57 @@
 .aim-bar.need { background: rgba(226, 170, 48, 0.14); border: 1px solid rgba(226, 170, 48, 0.55); color: #ffd166; }
 .aim-bar.ok { background: rgba(74, 222, 128, 0.12); border: 1px solid rgba(74, 222, 128, 0.5); color: #9fe8b8; }
 
+/* 底部常驻局内发言 */
+.chat-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 95;
+  background: linear-gradient(180deg, rgba(26,20,10,0.98), rgba(14,11,6,0.99));
+  border-top: 2px solid var(--gold-dim);
+  padding: 6px 12px 10px;
+  max-width: 1400px;
+  margin: 0 auto;
+  box-shadow: 0 -8px 26px rgba(0,0,0,0.55);
+}
+.chat-dock.collapsed { padding-bottom: 6px; }
+.chat-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--gold-2);
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+.chat-dock-log {
+  height: 96px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(216,176,74,0.25);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin: 5px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.chat-dock-log .chat-line b { color: var(--gold-2); }
+.chat-dock-input { display: flex; gap: 8px; }
+.chat-dock-input input { flex: 1; min-height: 34px; }
+/* 为底部面板留出空间，避免遮挡内容 */
+.tcg-app.has-chat { padding-bottom: 170px; }
+.tcg-app.has-chat .chat-dock.collapsed ~ * { }
+.aim-warn {
+  color: #ffd166;
+  font-size: 12px;
+  background: rgba(226,170,48,0.14);
+  border: 1px solid rgba(226,170,48,0.5);
+  border-radius: 6px;
+  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+}
+
 /* 发言浮动按钮 + 未读徽章 */
 .chat-fab {
   position: fixed;
