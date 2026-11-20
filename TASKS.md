@@ -195,6 +195,20 @@
 | T-604 | docs/KNOWN_ISSUES.md | DONE | 限制/环境问题 |
 | T-605 | 最终交付报告 | DONE | 见对话输出 |
 
+## 阶段7 · 交互与观察层（2026-11-20）
+
+| 编号 | 任务 | 状态 | 说明 |
+|---|---|---|---|
+| T-700 | 出拳揭示全员可见 | DONE | 结算后公开拳种/胜负，提交阶段仍只暴露「已提交」（tests/reveal.test.ts 4 例） |
+| T-701 | 斗地主式牌桌布局 | DONE | 座位条 / 中央揭示台 / 底部手牌 / 右侧日志 |
+| T-702 | 横屏适配 | DONE | `@media (orientation:landscape) and (max-height:560px)` + `useCompactLandscape`，844×390 全要素一屏 |
+| T-703 | 手机竖屏适配 | DONE | `useNarrowScreen` + 牌桌内滚 + 手牌常驻，出拳按钮一屏可见 |
+| T-704 | 局内战绩面板 | DONE | `stats` 引擎累计 + 顶栏「📊 战绩」（tests/stats.test.ts 4 例） |
+| T-705 | 丢番茄小互动 | DONE | 🍅/🥚/🌹 广播动画 + 2.2s 冷却，不写日志不改血（tests/interaction.test.ts 4 例） |
+| T-706 | AI 难度分级 | DONE | easy/normal/hard，大厅房主可调（tests/integration/ai-difficulty.test.ts 10 例） |
+| T-707 | 对局回放 | DONE | 状态帧录制去重 + `client/src/pages/Replay.tsx` 播放器（0.5–4× 倍速、导出 JSON）（tests/replay.test.ts 3 例） |
+| T-708 | 文档同步 | DONE | README 新增「AI 难度」「局外功能对规则的影响」；GAME_RULES 新增第四节 |
+
 ## 发现并修复的 Bug（全部有回归测试覆盖）
 
 | 编号 | 描述 | 状态 |
@@ -210,6 +224,11 @@
 | B-009 | 已行动者淘汰导致后续玩家被跳过 → 淘汰不移位队列 | FIXED |
 | B-010 | 躲藏目标被选中攻击浪费回合 → 前置校验拒绝 | FIXED |
 | B-011 | 测试驱动器行动被拒后死循环 → 失败即停 | FIXED |
+| B-012 | 横屏 844×390 手牌被挤出视野（top 386 > 视口 390）→ 外壳全高 flex + 两行网格 + 日志/发言改抽屉 | FIXED |
+| B-013 | 横屏房间场地 R3 被裁（移动端 `overflow-x` 继承盖掉网格）→ `.zones` 覆盖为 grid + 栏宽 0.78/1.22 | FIXED |
+| B-014 | 回放弹层底部控制条被发言面板遮住（z-index 95 同级后绘制）→ 发言 z-index 降到 40 | FIXED |
+| B-015 | 桌面牌桌被压缩到 589px（flex 内 `margin:auto` + `width:auto`）→ `width:100%` | FIXED |
+| B-016 | 桌面 1440×900 需滚动 / 手机竖屏看不到出拳按钮 → 两行网格各自内滚 + 窄屏默认收起侧栏 | FIXED |
 
 ## 遗留事项
 
