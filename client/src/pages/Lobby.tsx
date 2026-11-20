@@ -108,12 +108,25 @@ export default function Lobby({ lobby, session, onExit }: {
           <div className="btn-row" style={{ marginTop: 14 }}>
             {isHost && (
               <>
+                <select
+                  value={lobby.aiDifficulty || 'normal'}
+                  onChange={(e) => net.setAI(lobby.code, me.playerId, me.token, e.target.value)}
+                  style={{ minWidth: 150 }}
+                  title="AI 难度：休闲=随性、普通=稳健、硬核=会反制出拳并优先补刀"
+                >
+                  <option value="easy">🤖 AI 难度：休闲</option>
+                  <option value="normal">🤖 AI 难度：普通</option>
+                  <option value="hard">🤖 AI 难度：硬核</option>
+                </select>
                 <select value={aiCharId} onChange={(e) => setAiCharId(e.target.value)} style={{ minWidth: 150 }}>
                   <option value="random">AI 角色：🎲 随机</option>
                   {CHARACTER_LIST.map((c) => <option key={c.id} value={c.id}>AI 角色：{c.name}</option>)}
                 </select>
                 <button className="tcg-btn ghost" onClick={() => net.addAI(lobby.code, me.playerId, me.token, 1, aiCharId)}>+ 添加 AI</button>
               </>
+            )}
+            {!isHost && lobby.seats.some((s) => s.type === 'ai') && (
+              <span className="tcg-chip">🤖 AI 难度：{({ easy: '休闲', normal: '普通', hard: '硬核' } as Record<string, string>)[lobby.aiDifficulty || 'normal']}</span>
             )}
             {isHost && <button className="tcg-btn" disabled={lobby.seats.length < 2} onClick={async () => {
               const r = await net.start(lobby.code, me.playerId, me.token) as { ok: boolean; error?: string };

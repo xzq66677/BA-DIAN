@@ -137,6 +137,107 @@ export interface RevealInfo {
   losers: PlayerId[];
 }
 
+/** AI 难度分级：休闲（随性）/ 普通（默认策略）/ 硬核（反制与收益最大化） */
+export type AiDifficulty = 'easy' | 'normal' | 'hard';
+
+export const AI_DIFFICULTY_LABEL: Record<AiDifficulty, string> = {
+  easy: '休闲',
+  normal: '普通',
+  hard: '硬核',
+};
+
+/** 局内战绩（纯统计，不影响规则判定） */
+export interface PlayerStats {
+  /** 初次判定出拳胜/负/平次数 */
+  throwWin: number;
+  throwLose: number;
+  throwTie: number;
+  /** 造成的伤害总量 */
+  damageDealt: number;
+  /** 承受的伤害总量 */
+  damageTaken: number;
+  /** 击杀数 */
+  kills: number;
+  /** 行动次数 */
+  actions: number;
+  /** 回复次数 */
+  heals: number;
+  /** 移动次数 */
+  moves: number;
+  /** 存活回合数 */
+  roundsAlive: number;
+}
+
+export function emptyStats(): PlayerStats {
+  return {
+    throwWin: 0, throwLose: 0, throwTie: 0,
+    damageDealt: 0, damageTaken: 0, kills: 0,
+    actions: 0, heals: 0, moves: 0, roundsAlive: 0,
+  };
+}
+
+/** 局内小互动（丢番茄等，纯娱乐，不进入规则引擎） */
+export type InteractionKind = 'tomato' | 'egg' | 'flower';
+
+export interface InteractionEvent {
+  id: number;
+  from: PlayerId;
+  fromName: string;
+  to: PlayerId;
+  kind: InteractionKind;
+  ts: number;
+}
+
+// ── 对局回放 ────────────────────────────────────────────────
+
+/** 回放帧中的玩家状态（只保留展示所需字段） */
+export interface ReplayPlayer {
+  id: PlayerId;
+  name: string;
+  charId: string;
+  charName: string;
+  hp: number;
+  maxHp: number;
+  room: RoomId;
+  alive: boolean;
+  hidden: boolean;
+  invisible: boolean;
+  type: PlayerType;
+  stats?: PlayerStats;
+}
+
+/** 回放帧：每次状态变化记录一帧（含该帧新增日志） */
+export interface ReplayFrame {
+  i: number;
+  roundNo: number;
+  phase: GamePhase;
+  subRound: number;
+  players: ReplayPlayer[];
+  roomIds: RoomId[];
+  reveal: RevealInfo | null;
+  currentActor: PlayerId | null;
+  queue: PlayerId[];
+  actIndex: number;
+  aliveCount: number;
+  winner: PlayerId | null;
+  logs: { seq: number; type: LogType; text: string; important?: boolean }[];
+}
+
+export interface ReplaySummary {
+  id: string;
+  ts: number;
+  seed: number;
+  winner: PlayerId | null;
+  winnerName: string | null;
+  rounds: number;
+  frameCount: number;
+  players: { id: PlayerId; name: string; charId: string; charName: string }[];
+}
+
+export interface ReplayRecord extends ReplaySummary {
+  frames: ReplayFrame[];
+}
+
 export interface ActionRequest {
   type: string;
   targetId?: PlayerId;

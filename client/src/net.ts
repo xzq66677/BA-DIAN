@@ -25,6 +25,85 @@ export interface LobbyState {
   seats: LobbySeat[];
   chat: { name: string; text: string; ts: number }[];
   config: { submitTimeoutMs: number; turnTimeoutMs: number };
+  /** AI 难度（房主可调） */
+  aiDifficulty?: AiDifficulty;
+  /** 局内小互动（最近若干条，客户端按 id 增量播放动画） */
+  interactions?: InteractionEvent[];
+  /** 互动计数：给 / 收 */
+  interactionCounts?: Record<string, { given: number; got: number }>;
+  /** 已完成对局回放摘要 */
+  replays?: ReplaySummary[];
+}
+
+export type AiDifficulty = 'easy' | 'normal' | 'hard';
+export type InteractionKind = 'tomato' | 'egg' | 'flower';
+
+export interface InteractionEvent {
+  id: number;
+  from: string;
+  fromName: string;
+  to: string;
+  kind: InteractionKind;
+  ts: number;
+}
+
+export interface PlayerStats {
+  throwWin: number;
+  throwLose: number;
+  throwTie: number;
+  damageDealt: number;
+  damageTaken: number;
+  kills: number;
+  actions: number;
+  heals: number;
+  moves: number;
+  roundsAlive: number;
+}
+
+export interface ReplayPlayer {
+  id: string;
+  name: string;
+  charId: string;
+  charName: string;
+  hp: number;
+  maxHp: number;
+  room: string;
+  alive: boolean;
+  hidden: boolean;
+  invisible: boolean;
+  type: 'human' | 'ai' | 'local';
+  stats?: PlayerStats;
+}
+
+export interface ReplayFrame {
+  i: number;
+  roundNo: number;
+  phase: 'rps1' | 'act' | 'roundEnd' | 'over';
+  subRound: number;
+  players: ReplayPlayer[];
+  roomIds: string[];
+  reveal: RevealInfo | null;
+  currentActor: string | null;
+  queue: string[];
+  actIndex: number;
+  aliveCount: number;
+  winner: string | null;
+  logs: { seq: number; type: string; text: string; important?: boolean }[];
+}
+
+export interface ReplaySummary {
+  id: string;
+  ts: number;
+  seed: number;
+  winner: string | null;
+  winnerName: string | null;
+  rounds: number;
+  frameCount: number;
+  players: { id: string; name: string; charId: string; charName: string }[];
+}
+
+export interface ReplayRecord extends ReplaySummary {
+  frames: ReplayFrame[];
 }
 
 export interface RoomListEntry {
@@ -79,6 +158,8 @@ export interface GameSnapshot {
   judgeRecords: { stage: string; sub: number; throws: Record<string, string>; outcome: string; winners?: string[]; losers?: string[] }[];
   /** 出拳揭示：全员可见，仅在子轮结算完成后出现 */
   reveal?: RevealInfo | null;
+  /** 局内战绩（每人一份） */
+  stats?: Record<string, PlayerStats>;
   logs: SnapLog[];
   winner: string | null;
   aliveCount: number;
@@ -191,8 +272,20 @@ class Net {
   setChar(code: string, playerId: string, token: string, charId: string, targetId?: string) {
     return this.emit('room:setChar', { code, playerId, token, charId, targetId });
   }
-  addAI(code: string, playerId: string, token: string, count: number, charId?: string) {
-    return this.emit('room:addAI', { code, playerId, token, count, charId });
+  addAI(code: string, playerId: string, token: string, count: number, charId?: string, difficulty?: string) {
+    return this.emit('room:addAI', { code, playerId, token, count, charId, difficulty });
+  }
+  setAI(code: string, playerId: string, token: string, difficulty: string) {
+    return this.emit('room:setAI', { code, playerId, token, difficulty });
+  }
+  interact(code: string, playerId: string, token: string, targetId: string, kind: InteractionKind) {
+    return this.emit('game:interact', { code, playerId, token, targetId, kind });
+  }
+  replayList(code: string) {
+    return this.emit('replay:list', { code });
+  }
+  replayGet(code: string, id: string) {
+    return this.emit('replay:get', { code, id });
   }
   removeSeat(code: string, playerId: string, token: string, targetId: string) {
     return this.emit('room:removeSeat', { code, playerId, token, targetId });

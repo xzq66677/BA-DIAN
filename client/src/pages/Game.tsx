@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { net, type LobbyState, type GameSnapshot, type SnapPlayer, type RevealInfo } from '../net.js';
+import {
+  net, type LobbyState, type GameSnapshot, type SnapPlayer, type RevealInfo,
+  type PlayerStats, type InteractionEvent, type InteractionKind,
+} from '../net.js';
 import type { SessionInfo } from '../App.js';
 import { CHARACTERS } from '../../../shared/src/characters/index.js';
 import { cardMeta } from '../cards.js';
+import ReplayViewer from './Replay.js';
 
 const THROW_LABEL: Record<string, string> = { rock: '石头', scissors: '剪刀', paper: '布' };
 const THROW_ICON: Record<string, string> = { rock: '✊', scissors: '✌️', paper: '✋' };
+const AI_LABEL: Record<string, string> = { easy: '休闲', normal: '普通', hard: '硬核' };
+const INTERACT_ICON: Record<InteractionKind, string> = { tomato: '🍅', egg: '🥚', flower: '🌹' };
+const INTERACT_NAME: Record<InteractionKind, string> = { tomato: '丢番茄', egg: '丢鸡蛋', flower: '献花' };
 
 interface ActionOption {
   key: string;
@@ -59,6 +66,30 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   const [selTarget, setSelTarget] = useState('');
   const [selRoom, setSelRoom] = useState('');
   const [actMsg, setActMsg] = useState('');
+
+  // 战绩面板 / 回放
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [replayOpen, setReplayOpen] = useState(false);
+  const [replayId, setReplayId] = useState<string | null>(null);
+
+  // 横屏紧凑模式：牌桌占满一屏，战斗日志改为抽屉、发言默认收起
+  const compact = useCompactLandscape();
+  const narrow = useNarrowScreen();
+  const [logOpen, setLogOpen] = useState(!compact && !narrow);
+  const [chatOpen, setChatOpen] = useState(!compact && !narrow);
+  useEffect(() => { setLogOpen(!compact && !narrow); setChatOpen(!compact && !narrow); }, [compact, narrow]);
+
+  // 局内小互动（丢番茄等）
+  const interactions = lobby.interactions ?? [];
+  const interactCounts = lobby.interactionCounts ?? {};
+  const interactBusy = useRef(false);
+  async function throwAt(targetId: string, kind: InteractionKind) {
+    if (interactBusy.current) return;
+    interactBusy.current = true;
+    const r = await net.interact(lobby.code, meId, myIds[0].token, targetId, kind) as { ok: boolean; error?: string };
+    if (!r.ok) setActMsg(r.error || '互动失败');
+    setTimeout(() => { interactBusy.current = false; }, 400);
+  }
 
   // 动作特效：从新增日志提取（行动/伤害/触发 → 卡牌表情动画）
   const [actionFx, setActionFx] = useState<Record<string, { kind: string; key: number }>>({});
@@ -223,12 +254,25 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
     <div className="tcg-app has-chat">
       <header className="tcg-header">
         <span className="tcg-logo">拔典</span>
-        <span className="tcg-chip">房间 {lobby.code}</span>
+        <span className="tcg-chip hide-sm">房间 {lobby.code}</span>
         <span className="tcg-chip">第 <b>{game.roundNo}</b> 回合</span>
         <span className="tcg-chip hot">{phaseText()}</span>
         <span className="tcg-chip">存活 {game.aliveCount}</span>
-        <span className="tcg-chip">种子 {game.seed}</span>
+        {lobby.seats.some((s) => s.type === 'ai') && (
+          <span className="tcg-chip" title="AI 难度（房主可在房间里调整）">
+            🤖 AI {AI_LABEL[lobby.aiDifficulty || 'normal']}
+          </span>
+        )}
+        <span className="tcg-chip hide-sm">种子 {game.seed}</span>
         <span style={{ flex: 1 }} />
+        <button className="tcg-btn ghost tiny" onClick={() => setStatsOpen(true)}>📊 战绩</button>
+        <button className={`tcg-btn ghost tiny ${logOpen ? '' : 'off'}`} onClick={() => setLogOpen((v) => !v)}>
+          📜 日志
+        </button>
+        <button className={`tcg-btn ghost tiny ${chatOpen ? '' : 'off'}`} onClick={() => setChatOpen((v) => !v)}>
+          💬 发言{chat.length > 0 ? `（${chat.length}）` : ''}
+        </button>
+        <button className="tcg-btn ghost tiny" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 回放</button>
         {isHost && game.phase === 'over' && (
           <button className="tcg-btn" onClick={() => net.restart(lobby.code, meId, myIds[0].token)}>重新开始</button>
         )}
@@ -259,6 +303,8 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
             )}
             <div className="win-btns">
               {isHost && <button className="tcg-btn" onClick={() => { setWinDismissed(true); net.restart(lobby.code, meId, myIds[0].token); }}>🔄 再来一局</button>}
+              <button className="tcg-btn ghost" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 观看回放</button>
+              <button className="tcg-btn ghost" onClick={() => { setWinDismissed(true); setStatsOpen(true); }}>📊 本局战绩</button>
               <button className="tcg-btn ghost" onClick={async () => { setWinDismissed(true); await net.leave(lobby.code, meId, myIds[0].token); onExit(); }}>离开房间</button>
               <button className="tcg-btn ghost" onClick={() => setWinDismissed(true)}>查看战场</button>
             </div>
@@ -271,7 +317,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
         </div>
       )}
 
-      <div className="tcg-main">
+      <div className={`tcg-main ${logOpen ? '' : 'no-log'}`}>
         {/* ── 牌桌（斗地主式：上方对手座位 / 中央牌桌 / 下方我的手牌） ── */}
         <section className="battlefield ddz-table anim-in">
           <div className="bf-turn">第 <b>{game.roundNo}</b> 回合 · {phaseText()}</div>
@@ -289,6 +335,8 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                 throwView={throwViewOf(game, p.id)}
                 targetable={!!selAction?.targetHint && validTargets.some((t) => t.id === p.id)}
                 flashDelta={flashMap[p.id]}
+                gotCount={interactCounts[p.id]?.got ?? 0}
+                onInteract={game.phase !== 'over' ? () => throwAt(p.id, 'tomato') : undefined}
                 onClick={() => pickTargetOrDetail(p.id)}
               />
             ))}
@@ -330,7 +378,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
           </div>
         </section>
 
-        <aside className="log-side">
+        <aside className={`log-side ${logOpen ? 'log-open' : 'log-closed'}`}>
           <LogPanel logs={logs} />
         </aside>
 
@@ -475,59 +523,80 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
           onClose={() => setDetailId(null)}
           canKick={isHost && detailPlayer.id !== meId && detailPlayer.alive}
           onKick={() => kickPlayer(detailPlayer.id, detailPlayer.name)}
+          stats={game.stats?.[detailPlayer.id]}
+          gotCount={interactCounts[detailPlayer.id]?.got ?? 0}
+          onInteract={game.phase !== 'over' && detailPlayer.alive && detailPlayer.id !== meId
+            ? (kind) => throwAt(detailPlayer.id, kind)
+            : undefined}
         />
       )}
 
-      <ChatDock
-        chat={chat}
-        chatText={chatText}
-        setChatText={setChatText}
-        onSend={sendChat}
-      />
+      <InteractFx interactions={interactions} />
+
+      {statsOpen && (
+        <StatsPanel
+          game={game}
+          meId={meId}
+          counts={interactCounts}
+          onClose={() => setStatsOpen(false)}
+        />
+      )}
+
+      {replayOpen && (
+        <ReplayViewer
+          code={lobby.code}
+          autoOpenId={replayId}
+          onClose={() => setReplayOpen(false)}
+        />
+      )}
+
+      {chatOpen && (
+        <ChatDock
+          chat={chat}
+          chatText={chatText}
+          setChatText={setChatText}
+          onSend={sendChat}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
-/** 底部常驻局内发言（实时滚动） */
-function ChatDock({ chat, chatText, setChatText, onSend }: {
+/** 底部常驻局内发言（实时滚动；横屏默认收起，由顶栏「💬 发言」展开） */
+function ChatDock({ chat, chatText, setChatText, onSend, onClose }: {
   chat: { name: string; text: string; ts: number }[];
   chatText: string;
   setChatText: (v: string) => void;
   onSend: () => void;
+  onClose: () => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight;
-  }, [chat.length, collapsed]);
+  }, [chat.length]);
   return (
-    <div className={`chat-dock ${collapsed ? 'collapsed' : ''}`}>
+    <div className="chat-dock">
       <div className="chat-dock-head">
         <span>💬 局内发言{chat.length > 0 ? `（${chat.length}）` : ''}</span>
-        <button className="tcg-btn ghost tiny" onClick={() => setCollapsed((c) => !c)}>
-          {collapsed ? '展开 ▲' : '收起 ▼'}
-        </button>
+        <button className="tcg-btn ghost tiny" onClick={onClose}>收起 ▼</button>
       </div>
-      {!collapsed && (
-        <>
-          <div className="chat-dock-log" ref={boxRef}>
-            {chat.length === 0 && <div className="muted">还没有发言，打个招呼或嘲讽一下</div>}
-            {chat.map((m, i) => (
-              <div key={i} className="chat-line"><b>{m.name}</b>：{m.text}</div>
-            ))}
-          </div>
-          <div className="chat-dock-input">
-            <input
-              value={chatText}
-              onChange={(e) => setChatText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }}
-              placeholder="输入发言，回车发送…"
-              maxLength={200}
-            />
-            <button className="tcg-btn" onClick={onSend}>发送</button>
-          </div>
-        </>
-      )}
+      <div className="chat-dock-log" ref={boxRef}>
+        {chat.length === 0 && <div className="muted">还没有发言，打个招呼或嘲讽一下</div>}
+        {chat.map((m, i) => (
+          <div key={i} className="chat-line"><b>{m.name}</b>：{m.text}</div>
+        ))}
+      </div>
+      <div className="chat-dock-input">
+        <input
+          value={chatText}
+          onChange={(e) => setChatText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }}
+          placeholder="输入发言，回车发送…"
+          maxLength={200}
+        />
+        <button className="tcg-btn" onClick={onSend}>发送</button>
+      </div>
     </div>
   );
 }
@@ -665,7 +734,7 @@ function RevealBoard({ game }: { game: GameSnapshot }) {
 
 // ── 对手座位（斗地主式顶部座位条） ─────────────────────
 
-function SeatChip({ p, game, acting, mine, submitted, throwView, targetable, flashDelta, onClick }: {
+function SeatChip({ p, game, acting, mine, submitted, throwView, targetable, flashDelta, gotCount, onInteract, onClick }: {
   p: SnapPlayer;
   game: GameSnapshot;
   acting: boolean;
@@ -674,6 +743,8 @@ function SeatChip({ p, game, acting, mine, submitted, throwView, targetable, fla
   throwView: ThrowView | null;
   targetable: boolean;
   flashDelta?: number;
+  gotCount?: number;
+  onInteract?: () => void;
   onClick: () => void;
 }) {
   const meta = cardMeta(p.charId);
@@ -687,7 +758,7 @@ function SeatChip({ p, game, acting, mine, submitted, throwView, targetable, fla
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={cls} onClick={onClick} title={`${p.name} · ${p.charName}`}>
+    <div className={cls} data-pid={p.id} onClick={onClick} title={`${p.name} · ${p.charName}`}>
       <div className="seat-avatar">
         {meta?.img ? <img src={meta.img} alt={p.charName} /> : <span className="seat-ph">拔</span>}
         {throwView && (
@@ -696,6 +767,7 @@ function SeatChip({ p, game, acting, mine, submitted, throwView, targetable, fla
           </span>
         )}
         {!throwView && submitted && !dead && <span className="seat-throw pending" title="已出拳（保密）">🎴</span>}
+        {!!gotCount && <span className="seat-got" title={`被丢了 ${gotCount} 次`}>🍅{gotCount}</span>}
       </div>
       <div className="seat-info">
         <div className="seat-name">
@@ -711,6 +783,13 @@ function SeatChip({ p, game, acting, mine, submitted, throwView, targetable, fla
       {acting && !dead && <span className="seat-acting">行动中</span>}
       {flashDelta !== undefined && !dead && <span className="dmg-float">-{fmtHp(flashDelta)}</span>}
       {game.phase === 'over' && game.winner === p.id && <span className="seat-crown">🏆</span>}
+      {onInteract && !dead && (
+        <button
+          className="seat-tomato"
+          title="丢番茄（纯娱乐，不影响对局）"
+          onClick={(e) => { e.stopPropagation(); onInteract(); }}
+        >🍅</button>
+      )}
     </div>
   );
 }
@@ -721,7 +800,7 @@ function MySeat({ p, isHost, acting, throwView }: { p?: SnapPlayer; isHost: bool
   if (!p) return <div className="my-seat is-empty">未入座</div>;
   const meta = cardMeta(p.charId);
   return (
-    <div className={`my-seat ${p.alive ? '' : 'is-dead'} ${acting ? 'is-acting' : ''}`}>
+    <div className={`my-seat ${p.alive ? '' : 'is-dead'} ${acting ? 'is-acting' : ''}`} data-pid={p.id}>
       <div className="ms-art">
         {meta?.img ? <img src={meta.img} alt={p.charName} /> : <span>拔</span>}
         {throwView && p.alive && (
@@ -769,7 +848,7 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fla
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={cls} onClick={onClick} title={`${p.name} · ${p.charName}（点击查看卡牌详情）`}>
+    <div className={cls} data-pid={p.id} onClick={onClick} title={`${p.name} · ${p.charName}（点击查看卡牌详情）`}>
       <div className="ccard-frame">
         <div className="ccard-art">
           {meta?.img ? <img src={meta.img} alt={p.charName} /> : <div className="ccard-art-ph">拔</div>}
@@ -813,7 +892,15 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fla
 
 // ── 卡牌详情弹层 ─────────────────────────────────────────
 
-function CardDetail({ p, onClose, canKick, onKick }: { p: SnapPlayer; onClose: () => void; canKick?: boolean; onKick?: () => void }) {
+function CardDetail({ p, onClose, canKick, onKick, stats, onInteract, gotCount }: {
+  p: SnapPlayer;
+  onClose: () => void;
+  canKick?: boolean;
+  onKick?: () => void;
+  stats?: PlayerStats;
+  onInteract?: (kind: InteractionKind) => void;
+  gotCount?: number;
+}) {
   const meta = cardMeta(p.charId);
   return (
     <div className="card-detail" onClick={onClose}>
@@ -826,6 +913,29 @@ function CardDetail({ p, onClose, canKick, onKick }: { p: SnapPlayer; onClose: (
         <div style={{ marginTop: 12, fontSize: 13, color: '#6b5a3a' }}>
           当前状态：HP {fmtHp(p.hp)}/{fmtHp(p.maxHp)} · 房间 {p.room} · {p.alive ? (p.hidden ? '躲藏中' : p.invisible ? '隐身中' : '存活') : '已淘汰'}
         </div>
+        {stats && (
+          <div className="cd-stats">
+            <span>🎴 出拳胜/负/平 <b>{stats.throwWin}/{stats.throwLose}/{stats.throwTie}</b></span>
+            <span>⚔ 造成伤害 <b>{fmtHp(stats.damageDealt)}</b></span>
+            <span>🛡 承受伤害 <b>{fmtHp(stats.damageTaken)}</b></span>
+            <span>💀 击杀 <b>{stats.kills}</b></span>
+            <span>🎬 行动 <b>{stats.actions}</b></span>
+            <span>🕯 存活回合 <b>{stats.roundsAlive}</b></span>
+            {!!gotCount && <span>🍅 被丢 <b>{gotCount}</b> 次</span>}
+          </div>
+        )}
+        {onInteract && (
+          <div className="cd-interact">
+            <span className="cd-interact-label">局内小互动（不影响对局）</span>
+            <div className="cd-interact-row">
+              {(['tomato', 'egg', 'flower'] as InteractionKind[]).map((k) => (
+                <button key={k} className="tcg-btn ghost tiny" onClick={() => onInteract(k)}>
+                  {INTERACT_ICON[k]} {INTERACT_NAME[k]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <button className="tcg-btn" style={{ marginTop: 12, width: '100%' }} onClick={onClose}>关闭</button>
         {canKick && onKick && (
           <button className="tcg-btn danger" style={{ marginTop: 8, width: '100%' }} onClick={onKick}>⚖ 房主踢出该玩家</button>
@@ -849,11 +959,11 @@ function ThrowPrivacy({ myIds, game, lobby }: {
     return (
       <div className="privacy-veil">
         <p>🎲 隐藏出拳阶段 — 以下身份还未出拳</p>
-        <div style={{ margin: '8px 0', display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div className="pv-names" style={{ margin: '8px 0', display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
           {myIds.map((i) => <span key={i.playerId} className="pv-name" style={{ fontSize: 14 }}>{i.name}</span>)}
         </div>
-        <p className="tcg-chip" style={{ display: 'inline-block' }}>为防止偷看，请依次传递设备，由本人亲自出拳</p>
-        <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <p className="pv-hint tcg-chip" style={{ display: 'inline-block' }}>为防止偷看，请依次传递设备，由本人亲自出拳</p>
+        <div className="pv-actions" style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
           {myIds.map((i, idx) => (
             <button key={i.playerId} className="tcg-btn" onClick={() => setActiveIdx(idx)}>
               我是 {i.name}，开始出拳
@@ -919,4 +1029,180 @@ function LogPanel({ logs }: { logs: { seq: number; text: string; important?: boo
       </div>
     </>
   );
+}
+
+// ── 局内小互动飞行特效（丢番茄/鸡蛋/献花） ───────────────
+
+interface FxItem { key: number; icon: string; x0: number; y0: number; x1: number; y1: number; }
+
+function InteractFx({ interactions }: { interactions: InteractionEvent[] }) {
+  const [fx, setFx] = useState<FxItem[]>([]);
+  const seen = useRef<number | null>(null);
+
+  useEffect(() => {
+    const maxId = interactions.length > 0 ? Math.max(...interactions.map((e) => e.id)) : 0;
+    // 首次进入对局：只记录游标，不回放历史互动
+    if (seen.current === null) { seen.current = maxId; return; }
+    const fresh = interactions.filter((e) => e.id > (seen.current as number));
+    if (fresh.length === 0) return;
+    seen.current = maxId;
+    const items: FxItem[] = [];
+    for (const e of fresh) {
+      const el = document.querySelector(`[data-pid="${e.to}"]`) as HTMLElement | null;
+      const rect = el?.getBoundingClientRect();
+      const x1 = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+      const y1 = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+      items.push({
+        key: e.id, icon: INTERACT_ICON[e.kind],
+        x0: window.innerWidth / 2, y0: window.innerHeight - 36, x1, y1,
+      });
+      if (el) {
+        el.classList.remove('hit-flash');
+        void el.offsetWidth;
+        el.classList.add('hit-flash');
+        setTimeout(() => el.classList.remove('hit-flash'), 850);
+      }
+    }
+    setFx((prev) => [...prev, ...items]);
+    const t = setTimeout(() => {
+      const keys = new Set(items.map((i) => i.key));
+      setFx((prev) => prev.filter((x) => !keys.has(x.key)));
+    }, 900);
+    return () => clearTimeout(t);
+  }, [interactions]);
+
+  if (fx.length === 0) return null;
+  return (
+    <div className="interact-fx-layer" aria-hidden>
+      {fx.map((f) => (
+        <span
+          key={f.key}
+          className="interact-fx"
+          style={{
+            left: f.x0, top: f.y0,
+            ['--dx' as string]: `${f.x1 - f.x0}px`,
+            ['--dy' as string]: `${f.y1 - f.y0}px`,
+          } as React.CSSProperties}
+        >{f.icon}</span>
+      ))}
+    </div>
+  );
+}
+
+// ── 局内战绩面板 ─────────────────────────────────────────
+
+function StatsPanel({ game, meId, counts, onClose }: {
+  game: GameSnapshot;
+  meId: string;
+  counts: Record<string, { given: number; got: number }>;
+  onClose: () => void;
+}) {
+  const rows = game.players
+    .map((p) => ({ p, s: game.stats?.[p.id], c: counts[p.id] }))
+    .sort((a, b) => {
+      if (a.p.alive !== b.p.alive) return a.p.alive ? -1 : 1;
+      const da = a.s?.damageDealt ?? 0;
+      const db = b.s?.damageDealt ?? 0;
+      if (db !== da) return db - da;
+      return (b.s?.kills ?? 0) - (a.s?.kills ?? 0);
+    });
+  return (
+    <div className="stats-overlay" onClick={onClose}>
+      <div className="stats-modal anim-in" onClick={(e) => e.stopPropagation()}>
+        <header className="stats-head">
+          <h2>📊 本局战绩</h2>
+          <span className="tcg-chip">第 {game.roundNo} 回合 · 存活 {game.aliveCount}</span>
+          <span style={{ flex: 1 }} />
+          <button className="tcg-btn ghost tiny" onClick={onClose}>关闭 ✕</button>
+        </header>
+        <div className="stats-scroll">
+          <table className="stats-table">
+            <thead>
+              <tr>
+                <th>玩家</th>
+                <th>出拳 胜/负/平</th>
+                <th>造成伤害</th>
+                <th>承受伤害</th>
+                <th>击杀</th>
+                <th>行动</th>
+                <th>存活回合</th>
+                <th>🍅 给/收</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ p, s, c }) => (
+                <tr key={p.id} className={p.id === meId ? 'me' : ''}>
+                  <td>
+                    <span className={`stats-name ${p.alive ? '' : 'dead'}`}>{p.name}</span>
+                    <span className="stats-char">{p.charName}</span>
+                    {p.id === meId && <span className="seat-tag">我</span>}
+                    {!p.alive && <span className="seat-tag dead">淘汰</span>}
+                  </td>
+                  <td>
+                    <span className="st-win">{s?.throwWin ?? 0}</span>/
+                    <span className="st-lose">{s?.throwLose ?? 0}</span>/
+                    <span className="st-tie">{s?.throwTie ?? 0}</span>
+                  </td>
+                  <td className="st-dmg">{fmtHp(s?.damageDealt ?? 0)}</td>
+                  <td>{fmtHp(s?.damageTaken ?? 0)}</td>
+                  <td>{s?.kills ?? 0}</td>
+                  <td>{s?.actions ?? 0}</td>
+                  <td>{s?.roundsAlive ?? 0}</td>
+                  <td>{c?.given ?? 0}/{c?.got ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="stats-tip">
+            战绩只做统计展示，不参与任何规则判定。出拳胜负按每个判定子轮计（循环/同拳重判记为平）。
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 横屏紧凑模式检测（手机横放：高度很小） ────────────────
+
+const COMPACT_QUERY = '(orientation: landscape) and (max-height: 560px)';
+
+function matchMediaSafe(q: string): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia(q).matches;
+}
+
+function useCompactLandscape(): boolean {
+  const [on, setOn] = useState(() => matchMediaSafe(COMPACT_QUERY));
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia(COMPACT_QUERY);
+    const handler = () => setOn(mq.matches);
+    handler();
+    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', handler);
+    else if (typeof mq.addListener === 'function') mq.addListener(handler);
+    return () => {
+      if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', handler);
+      else if (typeof mq.removeListener === 'function') mq.removeListener(handler);
+    };
+  }, []);
+  return on;
+}
+
+const NARROW_QUERY = '(max-width: 900px)';
+
+function useNarrowScreen(): boolean {
+  const [on, setOn] = useState(() => matchMediaSafe(NARROW_QUERY));
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia(NARROW_QUERY);
+    const handler = () => setOn(mq.matches);
+    handler();
+    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', handler);
+    else if (typeof mq.addListener === 'function') mq.addListener(handler);
+    return () => {
+      if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', handler);
+      else if (typeof mq.removeListener === 'function') mq.removeListener(handler);
+    };
+  }, []);
+  return on;
 }

@@ -2,11 +2,19 @@
  * 拔典 · 联机房间管理
  * 房间创建/加入/邀请码/房主/座位/AI/开始游戏/断线重连。
  * 所有游戏状态由服务端管理，客户端只负责展示与请求。
+ *
+ * 除规则引擎外，本层还负责三件「不进入规则」的事：
+ *  1. AI 难度分级（休闲 / 普通 / 硬核）：AI 与真人使用同一引擎接口；
+ *  2. 局内小互动（丢番茄/鸡蛋/献花）：带冷却的纯娱乐广播；
+ *  3. 对局回放：按状态变化录制帧，对局结束归档最近若干局。
  */
 
 import { Game } from '../../shared/src/engine.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
-import type { PlayerId, ActionRequest, Throw, GamePlayerConfig, RuleConfig } from '../../shared/src/types.js';
+import type {
+  PlayerId, ActionRequest, Throw, GamePlayerConfig, RuleConfig, AiDifficulty,
+  InteractionEvent, InteractionKind, ReplayFrame, ReplayRecord, ReplaySummary, ReplayPlayer,
+} from '../../shared/src/types.js';
 import { randomThrow, RNG } from '../../shared/src/rng.js';
 
 export interface Seat {
@@ -25,6 +33,7 @@ export interface RoomConfig {
   seed?: number;
   turnTimeoutMs: number;
   submitTimeoutMs: number;
+  aiDifficulty?: AiDifficulty;
 }
 
 export type RoomState = 'lobby' | 'playing' | 'over';
@@ -34,6 +43,15 @@ export interface ChatMessage {
   text: string;
   ts: number;
 }
+
+/** 互动冷却（毫秒）：防止刷屏 */
+export const INTERACT_COOLDOWN_MS = 2200;
+/** 每个房间保留的回放局数 */
+export const MAX_REPLAYS = 5;
+/** 单局最多录制帧数（保护内存） */
+export const MAX_REPLAY_FRAMES = 1500;
+
+const AI_DIFFICULTIES: AiDifficulty[] = ['easy', 'normal', 'hard'];
 
 export class Room {
   code: string;
@@ -45,12 +63,27 @@ export class Room {
   createdAt = Date.now();
   /** 房间聊天记录（等待界面交流用） */
   chat: ChatMessage[] = [];
+  /** AI 难度（房主可调，整局统一） */
+  aiDifficulty: AiDifficulty = 'normal';
+  /** 局内小互动（最近的保留，客户端按 id 增量播放动画） */
+  interactions: InteractionEvent[] = [];
+  /** 互动计数（给 / 收），用于座位角标与战绩面板 */
+  interactionCounts: Record<PlayerId, { given: number; got: number }> = {};
+  /** 已完成对局回放（最新在前） */
+  replays: ReplayRecord[] = [];
   /** 出拳/行动超时定时器 */
   private submitTimer: ReturnType<typeof setTimeout> | null = null;
   private actTimer: ReturnType<typeof setTimeout> | null = null;
   /** 事件回调（由 ServerHost 注入） */
   onBroadcast: (room: Room) => void = () => {};
   onGameOver: (room: Room) => void = () => {};
+  private interactSeq = 0;
+  private lastInteractAt: Record<PlayerId, number> = {};
+  private replaySeq = 0;
+  /** 正在录制的对局 */
+  private recording: ReplayRecord | null = null;
+  private lastFrameSig = '';
+  private lastFrameLogSeq = 0;
 
   constructor(code: string, config?: Partial<RoomConfig>) {
     this.code = code;
@@ -59,6 +92,9 @@ export class Room {
       submitTimeoutMs: 30000,
       ...config,
     };
+    if (config?.aiDifficulty && AI_DIFFICULTIES.includes(config.aiDifficulty)) {
+      this.aiDifficulty = config.aiDifficulty;
+    }
   }
 
   genToken(): string {
@@ -103,6 +139,14 @@ export class Room {
     return this.seats.filter((s) => s.type !== 'ai');
   }
 
+  /** 设置 AI 难度（房主） */
+  setAiDifficulty(level: string): { ok: boolean; error?: string } {
+    if (!AI_DIFFICULTIES.includes(level as AiDifficulty)) return { ok: false, error: '未知难度' };
+    this.aiDifficulty = level as AiDifficulty;
+    this.onBroadcast(this);
+    return { ok: true };
+  }
+
   /** 开始游戏：构造引擎（2人以上） */
   start(seed?: number): { ok: boolean; error?: string } {
     if (this.state === 'playing') return { ok: false, error: '游戏已在进行中' };
@@ -113,9 +157,14 @@ export class Room {
     const usedSeed = seed ?? this.config.seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
     this.game = new Game({ seed: usedSeed, players, chars: CHARACTERS, rules: this.config.rules });
     this.state = 'playing';
+    this.interactions = [];
+    this.interactionCounts = {};
+    this.lastInteractAt = {};
+    this.startRecording();
     // AI 自动出拳
     this.kickAI();
     this.armSubmitTimeout();
+    this.captureFrame();
     this.onBroadcast(this);
     return { ok: true };
   }
@@ -139,13 +188,15 @@ export class Room {
     return r;
   }
 
-  /** 游戏状态变化后的统一处理：AI 驱动、超时布防、广播 */
+  /** 游戏状态变化后的统一处理：AI 驱动、录像、超时布防、广播 */
   private afterGameMutation(): void {
     if (!this.game) return;
     this.kickAI();
+    this.captureFrame();
     if (this.game.isOver()) {
       this.state = 'over';
       this.disarmAll();
+      this.finishRecording();
       this.onBroadcast(this);
       this.onGameOver(this);
       return;
@@ -155,11 +206,11 @@ export class Room {
     this.onBroadcast(this);
   }
 
-  /** AI 行动驱动（AI 与真人使用同一引擎接口） */
+  /** AI 行动驱动（AI 与真人使用同一引擎接口，难度决定决策质量） */
   kickAI(): void {
     if (!this.game || this.game.isOver()) return;
     let guard = 0;
-    while (guard++ < 500) {
+    while (guard++ < 800) {
       const g = this.game;
       if (g.isOver()) break;
       if (g.phase === 'rps1') {
@@ -167,7 +218,9 @@ export class Room {
         const pending = aiSeats.filter((s) => !g.submittedIds.includes(s.playerId));
         if (pending.length === 0) break;
         for (const s of pending) {
-          g.submitThrow(s.playerId, randomThrow(g.rng)); // AI 使用游戏随机流，保证对局可复现
+          const t = aiThrow(g, s.playerId, this.aiDifficulty);
+          g.submitThrow(s.playerId, t);
+          this.captureFrame();
         }
         continue;
       }
@@ -176,7 +229,13 @@ export class Room {
         if (!cur) break;
         const seat = this.seatOf(cur);
         if (!seat || seat.type !== 'ai') break;
-        g.submitAction(cur, aiDecideAction(g, cur));
+        // 依次尝试候选行动，保证 AI 永远不会因非法决策卡住对局
+        let done = false;
+        for (const act of aiDecideActions(g, cur, this.aiDifficulty)) {
+          if (g.submitAction(cur, act).ok) { done = true; break; }
+        }
+        if (!done) g.submitAction(cur, { type: 'skip' });
+        this.captureFrame();
         continue;
       }
       break;
@@ -228,6 +287,11 @@ export class Room {
     if (this.state === 'lobby') return { ok: false, error: '房间尚未开始过' };
     this.state = 'lobby';
     this.game = null;
+    this.recording = null;
+    this.lastFrameSig = '';
+    this.lastFrameLogSeq = 0;
+    this.interactions = [];
+    this.interactionCounts = {};
     this.disarmAll();
     this.onBroadcast(this);
     return { ok: true };
@@ -235,6 +299,144 @@ export class Room {
 
   dispose(): void {
     this.disarmAll();
+  }
+
+  // ═══════════════ 局内小互动（丢番茄等，纯娱乐） ═══════════════
+
+  /**
+   * 丢番茄 / 鸡蛋 / 献花。不消耗行动、不影响任何规则判定，
+   * 只受「每人 2.2 秒一次」与目标存活约束。
+   */
+  interact(from: PlayerId, to: PlayerId, kind: InteractionKind): { ok: boolean; error?: string } {
+    if (!this.game) return { ok: false, error: '对局未开始' };
+    if (this.game.isOver()) return { ok: false, error: '对局已结束' };
+    const seat = this.seatOf(from);
+    if (!seat) return { ok: false, error: '座位不存在' };
+    if (from === to) return { ok: false, error: '不能对自己出手' };
+    const target = this.game.players[to];
+    if (!target) return { ok: false, error: '目标不存在' };
+    if (!target.alive) return { ok: false, error: '目标已被淘汰，手下留情' };
+    const k = kind === 'egg' || kind === 'flower' ? kind : 'tomato';
+    const now = Date.now();
+    if (now - (this.lastInteractAt[from] ?? 0) < INTERACT_COOLDOWN_MS) {
+      return { ok: false, error: '手速太快了，歇一会儿再扔' };
+    }
+    this.lastInteractAt[from] = now;
+    this.interactions.push({ id: ++this.interactSeq, from, fromName: seat.name, to, kind: k, ts: now });
+    if (this.interactions.length > 40) this.interactions = this.interactions.slice(-40);
+    const g1 = (this.interactionCounts[from] ??= { given: 0, got: 0 });
+    g1.given++;
+    const g2 = (this.interactionCounts[to] ??= { given: 0, got: 0 });
+    g2.got++;
+    this.onBroadcast(this);
+    return { ok: true };
+  }
+
+  // ═══════════════ 对局回放（状态帧录制） ═══════════════
+
+  private startRecording(): void {
+    if (!this.game) return;
+    this.recording = {
+      id: `RP${Date.now().toString(36)}-${++this.replaySeq}`,
+      ts: Date.now(),
+      seed: this.game.seed,
+      winner: null,
+      winnerName: null,
+      rounds: 1,
+      frameCount: 0,
+      players: this.game.playerIds.map((pid) => ({
+        id: pid,
+        name: this.game!.players[pid].name,
+        charId: this.game!.players[pid].charId,
+        charName: this.game!.charName(pid),
+      })),
+      frames: [],
+    };
+    this.lastFrameSig = '';
+    this.lastFrameLogSeq = 0;
+  }
+
+  /** 未结束的对局也能看（回放进行中） */
+  currentReplay(): ReplayRecord | null {
+    return this.recording;
+  }
+
+  /** 录制一帧（状态无变化则跳过，避免重复帧） */
+  private captureFrame(): void {
+    const g = this.game;
+    const rec = this.recording;
+    if (!g || !rec) return;
+    if (rec.frames.length >= MAX_REPLAY_FRAMES) return;
+    const players: ReplayPlayer[] = g.playerIds.map((pid) => {
+      const p = g.players[pid];
+      return {
+        id: p.id, name: p.name, charId: p.charId, charName: g.charName(pid),
+        hp: p.hp, maxHp: p.maxHp, room: p.room, alive: p.alive,
+        hidden: p.hidden, invisible: p.invisible, type: p.type,
+        stats: { ...g.stats[pid] },
+      };
+    });
+    const reveal = g.revealInfo();
+    const submitted = g.submittedIds.filter((pid) => g.players[pid]?.alive);
+    const winner = g.winner ?? null;
+    const sig = [
+      g.roundNo, g.subRound, g.phase, g.currentActor() ?? '-', g.actIndex, winner ?? '-',
+      submitted.length, reveal ? `${reveal.sub}/${reveal.outcome}` : '-',
+      players.map((p) => `${p.id}:${p.hp}:${p.room}:${p.alive ? 1 : 0}:${p.hidden ? 1 : 0}:${p.invisible ? 1 : 0}`).join(','),
+    ].join('|');
+    if (sig === this.lastFrameSig) return;
+    this.lastFrameSig = sig;
+    const logs = g.logs.filter((l) => l.seq > this.lastFrameLogSeq).map((l) => ({
+      seq: l.seq, type: l.type, text: l.text, important: l.important,
+    }));
+    if (g.logs.length > 0) this.lastFrameLogSeq = g.logs[g.logs.length - 1].seq;
+    const frame: ReplayFrame = {
+      i: rec.frames.length,
+      roundNo: g.roundNo,
+      phase: g.phase,
+      subRound: g.subRound,
+      players,
+      roomIds: [...g.roomIds],
+      reveal,
+      currentActor: g.currentActor(),
+      queue: [...g.queue],
+      actIndex: g.actIndex,
+      aliveCount: g.aliveIds().length,
+      winner,
+      logs,
+    };
+    rec.frames.push(frame);
+    rec.rounds = g.roundNo;
+    rec.winner = winner;
+    rec.frameCount = rec.frames.length;
+  }
+
+  private finishRecording(): void {
+    const rec = this.recording;
+    if (!rec) return;
+    this.captureFrame();
+    rec.rounds = this.game?.roundNo ?? rec.rounds;
+    rec.frameCount = rec.frames.length;
+    const w = rec.winner ?? null;
+    rec.winnerName = w ? (rec.players.find((p) => p.id === w)?.name ?? null) : null;
+    this.replays.unshift(rec);
+    if (this.replays.length > MAX_REPLAYS) this.replays = this.replays.slice(0, MAX_REPLAYS);
+    this.recording = null;
+  }
+
+  replayList(): ReplaySummary[] {
+    const list: ReplaySummary[] = this.replays.map((r) => ({
+      id: r.id, ts: r.ts, seed: r.seed, winner: r.winner, winnerName: r.winnerName,
+      rounds: r.rounds, frameCount: r.frameCount, players: r.players,
+    }));
+    return list;
+  }
+
+  replayGet(id: string): ReplayRecord | null {
+    const done = this.replays.find((r) => r.id === id);
+    if (done) return done;
+    if (this.recording && this.recording.id === id) return this.recording;
+    return null;
   }
 
   /** 大厅快照（不含令牌） */
@@ -249,6 +451,10 @@ export class Room {
       })),
       chat: this.chat.slice(-50),
       config: { submitTimeoutMs: this.config.submitTimeoutMs, turnTimeoutMs: this.config.turnTimeoutMs },
+      aiDifficulty: this.aiDifficulty,
+      interactions: this.interactions.slice(-30),
+      interactionCounts: this.interactionCounts,
+      replays: this.replayList(),
     };
   }
 
@@ -273,8 +479,86 @@ export class Room {
 
 // ═══════════════════ AI 决策（与规则引擎分离，只提交合法行动） ═══════════════════
 
-/** 简单可解释的 AI 行动策略 */
-export function aiDecideAction(g: Game, pid: PlayerId): ActionRequest {
+/** 某出拳的克制拳（用于硬核 AI 反制） */
+const COUNTER: Record<Throw, Throw> = { rock: 'paper', scissors: 'rock', paper: 'scissors' };
+
+/**
+ * AI 出拳。
+ *  - easy / normal：随机（引擎种子流，可复现）
+ *  - hard：统计对手历史出拳频率反制（30% 随机扰动，避免被读牌）
+ */
+export function aiThrow(g: Game, pid: PlayerId, difficulty: AiDifficulty = 'normal'): Throw {
+  if (difficulty !== 'hard') return randomThrow(g.rng);
+  const counts: Record<Throw, number> = { rock: 0, scissors: 0, paper: 0 };
+  for (const [other, list] of Object.entries(g.throwHistory ?? {})) {
+    if (other === pid) continue;
+    for (const t of list.slice(-4)) counts[t] = (counts[t] ?? 0) + 1;
+  }
+  const total = counts.rock + counts.scissors + counts.paper;
+  if (total < 3) return randomThrow(g.rng);
+  if (g.rng.next() < 0.3) return randomThrow(g.rng);
+  const mostCommon = (Object.keys(counts) as Throw[]).sort((a, b) => counts[b] - counts[a])[0];
+  return COUNTER[mostCommon];
+}
+
+/** 威胁评分：攻击力 + 血量（硬核 AI 用来挑「最危险的对手」） */
+function threatOf(g: Game, pid: PlayerId): number {
+  const p = g.players[pid];
+  const cd = g.charDef(pid);
+  const atk = cd.meleeDamage ?? cd.attack ?? g.rules.defaultAttack;
+  return atk * 2 + p.hp;
+}
+
+/** 简单可解释的 AI 行动策略（普通难度，保留原行为以便回归） */
+export function aiDecideAction(g: Game, pid: PlayerId, difficulty: AiDifficulty = 'normal'): ActionRequest {
+  return aiDecideActions(g, pid, difficulty)[0];
+}
+
+/**
+ * 返回按优先级排列的候选行动。
+ * 调用方（Room.kickAI）依次尝试，第一份被引擎接受的即为 AI 本回合行动 —— 
+ * 这样即使某个角色有额外限制，AI 也不会卡住对局。
+ */
+export function aiDecideActions(g: Game, pid: PlayerId, difficulty: AiDifficulty = 'normal'): ActionRequest[] {
+  const primary = difficulty === 'easy' ? easyDecide(g, pid)
+    : difficulty === 'hard' ? hardDecide(g, pid)
+      : normalDecide(g, pid);
+  const chain: ActionRequest[] = [primary];
+  const push = (a: ActionRequest) => {
+    if (!chain.some((x) => JSON.stringify(x) === JSON.stringify(a))) chain.push(a);
+  };
+  // 回退链：保证一定有一个能被接受的行动（最差为跳过）
+  const me = g.players[pid];
+  const sameRoom = g.roomMembers(me.room).filter((p) => p !== pid && !g.players[p].hidden && !g.players[p].invisible);
+  for (const t of sameRoom) push({ type: 'attack', targetId: t });
+  if (me.hp < me.maxHp) push({ type: 'heal' });
+  const otherRoom = g.roomIds.find((r) => r !== me.room && g.roomMembers(r).length > 0);
+  if (otherRoom) push({ type: 'move', room: otherRoom });
+  if (g.rules.allowHide && !me.hidden) push({ type: 'hide' });
+  push({ type: 'skip' });
+  return chain;
+}
+
+/** 休闲：随性而为，常常做些没用的事 */
+function easyDecide(g: Game, pid: PlayerId): ActionRequest {
+  const me = g.players[pid];
+  const members = g.roomMembers(me.room).filter((p) => p !== pid);
+  const visible = members.filter((m) => !(g.players[m].hidden || g.players[m].invisible));
+  const roll = g.rng.next();
+  if (roll < 0.18 && g.rules.allowHide && !me.hidden) return { type: 'hide' };
+  if (roll < 0.28) return { type: 'skip' };
+  if (roll < 0.4 && me.hp < me.maxHp) return { type: 'heal' };
+  if (visible.length > 0 && roll < 0.8) {
+    return { type: 'attack', targetId: g.rng.pick(visible) };
+  }
+  if (visible.length > 0) return { type: 'attack', targetId: visible[0] };
+  const rooms = g.roomIds.filter((r) => r !== me.room);
+  if (rooms.length > 0) return { type: 'move', room: g.rng.pick(rooms) };
+  return { type: 'skip' };
+}
+
+/** 普通：原策略（残血回复 → 角色特化 → 击杀优先 → 补给/移动 → 躲藏） */
+function normalDecide(g: Game, pid: PlayerId): ActionRequest {
   const me = g.players[pid];
   const cd = g.charDef(pid);
   const members = g.roomMembers(me.room).filter((p) => p !== pid);
@@ -285,7 +569,6 @@ export function aiDecideAction(g: Game, pid: PlayerId): ActionRequest {
     return { type: 'heal' };
   }
 
-  // 角色特化
   const st = g.charState(pid);
   switch (cd.id) {
     case 'bagun':
@@ -359,6 +642,93 @@ export function aiDecideAction(g: Game, pid: PlayerId): ActionRequest {
   if (roomScores.length > 0 && roomScores[0].n > 0) {
     return { type: 'move', room: roomScores[0].r };
   }
+  if (g.rules.allowHide && !me.hidden) return { type: 'hide' };
+  return { type: 'skip' };
+}
+
+/**
+ * 硬核：
+ *  - 先算「能不能杀人」：同房间可击杀者优先，远程可击杀者也优先（必要时先瞄准）；
+ *  - 残血且本房间有人能一击带走自己 → 先把自己救回来（回复/撤离）；
+ *  - 无击杀机会时挑威胁最高的目标打，而不是随手打第一个；
+ *  - 满血无事可做才移动/躲藏，绝不空过有输出机会的回合。
+ */
+function hardDecide(g: Game, pid: PlayerId): ActionRequest {
+  const me = g.players[pid];
+  const cd = g.charDef(pid);
+  const st = g.charState(pid);
+  const sameRoom = g.roomMembers(me.room).filter((p) => p !== pid);
+  const aliveOthers = g.aliveIds().filter((p) => p !== pid);
+  const visibleSame = sameRoom.filter((p) => !(g.players[p].hidden || g.players[p].invisible));
+  const myAtk = cd.meleeDamage ?? cd.attack ?? g.rules.defaultAttack;
+  const domainExempt = cd.aimExemptWhenDomain && st.domain === true;
+
+  // 角色开场能力优先（领域/拔棍/运势）
+  if (cd.id === 'bagun' && !st.stickDrawn) return { type: 'toggleStick' };
+  if (cd.id === 'gojo' && st.domain !== true) return { type: 'domain' };
+  if (cd.id === 'hero-today' && g.roundNo === 1 && me.hp <= 1 && st.fortuneUsed !== true) return { type: 'rollFortune' };
+  if (cd.id === 'mabaoguo' && sameRoom.some((m) => g.players[m].maxHp >= 3)) {
+    return { type: 'whip5', targetId: sameRoom[0] };
+  }
+  if (cd.id === 'ivan-girl') {
+    const best = g.roomIds
+      .filter((r) => r !== me.room)
+      .map((r) => ({ r, n: g.roomMembers(r).length }))
+      .sort((a, b) => b.n - a.n)[0];
+    if (best && best.n >= 2) return { type: 'throwIvan', room: best.r };
+  }
+
+  // 1) 能一击带走的目标（同房间）
+  const killableNow = visibleSame.filter((m) => g.players[m].hp <= myAtk);
+  if (killableNow.length > 0) {
+    const target = killableNow.sort((a, b) => threatOf(g, b) - threatOf(g, a))[0];
+    return { type: 'attack', targetId: target };
+  }
+
+  // 2) 自身危险：同房间有人能一击带走我 → 先保命
+  const danger = visibleSame.some((m) => {
+    const mcd = g.charDef(m);
+    const atk = mcd.meleeDamage ?? mcd.attack ?? g.rules.defaultAttack;
+    return atk >= me.hp;
+  });
+  if (danger && me.hp < me.maxHp) return { type: 'heal' };
+  if (danger && sameRoom.length > 0) {
+    const safe = g.roomIds.find((r) => r !== me.room && g.roomMembers(r).length === 0);
+    if (safe) return { type: 'move', room: safe };
+  }
+
+  // 3) 远程击杀（吹箫哥/五条悟等）：能立刻杀掉异房间残血目标则出手
+  if (cd.rangedCapable) {
+    const rangedDamage = cd.rangedDamage ?? cd.attack ?? g.rules.defaultAttack;
+    const rangedTargets = aliveOthers.filter((p) => !g.isSameRoom(pid, p) && !(g.players[p].hidden || g.players[p].invisible));
+    const remoteKill = rangedTargets.filter((p) => g.players[p].hp <= rangedDamage);
+    const pickRemote = remoteKill.sort((a, b) => threatOf(g, b) - threatOf(g, a))[0];
+    if (pickRemote) {
+      if (cd.rangedNeedsAim && !domainExempt && st.aim !== pickRemote) {
+        return { type: 'aim', targetId: pickRemote };
+      }
+      return { type: 'attack', targetId: pickRemote, ranged: true };
+    }
+  }
+
+  // 4) 打房间里威胁最高的目标
+  if (visibleSame.length > 0) {
+    const target = visibleSame.sort((a, b) => threatOf(g, b) - threatOf(g, a))[0];
+    return { type: 'attack', targetId: target };
+  }
+
+  // 5) 房间空了：补血后主动找人（优先人多且有残血的房间）
+  if (me.hp < me.maxHp) return { type: 'heal' };
+  const rooms = g.roomIds
+    .filter((r) => r !== me.room)
+    .map((r) => {
+      const mem = g.roomMembers(r);
+      const weak = mem.filter((m) => g.players[m].hp <= myAtk).length;
+      return { r, n: mem.length, weak };
+    })
+    .filter((x) => x.n > 0)
+    .sort((a, b) => (b.weak - a.weak) || (b.n - a.n));
+  if (rooms.length > 0) return { type: 'move', room: rooms[0].r };
   if (g.rules.allowHide && !me.hidden) return { type: 'hide' };
   return { type: 'skip' };
 }

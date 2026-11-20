@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Room } from './room.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
-import type { PlayerId, ActionRequest, Throw } from '../../shared/src/types.js';
+import type { PlayerId, ActionRequest, Throw, InteractionKind } from '../../shared/src/types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3100);
@@ -196,11 +196,12 @@ io.on('connection', (socket: Socket) => {
     broadcastRoom(room);
   });
 
-  socket.on('room:addAI', (data: { code: string; playerId: PlayerId; token: string; count?: number; charId?: string }, ack?: (r: unknown) => void) => {
+  socket.on('room:addAI', (data: { code: string; playerId: PlayerId; token: string; count?: number; charId?: string; difficulty?: string }, ack?: (r: unknown) => void) => {
     const room = getRoom(data.code || '');
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     const seat = room.seatOf(data.playerId);
     if (!seat || !room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可添加AI' }); return; }
+    if (data.difficulty) room.setAiDifficulty(data.difficulty);
     const count = Math.min(data.count ?? 1, 20 - room.seats.length);
     for (let i = 0; i < count; i++) {
       // 角色选择：显式指定 > 随机（注册表内随机）
@@ -211,6 +212,18 @@ io.on('connection', (socket: Socket) => {
     ack?.({ ok: true, charId: data.charId });
     broadcastRoom(room);
     broadcastLobby();
+  });
+
+  // ── AI 难度（房主可调，整局统一） ──
+  socket.on('room:setAI', (data: { code: string; playerId: PlayerId; token: string; difficulty: string }, ack?: (r: unknown) => void) => {
+    const room = getRoom(data.code || '');
+    if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
+    const seat = room.seatOf(data.playerId);
+    if (!seat || seat.token !== data.token) { ack?.({ ok: false, error: '身份验证失败' }); return; }
+    if (!room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可调整 AI 难度' }); return; }
+    const r = room.setAiDifficulty(data.difficulty);
+    ack?.(r);
+    broadcastRoom(room);
   });
 
   socket.on('room:removeSeat', (data: { code: string; playerId: PlayerId; token: string; targetId: PlayerId }, ack?: (r: unknown) => void) => {
@@ -333,6 +346,30 @@ io.on('connection', (socket: Socket) => {
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     broadcastRoom(room);
     ack?.({ ok: true });
+  });
+
+  // ── 局内小互动（丢番茄/鸡蛋/献花，不影响规则） ──
+  socket.on('game:interact', (data: { code: string; playerId: PlayerId; token: string; targetId: PlayerId; kind?: InteractionKind }, ack?: (r: unknown) => void) => {
+    const room = getRoom(data.code || '');
+    if (!room || !room.game) { ack?.({ ok: false, error: '对局不存在' }); return; }
+    const seat = room.seatOf(data.playerId);
+    if (!seat || seat.token !== data.token) { ack?.({ ok: false, error: '身份验证失败' }); return; }
+    ack?.(room.interact(data.playerId, data.targetId, data.kind ?? 'tomato'));
+  });
+
+  // ── 对局回放 ──
+  socket.on('replay:list', (data: { code: string }, ack?: (r: unknown) => void) => {
+    const room = getRoom(data.code || '');
+    if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
+    ack?.({ ok: true, replays: room.replayList(), live: room.state === 'playing' ? room.currentReplay()?.id ?? null : null });
+  });
+
+  socket.on('replay:get', (data: { code: string; id: string }, ack?: (r: unknown) => void) => {
+    const room = getRoom(data.code || '');
+    if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
+    const replay = room.replayGet(data.id);
+    if (!replay) { ack?.({ ok: false, error: '回放不存在或已过期' }); return; }
+    ack?.({ ok: true, replay });
   });
 
   socket.on('disconnect', () => {

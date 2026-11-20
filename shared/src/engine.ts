@@ -10,7 +10,7 @@ import {
   type PlayerState, type DamageRequest, type AppliedDamage, type LogEntry,
   type LogType, type DeferredEvent, type JudgeRoundRecord, type ActionRequest,
   type ActionResult, type GamePlayerConfig, type RuleConfig, type CharRuntimeState,
-  type RevealInfo,
+  type RevealInfo, type PlayerStats, emptyStats,
   DEFAULT_RULES, fmtNum,
 } from './types.js';
 import { RNG, randomThrow } from './rng.js';
@@ -43,11 +43,15 @@ export class Game implements GameLike {
   actIndex = 0;
   entrantOrder: PlayerId[] = [];
   histories: Record<PlayerId, JudgeStep[]> = {};
+  /** 已结算出拳的历史记录（跨回合，供硬核 AI 反制；只记录已揭示的拳种） */
+  throwHistory: Record<PlayerId, Throw[]> = {};
   deferred: DeferredEvent[] = [];
   logs: LogEntry[] = [];
   private logSeq = 0;
   winner: PlayerId | null | undefined;
   judgeRecords: JudgeRoundRecord[] = [];
+  /** 局内战绩（纯统计，不影响判定；快照下发给前端展示） */
+  stats: Record<PlayerId, PlayerStats> = {};
   /** 本回合重点事件摘要（回合末输出小结） */
   roundSummary: string[] = [];
   private deferredSeq = 0;
@@ -79,8 +83,11 @@ export class Game implements GameLike {
       this.playerIds.push(pc.id);
       this.roomIds.push(room);
       this.histories[pc.id] = [];
+      this.stats[pc.id] = emptyStats();
+      this.throwHistory[pc.id] = [];
     });
     this.entrantOrder = this.aliveIds();
+    for (const pid of this.playerIds) this.stats[pid].roundsAlive = 1;
     this.log('phase', `游戏开始：${this.playerIds.length} 名玩家，随机种子 ${this.seed}`, undefined, true);
     for (const pid of this.playerIds) {
       const p = this.players[pid];
@@ -221,6 +228,12 @@ export class Game implements GameLike {
       outcome: outcome.status,
       winners: outcome.winners, losers: outcome.losers,
     });
+    this.recordThrowStats(entrants, outcome);
+    // 已结算出拳进入历史（AI 反制与回放统计用，不含未结算数据）
+    for (const pid of entrants) {
+      const t = this.pendingThrows[pid];
+      if (t) (this.throwHistory[pid] ??= []).push(t);
+    }
 
     const throwsDesc = entrants.map((pid) => `${this.players[pid].name}:${this.throwName(this.pendingThrows[pid]!)}`).join('，');
     if (outcome.status === 'cycle') {
@@ -280,6 +293,20 @@ export class Game implements GameLike {
     return t === 'rock' ? '石头' : t === 'scissors' ? '剪刀' : '布';
   }
 
+  /** 战绩：记录本子轮出拳胜负（循环/同拳平局记平，不偏向任何一方） */
+  private recordThrowStats(entrants: PlayerId[], outcome: { status: string; winners: PlayerId[]; losers: PlayerId[] }): void {
+    const win = new Set(outcome.winners);
+    const lose = new Set(outcome.losers);
+    for (const pid of entrants) {
+      const st = this.stats[pid];
+      if (!st) continue;
+      if (outcome.status === 'cycle' || outcome.status === 'alltie') st.throwTie++;
+      else if (win.has(pid)) st.throwWin++;
+      else if (lose.has(pid)) st.throwLose++;
+      else st.throwTie++;
+    }
+  }
+
   // ─── 二次判定与行动队列 ───────────────────────────────────────
 
   private beginActionPhase(winners: PlayerId[]): void {
@@ -335,6 +362,12 @@ export class Game implements GameLike {
 
     const res = this.executeAction(pid, req);
     if (!res.ok) return res; // 非法行动：不修改状态、不消耗行动
+    const st = this.stats[pid];
+    if (st) {
+      st.actions++;
+      if (req.type === 'heal') st.heals++;
+      if (req.type === 'move') st.moves++;
+    }
     const fx = req.type === 'attack' ? 'attack'
       : req.type === 'move' ? 'move'
       : req.type === 'heal' ? 'heal'
@@ -570,14 +603,19 @@ export class Game implements GameLike {
     applied.finalTarget = req.target;
 
     // 4. 结算
+    const before = tp.hp;
     if (req.instakill) {
       this.log('damage', `${tp.name} 受到秒杀效果（${req.tag || '伤害'}${req.segment ? ` 第${req.segment.index}/${req.segment.total}段` : ''}）`, undefined, true);
       tp.hp = 0;
     } else {
-      const before = tp.hp;
       tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
       this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, { target: tp.id, source: req.source }, true);
     }
+
+    // 战绩：实际掉血量（秒杀按剩余血量计）
+    const dealt = Math.max(0, before - tp.hp);
+    if (this.stats[tp.id]) this.stats[tp.id].damageTaken += dealt;
+    if (req.source && req.source !== tp.id && this.stats[req.source]) this.stats[req.source].damageDealt += dealt;
 
     // 5. 附加效果（转移伤害不随转移）
     if (req.effects && req.effects.length > 0 && !req.transferred) {
@@ -619,6 +657,7 @@ export class Game implements GameLike {
     p.hidden = false;
     p.invisible = false;
     p.hp = 0;
+    if (killer && killer !== pid && this.stats[killer]) this.stats[killer].kills++;
     this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, undefined, true);
     this.roundSummary.push(`${p.name} 被淘汰（${cause}）`);
     this.qualified = this.qualified.filter((x) => x !== pid);
@@ -646,6 +685,7 @@ export class Game implements GameLike {
     if (alive.length === 1) {
       this.phase = 'over';
       this.winner = alive[0];
+      if (this.stats[alive[0]]) this.stats[alive[0]].roundsAlive++;
       this.log('result', `🏆 游戏结束：${this.players[alive[0]].name}（${this.charName(alive[0])}）获得胜利！`, undefined, true);
       this.cancelDeferredOnGameOver();
       return true;
@@ -716,6 +756,9 @@ export class Game implements GameLike {
 
     this.roundNo++;
     this.subRound = 1;
+    for (const pid of this.aliveIds()) {
+      if (this.stats[pid]) this.stats[pid].roundsAlive++;
+    }
     this.pendingThrows = {};
     this.submittedIds = [];
     this.qualified = [];
@@ -802,6 +845,8 @@ export class Game implements GameLike {
       judgeRecords: this.judgeRecords.map((r) => ({ ...r, throws: { ...r.throws } })),
       /** 已揭示的出拳（全员可见）；提交阶段为 null，不泄露任何拳种 */
       reveal: this.revealInfo(),
+      /** 局内战绩（每人一份，纯统计） */
+      stats: Object.fromEntries(this.playerIds.map((pid) => [pid, { ...this.stats[pid] }])),
       // 日志通过增量（newLogs）下发，快照不再重复携带（带宽优化：长对局不随每次状态同步重发全量日志）
       winner: this.winner ?? null,
       aliveCount: this.aliveIds().length,
