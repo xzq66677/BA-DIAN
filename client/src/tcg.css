@@ -69,12 +69,13 @@
 /* ── 主布局 ─────────────────────────────────────── */
 .tcg-main {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
   gap: 14px;
   padding: 14px;
   max-width: 1400px;
   margin: 0 auto;
 }
+.tcg-main > section, .tcg-main > aside { min-width: 0; }
 
 /* ── 战场：卡桌垫 ───────────────────────────────── */
 .battlefield {
@@ -448,7 +449,7 @@
   border-radius: 8px;
   color: #3a2f1c;
 }
-.log-side .log-line { border-bottom: 1px dashed rgba(107, 90, 58, 0.3); padding: 3px 8px; }
+.log-side .log-line { border-bottom: 1px dashed rgba(107, 90, 58, 0.3); padding: 3px 8px; overflow-wrap: anywhere; }
 .log-side .log-line.imp { color: #6e1a12; background: rgba(162, 35, 29, 0.07); border-left: 3px solid var(--red-2); font-weight: 700; }
 .log-side .log-line.dim { color: #8a7a58; }
 .log-side .log-line .log-icon { margin-right: 4px; }
@@ -493,7 +494,8 @@
   margin: 18px 0 4px;
 }
 .hall-sub { text-align: center; color: var(--text-dim); margin-bottom: 20px; letter-spacing: 2px; }
-.hall-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.hall-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.hall-grid > .tcg-panel { min-width: 0; }
 @media (max-width: 860px) { .hall-grid { grid-template-columns: 1fr; } }
 .tcg-panel {
   border-radius: 14px;
@@ -612,8 +614,9 @@
 
 /* ── 移动端适配 ─────────────────────────────────── */
 @media (max-width: 900px) {
-  .tcg-main { grid-template-columns: 1fr; }
-  .log-side { max-height: 240px; order: 2; }
+  body { overflow-x: hidden; }
+  .tcg-main { grid-template-columns: minmax(0, 1fr); }
+  .log-side { max-height: 250px; order: 2; }
   .battlefield { min-height: 300px; padding: 10px; }
   .battlefield::before { font-size: 52px; letter-spacing: 10px; }
   .zones { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }
@@ -621,6 +624,11 @@
   .ccard { width: 108px; }
   .ccard-art { height: 96px; }
   .action-dock { order: 1; }
+  .scard { min-width: 148px; max-width: 158px; }
+  .tcg-header { padding: 8px 10px; }
+  .tcg-logo { font-size: 16px; letter-spacing: 4px; }
+  .tcg-chip { padding: 3px 8px; font-size: 11px; }
   .hall-title { font-size: 30px; letter-spacing: 8px; }
   .log-header { flex-wrap: wrap; }
+  .confirm-bar { font-size: 12px; }
 }
