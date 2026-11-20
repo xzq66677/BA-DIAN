@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ALL_CASES, type TestCase } from '../../../shared/src/testcases/index.js';
-import type { TestRunResult } from '../../../shared/src/testcases/helpers.js';
+import { ALL_CASES } from '../../../shared/src/testcases/index.js';
+import type { TestCase, TestRunResult } from '../../../shared/src/testcases/helpers.js';
 
 /**
  * 机制测试场：与 vitest 共用 shared/src/testcases 的同一份测试数据。

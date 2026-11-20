@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { net, type LobbyState, type GameSnapshot, type SnapPlayer } from '../net.js';
+import { net, type LobbyState, type GameSnapshot, type SnapPlayer, type RevealInfo } from '../net.js';
 import type { SessionInfo } from '../App.js';
 import { CHARACTERS } from '../../../shared/src/characters/index.js';
 import { cardMeta } from '../cards.js';
@@ -16,15 +16,17 @@ interface ActionOption {
   roomHint?: boolean;
 }
 
-export default function GamePage({ lobby, game, session, logs, onExit }: {
+export default function GamePage({ lobby, game, session, logs, onExit, onBackToLobby }: {
   lobby: LobbyState;
   game: GameSnapshot | null;
   session: SessionInfo;
   logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[];
   onExit: () => void;
+  /** 对局结束后返回房间大厅（房间仍保留） */
+  onBackToLobby?: () => void;
 }) {
   if (!game) return <div className="tcg-app"><div className="tcg-panel" style={{ margin: 20 }}>等待游戏状态…</div></div>;
-  return <GameInner lobby={lobby} game={game} session={session} logs={logs} onExit={onExit} />;
+  return <GameInner lobby={lobby} game={game} session={session} logs={logs} onExit={onExit} onBackToLobby={onBackToLobby} />;
 }
 
 function fmtHp(n: number): string {
@@ -39,12 +41,13 @@ function atkOf(p: SnapPlayer): string {
   return fmtHp(v);
 }
 
-function GameInner({ lobby, game, session, logs, onExit }: {
+function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   lobby: LobbyState;
   game: GameSnapshot;
   session: SessionInfo;
   logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[];
   onExit: () => void;
+  onBackToLobby?: () => void;
 }) {
   const myIds = session.identities;
   const meId = myIds[0].playerId;
@@ -115,7 +118,7 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   }
   async function kickPlayer(targetId: string, name: string) {
     const r = await net.kick(lobby.code, meId, myIds[0].token, targetId) as { ok: boolean; error?: string };
-    if (!r.ok) setActMsg(r.error || '踢人失败');
+    if (!r.ok) setActMsg(r.error || `踢出 ${name} 失败`);
     else setDetailId(null);
   }
 
@@ -208,6 +211,13 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   }
 
   const pendingLocalIds = myIds.filter((i) => game.players.find((p) => p.id === i.playerId)?.alive && !game.submittedIds.includes(i.playerId));
+  const opponents = game.players.filter((p) => p.id !== meId);
+  const livingCount = game.players.filter((p) => p.alive).length;
+
+  function pickTargetOrDetail(pid: string) {
+    if (selAction?.targetHint && validTargets.some((t) => t.id === pid)) setSelTarget(pid);
+    else setDetailId(pid);
+  }
 
   return (
     <div className="tcg-app has-chat">
@@ -262,44 +272,61 @@ function GameInner({ lobby, game, session, logs, onExit }: {
       )}
 
       <div className="tcg-main">
-        <section className="battlefield anim-in">
+        {/* ── 牌桌（斗地主式：上方对手座位 / 中央牌桌 / 下方我的手牌） ── */}
+        <section className="battlefield ddz-table anim-in">
           <div className="bf-turn">第 <b>{game.roundNo}</b> 回合 · {phaseText()}</div>
-          <div className="zones">
-            {game.roomIds.map((rid) => {
-              const members = game.players.filter((p) => p.alive && p.room === rid);
-              const hasActor = members.some((m) => m.id === game.currentActor);
-              return (
-                <div key={rid} className="zone" style={hasActor ? { borderColor: 'rgba(240,214,138,0.6)' } : undefined}>
-                  <div className="zone-title">
-                    <span>◈ {rid}</span>
-                    <span className="zone-n">{members.length} 人{hasActor ? ' · 行动中' : ''}</span>
+
+          <div className="ddz-opponents">
+            {opponents.length === 0 && <div className="ddz-empty">等待其他玩家入座…</div>}
+            {opponents.map((p) => (
+              <SeatChip
+                key={p.id}
+                p={p}
+                game={game}
+                acting={game.currentActor === p.id}
+                mine={myIds.some((i) => i.playerId === p.id)}
+                submitted={game.phase === 'rps1' && game.submittedIds.includes(p.id)}
+                throwView={throwViewOf(game, p.id)}
+                targetable={!!selAction?.targetHint && validTargets.some((t) => t.id === p.id)}
+                flashDelta={flashMap[p.id]}
+                onClick={() => pickTargetOrDetail(p.id)}
+              />
+            ))}
+          </div>
+
+          <div className="ddz-center">
+            <RevealBoard game={game} />
+            <div className="zones">
+              {game.roomIds.map((rid) => {
+                const members = game.players.filter((p) => p.alive && p.room === rid);
+                const hasActor = members.some((m) => m.id === game.currentActor);
+                return (
+                  <div key={rid} className={`zone ${hasActor ? 'zone-acting' : ''}`}>
+                    <div className="zone-title">
+                      <span>◈ {rid}</span>
+                      <span className="zone-n">{members.length} 人{hasActor ? ' · 行动中' : ''}</span>
+                    </div>
+                    <div className="zone-cards">
+                      {members.length === 0 && <div className="zone-empty">空 房 间</div>}
+                      {members.map((p) => (
+                        <CharCardView
+                          key={p.id}
+                          p={p}
+                          game={game}
+                          isMine={myIds.some((i) => i.playerId === p.id)}
+                          isTargetable={!!selAction?.targetHint && validTargets.some((t) => t.id === p.id)}
+                          submitted={game.phase === 'rps1' && game.submittedIds.includes(p.id)}
+                          throwView={throwViewOf(game, p.id)}
+                          flashDelta={flashMap[p.id]}
+                          fx={actionFx[p.id]?.kind}
+                          onClick={() => pickTargetOrDetail(p.id)}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="zone-cards">
-                    {members.length === 0 && <div className="zone-empty">空 房 间</div>}
-                    {members.map((p) => (
-                      <CharCardView
-                        key={p.id}
-                        p={p}
-                        game={game}
-                        meId={meId}
-                        isMine={myIds.some((i) => i.playerId === p.id)}
-                        isTargetable={!!selAction?.targetHint && validTargets.some((t) => t.id === p.id)}
-                        submitted={game.phase === 'rps1' && game.submittedIds.includes(p.id)}
-                        flashDelta={flashMap[p.id]}
-                        fx={actionFx[p.id]?.kind}
-                        onClick={() => {
-                          if (selAction?.targetHint && validTargets.some((t) => t.id === p.id)) {
-                            setSelTarget(p.id);
-                          } else {
-                            setDetailId(p.id);
-                          }
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </section>
 
@@ -307,130 +334,138 @@ function GameInner({ lobby, game, session, logs, onExit }: {
           <LogPanel logs={logs} />
         </aside>
 
-        <section className="action-dock anim-in">
-          <div className="dock-title">
-            ⚔ 行动坞
-            {game.phase === 'act' && (
-              myTurnId
-                ? <span className="cbadge cbadge-acting">轮到 {myTurnId.name}</span>
-                : <span className="tcg-chip">等待 {game.players.find((p) => p.id === game.currentActor)?.name || '?'} 行动…</span>
-            )}
-          </div>
-
-          {game.phase === 'rps1' && (
-            pendingLocalIds.length > 0
-              ? <ThrowPrivacy myIds={pendingLocalIds} game={game} lobby={lobby} />
-              : <div className="privacy-veil">✅ 本机身份全部提交完毕（已提交 {game.submittedIds.length} 人，拳种保密）…</div>
-          )}
-
-          {game.phase === 'act' && myTurnId && (
-            <>
-              {(() => {
-                const cur = myIds.find((i) => i.playerId === myTurnId.playerId);
-                const p = cur ? game.players.find((x) => x.id === cur.playerId) : null;
-                if (!p) return null;
-                const cd = CHARACTERS[p.charId] || CHARACTERS['default'];
-                if (!cd.rangedNeedsAim) return null;
-                const exempt = cd.aimExemptWhenDomain && p.char.domain === true;
-                const aimId = p.char.aim as string | undefined;
-                const aimName = aimId ? game.players.find((x) => x.id === aimId)?.name : null;
-                return (
-                  <div className={`aim-bar ${exempt || aimName ? 'ok' : 'need'}`}>
-                    {exempt
-                      ? '✨ 领域生效：远程攻击免瞄准'
-                      : aimName
-                        ? `🎯 当前瞄准：${aimName}（远程攻击将消耗瞄准）`
-                        : '🎯 该角色远程攻击需先瞄准：选「瞄准」卡锁定目标，下回合再攻击'}
-                  </div>
-                );
-              })()}
-              <div className="scard-row">
-                {options.map((o) => (
-                  <button
-                    key={o.key}
-                    className={`scard ${selAction?.key === o.key ? 'selected' : ''}`}
-                    onClick={() => { setSelAction(o); setActMsg(''); }}
-                  >
-                    <div className="scard-head">
-                      <span className="scard-name">{o.label}</span>
-                      <span className="scard-type">{o.typeLabel}</span>
-                    </div>
-                    <div className="scard-desc">{o.desc.length > 44 ? o.desc.slice(0, 44) + '…' : o.desc}</div>
-                    <div className="scard-need">{o.targetHint ? '🎯 需选择目标' : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
-                  </button>
-                ))}
+        {/* ── 我的席位 + 手牌 ── */}
+        <section className="action-dock ddz-hand anim-in">
+          <div className="hand-layout">
+            <MySeat p={me} isHost={isHost} acting={game.currentActor === meId} throwView={me ? throwViewOf(game, me.id) : null} />
+            <div className="hand-main">
+              <div className="dock-title">
+                ⚔ 行动坞 · 手牌
+                {game.phase === 'act' && (
+                  myTurnId
+                    ? <span className="cbadge cbadge-acting">轮到 {myTurnId.name}</span>
+                    : <span className="tcg-chip">等待 {game.players.find((p) => p.id === game.currentActor)?.name || '?'} 行动…</span>
+                )}
+                {game.phase === 'rps1' && <span className="tcg-chip">存活 {livingCount} 人 · 全员出拳后统一揭示</span>}
               </div>
 
-              {selAction && (
-                <div className="confirm-bar">
-                  <span>已选 <b>【{selAction.label}】</b></span>
-                  {selAction.targetHint && (
-                    <span>
-                      目标：
-                      <b className="cb-target">
-                        {selTarget ? game.players.find((p) => p.id === selTarget)?.name : '（点击战场高亮卡牌）'}
-                      </b>
-                    </span>
-                  )}
-                  {(selAction.roomHint || selAction.key === 'move') && (
-                    <select value={selRoom} onChange={(e) => setSelRoom(e.target.value)}>
-                      {game.roomIds.map((r) => (
-                        <option key={r} value={r}>
-                          {r}（{game.players.filter((p) => p.alive && p.room === r).map((p) => p.name).join('、') || '空'}）
-                        </option>
-                      ))}
-                    </select>
-                  )}
+              {game.phase === 'rps1' && (
+                pendingLocalIds.length > 0
+                  ? <ThrowPrivacy myIds={pendingLocalIds} game={game} lobby={lobby} />
+                  : <div className="privacy-veil">✅ 本机身份全部提交完毕（已提交 {game.submittedIds.length} 人，拳种保密）…</div>
+              )}
+
+              {game.phase === 'act' && myTurnId && (
+                <>
                   {(() => {
-                    if (selAction.key !== 'attack' || !selTarget || !me) return null;
-                    const cd = CHARACTERS[me.charId] || CHARACTERS['default'];
-                    const tgt = game.players.find((x) => x.id === selTarget);
-                    if (!tgt || !cd.rangedNeedsAim || tgt.room === me.room) return null;
-                    if (cd.aimExemptWhenDomain && me.char.domain === true) return null;
-                    if (me.char.aim === selTarget) return null;
+                    const cur = myIds.find((i) => i.playerId === myTurnId.playerId);
+                    const p = cur ? game.players.find((x) => x.id === cur.playerId) : null;
+                    if (!p) return null;
+                    const cd = CHARACTERS[p.charId] || CHARACTERS['default'];
+                    if (!cd.rangedNeedsAim) return null;
+                    const exempt = cd.aimExemptWhenDomain && p.char.domain === true;
+                    const aimId = p.char.aim as string | undefined;
+                    const aimName = aimId ? game.players.find((x) => x.id === aimId)?.name : null;
                     return (
-                      <span className="aim-warn">⚠ 远程攻击需先瞄准
-                        <button className="tcg-btn" style={{ padding: '3px 10px', fontSize: 12, marginLeft: 6 }}
-                          onClick={async () => {
-                            const r = await net.submitAction(lobby.code, myTurnId!.playerId, myTurnId!.token, { type: 'aim', targetId: selTarget }) as { ok: boolean; error?: string };
-                            if (!r.ok) setActMsg(r.error || '瞄准失败'); else resetSelection();
-                          }}>一键瞄准该目标</button>
-                      </span>
+                      <div className={`aim-bar ${exempt || aimName ? 'ok' : 'need'}`}>
+                        {exempt
+                          ? '✨ 领域生效：远程攻击免瞄准'
+                          : aimName
+                            ? `🎯 当前瞄准：${aimName}（远程攻击将消耗瞄准）`
+                            : '🎯 该角色远程攻击需先瞄准：选「瞄准」卡锁定目标，下回合再攻击'}
+                      </div>
                     );
                   })()}
-                  <button className="tcg-btn" disabled={!!selAction.targetHint && !selTarget} onClick={confirmAction}>确认发动</button>
-                  <button className="tcg-btn ghost" onClick={resetSelection}>取消</button>
-                  {actMsg && <span className="error-text">{actMsg}</span>}
+                  <div className="scard-row hand-fan">
+                    {options.map((o) => (
+                      <button
+                        key={o.key}
+                        className={`scard ${selAction?.key === o.key ? 'selected' : ''}`}
+                        onClick={() => { setSelAction(o); setActMsg(''); }}
+                      >
+                        <div className="scard-head">
+                          <span className="scard-name">{o.label}</span>
+                          <span className="scard-type">{o.typeLabel}</span>
+                        </div>
+                        <div className="scard-desc">{o.desc.length > 44 ? o.desc.slice(0, 44) + '…' : o.desc}</div>
+                        <div className="scard-need">{o.targetHint ? '🎯 需选择目标' : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {selAction && (
+                    <div className="confirm-bar">
+                      <span>已选 <b>【{selAction.label}】</b></span>
+                      {selAction.targetHint && (
+                        <span>
+                          目标：
+                          <b className="cb-target">
+                            {selTarget ? game.players.find((p) => p.id === selTarget)?.name : '（点击战场高亮卡牌）'}
+                          </b>
+                        </span>
+                      )}
+                      {(selAction.roomHint || selAction.key === 'move') && (
+                        <select value={selRoom} onChange={(e) => setSelRoom(e.target.value)}>
+                          {game.roomIds.map((r) => (
+                            <option key={r} value={r}>
+                              {r}（{game.players.filter((p) => p.alive && p.room === r).map((p) => p.name).join('、') || '空'}）
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {(() => {
+                        if (selAction.key !== 'attack' || !selTarget || !me) return null;
+                        const cd = CHARACTERS[me.charId] || CHARACTERS['default'];
+                        const tgt = game.players.find((x) => x.id === selTarget);
+                        if (!tgt || !cd.rangedNeedsAim || tgt.room === me.room) return null;
+                        if (cd.aimExemptWhenDomain && me.char.domain === true) return null;
+                        if (me.char.aim === selTarget) return null;
+                        return (
+                          <span className="aim-warn">⚠ 远程攻击需先瞄准
+                            <button className="tcg-btn" style={{ padding: '3px 10px', fontSize: 12, marginLeft: 6 }}
+                              onClick={async () => {
+                                const r = await net.submitAction(lobby.code, myTurnId!.playerId, myTurnId!.token, { type: 'aim', targetId: selTarget }) as { ok: boolean; error?: string };
+                                if (!r.ok) setActMsg(r.error || '瞄准失败'); else resetSelection();
+                              }}>一键瞄准该目标</button>
+                          </span>
+                        );
+                      })()}
+                      <button className="tcg-btn" disabled={!!selAction.targetHint && !selTarget} onClick={confirmAction}>确认发动</button>
+                      <button className="tcg-btn ghost" onClick={resetSelection}>取消</button>
+                      {actMsg && <span className="error-text">{actMsg}</span>}
+                    </div>
+                  )}
+                  {!selAction && <div className="confirm-bar soft">
+                    <span className="tcg-chip">🃏 点击下方手牌选择行动；需要目标时，战场上的可选目标会发绿光</span>
+                  </div>}
+                </>
+              )}
+
+              {game.phase === 'act' && !myTurnId && (
+                <div className="privacy-veil">
+                  ⏳ <b>{game.players.find((p) => p.id === game.currentActor)?.name}</b> 正在行动…
+                  <div style={{ textAlign: 'left', marginTop: 8 }}>
+                    {game.queue.map((pid, i) => {
+                      const p = game.players.find((x) => x.id === pid);
+                      if (!p) return null;
+                      return <span key={pid} className="tcg-chip" style={{ margin: 2, opacity: i < game.actIndex ? 0.45 : 1 }}>{p.name}</span>;
+                    })}
+                  </div>
                 </div>
               )}
-              {!selAction && <div className="confirm-bar" style={{ borderColor: 'rgba(216,176,74,0.3)', background: 'rgba(216,176,74,0.05)' }}>
-                <span className="tcg-chip">🃏 点击下方卡牌选择行动；需要目标时，战场上的可选目标会发绿光</span>
-              </div>}
-            </>
-          )}
 
-          {game.phase === 'act' && !myTurnId && (
-            <div className="privacy-veil">
-              ⏳ <b>{game.players.find((p) => p.id === game.currentActor)?.name}</b> 正在行动…
-              <div style={{ textAlign: 'left', marginTop: 8 }}>
-                {game.queue.map((pid, i) => {
-                  const p = game.players.find((x) => x.id === pid);
-                  if (!p) return null;
-                  return <span key={pid} className="tcg-chip" style={{ margin: 2, opacity: i < game.actIndex ? 0.45 : 1 }}>{p.name}</span>;
-                })}
-              </div>
+              {game.phase === 'roundEnd' && <div className="privacy-veil">💥 回合末结算中（延迟事件）…</div>}
+              {game.phase === 'over' && (
+                <div className="privacy-veil">
+                  🏁 对局结束
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {onBackToLobby && <button className="tcg-btn" onClick={onBackToLobby}>返回房间大厅</button>}
+                    <button className="tcg-btn ghost" onClick={onExit}>退出房间</button>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-
-          {game.phase === 'roundEnd' && <div className="privacy-veil">💥 回合末结算中（延迟事件）…</div>}
-          {game.phase === 'over' && (
-            <div className="privacy-veil">
-              🏁 对局结束
-              <div style={{ marginTop: 8 }}>
-                <button className="tcg-btn ghost" onClick={onExit}>返回大厅</button>
-              </div>
-            </div>
-          )}
+          </div>
         </section>
       </div>
 
@@ -503,17 +538,219 @@ function hiddenSameRoomCount(game: GameSnapshot, meId: string): number {
   return game.players.filter((p) => p.alive && p.id !== meId && p.room === me.room && p.hidden).length;
 }
 
+// ── 出拳揭示数据 ─────────────────────────────────────────
+
+export interface ThrowView {
+  t: string;
+  result: 'win' | 'lose' | 'tie';
+}
+
+/** 该玩家在「最近一次已揭示子轮」中的出拳与胜负结果；提交阶段返回 null（不泄露） */
+function throwViewOf(game: GameSnapshot, pid: string): ThrowView | null {
+  const rv: RevealInfo | null | undefined = game.reveal;
+  if (!rv || !rv.throws[pid]) return null;
+  const result: ThrowView['result'] = rv.winners.includes(pid) ? 'win' : rv.losers.includes(pid) ? 'lose' : 'tie';
+  return { t: rv.throws[pid], result };
+}
+
+function namesOf(game: GameSnapshot, ids: string[]): string {
+  return ids.map((id) => game.players.find((p) => p.id === id)?.name || '?').join('、');
+}
+
+function verdictText(game: GameSnapshot, rv: RevealInfo): string {
+  switch (rv.outcome) {
+    case 'cycle': return '三人循环 → 本子轮无效，全员重新出拳';
+    case 'alltie': return '全员同拳平局 → 重新出拳';
+    case 'tieWin': return `领域生效：${namesOf(game, rv.winners)} 平局判胜`;
+    default: {
+      const w = namesOf(game, rv.winners);
+      const l = rv.losers.length > 0 ? `${namesOf(game, rv.losers)} 本子轮无资格` : '';
+      return `${w} 获得行动资格${l ? `；${l}` : ''}`;
+    }
+  }
+}
+
+// ── 出拳揭示台（中央牌桌，全员可见） ─────────────────────
+
+function RevealBoard({ game }: { game: GameSnapshot }) {
+  const rv: RevealInfo | null = game.reveal ?? null;
+  const alive = game.players.filter((p) => p.alive);
+  const submitted = game.submittedIds;
+  const rps1History = game.judgeRecords.filter((r) => r.stage === 'rps1');
+  const waiting = game.phase === 'rps1';
+  const submittedCount = alive.filter((p) => submitted.includes(p.id)).length;
+
+  // 按玩家座次稳定排序（只显示真正出了拳的人，含判定后已淘汰者）
+  const threw: { p: SnapPlayer; t: string; result: ThrowView['result'] }[] = [];
+  if (rv) {
+    for (const p of game.players) {
+      const v = throwViewOf(game, p.id);
+      if (v) threw.push({ p, t: v.t, result: v.result });
+    }
+  }
+
+  return (
+    <div className={`reveal-board ${rv ? 'has-reveal' : ''}`}>
+      <div className="rb-head">
+        <span className="rb-title">🎴 出拳揭示</span>
+        {waiting ? (
+          <span className="rb-stat">子轮 {game.subRound} · 已出拳 {submittedCount}/{alive.length}（提交期间保密）</span>
+        ) : rv ? (
+          <span className="rb-stat">{rv.stage === 'rps1' ? '初次判定' : '排序判定'} · 子轮 {rv.sub}</span>
+        ) : (
+          <span className="rb-stat">等待判定</span>
+        )}
+      </div>
+
+      {waiting && (
+        <div className="rb-waiting">
+          {alive.map((p) => {
+            const ok = submitted.includes(p.id);
+            return (
+              <span key={p.id} className={`rb-wait ${ok ? 'done' : ''}`}>
+                {ok ? '🎴 已出拳' : '⏳ 待出拳'} · {p.name}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {rv ? (
+        <>
+          <div className={`rb-cards ${waiting ? 'rb-cards-prev' : ''}`}>
+            {threw.map(({ p, t, result }) => (
+              <div key={p.id} className={`rb-card rc-${result}`} title={`${p.name} 出了${THROW_LABEL[t]}`}>
+                <span className="rb-icon">{THROW_ICON[t]}</span>
+                <span className="rb-name">{p.name}</span>
+                <span className="rb-tag">{result === 'win' ? '胜' : result === 'lose' ? '负' : '平'}</span>
+              </div>
+            ))}
+          </div>
+          <div className="rb-verdict">
+            <span className="rb-verdict-label">{waiting ? '上一子轮' : '判定结果'}</span>
+            {verdictText(game, rv)}
+          </div>
+        </>
+      ) : (
+        <div className="rb-hint">
+          所有存活玩家提交出拳后统一揭示：每个人都能看到彼此出了什么，提交期间谁也无法偷看（不破坏公平性）。
+        </div>
+      )}
+
+      {rps1History.length > 1 && (
+        <div className="rb-history">
+          <span className="rb-history-label">本轮判定记录</span>
+          {rps1History.map((r) => (
+            <span key={`h-${r.sub}`} className={`rb-hchip oh-${r.outcome}`}>
+              子轮{r.sub} · {r.outcome === 'cycle' ? '三人循环' : r.outcome === 'alltie' ? '同拳平局' : r.outcome === 'tieWin' ? '领域判胜' : '分出胜负'}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {game.phase === 'act' && game.queue.length > 0 && (
+        <div className="rb-order">
+          <span className="rb-order-label">出牌顺序</span>
+          {game.queue.map((pid, i) => {
+            const p = game.players.find((x) => x.id === pid);
+            if (!p) return null;
+            const cls = i < game.actIndex ? 'done' : i === game.actIndex ? 'now' : '';
+            return <span key={pid} className={`rb-order-chip ${cls}`}>{p.name}</span>;
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 对手座位（斗地主式顶部座位条） ─────────────────────
+
+function SeatChip({ p, game, acting, mine, submitted, throwView, targetable, flashDelta, onClick }: {
+  p: SnapPlayer;
+  game: GameSnapshot;
+  acting: boolean;
+  mine: boolean;
+  submitted: boolean;
+  throwView: ThrowView | null;
+  targetable: boolean;
+  flashDelta?: number;
+  onClick: () => void;
+}) {
+  const meta = cardMeta(p.charId);
+  const dead = !p.alive;
+  const cls = [
+    'seat',
+    dead ? 'is-dead' : '',
+    acting ? 'is-acting' : '',
+    targetable ? 'is-targetable' : '',
+    !dead && throwView ? `has-throw rv-${throwView.result}` : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className={cls} onClick={onClick} title={`${p.name} · ${p.charName}`}>
+      <div className="seat-avatar">
+        {meta?.img ? <img src={meta.img} alt={p.charName} /> : <span className="seat-ph">拔</span>}
+        {throwView && (
+          <span className={`seat-throw t-${throwView.t}`} title={`出了${THROW_LABEL[throwView.t]}`}>
+            {THROW_ICON[throwView.t]}
+          </span>
+        )}
+        {!throwView && submitted && !dead && <span className="seat-throw pending" title="已出拳（保密）">🎴</span>}
+      </div>
+      <div className="seat-info">
+        <div className="seat-name">
+          {p.name}
+          {mine && <span className="seat-tag">本机</span>}
+          {dead && <span className="seat-tag dead">淘汰</span>}
+        </div>
+        <div className="seat-sub">
+          <span className="seat-hp">❤ {fmtHp(p.hp)}/{fmtHp(p.maxHp)}</span>
+          <span className="seat-room">📍{p.room}</span>
+        </div>
+      </div>
+      {acting && !dead && <span className="seat-acting">行动中</span>}
+      {flashDelta !== undefined && !dead && <span className="dmg-float">-{fmtHp(flashDelta)}</span>}
+      {game.phase === 'over' && game.winner === p.id && <span className="seat-crown">🏆</span>}
+    </div>
+  );
+}
+
+// ── 我的席位（底部手牌左侧） ───────────────────────────
+
+function MySeat({ p, isHost, acting, throwView }: { p?: SnapPlayer; isHost: boolean; acting: boolean; throwView: ThrowView | null }) {
+  if (!p) return <div className="my-seat is-empty">未入座</div>;
+  const meta = cardMeta(p.charId);
+  return (
+    <div className={`my-seat ${p.alive ? '' : 'is-dead'} ${acting ? 'is-acting' : ''}`}>
+      <div className="ms-art">
+        {meta?.img ? <img src={meta.img} alt={p.charName} /> : <span>拔</span>}
+        {throwView && p.alive && (
+          <span className={`ms-throw t-${throwView.t}`} title={`你出了${THROW_LABEL[throwView.t]}`}>
+            {THROW_ICON[throwView.t]}
+          </span>
+        )}
+      </div>
+      <div className="ms-meta">
+        <div className="ms-name">{p.name}{isHost && <span className="seat-tag">房主</span>}</div>
+        <div className="ms-char">{p.charName}</div>
+        <div className="ms-hp">❤ {fmtHp(p.hp)}/{fmtHp(p.maxHp)} · 📍{p.room}</div>
+        {!p.alive && <div className="ms-dead">已淘汰</div>}
+      </div>
+    </div>
+  );
+}
+
 // ── 角色卡（游戏王风卡面 + 动态数据） ─────────────────────
 
 const FX_ICON: Record<string, string> = { attack: '⚔️', heal: '💊', move: '🚶', milk: '🥛', skill: '✨' };
 
-function CharCardView({ p, game, meId, isMine, isTargetable, submitted, flashDelta, fx, onClick }: {
+function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, flashDelta, fx, onClick }: {
   p: SnapPlayer;
   game: GameSnapshot;
-  meId: string;
   isMine: boolean;
   isTargetable: boolean;
   submitted: boolean;
+  throwView: ThrowView | null;
   flashDelta?: number;
   fx?: string;
   onClick: () => void;
@@ -528,6 +765,7 @@ function CharCardView({ p, game, meId, isMine, isTargetable, submitted, flashDel
     isTargetable ? 'is-targetable clickable' : '',
     isMine ? 'is-mine' : '',
     flashDelta !== undefined ? 'flash-dmg' : '',
+    throwView ? 'has-throw' : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -535,6 +773,12 @@ function CharCardView({ p, game, meId, isMine, isTargetable, submitted, flashDel
       <div className="ccard-frame">
         <div className="ccard-art">
           {meta?.img ? <img src={meta.img} alt={p.charName} /> : <div className="ccard-art-ph">拔</div>}
+          {throwView && !dead && (
+            <span className={`card-throw rv-${throwView.result}`} title={`出了${THROW_LABEL[throwView.t]}`}>
+              <span className="ct-icon">{THROW_ICON[throwView.t]}</span>
+              <span className="ct-tag">{throwView.result === 'win' ? '胜' : throwView.result === 'lose' ? '负' : '平'}</span>
+            </span>
+          )}
         </div>
         <div className="ccard-plate">
           <span className="ccard-name">{p.name}</span>
@@ -548,7 +792,7 @@ function CharCardView({ p, game, meId, isMine, isTargetable, submitted, flashDel
       <div className="ccard-badges">
         {acting && !dead && <span className="cbadge cbadge-acting">行动中</span>}
         {isMine && <span className="cbadge cbadge-mine">我</span>}
-        {submitted && !dead && <span className="cbadge cbadge-submitted">已出拳</span>}
+        {submitted && !dead && !throwView && <span className="cbadge cbadge-submitted">已出拳</span>}
         {!dead && typeof p.char.livesLeft === 'number' && (p.char.livesLeft as number) > 1 && (
           <span className="cbadge cbadge-lives">💫 {p.char.livesLeft} 命</span>
         )}
@@ -631,7 +875,7 @@ function ThrowPrivacy({ myIds, game, lobby }: {
   }
 
   return (
-    <div className="privacy-veil">
+    <div className="privacy-veil hand-throw-veil">
       <p>请 <span className="pv-name">{me.name}</span> 出拳（{p?.charName} · 房间 {p?.room}）</p>
       <div className="throw-row">
         {(['rock', 'scissors', 'paper'] as const).map((t) => (
@@ -669,7 +913,7 @@ function LogPanel({ logs }: { logs: { seq: number; text: string; important?: boo
       <div className="log-scroll">
         {shown.slice().reverse().map((l) => (
           <div key={l.seq} className={`log-line ${l.important ? 'imp' : 'dim'}`}>
-            <span className="log-icon">{ICON[l.type] || '·'}</span>{l.text}
+            <span className="log-icon">{ICON[l.type || ''] || '·'}</span>{l.text}
           </div>
         ))}
       </div>

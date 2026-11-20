@@ -122,6 +122,21 @@ export interface JudgeRoundRecord {
   losers?: PlayerId[];
 }
 
+/**
+ * 出拳揭示信息（对局公开信息）。
+ * 仅在判定子轮**结算完成后**生成：提交阶段任何拳种都不会出现在快照里，
+ * 因此「全员可见彼此出拳」不会破坏隐藏出拳的公平性。
+ */
+export interface RevealInfo {
+  round: number;
+  stage: 'rps1' | 'rps2';
+  sub: number;
+  throws: Record<PlayerId, Throw>;
+  outcome: JudgeRoundRecord['outcome'];
+  winners: PlayerId[];
+  losers: PlayerId[];
+}
+
 export interface ActionRequest {
   type: string;
   targetId?: PlayerId;

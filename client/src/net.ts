@@ -48,6 +48,18 @@ export interface SnapLog {
   seq: number; round: number; sub: number;
   phase: string; type: string; text: string;
   important?: boolean;
+  data?: Record<string, unknown>;
+}
+
+/** 已揭示的出拳（判定结算后才下发，提交阶段为 null → 不泄露拳种） */
+export interface RevealInfo {
+  round: number;
+  stage: string;
+  sub: number;
+  throws: Record<string, string>;
+  outcome: string;
+  winners: string[];
+  losers: string[];
 }
 
 export interface GameSnapshot {
@@ -65,6 +77,8 @@ export interface GameSnapshot {
   currentActor: string | null;
   deferred: { id: string; kind: string; room: string; explodeRound: number; source?: string }[];
   judgeRecords: { stage: string; sub: number; throws: Record<string, string>; outcome: string; winners?: string[]; losers?: string[] }[];
+  /** 出拳揭示：全员可见，仅在子轮结算完成后出现 */
+  reveal?: RevealInfo | null;
   logs: SnapLog[];
   winner: string | null;
   aliveCount: number;

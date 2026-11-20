@@ -112,4 +112,23 @@ describe('游戏页 UI（TCG战场·真实引擎快照渲染）', () => {
     expect(text).toContain('回合'); // 回合指示
     expect(text).toContain('A'); // 玩家名（卡面铭牌）
   });
+
+  it('出拳揭示台：判定结算后全员可见彼此出拳（斗地主式牌桌）', () => {
+    const { snap, logs } = buildSnapshot();
+    render(
+      <GamePage
+        lobby={LOBBY}
+        game={snap}
+        session={{ code: 'TEST', identities: [{ playerId: 'A', name: 'A', token: 't' }] }}
+        logs={logs}
+        onExit={() => {}}
+      />,
+    );
+    const text = document.body.textContent || '';
+    expect(text).toContain('出拳揭示'); // 中央揭示台
+    expect(text).toContain('石头'); // A 出的拳
+    expect(text).toContain('剪刀'); // B/C 出的拳
+    expect(text).toContain('获得行动资格'); // 判定结论
+    expect(document.querySelectorAll('.rb-card').length).toBeGreaterThanOrEqual(3);
+  });
 });

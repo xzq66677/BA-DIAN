@@ -10,6 +10,7 @@ import {
   type PlayerState, type DamageRequest, type AppliedDamage, type LogEntry,
   type LogType, type DeferredEvent, type JudgeRoundRecord, type ActionRequest,
   type ActionResult, type GamePlayerConfig, type RuleConfig, type CharRuntimeState,
+  type RevealInfo,
   DEFAULT_RULES, fmtNum,
 } from './types.js';
 import { RNG, randomThrow } from './rng.js';
@@ -753,6 +754,27 @@ export class Game implements GameLike {
 
   // ─── 快照（供客户端展示，隐藏未揭示出拳） ─────────────────────
 
+  /**
+   * 出拳揭示（对局公开信息）。
+   * 只取**已经结算完成**的判定记录：提交阶段的 pendingThrows 永不外泄，
+   * 因此全员都能看到彼此出了什么，同时不破坏隐藏出拳的公平性。
+   * 优先返回本回合最近一次初次判定（行动阶段仍保留展示），否则回退到排序判定。
+   */
+  revealInfo(): RevealInfo | null {
+    const rps1 = this.judgeRecords.filter((r) => r.stage === 'rps1');
+    const rec = rps1.length > 0 ? rps1[rps1.length - 1] : this.judgeRecords[this.judgeRecords.length - 1];
+    if (!rec) return null;
+    return {
+      round: this.roundNo,
+      stage: rec.stage,
+      sub: rec.sub,
+      throws: { ...rec.throws } as Record<PlayerId, Throw>,
+      outcome: rec.outcome,
+      winners: [...(rec.winners ?? [])],
+      losers: [...(rec.losers ?? [])],
+    };
+  }
+
   snapshot(): Record<string, unknown> {
     const players = this.playerIds.map((pid) => {
       const p = this.players[pid];
@@ -778,6 +800,8 @@ export class Game implements GameLike {
       currentActor: this.currentActor(),
       deferred: this.deferred.map((d) => ({ ...d })),
       judgeRecords: this.judgeRecords.map((r) => ({ ...r, throws: { ...r.throws } })),
+      /** 已揭示的出拳（全员可见）；提交阶段为 null，不泄露任何拳种 */
+      reveal: this.revealInfo(),
       // 日志通过增量（newLogs）下发，快照不再重复携带（带宽优化：长对局不随每次状态同步重发全量日志）
       winner: this.winner ?? null,
       aliveCount: this.aliveIds().length,
