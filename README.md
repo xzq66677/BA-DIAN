@@ -84,7 +84,7 @@ docs/                规则/架构/测试报告/已知问题/角色原始数据
 ## 测试
 
 ```bash
-npm test   # 114 用例：含真实 Chromium E2E（核心规则36 + 角色机制38 + 复杂交互14 + 联机集成8 + AI回归4 + UI组件4 + E2E4）
+npm test   # 117 用例：含真实 Chromium E2E（核心规则37 + 角色机制38 + 复杂交互14 + 联机集成9 + AI回归4 + UI组件4 + E2E4）
 ```
 
 详见 `docs/TEST_REPORT.md`。

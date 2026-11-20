@@ -1,15 +1,15 @@
 # 拔典 · 测试报告
 
 > 测试执行时间：2026-11-19 15:20 — 16:15（自主开发窗口内）
-> 最终结果：**5 个测试文件 / 114 个用例，全部通过（0 失败 / 0 跳过）**（2026-11-19 四轮更新：+AI选角、+真实浏览器E2E×4）
+> 最终结果：**5 个测试文件 / 117 个用例，全部通过（0 失败 / 0 跳过）**（2026-11-20 五轮：+断线自动重连、+快照瘦身、+AI击杀优先、+E2E构建固化）
 > 执行方式：`npm test`（vitest run），真实运行，无未执行的"宣称通过"项。
 
 ## 一、测试组成
 
 | 文件 | 用例数 | 内容 |
 |---|---|---|
-| tests/shared-cases.test.ts | 94 | 共享测试用例数据（与机制测试场同源） |
-| tests/integration/socket.test.ts | 8 | 真实 Socket.IO 联机集成（含房间列表/聊天/AI选角） |
+| tests/shared-cases.test.ts | 95 | 共享测试用例数据（与机制测试场同源） |
+| tests/integration/socket.test.ts | 9 | 真实 Socket.IO 联机集成（含房间列表/聊天/AI选角/断线重连恢复） |
 | tests/ui/e2e.test.ts | 4 | **真实 Chromium 端到端**（此前被系统库阻塞，sudo 安装后解锁） |
 | tests/integration/ai-sim.test.ts | 4 | AI 自动对局回归 |
 | tests/ui/components.test.tsx | 4 | React 组件渲染（jsdom） |
