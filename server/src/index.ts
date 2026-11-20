@@ -68,9 +68,10 @@ function broadcastRoom(room: Room): void {
   const lastLogSeq = (room as unknown as { _lastLogSeq?: number })._lastLogSeq ?? 0;
   const snap = room.game ? room.game.snapshot() : null;
   let newLogs: unknown[] = [];
-  if (snap) {
-    const logs = (snap.logs as { seq: number; round: number; type: string; text: string }[]) || [];
-    newLogs = logs.filter((l) => l.seq > lastLogSeq);
+  if (room.game) {
+    // 增量日志：只发新条目（seq 去重由客户端处理）
+    const logs = room.game.logs as { seq: number }[];
+    newLogs = logs.filter((l) => l.seq > lastLogSeq).slice(-300);
     if (logs.length > 0) (room as unknown as { _lastLogSeq?: number })._lastLogSeq = logs[logs.length - 1].seq;
   }
   for (const seat of room.seats) {
@@ -141,6 +142,8 @@ io.on('connection', (socket: Socket) => {
     socket.data.roomCode = room.code;
     ack?.({ ok: true, code: room.code, playerId: seat.playerId, name: seat.name });
     // 重连后权限检查：状态照常下发，禁止通过重连绕过行动限制（提交仍校验当前行动者）
+    // 重置日志序号：重连客户端会收到最近日志补发（客户端按 seq 去重）
+    (room as unknown as { _lastLogSeq?: number })._lastLogSeq = 0;
     broadcastRoom(room);
     broadcastLobby();
   });

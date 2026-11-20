@@ -57,21 +57,21 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   const [selRoom, setSelRoom] = useState('');
   const [actMsg, setActMsg] = useState('');
 
-  // 伤害闪烁
+  // 伤害闪烁 + 飘字（记录血量变化量）
   const prevHp = useRef<Record<string, number>>({});
-  const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
+  const [flashMap, setFlashMap] = useState<Record<string, number>>({});
   useEffect(() => {
     const next: Record<string, number> = {};
-    const hit: string[] = [];
+    const hits: Record<string, number> = {};
     for (const p of game.players) {
       const before = prevHp.current[p.id];
-      if (before !== undefined && p.hp < before && p.alive) hit.push(p.id);
+      if (before !== undefined && p.hp < before && p.alive) hits[p.id] = before - p.hp;
       next[p.id] = p.hp;
     }
     prevHp.current = next;
-    if (hit.length > 0) {
-      setFlashIds(new Set(hit));
-      const t = setTimeout(() => setFlashIds(new Set()), 750);
+    if (Object.keys(hits).length > 0) {
+      setFlashMap(hits);
+      const t = setTimeout(() => setFlashMap({}), 950);
       return () => clearTimeout(t);
     }
   }, [game]);
@@ -212,7 +212,8 @@ function GameInner({ lobby, game, session, logs, onExit }: {
                         meId={meId}
                         isMine={myIds.some((i) => i.playerId === p.id)}
                         isTargetable={!!selAction?.targetHint && validTargets.some((t) => t.id === p.id)}
-                        isFlash={flashIds.has(p.id)}
+                        submitted={game.phase === 'rps1' && game.submittedIds.includes(p.id)}
+                        flashDelta={flashMap[p.id]}
                         onClick={() => {
                           if (selAction?.targetHint && validTargets.some((t) => t.id === p.id)) {
                             setSelTarget(p.id);
@@ -337,13 +338,14 @@ function hiddenSameRoomCount(game: GameSnapshot, meId: string): number {
 
 // ── 角色卡（游戏王风卡面 + 动态数据） ─────────────────────
 
-function CharCardView({ p, game, meId, isMine, isTargetable, isFlash, onClick }: {
+function CharCardView({ p, game, meId, isMine, isTargetable, submitted, flashDelta, onClick }: {
   p: SnapPlayer;
   game: GameSnapshot;
   meId: string;
   isMine: boolean;
   isTargetable: boolean;
-  isFlash: boolean;
+  submitted: boolean;
+  flashDelta?: number;
   onClick: () => void;
 }) {
   const meta = cardMeta(p.charId);
@@ -355,7 +357,7 @@ function CharCardView({ p, game, meId, isMine, isTargetable, isFlash, onClick }:
     acting && !dead ? 'is-acting' : '',
     isTargetable ? 'is-targetable clickable' : '',
     isMine ? 'is-mine' : '',
-    isFlash ? 'flash-dmg' : '',
+    flashDelta !== undefined ? 'flash-dmg' : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -376,9 +378,13 @@ function CharCardView({ p, game, meId, isMine, isTargetable, isFlash, onClick }:
       <div className="ccard-badges">
         {acting && !dead && <span className="cbadge cbadge-acting">行动中</span>}
         {isMine && <span className="cbadge cbadge-mine">我</span>}
+        {submitted && !dead && <span className="cbadge cbadge-submitted">已出拳</span>}
         {p.hidden && !dead && <span className="cbadge cbadge-hide">🙈 躲藏</span>}
         {p.invisible && !dead && <span className="cbadge cbadge-hide">👻 隐身</span>}
       </div>
+      {flashDelta !== undefined && !dead && (
+        <span className="dmg-float">-{fmtHp(flashDelta)}</span>
+      )}
     </div>
   );
 }

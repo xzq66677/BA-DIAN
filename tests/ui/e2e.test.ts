@@ -7,6 +7,8 @@
  */
 
 import { describe, it, beforeAll, afterAll } from 'vitest';
+import { execSync } from 'node:child_process';
+import path from 'node:path';
 import { chromium, type Browser, type Page } from 'playwright';
 import { expect } from '@playwright/test';
 import { ALL_CASES } from '../../shared/src/testcases/index.js';
@@ -15,6 +17,8 @@ let browser: Browser;
 let baseUrl = '';
 
 beforeAll(async () => {
+  // B-014 教训：E2E 前强制重建客户端，防止 dist 陈旧（服务端走 vitest 实时转换，无需构建）
+  execSync('npx vite build client', { cwd: path.resolve(import.meta.dirname, '../..'), stdio: 'pipe' });
   const mod = await import('../../server/src/index.js');
   const httpServer = (mod as unknown as { httpServer: import('node:http').Server }).httpServer;
   (mod as unknown as { startServer: (port?: number) => void }).startServer(0);

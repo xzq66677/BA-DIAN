@@ -68,14 +68,17 @@ describe('机制测试场 UI（真实运行全部共享用例）', () => {
 
 // ─── 用真实引擎生成快照用于游戏页渲染 ─────────────────────
 
-function buildSnapshot(): GameSnapshot {
+function buildSnapshot(): { snap: GameSnapshot; logs: { seq: number; text: string; important?: boolean }[] } {
   const g = makeGame([{ id: 'A', char: 'bagun' }, 'B', 'C'], 4242);
   playThrows(g, [
     { A: 'rock', B: 'scissors', C: 'paper' },
     { A: 'rock', B: 'rock', C: 'rock' },
     { A: 'rock', B: 'scissors', C: 'scissors' },
   ]);
-  return g.snapshot() as unknown as GameSnapshot;
+  return {
+    snap: g.snapshot() as unknown as GameSnapshot,
+    logs: g.logs.map((l) => ({ seq: l.seq, text: `[R${l.round}] ${l.text}`, important: l.important })),
+  };
 }
 
 const LOBBY = {
@@ -92,13 +95,13 @@ const LOBBY = {
 
 describe('游戏页 UI（TCG战场·真实引擎快照渲染）', () => {
   it('渲染战场场地/角色卡/行动坞/战斗日志', () => {
-    const snap = buildSnapshot();
+    const { snap, logs } = buildSnapshot();
     render(
       <GamePage
         lobby={LOBBY}
         game={snap}
         session={{ code: 'TEST', identities: [{ playerId: 'A', name: 'A', token: 't' }] }}
-        logs={snap.logs.map((l) => ({ seq: l.seq, text: `[R${l.round}] ${l.text}`, important: l.important }))}
+        logs={logs}
         onExit={() => {}}
       />,
     );

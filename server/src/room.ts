@@ -340,10 +340,15 @@ export function aiDecideAction(g: Game, pid: PlayerId): ActionRequest {
       break;
   }
 
-  // 通用策略：同房间有目标 → 攻击血量最低者；满血且无目标 → 移向人多房间；否则回复/躲藏
+  // 通用策略：同房间有目标 → 优先攻击可击杀目标（目标血量≤我的攻击力），否则攻击血量最低者；
+  // 满血且无目标 → 移向人多房间；否则回复/躲藏
   if (members.length > 0) {
-    const target = members.filter((m) => !(g.players[m].hidden || g.players[m].invisible))
+    const visible = members.filter((m) => !(g.players[m].hidden || g.players[m].invisible));
+    const myAtk = cd.meleeDamage ?? cd.attack ?? g.rules.defaultAttack;
+    const killable = visible
+      .filter((m) => g.players[m].hp <= myAtk)
       .sort((a, b) => g.players[a].hp - g.players[b].hp)[0];
+    const target = killable || visible.sort((a, b) => g.players[a].hp - g.players[b].hp)[0];
     if (target) return { type: 'attack', targetId: target };
   }
   if (me.hp < me.maxHp) return { type: 'heal' };

@@ -236,6 +236,27 @@
 .cbadge-hide { background: #3f2d5c; color: #d9c2ff; }
 .cbadge-dead { background: #333; color: #888; }
 .cbadge-mine { background: #1d5fa8; color: #fff; }
+.cbadge-submitted { background: #2e4a3a; color: #9fe8b8; }
+
+/* 伤害飘字 */
+.dmg-float {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font-size: 22px;
+  font-weight: 900;
+  color: #ff5545;
+  text-shadow: 0 0 6px rgba(0,0,0,0.7), 0 2px 0 #6e1a12;
+  pointer-events: none;
+  animation: float-up 0.9s ease-out forwards;
+}
+@keyframes float-up {
+  0% { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.7); }
+  25% { opacity: 1; transform: translateX(-50%) translateY(-4px) scale(1.15); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-26px) scale(1); }
+}
 
 /* 角色卡状态 */
 .ccard.is-acting .ccard-frame {

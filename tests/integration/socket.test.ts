@@ -203,6 +203,34 @@ describe('拔典联机系统', () => {
     reconnected.disconnect();
   });
 
+  it('断线重连后广播恢复（自动重绑定座位）', async () => {
+    const host = await connect();
+    const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(
+      host, 'room:create', { name: '重连恢复测试' },
+    );
+    const code = createRes.code;
+    const me = createRes.seats[0];
+
+    // 主动断开（服务器清除 socketId）
+    host.disconnect();
+    await new Promise((r) => setTimeout(r, 400));
+    // 同一 client 重连（模拟 socket.io 自动重连）
+    host.connect();
+    await new Promise<void>((resolve) => host.once('connect', () => resolve()));
+    // 客户端重新绑定座位（与前端 net.ts 断线自动重连行为一致）
+    const recRes = await emit<{ ok: boolean }>(host, 'room:reconnect', { code, playerId: me.playerId, token: me.token });
+    expect(recRes.ok).toBe(true);
+
+    // 注册监听后再触发广播
+    const updPromise = new Promise<Record<string, unknown>>((resolve) => host.once('room:update', resolve));
+    const chatRes = await emit<{ ok: boolean }>(host, 'room:chat', { code, playerId: me.playerId, token: me.token, text: '重连后还能收到' });
+    expect(chatRes.ok).toBe(true);
+    const upd = await updPromise;
+    const chat = ((upd.lobby as { chat: { text: string }[] }).chat || []).map((c) => c.text);
+    expect(chat).toContain('重连后还能收到');
+    host.disconnect();
+  });
+
   it('大厅房间列表与房间聊天', async () => {
     const host = await connect();
     const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(

@@ -59,6 +59,27 @@ function playAIGame(seed: number, playerCount: number, maxRounds = 400): {
   };
 }
 
+describe('AI 策略单元', () => {
+  it('击杀优先：优先攻击血量≤攻击力的目标', () => {
+    const g = new Game({
+      seed: 5555,
+      chars: CHARACTERS,
+      players: [
+        { id: 'AI1', name: 'AI1', charId: 'default', type: 'ai' },
+        { id: 'B', name: 'B', charId: 'default', type: 'ai' },
+        { id: 'C', name: 'C', charId: 'default', type: 'ai' },
+      ],
+    });
+    // B（血1，可击杀）与 C（血3）都在 AI1 的房间
+    g.players['B'].room = 'R1';
+    g.players['C'].room = 'R1';
+    g.players['B'].hp = 1;
+    const action = aiDecideAction(g, 'AI1');
+    expect(action.type).toBe('attack');
+    expect(action.targetId).toBe('B');
+  });
+});
+
 describe('AI 自动对局回归（固定种子）', { timeout: 120000 }, () => {
   it('3人局×5个种子全部终局且状态一致', () => {
     for (const seed of [11, 22, 33, 44, 55]) {

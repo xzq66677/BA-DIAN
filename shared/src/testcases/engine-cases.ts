@@ -420,6 +420,18 @@ export const ENGINE_CASES: TestCase[] = [
 
   // ─── 随机数与复现 ────────────────────────────────────────────
   {
+    id: 'TC-E037', name: '快照不携带全量日志（带宽优化，增量下发）', category: 'engine', seed: 129,
+    desc: 'snapshot() 不包含 logs 字段；引擎日志仍完整保留（供增量下发与复盘）',
+    run: () => run(() => {
+      const g = makeGame(['A', 'B'], 129);
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
+      const snap = g.snapshot() as Record<string, unknown>;
+      const ok = !('logs' in snap) && g.logs.length > 5;
+      return check(ok, '快照无 logs 字段，引擎日志完整', `logsInSnap=${'logs' in snap}, engineLogs=${g.logs.length}`, g);
+    }),
+  },
+  {
     id: 'TC-E036', name: '喝牛奶：合法行动、无实际作用', category: 'engine', seed: 128,
     desc: '喝牛奶（嘲讽）成功执行，血量与存活状态不变',
     run: () => run(() => {

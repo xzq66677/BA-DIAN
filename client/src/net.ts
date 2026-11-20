@@ -80,7 +80,10 @@ export interface RoomUpdate {
 class Net {
   private socket: Socket | null = null;
   identities: Identity[] = [];
+  /** 当前房间码（断线重连时用于自动恢复座位绑定） */
+  currentCode: string | null = null;
   listeners: ((u: RoomUpdate) => void)[] = [];
+  reconnectListeners: (() => void)[] = [];
   lobbyRoomsListeners: ((rooms: RoomListEntry[]) => void)[] = [];
   connected = false;
 
@@ -89,8 +92,16 @@ class Net {
     return new Promise((resolve, reject) => {
       this.socket = io({ transports: ['websocket', 'polling'] });
       this.socket.on('connect', () => {
+        const first = !this.connected;
         this.connected = true;
         resolve();
+        // 断线自动重连后：重新绑定座位（服务器 disconnect 时清除了 socketId）
+        if (!first && this.currentCode && this.identities.length > 0) {
+          const main = this.identities[0];
+          this.socket!.emit('room:reconnect', { code: this.currentCode, playerId: main.playerId, token: main.token }, () => {
+            for (const fn of this.reconnectListeners) fn();
+          });
+        }
       });
       this.socket.on('disconnect', () => { this.connected = false; });
       this.socket.on('room:update', (u: RoomUpdate) => {
@@ -101,6 +112,14 @@ class Net {
       });
       setTimeout(() => reject(new Error('连接超时')), 8000);
     });
+  }
+
+  /** socket.io 断线重连并恢复座位后回调（用于刷新界面） */
+  onResumed(fn: () => void): () => void {
+    this.reconnectListeners.push(fn);
+    return () => {
+      this.reconnectListeners = this.reconnectListeners.filter((f) => f !== fn);
+    };
   }
 
   onUpdate(fn: (u: RoomUpdate) => void): () => void {

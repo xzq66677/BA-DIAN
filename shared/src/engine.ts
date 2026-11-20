@@ -761,7 +761,7 @@ export class Game implements GameLike {
       currentActor: this.currentActor(),
       deferred: this.deferred.map((d) => ({ ...d })),
       judgeRecords: this.judgeRecords.map((r) => ({ ...r, throws: { ...r.throws } })),
-      logs: this.logs.slice(-500),
+      // 日志通过增量（newLogs）下发，快照不再重复携带（带宽优化：长对局不随每次状态同步重发全量日志）
       winner: this.winner ?? null,
       aliveCount: this.aliveIds().length,
     };

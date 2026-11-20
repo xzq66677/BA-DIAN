@@ -75,6 +75,7 @@ export default function App() {
     const s: SessionInfo = { code, identities };
     setSession(s);
     net.identities = identities;
+    net.currentCode = code;
     localStorage.setItem('badian-session', JSON.stringify(s));
     setLogs([]);
     setPage('lobby');
