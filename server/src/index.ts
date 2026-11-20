@@ -31,7 +31,16 @@ function findClientDist(): string {
 const CLIENT_DIST = process.env.CLIENT_DIST || findClientDist();
 
 const app = express();
-app.use(express.static(CLIENT_DIST));
+// 带 hash 的静态资源长缓存；index.html 不缓存（避免客户端加载到旧版本包）
+app.use(express.static(CLIENT_DIST, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else if (/[.-][A-Za-z0-9_]{6,}\.(js|css|webp|png)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  },
+}));
 app.get('/api/health', (_req, res) => res.json({ ok: true, game: 'badian', time: Date.now() }));
 app.get('/api/characters', (_req, res) => {
   res.json(Object.values(CHARACTERS).map((c) => ({
@@ -39,7 +48,10 @@ app.get('/api/characters', (_req, res) => {
     dataMissing: c.dataMissing ?? [],
   })));
 });
-app.get('*', (_req, res) => res.sendFile(path.join(CLIENT_DIST, 'index.html')));
+app.get('*', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(CLIENT_DIST, 'index.html'));
+});
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });

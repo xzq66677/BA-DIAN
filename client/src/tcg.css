@@ -444,6 +444,54 @@
 .throw-card small { font-size: 12px; letter-spacing: 2px; }
 .throw-card:hover { transform: translateY(-5px) scale(1.04); box-shadow: 0 8px 22px rgba(216,176,74,0.3); }
 
+/* 瞄准状态条 */
+.aim-bar {
+  font-size: 12px;
+  border-radius: 8px;
+  padding: 7px 12px;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+.aim-bar.need { background: rgba(226, 170, 48, 0.14); border: 1px solid rgba(226, 170, 48, 0.55); color: #ffd166; }
+.aim-bar.ok { background: rgba(74, 222, 128, 0.12); border: 1px solid rgba(74, 222, 128, 0.5); color: #9fe8b8; }
+
+/* 发言浮动按钮 + 未读徽章 */
+.chat-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 18px;
+  z-index: 90;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  background: linear-gradient(180deg, #2a2010, #171008);
+  color: var(--gold-2);
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.55);
+}
+.chat-fab:hover { filter: brightness(1.2); }
+.chat-fab .unread {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--red-2);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+
 /* 确认条 */
 .confirm-bar {
   margin-top: 10px;

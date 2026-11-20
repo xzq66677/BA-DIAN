@@ -107,10 +107,20 @@ function GameInner({ lobby, game, session, logs, onExit }: {
   // 局内发言
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
+  const [unread, setUnread] = useState(0);
+  const seenChatLen = useRef(0);
   const chatLogRef = useRef<HTMLDivElement | null>(null);
   const chat: { name: string; text: string; ts: number }[] = (lobby as unknown as { chat?: { name: string; text: string; ts: number }[] }).chat || [];
   useEffect(() => {
-    if (chatLogRef.current) chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
+    if (chatOpen) {
+      seenChatLen.current = chat.length;
+      setUnread(0);
+      if (chatLogRef.current) chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
+    } else {
+      const delta = chat.length - seenChatLen.current;
+      if (delta > 0) setUnread((u) => u + delta);
+      seenChatLen.current = chat.length;
+    }
   }, [chat.length, chatOpen]);
   async function sendChat() {
     const text = chatText.trim();
@@ -138,7 +148,7 @@ function GameInner({ lobby, game, session, logs, onExit }: {
       { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础' },
       { key: 'hide', label: '躲藏', desc: '指向性攻击无法锁定；AOE与无视躲避攻击仍可命中', typeLabel: '基础' },
     ];
-    if (me.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标，伤害1；出手前需先「瞄准」目标';
+    if (me.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标（伤害1），无法近战；出手前须先「瞄准」';
     if (hiddenSameRoomCount(game, me.id) > 0) list.push({ key: 'seek', label: '找出来', desc: '找出同房间躲藏的玩家', typeLabel: '基础', targetHint: 'seek' });
     if (cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && me.char.domain === true)) {
       list.push({ key: 'aim', label: '瞄准', desc: '锁定一名玩家（远程攻击前必须瞄准）', typeLabel: '基础', targetHint: 'aim' });
@@ -161,8 +171,11 @@ function GameInner({ lobby, game, session, logs, onExit }: {
     const hiddenOthers = others.filter((p) => p.room === me.room && (p.hidden || p.invisible));
     switch (selAction.targetHint) {
       case 'attack': {
-        const sameRoom = others.filter((p) => p.room === me.room && (!p.hidden || cd.ignoreHide));
-        const otherRoom = cd.rangedCapable ? others.filter((p) => p.room !== me.room && !p.hidden) : [];
+        const at = cd.attackType || 'both';
+        const meleeOk = at !== 'ranged' && at !== 'none';
+        const rangedOk = !!cd.rangedCapable && at !== 'none';
+        const sameRoom = meleeOk ? others.filter((p) => p.room === me.room && (!p.hidden || cd.ignoreHide)) : [];
+        const otherRoom = rangedOk ? others.filter((p) => p.room !== me.room && !p.hidden) : [];
         return [...sameRoom, ...otherRoom];
       }
       case 'aim': return others.filter((p) => !p.hidden && !p.invisible);
@@ -328,6 +341,25 @@ function GameInner({ lobby, game, session, logs, onExit }: {
 
           {game.phase === 'act' && myTurnId && (
             <>
+              {(() => {
+                const cur = myIds.find((i) => i.playerId === myTurnId.playerId);
+                const p = cur ? game.players.find((x) => x.id === cur.playerId) : null;
+                if (!p) return null;
+                const cd = CHARACTERS[p.charId] || CHARACTERS['default'];
+                if (!cd.rangedNeedsAim) return null;
+                const exempt = cd.aimExemptWhenDomain && p.char.domain === true;
+                const aimId = p.char.aim as string | undefined;
+                const aimName = aimId ? game.players.find((x) => x.id === aimId)?.name : null;
+                return (
+                  <div className={`aim-bar ${exempt || aimName ? 'ok' : 'need'}`}>
+                    {exempt
+                      ? '✨ 领域生效：远程攻击免瞄准'
+                      : aimName
+                        ? `🎯 当前瞄准：${aimName}（远程攻击将消耗瞄准）`
+                        : '🎯 该角色远程攻击需先瞄准：选「瞄准」卡锁定目标，下回合再攻击'}
+                  </div>
+                );
+              })()}
               <div className="scard-row">
                 {options.map((o) => (
                   <button
@@ -409,6 +441,10 @@ function GameInner({ lobby, game, session, logs, onExit }: {
           onKick={() => kickPlayer(detailPlayer.id, detailPlayer.name)}
         />
       )}
+
+      <button className="chat-fab" title="局内发言" onClick={() => setChatOpen(true)}>
+        💬{unread > 0 && <span className="unread">{unread > 99 ? '99+' : unread}</span>}
+      </button>
 
       {chatOpen && (
         <div className="card-detail" onClick={() => setChatOpen(false)}>
