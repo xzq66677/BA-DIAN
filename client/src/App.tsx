@@ -115,7 +115,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className={lobby.state !== 'lobby' ? 'app app-game' : 'app'}>
       {err && <div className="error-banner">{err}</div>}
       {(page === 'lobby' || lobby.state === 'lobby') && (
         <Lobby
