@@ -51,6 +51,17 @@ npm run dev:client    # vite dev 客户端 :5173（代理到 :3100）
 - **单设备多人**：「本机玩家数」选 2 以上 → 出拳阶段按提示传递设备，每人亲自出拳（提交后不回显拳种）
 - **机制测试场**：首页入口，运行全部测试用例（PASS/FAIL、种子复现、完整结算日志）
 
+## 更新线上版本
+
+**自动**：推送到 `main` 后，服务器每 2 分钟自动拉取、构建、重启（systemd `badian-autodeploy.timer`）。
+
+**手动**（立即生效）：
+```bash
+cd ~/zcode-workspace/badian-game
+npm run deploy
+```
+详见 [docs/DEPLOY.md](docs/DEPLOY.md)。
+
 ## 游戏流程
 
 1. **初次判定（隐藏出拳）**：所有存活玩家同时出拳；服务端统一揭示判定。平局/三人循环全员重判，胜者（可多名）获得行动资格。
