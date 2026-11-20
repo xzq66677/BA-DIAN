@@ -88,13 +88,13 @@ function GameInner({ lobby, game, session, logs, onExit }: {
     if (!me) return [];
     const cd = CHARACTERS[me.charId] || CHARACTERS['default'];
     const list: ActionOption[] = [
-      { key: 'attack', label: '攻击', desc: `近战攻击同房间目标（伤害 ${atkOf(me)}）${cd.rangedCapable ? '；可远程' : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', targetHint: 'attack' },
+      { key: 'attack', label: '攻击', desc: `近战攻击同房间目标（伤害 ${atkOf(me)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? '（远程需先瞄准）' : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', targetHint: 'attack' },
       { key: 'move', label: '移动', desc: '移动到任意玩家的初始房间（移动后现身）', typeLabel: '基础', roomHint: true },
       { key: 'heal', label: '回复', desc: '回复至满血', typeLabel: '基础' },
       { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础' },
       { key: 'hide', label: '躲藏', desc: '指向性攻击无法锁定；AOE与无视躲避攻击仍可命中', typeLabel: '基础' },
     ];
-    if (me.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标，伤害1';
+    if (me.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标，伤害1；出手前需先「瞄准」目标';
     if (hiddenSameRoomCount(game, me.id) > 0) list.push({ key: 'seek', label: '找出来', desc: '找出同房间躲藏的玩家', typeLabel: '基础', targetHint: 'seek' });
     if (cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && me.char.domain === true)) {
       list.push({ key: 'aim', label: '瞄准', desc: '锁定一名玩家（远程攻击前必须瞄准）', typeLabel: '基础', targetHint: 'aim' });

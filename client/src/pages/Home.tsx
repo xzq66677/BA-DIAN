@@ -73,11 +73,17 @@ export default function Home({ onEnter, onArena }: {
         <h2>🃏 角色卡池（点击查看卡面）</h2>
         <div className="char-showcase">
           {CHARACTER_LIST.map((c) => (
-            <img key={c.id} src={thumbOf(c.id)} alt={c.name} title={c.name}
-              onClick={() => setDetail(c.id)}
-              style={{ cursor: 'pointer', opacity: c.dataMissing?.length ? 0.85 : 1 }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
+            thumbOf(c.id) ? (
+              <img key={c.id} src={thumbOf(c.id)} alt={c.name} title={c.name}
+                onClick={() => setDetail(c.id)}
+                style={{ cursor: 'pointer' }}
+              />
+            ) : (
+              <div key={c.id} className="showcase-ph" title={c.name} onClick={() => setDetail(c.id)}>
+                <span>{c.name.slice(0, 1)}</span>
+                <small>{c.name}</small>
+              </div>
+            )
           ))}
         </div>
         <p className="muted" style={{ fontSize: 12 }}>

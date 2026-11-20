@@ -165,6 +165,17 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
+    id: 'TC-C025', name: '老大爷：远程攻击默认免瞄准（用户确认规则）', category: 'character', charId: 'laodaye', seed: 225,
+    desc: '远程攻击（异房间）无需瞄准直接命中；仅 rangedNeedsAim 角色（吹箫哥/五条悟）需瞄准',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'laodaye' }, 'B'], 225);
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', targetId: 'B', ranged: true } });
+      const ok = hpOf(g, 'B') === 1; // 3 - 2(远程) = 1，未被瞄准拦截
+      return check(ok, '远程直接命中（无瞄准要求），B HP 3→1', `B=${hpOf(g, 'B')}`, g);
+    }),
+  },
+  {
     id: 'TC-C024', name: '老大爷：领域内强化伤害近5远3', category: 'character', charId: 'laodaye', seed: 224,
     desc: '老大爷展开领域并强化后近战造成5伤',
     run: () => run(() => {

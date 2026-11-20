@@ -537,6 +537,18 @@
   transition: transform 0.15s;
 }
 .char-showcase img:hover { transform: scale(1.12) translateY(-3px); border-color: var(--gold-2); }
+.char-showcase .showcase-ph {
+  width: 68px; height: 112px;
+  border-radius: 8px;
+  border: 2px solid var(--gold-dim);
+  background: repeating-linear-gradient(45deg, #20242f 0 8px, #1a1e27 8px 16px);
+  color: #5d6472;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; cursor: pointer;
+}
+.char-showcase .showcase-ph span { font-size: 26px; font-weight: 900; }
+.char-showcase .showcase-ph small { font-size: 10px; writing-mode: vertical-rl; letter-spacing: 2px; }
+.char-showcase .showcase-ph:hover { transform: scale(1.12) translateY(-3px); border-color: var(--gold-2); }
 
 /* 座位卡槽 */
 .seat-slots { display: flex; flex-wrap: wrap; gap: 10px; }
