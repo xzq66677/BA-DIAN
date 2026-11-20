@@ -71,6 +71,11 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   const [statsOpen, setStatsOpen] = useState(false);
   const [replayOpen, setReplayOpen] = useState(false);
   const [replayId, setReplayId] = useState<string | null>(null);
+  /**
+   * 回放功能（录制 + 播放器）已实现但**暂不启用**：不发布、不纳入本次改动范围。
+   * 置为 true 即可恢复入口（服务端录制逻辑保持原样，历史回放数据不受影响）。
+   */
+  const REPLAY_ENABLED = false;
 
   // 横屏紧凑模式：牌桌占满一屏，战斗日志改为抽屉、发言默认收起
   const compact = useCompactLandscape();
@@ -272,7 +277,9 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
         <button className={`tcg-btn ghost tiny ${chatOpen ? '' : 'off'}`} onClick={() => setChatOpen((v) => !v)}>
           💬 发言{chat.length > 0 ? `（${chat.length}）` : ''}
         </button>
-        <button className="tcg-btn ghost tiny" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 回放</button>
+        {REPLAY_ENABLED && (
+          <button className="tcg-btn ghost tiny" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 回放</button>
+        )}
         {isHost && game.phase === 'over' && (
           <button className="tcg-btn" onClick={() => net.restart(lobby.code, meId, myIds[0].token)}>重新开始</button>
         )}
@@ -303,7 +310,9 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
             )}
             <div className="win-btns">
               {isHost && <button className="tcg-btn" onClick={() => { setWinDismissed(true); net.restart(lobby.code, meId, myIds[0].token); }}>🔄 再来一局</button>}
-              <button className="tcg-btn ghost" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 观看回放</button>
+              {REPLAY_ENABLED && (
+                <button className="tcg-btn ghost" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 观看回放</button>
+              )}
               <button className="tcg-btn ghost" onClick={() => { setWinDismissed(true); setStatsOpen(true); }}>📊 本局战绩</button>
               <button className="tcg-btn ghost" onClick={async () => { setWinDismissed(true); await net.leave(lobby.code, meId, myIds[0].token); onExit(); }}>离开房间</button>
               <button className="tcg-btn ghost" onClick={() => setWinDismissed(true)}>查看战场</button>
@@ -768,6 +777,9 @@ function SeatChip({ p, game, acting, mine, submitted, throwView, targetable, fla
         )}
         {!throwView && submitted && !dead && <span className="seat-throw pending" title="已出拳（保密）">🎴</span>}
         {!!gotCount && <span className="seat-got" title={`被丢了 ${gotCount} 次`}>🍅{gotCount}</span>}
+        {!dead && p.char?.domain === true && (
+          <span className="seat-domain" title="领域生效中（判定平局算其胜）">✨</span>
+        )}
       </div>
       <div className="seat-info">
         <div className="seat-name">
@@ -813,6 +825,7 @@ function MySeat({ p, isHost, acting, throwView }: { p?: SnapPlayer; isHost: bool
         <div className="ms-name">{p.name}{isHost && <span className="seat-tag">房主</span>}</div>
         <div className="ms-char">{p.charName}</div>
         <div className="ms-hp">❤ {fmtHp(p.hp)}/{fmtHp(p.maxHp)} · 📍{p.room}</div>
+        {p.alive && p.char?.domain === true && <div className="ms-domain">✨ 领域生效中</div>}
         {!p.alive && <div className="ms-dead">已淘汰</div>}
       </div>
     </div>
@@ -913,6 +926,9 @@ function CardDetail({ p, onClose, canKick, onKick, stats, onInteract, gotCount }
         <div style={{ marginTop: 12, fontSize: 13, color: '#6b5a3a' }}>
           当前状态：HP {fmtHp(p.hp)}/{fmtHp(p.maxHp)} · 房间 {p.room} · {p.alive ? (p.hidden ? '躲藏中' : p.invisible ? '隐身中' : '存活') : '已淘汰'}
         </div>
+        {p.char?.domain === true && p.alive && (
+          <div className="cd-domain">✨ 领域生效中：判定平局算其胜（持续保留，直至被其他领域覆盖）</div>
+        )}
         {stats && (
           <div className="cd-stats">
             <span>🎴 出拳胜/负/平 <b>{stats.throwWin}/{stats.throwLose}/{stats.throwTie}</b></span>

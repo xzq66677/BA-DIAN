@@ -77,12 +77,12 @@ const gojo: CharDef = {
     {
       name: 'domain',
       label: '领域展开',
-      desc: '展开领域（持续生效）：远程攻击免瞄准；判定平局时算五条悟胜（与其他领域持有者对冲时抵消）。',
+      desc: '展开领域（持续生效，全场唯一）：远程攻击免瞄准；判定平局时算五条悟胜。他人的领域会覆盖本领域；本领域也可覆盖他人（后展开者生效）。',
       targetHint: 'none',
       validate: (ctx) => ctx.game.charState(ctx.actor).domain ? '领域已展开' : null,
       execute: (ctx) => {
-        ctx.game.charState(ctx.actor).domain = true;
-        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！远程免瞄准，平局算其胜`, { pid: ctx.actor }, true);
+        ctx.game.openDomain(ctx.actor);
+        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！远程免瞄准，平局算其胜（领域持续保留，直至被覆盖）`, { pid: ctx.actor }, true);
       },
     },
   ],
@@ -110,11 +110,11 @@ const laodaye: CharDef = {
     {
       name: 'domain',
       label: '领域展开',
-      desc: '展开领域：平局算老大爷胜；领域内近战5伤远程3伤。与其它领域对冲时平局效果抵消。',
+      desc: '展开领域（全场唯一）：平局算老大爷胜；领域内近战5伤远程3伤。后展开的领域会覆盖先展开的领域。',
       targetHint: 'none',
       validate: (ctx) => ctx.game.charState(ctx.actor).domain ? '领域已展开' : null,
       execute: (ctx) => {
-        ctx.game.charState(ctx.actor).domain = true;
+        ctx.game.openDomain(ctx.actor);
         ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！近战5伤远程3伤，平局算其胜`, { pid: ctx.actor }, true);
       },
     },
@@ -288,11 +288,11 @@ const xiaonuhai: CharDef = {
   ],
 };
 
-/** 7. 今日勇者：抽取今日运势（用户确认规则）——随机数决定面板，0/1 暴毙；仅第一回合可用、每周一次 */
+/** 7. 今日勇者：抽取今日运势（用户确认规则）——随机数决定面板，0/1 暴毙；全局仅一次，不限回合 */
 const jinriyongzhe: CharDef = {
   id: 'hero-today',
   name: '今日勇者',
-  desc: '血量3攻击2（初始面板）。技能「抽取今日运势」：掷 0-9 随机数——0/1 直接暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。只能在对局第一回合使用，每局限一次。',
+  desc: '血量3攻击2（初始面板）。技能「抽取今日运势」：掷 0-9 随机数——0/1 直接暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。全局仅可使用一次，不限回合。',
   hp: 3,
   attack: 2,
   attackType: 'melee',
@@ -307,11 +307,10 @@ const jinriyongzhe: CharDef = {
     {
       name: 'rollFortune',
       label: '抽取今日运势',
-      desc: '掷 0-9 随机数转换面板：0/1 暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。仅第一回合可用，每局限一次。',
+      desc: '掷 0-9 随机数转换面板：0/1 暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。全局仅可使用一次，不限回合。',
       targetHint: 'none',
       validate: (ctx) => {
-        if (ctx.game.roundNo !== 1) return '「抽取今日运势」只能在第一回合使用';
-        if (ctx.game.charState(ctx.actor).fortuneUsed === true) return '「抽取今日运势」每局限用一次';
+        if (ctx.game.charState(ctx.actor).fortuneUsed === true) return '「抽取今日运势」全局仅限使用一次';
         return null;
       },
       execute: (ctx) => {
@@ -330,7 +329,7 @@ const jinriyongzhe: CharDef = {
         ];
         const r = table[n];
         if (r.death) {
-          game.log('trigger', `🎰 今日勇者抽取运势（第一回合限定）：掷出 ${n} —— 运势极凶，当场暴毙！`, undefined, true);
+          game.log('trigger', `🎰 今日勇者抽取运势：掷出 ${n} —— 运势极凶，当场暴毙！`, undefined, true);
           game.eliminate(ctx.actor, 'fortune-death');
           return;
         }

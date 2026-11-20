@@ -1192,6 +1192,41 @@
   white-space: nowrap;
 }
 
+/* 领域徽标（领域生效中：平局算其胜） */
+.seat-domain {
+  position: absolute;
+  left: -7px; top: -9px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(24, 16, 46, 0.92);
+  border: 1px solid rgba(150, 118, 255, 0.85);
+  box-shadow: 0 0 8px rgba(132, 96, 255, 0.55);
+  animation: domain-pulse 2.4s ease-in-out infinite;
+}
+@keyframes domain-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(132, 96, 255, 0.45); }
+  50% { box-shadow: 0 0 12px rgba(160, 126, 255, 0.85); }
+}
+.ms-domain {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #b9a4ff;
+  text-shadow: 0 0 6px rgba(132, 96, 255, 0.6);
+}
+.cd-domain {
+  margin-top: 6px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #d8ccff;
+  background: linear-gradient(135deg, rgba(52, 34, 96, 0.92), rgba(30, 22, 58, 0.92));
+  border: 1px solid rgba(150, 118, 255, 0.6);
+}
+
 /* ── 互动飞行特效 ──────────────────────────────── */
 .interact-fx-layer { position: fixed; inset: 0; pointer-events: none; z-index: 70; }
 .interact-fx {

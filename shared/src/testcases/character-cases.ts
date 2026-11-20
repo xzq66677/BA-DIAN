@@ -180,16 +180,35 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C023', name: '五条悟：领域对冲（两名持有者平局效果抵消）', category: 'character', charId: 'gojo', seed: 223,
-    desc: '五条悟与老大爷领域同时生效 → 平局保持平局，需重判',
+    id: 'TC-C023', name: '领域覆盖：后展开者覆盖先展开者，平局算后展开者胜', category: 'character', charId: 'gojo', seed: 223,
+    desc: '用户确认（2026-11-20）：领域为全场唯一场地状态，后展开覆盖先展开；平局判当前持有者胜',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B', char: 'laodaye' }], 223);
-      g.charState('A').domain = true;
-      g.charState('B').domain = true;
-      playThrows(g, [{ A: 'rock', B: 'rock' }]);
-      const ok = g.phase === 'rps1' && g.subRound === 2 && g.qualified.length === 0;
-      const hasClashLog = g.logs.some((l) => l.text.includes('领域对冲'));
-      return check(ok && hasClashLog, '平局未判胜，重新判定，日志含领域对冲', `phase=${g.phase}, sub=${g.subRound}`, g);
+      g.openDomain('A');
+      const firstOk = g.domainHolder === 'A' && g.charState('A').domain === true;
+      g.openDomain('B'); // 老大爷后展开 → 覆盖五条悟领域
+      const covered = g.domainHolder === 'B' && g.charState('A').domain === false && g.charState('B').domain === true;
+      const coverLog = g.logs.some((l) => l.text.includes('领域覆盖'));
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 同拳平局 → 当前持有者 B 判胜
+      const ok = firstOk && covered && coverLog && g.phase === 'act'
+        && g.qualified.length === 1 && g.qualified[0] === 'B';
+      return check(ok, '五条悟领域被覆盖并失效，老大爷领域生效并平局判胜',
+        `firstOk=${firstOk}, covered=${covered}, log=${coverLog}, phase=${g.phase}, q=${g.qualified.join(',')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C023b', name: '领域覆盖：自己重复展开被拒绝，不影响其他玩家', category: 'character', charId: 'gojo', seed: 227,
+    desc: '同一持有者再次使用「领域展开」→ 被拒绝且不消耗行动；他人领域不受影响',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'gojo' }, 'B'], 227);
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'domain' } });
+      const opened = g.domainHolder === 'A';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const r = g.submitAction('A', { type: 'domain' });
+      const ok = opened && !r.ok && (r.error || '').includes('领域已展开') && g.domainHolder === 'A' && g.currentActor() === 'A';
+      return check(ok, '重复展开被拒绝，领域持有者不变，行动未消耗',
+        `opened=${opened}, ok=${r.ok}, error=${r.error}, holder=${g.domainHolder}`, g);
     }),
   },
   {
@@ -479,20 +498,39 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C065', name: '今日勇者：第二回合使用运势被拒绝', category: 'character', charId: 'hero-today', seed: 1,
-    desc: '「抽取今日运势」仅第一回合可用（用户确认）；第二回合提交被拒且不消耗行动',
+    id: 'TC-C065', name: '今日勇者：取消第一回合限制，第二回合仍可抽取', category: 'character', charId: 'hero-today', seed: 1,
+    desc: '用户确认（2026-11-20）：不再限定第一回合，改为全局仅可使用一次、不限具体回合',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], 1);
       g.players['B'].room = 'R1';
-      // 第一回合跳过（不用技能）
+      g.players['B'].hp = 4; g.players['B'].maxHp = 4;
+      // 第一回合先不用技能
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'skip' } });
-      // 第二回合尝试抽运势
+      // 第二回合抽取运势 → 应被接受（种子1 → 掷6：血4攻2）
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       const r = g.submitAction('A', { type: 'rollFortune' });
-      const ok = !r.ok && (r.error || '').includes('第一回合') && g.charState('A').fortuneUsed !== true && isAlive(g, 'A');
-      return check(ok, '第二回合拒绝（提示仅第一回合可用），未消耗行动',
-        `ok=${r.ok}, error=${r.error}`, g);
+      const used = g.charState('A').fortuneUsed === true;
+      const panel = g.players['A'].maxHp === 4 && g.charState('A').attackOverride === 2;
+      const ok = r.ok && used && panel && isAlive(g, 'A');
+      return check(ok, '第二回合抽取成功（血4攻2），已标记使用',
+        `ok=${r.ok}, error=${r.error}, used=${used}, hp=${g.players['A'].hp}, atk=${g.charState('A').attackOverride}`, g);
+    }),
+  },
+  {
+    id: 'TC-C065b', name: '今日勇者：全局仅一次，抽取后再次使用被拒绝', category: 'character', charId: 'hero-today', seed: 4,
+    desc: '已抽取过运势后再提交 → 拒绝且不消耗行动（跨回合依然不可用）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], 4);
+      g.players['B'].room = 'R1';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'rollFortune' } }); // 种子4 → 掷9：血6攻6
+      const usedOnce = g.charState('A').fortuneUsed === true && isAlive(g, 'A');
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const r = g.submitAction('A', { type: 'rollFortune' });
+      const ok = usedOnce && !r.ok && (r.error || '').includes('仅限使用一次') && g.currentActor() === 'A';
+      return check(ok, '第二次抽取被拒绝，行动未消耗',
+        `used=${usedOnce}, ok=${r.ok}, error=${r.error}, actor=${g.currentActor()}`, g);
     }),
   },
   {

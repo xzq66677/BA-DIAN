@@ -160,6 +160,8 @@ export interface GameSnapshot {
   reveal?: RevealInfo | null;
   /** 局内战绩（每人一份） */
   stats?: Record<string, PlayerStats>;
+  /** 领域持有者（全场唯一；null 表示当前无领域生效） */
+  domainHolder?: string | null;
   logs: SnapLog[];
   winner: string | null;
   aliveCount: number;

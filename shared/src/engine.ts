@@ -52,6 +52,12 @@ export class Game implements GameLike {
   judgeRecords: JudgeRoundRecord[] = [];
   /** 局内战绩（纯统计，不影响判定；快照下发给前端展示） */
   stats: Record<PlayerId, PlayerStats> = {};
+  /**
+   * 领域持有者（全场唯一）。领域是"场地状态"，同一时刻只能有一人生效：
+   * 首次展开成为持有者；他人再展开则**覆盖**前者（原持有者领域失效）。
+   * 领域不会因回合推进、判定重来或普通胜负被清除；仅当被覆盖、或持有者淘汰时失效。
+   */
+  domainHolder: PlayerId | null = null;
   /** 本回合重点事件摘要（回合末输出小结） */
   roundSummary: string[] = [];
   private deferredSeq = 0;
@@ -144,18 +150,78 @@ export class Game implements GameLike {
     });
   }
 
-  /** 领域平局算胜：恰有一名领域生效者时返回该玩家，否则 null（多名=领域对冲） */
-  tieWinHolder(candidates: PlayerId[]): PlayerId | null {
-    const holders = candidates.filter((pid) => {
-      const cd = this.charDef(pid);
-      return cd.domainTieWin && this.charState(pid).domain === true && this.players[pid].alive;
-    });
-    if (holders.length === 1) return holders[0];
-    if (holders.length >= 2) {
-      this.log('trigger', '领域对冲：多名领域持有者效果抵消，平局保持平局', undefined, true);
-      return null;
+  /**
+   * 展开领域（角色「领域展开」技能统一入口）。
+   *
+   * 领域是全场唯一的场地状态：同一时刻只允许一名持有者。
+   * - 无人持有 → 成为持有者；
+   * - 他人持有 → **覆盖**旧领域（旧持有者 domain 置 false，日志记录覆盖）；
+   * - 自己已持有 → 幂等（技能 validate 会先拦截重复展开）。
+   *
+   * 领域一旦生成即持续保留，不因回合推进 / 判定重来 / 普通胜负被清除。
+   */
+  openDomain(pid: PlayerId): ActionResult {
+    const p = this.players[pid];
+    if (!p || !p.alive) return { ok: false, error: '玩家不存在或已淘汰' };
+    const cd = this.charDef(pid);
+    if (!cd.domainTieWin) return { ok: false, error: '该角色没有领域' };
+    const prev = this.domainHolder;
+    if (prev === pid && p.char.domain === true) return { ok: true }; // 幂等，不重复写日志
+    if (prev && prev !== pid) {
+      const pp = this.players[prev];
+      if (pp) {
+        const wasAlive = pp.alive;
+        pp.char.domain = false;
+        if (wasAlive) {
+          this.log('trigger', `🌀 领域覆盖：${p.name} 的领域覆盖了 ${pp.name} 的领域（原领域失效）`, { pid, prev }, true);
+        }
+      }
     }
-    return null;
+    p.char.domain = true;
+    this.domainHolder = pid;
+    return { ok: true };
+  }
+
+  /**
+   * 领域平局算胜：返回本子轮生效的领域持有者（无则 null）。
+   *
+   * 判定顺序：
+   *  1. 权威来源是 domainHolder（全场唯一，由 openDomain 维护覆盖关系）；
+   *  2. 若持有者已淘汰或 domain 被清，则领域自然失效并清理；
+   *  3. 兼容直接写入 char.domain 的场景（测试/工具）：归一为唯一持有者，
+   *     多人同时为 true 时保留座次靠前者，避免出现"永久对冲"。
+   */
+  tieWinHolder(candidates: PlayerId[]): PlayerId | null {
+    const holder = this.domainHolder;
+    if (holder) {
+      const hp = this.players[holder];
+      const stillHasDomain = !!hp && this.charState(holder).domain === true;
+      if (!hp || !hp.alive || !stillHasDomain) {
+        // 持有者淘汰 / 状态被外部清除 → 领域失效
+        if (hp) hp.char.domain = false;
+        this.domainHolder = null;
+        this.log('trigger', '🌀 领域消失：持有者已淘汰或领域状态被清除', undefined, true);
+      } else if (this.charDef(holder).domainTieWin && candidates.includes(holder)) {
+        return holder;
+      } else {
+        // 持有者不在本子轮候选（理论上不会发生，防御性处理）
+        return null;
+      }
+    }
+
+    // 兼容路径：从未调用 openDomain 就直接置位 char.domain
+    const manual = candidates.filter((pid) =>
+      this.players[pid]?.alive && this.charDef(pid).domainTieWin && this.charState(pid).domain === true);
+    if (manual.length === 0) return null;
+    const keep = manual[0];
+    for (const pid of manual) {
+      if (pid !== keep && this.players[pid]) this.players[pid].char.domain = false;
+    }
+    this.domainHolder = keep;
+    if (manual.length > 1) {
+      this.log('trigger', `🌀 领域归一：检测到 ${manual.length} 个领域同时生效（非正常路径），保留座次靠前的 ${this.players[keep].name}`, undefined, true);
+    }
+    return keep;
   }
 
   // ─── 判定历史（大屁孩等角色使用） ─────────────────────────────
@@ -238,12 +304,18 @@ export class Game implements GameLike {
     const throwsDesc = entrants.map((pid) => `${this.players[pid].name}:${this.throwName(this.pendingThrows[pid]!)}`).join('，');
     if (outcome.status === 'cycle') {
       this.log('judge', `判定子轮${this.subRound}（${throwsDesc}）：三人循环，全员重新判定`);
+      if (this.domainHolder) {
+        this.log('judge', `领域说明：三人循环不属于「平局」，${this.players[this.domainHolder].name} 的领域本子轮不触发`);
+      }
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
       this.nextJudgeSubRound();
       return;
     }
     if (outcome.status === 'alltie') {
       this.log('judge', `判定子轮${this.subRound}（${throwsDesc}）：同拳平局，全员重新判定`);
+      if (this.domainHolder) {
+        this.log('judge', `领域说明：${this.players[this.domainHolder].name} 的领域本子轮未生效（不在本子轮候选或不具备平局算胜）`);
+      }
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
       this.nextJudgeSubRound();
       return;
@@ -310,6 +382,18 @@ export class Game implements GameLike {
   // ─── 二次判定与行动队列 ───────────────────────────────────────
 
   private beginActionPhase(winners: PlayerId[]): void {
+    // 只有一名资格者时无需排序：直接入队（不额外掷拳、不产生空排序记录）
+    if (winners.length === 1) {
+      const only = winners[0];
+      this.qualified = [only];
+      this.queue = [only];
+      this.actIndex = 0;
+      this.log('order', `⭐ 行动顺序：仅 ${this.players[only].name} 获得行动资格，直接行动`, undefined, true);
+      this.phase = 'act';
+      this.advanceQueue(true);
+      return;
+    }
+
     const roll = (pids: PlayerId[]) => rollThrows(pids, this.rng);
     const tieWin = (cands: PlayerId[]) => this.tieWinHolder(cands);
     const { order, rounds } = resolveActionOrder(winners, roll, tieWin, {
@@ -321,7 +405,22 @@ export class Game implements GameLike {
     this.qualified = winners.filter((pid) => this.players[pid].alive);
     this.queue = aliveOrder;
     this.actIndex = 0;
-    this.log('order', `⭐ 行动顺序（输者先动）：${aliveOrder.map((pid) => this.players[pid].name).join(' → ')}`, undefined, true);
+
+    // 行动顺序由二次判定的胜负结果决定：输者先动、赢者靠后，同侧继续判定。
+    // 每一层都记日志，保证顺序可追溯、可复现。
+    const nameOf = (pid: PlayerId) => (this.players[pid] ? this.players[pid].name : pid);
+    for (const r of rounds) {
+      const w = (r.winners ?? []).filter((pid) => this.players[pid]?.alive).map(nameOf).join('、');
+      const l = (r.losers ?? []).filter((pid) => this.players[pid]?.alive).map(nameOf).join('、');
+      if (r.outcome === 'resolved') {
+        this.log('judge', `行动排序（子轮${r.sub}）：${w} 胜出 → ${l} 优先行动`);
+      } else if (r.outcome === 'tieWin') {
+        this.log('judge', `行动排序（子轮${r.sub}）：平局，${w} 领域生效判胜 → 其余优先行动`);
+      } else {
+        this.log('judge', `行动排序（子轮${r.sub}）：${r.outcome === 'cycle' ? '三人循环' : '同拳平局'}，重新排序`);
+      }
+    }
+    this.log('order', `⭐ 行动顺序（二次判定胜负决定，输者先动）：${aliveOrder.map(nameOf).join(' → ')}`, undefined, true);
     this.phase = 'act';
     this.advanceQueue(true);
   }
@@ -657,6 +756,12 @@ export class Game implements GameLike {
     p.hidden = false;
     p.invisible = false;
     p.hp = 0;
+    // 领域随持有者退场而消失（游戏中唯一会"自然失效"的路径；不含被覆盖）
+    if (this.domainHolder === pid) {
+      this.domainHolder = null;
+      p.char.domain = false;
+      this.log('trigger', `🌀 ${p.name} 的领域随其退场消失`, { pid }, true);
+    }
     if (killer && killer !== pid && this.stats[killer]) this.stats[killer].kills++;
     this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, undefined, true);
     this.roundSummary.push(`${p.name} 被淘汰（${cause}）`);
@@ -767,6 +872,8 @@ export class Game implements GameLike {
     this.judgeRecords = [];
     this.entrantOrder = this.aliveIds();
     this.roundSummary = [];
+    // 注意：领域（char.domain / domainHolder）是场地状态，跨回合持续保留，
+    // 这里**不清除**；只有被其他领域覆盖或持有者淘汰时才失效。
     this.phase = 'rps1';
     this.log('phase', `—— 第 ${this.roundNo} 回合 · 隐藏出拳 ——`, undefined, true);
   }
@@ -847,6 +954,8 @@ export class Game implements GameLike {
       reveal: this.revealInfo(),
       /** 局内战绩（每人一份，纯统计） */
       stats: Object.fromEntries(this.playerIds.map((pid) => [pid, { ...this.stats[pid] }])),
+      /** 领域持有者（全场唯一；null 表示当前无领域生效） */
+      domainHolder: this.domainHolder,
       // 日志通过增量（newLogs）下发，快照不再重复携带（带宽优化：长对局不随每次状态同步重发全量日志）
       winner: this.winner ?? null,
       aliveCount: this.aliveIds().length,

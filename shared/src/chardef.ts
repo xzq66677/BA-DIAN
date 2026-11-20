@@ -37,6 +37,10 @@ export interface GameLike {
   /** 服务端种子代掷：a 与 b 各掷一拳比较 */
   rollJudgeThrows(a: PlayerId, b: PlayerId): { a: Throw; b: Throw; result: 'win' | 'lose' | 'tie' };
   addDeferred(ev: Omit<import('./types.js').DeferredEvent, 'id'>): void;
+  /** 展开领域（全场唯一场地状态；他人已持有则覆盖） */
+  openDomain(pid: PlayerId): import('./types.js').ActionResult;
+  /** 当前领域持有者（无则 null） */
+  domainHolder: PlayerId | null;
   queue: PlayerId[];
   actIndex: number;
   entrantOrder: PlayerId[];

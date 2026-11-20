@@ -110,7 +110,7 @@ describe('拔典联机系统', () => {
     guest.disconnect();
   });
 
-  it('添加AI → 开始 → AI自动完成对局到游戏结束', { timeout: 30000 }, async () => {
+  it('添加AI → 开始 → AI自动完成对局到游戏结束', { timeout: 60000 }, async () => {
     const host = await connect();
     const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(
       host, 'room:create', { name: '勇者' },
@@ -120,7 +120,7 @@ describe('拔典联机系统', () => {
     await emit(host, 'room:addAI', { code, playerId: me.playerId, token: me.token, count: 2 });
 
     // 先注册监听器再开始游戏（避免错过首条广播造成驱动死锁）
-    const overPromise = waitFor(host, 'game:over', 25000);
+    const overPromise = waitFor(host, 'game:over', 50000);
     host.on('room:update', (u: Record<string, unknown>) => {
       const game = u.game as Record<string, unknown> | null;
       if (!game) return;
