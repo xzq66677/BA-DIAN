@@ -293,12 +293,12 @@ export function aiDecideAction(g: Game, pid: PlayerId): ActionRequest {
       if (members.length > 0) return { type: 'attack', targetId: members[0] };
       break;
     case 'chuixiao': {
-      const aim = st.aim as string | undefined;
-      const aimValid = aim && g.players[aim]?.alive && !g.isSameRoom(pid, aim);
-      if (aimValid) return { type: 'attack', targetId: aim!, ranged: true };
+      // 仅远程、无需瞄准：直接攻击异房间可见目标
       const targets = alive.filter((p) => !g.isSameRoom(pid, p) && !(g.players[p].hidden || g.players[p].invisible));
-      if (targets.length > 0) return { type: 'aim', targetId: g.rng.pick(targets) };
-      if (members.length > 0) return { type: 'move', room: g.roomIds.find((r) => r !== me.room && g.roomMembers(r).length === 0) || me.room };
+      if (targets.length > 0) {
+        const weakest = targets.sort((a, b) => g.players[a].hp - g.players[b].hp)[0];
+        return { type: 'attack', targetId: weakest, ranged: true };
+      }
       break;
     }
     case 'gojo':

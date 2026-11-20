@@ -238,6 +238,7 @@
 .cbadge-dead { background: #333; color: #888; }
 .cbadge-mine { background: #1d5fa8; color: #fff; }
 .cbadge-submitted { background: #2e4a3a; color: #9fe8b8; }
+.cbadge-lives { background: linear-gradient(180deg, #6b4fd8, #4a32a8); color: #e8ddff; }
 
 /* 动作特效（个人动作可视化） */
 .fx-anim {

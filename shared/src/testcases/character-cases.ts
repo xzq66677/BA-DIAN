@@ -85,29 +85,36 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C011', name: '吹箫哥：远程攻击需先瞄准', category: 'character', charId: 'chuixiao', seed: 211,
-    desc: '异房间目标未瞄准 → 拒绝；瞄准后下一回合攻击命中',
+    id: 'TC-C011', name: '吹箫哥：远程无需瞄准，直接攻击异房间目标', category: 'character', charId: 'chuixiao', seed: 211,
+    desc: '用户确认（2026-11-20）：吹箫哥不需要瞄准，直接选人远程攻击；仅不能近战',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'chuixiao' }, 'B'], 211);
-      // A、B 初始异房间（R1、R2）
+      // A(R1)、B(R2) 异房间
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const rejected = hpOf(g, 'B') === 2;
-      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'aim', targetId: 'B' } });
-      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B', ranged: true } });
-      const ok = rejected && hpOf(g, 'B') === 1 && g.charState('A').aim === undefined;
-      return check(ok, '未瞄准拒绝；瞄准后命中 B HP=1，瞄准已消耗', `hp=${hpOf(g, 'B')}, aim=${g.charState('A').aim}`, g);
+      const ok = hpOf(g, 'B') === 1 && g.charDef('A').rangedNeedsAim !== true;
+      return check(ok, '无需瞄准直接命中（B HP 2→1）', `hp=${hpOf(g, 'B')}, needAim=${g.charDef('A').rangedNeedsAim}`, g);
     }),
   },
   {
-    id: 'TC-C012', name: '吹箫哥：瞄准错误目标则攻击失败', category: 'character', charId: 'chuixiao', seed: 212,
-    desc: '瞄准 B 后攻击 C → 拒绝（需瞄准目标本人）',
+    id: 'TC-C011b', name: '吹箫哥：同房间目标无法近战', category: 'character', charId: 'chuixiao', seed: 213,
+    desc: '仅能远程：同房间攻击被拒绝且不消耗行动',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'chuixiao' }, 'B'], 213);
+      g.players['B'].room = 'R1';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const r = g.submitAction('A', { type: 'attack', targetId: 'B' });
+      const ok = !r.ok && hpOf(g, 'B') === 2 && g.currentActor() === 'A';
+      return check(ok, '同房间近战被拒绝，目标满血，行动未消耗', `ok=${r.ok}, err=${r.error}`, g);
+    }),
+  },
+  {
+    id: 'TC-C012', name: '吹箫哥：无需瞄准即可攻击任意异房间目标', category: 'character', charId: 'chuixiao', seed: 212,
+    desc: '直接攻击异房间的 C 命中（无需先瞄准）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'chuixiao' }, 'B', 'C'], 212);
-      winRound(g, { A: 'rock', B: 'scissors', C: 'rock' }, { A: { type: 'aim', targetId: 'B' } });
-      // 下一回合攻击 C
       winRound(g, { A: 'rock', B: 'scissors', C: 'rock' }, { A: { type: 'attack', targetId: 'C', ranged: true } });
-      const ok = hpOf(g, 'C') === 2 && g.charState('A').aim === 'B';
-      return check(ok, '攻击 C 被拒绝，C 满血，瞄准仍保持', `hpC=${hpOf(g, 'C')}, aim=${g.charState('A').aim}`, g);
+      const ok = hpOf(g, 'C') === 1;
+      return check(ok, '直接命中 C（HP 2→1），无需瞄准', `hpC=${hpOf(g, 'C')}`, g);
     }),
   },
 
@@ -150,6 +157,26 @@ export const CHARACTER_CASES: TestCase[] = [
       playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局 → 领域判胜
       const ok = g.phase === 'act' && g.qualified.length === 1 && g.qualified[0] === 'A';
       return check(ok, '平局子轮中五条悟获行动资格', `phase=${g.phase}, q=${g.qualified.join(',')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C026', name: '五条悟：2条命——首次致死满血复活，第二次致死淘汰', category: 'character', charId: 'gojo', seed: 226,
+    desc: '用户确认（2026-11-20）：五条悟有2条命；首次 HP 归零消耗一条命并满血复活，第二次才真正淘汰',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'K', char: 'default' }], 226);
+      g.players['K'].room = 'R1';
+      // 第一次致死：用引擎直接施加致死伤害（模拟）
+      g.applyDamage({ target: 'A', amount: 99, source: 'K', dtype: 'physical', tag: 'test-lethal-1' });
+      const firstAlive = isAlive(g, 'A');
+      const firstHp = hpOf(g, 'A');
+      const livesAfter = g.charState('A').livesLeft;
+      const revLog = g.logs.some((l) => l.text.includes('消耗一条命'));
+      // 第二次致死：真正淘汰
+      g.applyDamage({ target: 'A', amount: 99, source: 'K', dtype: 'physical', tag: 'test-lethal-2' });
+      const dead = !isAlive(g, 'A');
+      const ok = firstAlive && firstHp === 3 && livesAfter === 1 && revLog && dead;
+      return check(ok, '第一次：满血复活（HP3，剩余1命）；第二次：淘汰',
+        `firstAlive=${firstAlive}, hp=${firstHp}, lives=${livesAfter}, dead=${dead}`, g);
     }),
   },
   {

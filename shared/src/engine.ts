@@ -73,7 +73,7 @@ export class Game implements GameLike {
         type: pc.type,
         hidden: false,
         invisible: false,
-        char: cd.init ? cd.init() : {},
+        char: { ...(cd.init ? cd.init() : {}), livesLeft: cd.lives ?? 1 },
       };
       this.playerIds.push(pc.id);
       this.roomIds.push(room);
@@ -602,6 +602,18 @@ export class Game implements GameLike {
   eliminate(pid: PlayerId, cause: string, killer?: PlayerId): void {
     const p = this.players[pid];
     if (!p || !p.alive) return;
+
+    // 命数机制（如五条悟2条命）：致死时消耗一条命并满血复活；被房主踢出/主动退出不触发
+    const livesLeft = typeof p.char.livesLeft === 'number' ? (p.char.livesLeft as number) : 1;
+    if (livesLeft > 1 && cause !== 'kicked' && cause !== 'left') {
+      p.char.livesLeft = livesLeft - 1;
+      p.hp = p.maxHp;
+      p.hidden = false;
+      p.invisible = false;
+      this.log('trigger', `💫 ${p.name} 消耗一条命（剩余 ${livesLeft - 1} 条），以 ${fmtNum(p.maxHp)} HP 复活！`, { pid }, true);
+      return;
+    }
+
     p.alive = false;
     p.hidden = false;
     p.invisible = false;

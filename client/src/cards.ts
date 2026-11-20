@@ -39,14 +39,14 @@ export const CARD_META: Record<string, CardMeta> = {
   },
   chuixiao: {
     img: './cards/chuixiao.webp', thumb: './cards/chuixiao-thumb.webp', no: '02',
-    skills: '【瞄准】·【远音】',
-    mech: '只能远程攻击，出手前须先瞄准吹箫；贴身近战一概打不出来。',
+    skills: '【远音】',
+    mech: '只能远程攻击异房间目标，伤害1；无需瞄准，直接选人开吹；贴身近战一概打不出来。',
     quote: '离这么近干嘛，我吹的又不是贴脸曲。',
   },
   gojo: {
     img: './cards/gojo.webp', thumb: './cards/gojo-thumb.webp', no: '03',
     skills: '【无量】·【领域展开】',
-    mech: '近战伤害3；远程需瞄准、伤害2。领域展开后远程免瞄准，且平局判五条悟胜；另有领域对冲。',
+    mech: '2条命：首次致死消耗一条命并满血复活。近战伤害3；远程需瞄准、伤害2。领域展开后远程免瞄准，且平局判五条悟胜；另有领域对冲。',
     quote: '平局？在我领域里，平局也算我赢。',
   },
   mabaoguo: {

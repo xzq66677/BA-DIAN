@@ -50,20 +50,20 @@ const bagun: CharDef = {
 const chuixiao: CharDef = {
   id: 'chuixiao',
   name: '吹箫哥',
-  desc: '血量3攻击1。仅能远程攻击（异房间），需先「瞄准」目标（基础行动）；无法近战。',
+  desc: '血量3攻击1。仅能远程攻击（异房间），可直接选择目标远程攻击，无需瞄准；无法近战。',
   hp: 3,
   attack: 1,
   attackType: 'ranged',
   rangedCapable: true,
-  rangedNeedsAim: true,
 };
 
 /** 3. 五条悟：近战3伤；远程需瞄准2伤；领域展开后远程免瞄准、平局算胜；存在领域对冲 */
 const gojo: CharDef = {
   id: 'gojo',
   name: '五条悟',
-  desc: '血量3。近战3伤；远程2伤需瞄准。领域展开后：远程免瞄准、判定平局算五条悟胜。存在领域对冲（多名领域持有者效果抵消）。',
+  desc: '血量3、2条命（首次致死消耗一条命满血复活）。近战3伤；远程2伤需瞄准。领域展开后：远程免瞄准、判定平局算五条悟胜。存在领域对冲（多名领域持有者效果抵消）。',
   hp: 3,
+  lives: 2,
   attack: 3,
   meleeDamage: 3,
   rangedDamage: 2,

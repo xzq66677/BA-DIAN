@@ -100,6 +100,8 @@ export interface CharDef {
   desc: string;
   /** 初始血量（未给则用默认3） */
   hp?: number;
+  /** 命数（默认1）。>1 时致死会消耗一条命并满血复活 */
+  lives?: number;
   /** 攻击力（未给则用默认1） */
   attack?: number;
   /** 攻击类型 */

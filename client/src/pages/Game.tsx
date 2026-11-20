@@ -133,7 +133,7 @@ function GameInner({ lobby, game, session, logs, onExit }: {
       { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础' },
       { key: 'hide', label: '躲藏', desc: '指向性攻击无法锁定；AOE与无视躲避攻击仍可命中', typeLabel: '基础' },
     ];
-    if (me.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标（伤害1），无法近战；出手前须先「瞄准」';
+    if (me.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标（伤害1），无需瞄准；无法近战';
     if (hiddenSameRoomCount(game, me.id) > 0) list.push({ key: 'seek', label: '找出来', desc: '找出同房间躲藏的玩家', typeLabel: '基础', targetHint: 'seek' });
     if (cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && me.char.domain === true)) {
       list.push({ key: 'aim', label: '瞄准', desc: '锁定一名玩家（远程攻击前必须瞄准）', typeLabel: '基础', targetHint: 'aim' });
@@ -549,6 +549,9 @@ function CharCardView({ p, game, meId, isMine, isTargetable, submitted, flashDel
         {acting && !dead && <span className="cbadge cbadge-acting">行动中</span>}
         {isMine && <span className="cbadge cbadge-mine">我</span>}
         {submitted && !dead && <span className="cbadge cbadge-submitted">已出拳</span>}
+        {!dead && typeof p.char.livesLeft === 'number' && (p.char.livesLeft as number) > 1 && (
+          <span className="cbadge cbadge-lives">💫 {p.char.livesLeft} 命</span>
+        )}
         {p.hidden && !dead && <span className="cbadge cbadge-hide">🙈 躲藏</span>}
         {p.invisible && !dead && <span className="cbadge cbadge-hide">👻 隐身</span>}
       </div>
