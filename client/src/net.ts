@@ -89,8 +89,11 @@ class Net {
 
   connect(): Promise<void> {
     if (this.socket && this.connected) return Promise.resolve();
+    // 部署在子路径（如 nginx /badian/）时，socket.io 路径自适应
+    const inSubPath = window.location.pathname.startsWith('/badian');
+    const socketPath = (inSubPath ? '/badian' : '') + '/socket.io';
     return new Promise((resolve, reject) => {
-      this.socket = io({ transports: ['websocket', 'polling'] });
+      this.socket = io({ transports: ['websocket', 'polling'], path: socketPath });
       this.socket.on('connect', () => {
         const first = !this.connected;
         this.connected = true;

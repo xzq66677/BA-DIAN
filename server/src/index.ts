@@ -307,6 +307,13 @@ export function startServer(port: number = PORT): void {
   httpServer.listen(port, () => {
     console.log(`[拔典] 服务端已启动: http://localhost:${port}`);
   });
+  // 附加监听端口（如云防火墙只放行特定端口段时，用 PORT_EXTRA 同时监听该段）
+  const extra = Number(process.env.PORT_EXTRA || 0);
+  if (extra > 0) {
+    httpServer.listen(extra, () => {
+      console.log(`[拔典] 附加监听: http://localhost:${extra}`);
+    });
+  }
 }
 
 // 仅在直接运行本文件时自动启动（被测试导入时不监听）

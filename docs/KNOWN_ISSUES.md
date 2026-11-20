@@ -10,6 +10,7 @@
 ## 环境限制（本次执行环境）
 
 7. **手机端适配**（2026-11-20）：首页/大厅/游戏三页面在 390px 视口零横向溢出（Playwright iPhone 视口截图回归）。建议体验分辨率 ≥360px；极窄屏（<360px）未做专项优化。
+7b. **手机直连入口**：本服务器 Azure NSG 只放行 22/11937/8881-8892（sing-box 在用）；游戏已挂载 `http://<IP>:11937/badian/`（nginx 子路径反代+WebSocket）。隧道域名（trycloudflare）在中国大陆网络可能不稳定。
 8. **真实 Chromium 端到端点击测试已完成**（2026-11-19：用户授权 sudo，安装系统库后解锁）。systemd 服务 badian.service 已配置（开机自启/崩溃重启）。注意：快速隧道（trycloudflare）地址在服务器重启后会变化——隧道已由 systemd 服务 `badian-tunnel` 托管（开机自启/崩溃重启），新地址自动写入项目根目录 `TUNNEL_URL.txt`。稳定地址需 Cloudflare 命名隧道（见 docs/OPTIMIZATION_PLAN.md P2-5）。
 8. **未部署公网**：本地生产模式（`npm start`，:3100）验证通过；联机部署需自行提供 HTTPS 反代（Socket.IO 客户端用同源相对路径连接）。
 

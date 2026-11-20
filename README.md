@@ -26,6 +26,11 @@ npm start
 # → http://localhost:3100（端口可用环境变量 PORT 覆盖）
 # 本机已配置 systemd 服务（开机自启/崩溃重启）：
 #   sudo systemctl restart badian && journalctl -u badian -f
+#
+# 本机多种访问方式（本服务器实机部署时）：
+#   直连:       http://<服务器IP>:3100（需云防火墙放行）
+#   nginx路径:  http://<服务器IP>:11937/badian/（NSG已放行，手机直连可用）
+#   公网隧道:   https://<trycloudflare地址>（见 TUNNEL_URL.txt）
 
 # 开发模式（可选）
 npm run dev:server    # tsx watch 服务端 :3100
