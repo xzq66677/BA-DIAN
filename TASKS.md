@@ -229,6 +229,14 @@
 | T-901 | 单人 vs AI 取消超时 | DONE | 新增 `Room.needsTimeout()`：只有 ≥2 名真人才布防出拳/行动超时；单人 vs AI、单设备多人不布防，不再代掷/自动跳过（tests/timeout.test.ts 6 例） |
 | T-902 | AI 看门狗（取消超时后的兜底） | DONE | `startAIWatchdog()` 每 1.2s 检查「仍等 AI 出拳 / 仍轮到 AI」，补驱动一次；只驱动 AI、不替真人操作，对局结束/重开/销毁时清理 |
 
+## 阶段10 · 同房间多局日志（2026-11-20 第三轮反馈）
+
+| 编号 | 任务 | 状态 | 说明 |
+|---|---|---|---|
+| T-1000 | 日志 seq 跨局单调递增 | DONE | `GameConfig.logSeqOffset` + `Room.logSeqCursor`（`syncLogSeqCursor()` 在每次状态变更与 restart 前推进），第二局 seq 从上一局最大值续接 |
+| T-1001 | 新局清空上一局日志 | DONE | `lobbySnapshot().gameNo` 逐局 +1，客户端 `App.tsx` 检测到变化即清空本地日志，避免两局日志首尾相接、回合号重复 |
+| T-1002 | 回归测试 | DONE | `tests/room-logseq.test.ts` 6 例：seq 递增、客户端去重后第二局全部可见、连打三局不回退、gameNo 递增、默认不影响单局、AI 局同样续接 |
+
 ## 发现并修复的 Bug（全部有回归测试覆盖）
 
 | 编号 | 描述 | 状态 |
@@ -255,6 +263,7 @@
 | B-020 | 仅 1 名玩家有资格时仍走一遍排序流程、消耗随机流 → 跳过排序直接行动 | FIXED |
 | B-021 | `targetHint: 'none'`（自身技能）被前端当作"需要目标" → 确认条显示「点击战场高亮卡牌」且按钮置灰，领域/运势类技能无法直接发动 | FIXED |
 | B-022 | 单人 vs AI 也布防 30s/45s 超时 → 出拳被代掷、行动被自动跳过（AI 即时应答，无人等待） | FIXED |
+| B-023 | 同房间第二局战斗日志不再更新：引擎 `logSeq` 每局从 1 重算，与上一局 seq 撞号 → 服务端增量过滤与客户端去重把新日志全当旧日志丢弃。改为 `Room` 维护跨局游标 `logSeqCursor` 作为 `GameConfig.logSeqOffset`，并下发 `gameNo` 让客户端在新局清空日志 | FIXED |
 
 ## 遗留事项
 

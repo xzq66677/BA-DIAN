@@ -69,6 +69,8 @@ over ◀──checkWin── roundEnd（延迟事件：ivan/damage）◀──�
 - 超时：出拳 30s 代掷、行动 45s 跳过（可配置；0=关闭）。**只在房间内有 ≥2 名真人时布防**（`Room.needsTimeout()`）：单人 vs AI 时 AI 即时应答、无人等待，超时只会打断本人思考，因此不布防；单设备多人同理。
 - AI 兜底：`kickAI` 的候选行动链保证 AI 永不因非法决策卡住；另有 `startAIWatchdog()`（1.2s，`state==='playing'` 期间运行，`disarmAll` 清理）在「仍等 AI 出拳 / 仍轮到 AI 行动」时补驱动一次，只动 AI、不动真人。
 - 广播：`room:update` = 大厅快照 + 游戏快照 + 增量日志（按 seq 去重）+ `you`。
+  - **seq 在房间内单调递增**：引擎的 `logSeq` 每局从 1 开始，`Room` 用跨局游标 `logSeqCursor` 在开新局时作为 `GameConfig.logSeqOffset` 传入，因此同一房间第二局之后 seq 继续增长，增量过滤与客户端去重都不会把新日志误判为旧日志。
+  - `lobbySnapshot().gameNo` 每开一局 +1，客户端据此清空上一局日志（否则两局日志会首尾相接、回合号重复）。
 
 ### 8. 机制测试场
 - `shared/src/testcases` 为唯一测试数据源：103 个用例（编号 TC-E/TC-C/TC-X）。
