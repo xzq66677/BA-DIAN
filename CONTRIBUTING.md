@@ -65,7 +65,7 @@ test/<issue-number>-<short-desc>      # 测试
 
 - PR 描述里必须写 `Closes #<Issue 编号>`，合并后自动关闭对应 Issue。
 - PR 关联一个 Issue；一个 Issue 对应一个 PR，避免交叉。
-- 合并前确保 `npm test` 通过（当前 298 项测试）。
+- 合并前确保 `npm test` 通过（当前 300 项测试）。
 
 ---
 

@@ -58,11 +58,13 @@ export interface PresentationState {
   ivanBoom: IvanBoomView | null;
   /** 领域展开（重大事件）：爆发 + 聚焦（3D 场景穹顶由快照 domainHolder 驱动） */
   domainDecl: { key: number; pid: string } | null;
+  /** 全局播报（喝牛奶 / 今日勇者运势）：战场中央横幅，一次一条 */
+  announce: { key: number; kind: 'milk' | 'fortune'; pid: string; roll?: number } | null;
 }
 
 export const EMPTY_PRESENTATION: PresentationState = {
   fx: {}, decls: {}, hits: {}, heals: {}, misses: {}, deaths: {}, revives: {}, zoneAlert: null, moveBanner: null,
-  ivanThrow: null, ivanBoom: null, domainDecl: null,
+  ivanThrow: null, ivanBoom: null, domainDecl: null, announce: null,
 };
 
 /** 叠加层展示时长（ms，覆盖 CSS 动画全长）；reduced-motion 时缩短 */
@@ -77,6 +79,7 @@ const BANNER_MS = 1300;
 const IVAN_THROW_MS = 1150;
 const IVAN_BOOM_MS = 1250;
 const DOMAIN_MS = 1100;
+const ANNOUNCE_MS = 1800;
 
 export interface BattlePresentationApi {
   setSpeed: (s: Speed) => void;
@@ -174,7 +177,7 @@ export function useBattlePresentation(
     timersRef.current.clear();
   }
 
-  function scheduleExpiry(key: 'fx' | 'decls' | 'hits' | 'heals' | 'misses' | 'deaths' | 'revives' | 'zoneAlert' | 'moveBanner' | 'ivanThrow' | 'ivanBoom' | 'domainDecl', id: string, ms: number): void {
+  function scheduleExpiry(key: 'fx' | 'decls' | 'hits' | 'heals' | 'misses' | 'deaths' | 'revives' | 'zoneAlert' | 'moveBanner' | 'ivanThrow' | 'ivanBoom' | 'domainDecl' | 'announce', id: string, ms: number): void {
     const t = setTimeout(() => {
       timersRef.current.delete(t);
       setPres((prev) => {
@@ -189,6 +192,9 @@ export function useBattlePresentation(
         }
         if (key === 'ivanBoom') {
           return prev.ivanBoom && prev.ivanBoom.key === Number(id) ? { ...prev, ivanBoom: null } : prev;
+        }
+        if (key === 'announce') {
+          return prev.announce && prev.announce.key === Number(id) ? { ...prev, announce: null } : prev;
         }
         const bucket = prev[key] as Record<string, unknown>;
         if (!(id in bucket)) return prev;
@@ -212,6 +218,11 @@ export function useBattlePresentation(
           if (!pid) break;
           next.fx = { ...prev.fx, [pid]: { kind: e.fx ?? (e.kind === 'attackDecl' ? 'attack' : 'skill'), key: e.seq, targetId: e.targetId } };
           scheduleExpiry('fx', pid, e.kind === 'attackDecl' ? 420 : FX_MS);
+          // 喝牛奶：全局播报一次（嘲讽是全场事件，不只演在个人卡上）
+          if (e.fx === 'milk') {
+            next.announce = { key: e.seq, kind: 'milk', pid };
+            scheduleExpiry('announce', String(e.seq), ANNOUNCE_MS);
+          }
           if (e.kind === 'attackDecl' && e.targetId) {
             next.decls = { ...prev.decls, [pid]: { key: e.seq, targetId: e.targetId, amount: e.amount, room: e.room } };
             scheduleExpiry('decls', pid, 520);
@@ -282,6 +293,12 @@ export function useBattlePresentation(
           const t = e.targetId!;
           next.domainDecl = { key: e.seq, pid: t };
           scheduleExpiry('domainDecl', 'decl', DOMAIN_MS);
+          break;
+        }
+        case 'fortune': {
+          const t = e.targetId!;
+          next.announce = { key: e.seq, kind: 'fortune', pid: t, roll: e.roll };
+          scheduleExpiry('announce', String(e.seq), ANNOUNCE_MS + 600);
           break;
         }
         case 'trigger':

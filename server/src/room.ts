@@ -431,8 +431,13 @@ export class Room {
     this.stopAIWatchdog();
   }
 
-  /** 重置房间（重开游戏） */
-  restart(): { ok: boolean; error?: string } {
+  /**
+   * 重置房间（重开游戏）。
+   * @param autoStart true = 重置后立即以原座位开局（对局结束「再来一局」直达新局，
+   *                  无需回大厅再点开始）；缺省保持旧行为（回大厅等待房主开始）。
+   *                  自动开局只广播一次 playing 态，客户端不闪大厅中间页。
+   */
+  restart(opts?: { autoStart?: boolean }): { ok: boolean; error?: string } {
     if (this.state === 'lobby') return { ok: false, error: '房间尚未开始过' };
     // 丢弃本局前先把日志游标推到本局最大 seq，下一局续接，避免 seq 回退撞号
     this.syncLogSeqCursor();
@@ -445,6 +450,10 @@ export class Room {
     this.interactions = [];
     this.interactionCounts = {};
     this.disarmAll();
+    if (opts?.autoStart) {
+      const started = this.start();
+      return started.ok ? { ok: true } : started;
+    }
     this.onBroadcast(this);
     return { ok: true };
   }
