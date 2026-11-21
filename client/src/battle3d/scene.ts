@@ -904,7 +904,7 @@ export class BattleScene3D {
   }
 
   /** 实际扣血 */
-  playHit(pid: string, o: { amount: number; lethal?: boolean; instakill?: boolean; segment?: { index: number; total: number }; sourceId?: string; room?: string; tag?: string }): void {
+  playHit(pid: string, o: { amount: number; lethal?: boolean; segment?: { index: number; total: number }; sourceId?: string; room?: string; tag?: string }): void {
     const e = this.entities.get(pid);
     if (!e) return;
     const w = this.worldOf(pid)!;
@@ -913,7 +913,7 @@ export class BattleScene3D {
     if (src && !this.reduced) {
       this.spawnFx(beamFx(src.clone().add(new THREE.Vector3(0, 0.8, 0)), w.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xff8060, 0.3, 0.05), new THREE.Vector3(0, 0, 0), 420);
     }
-    this.spawnFx(slashFx(!!o.lethal || !!o.instakill), w.clone().setY(PLATFORM_H + 0.9), 620);
+    this.spawnFx(slashFx(!!o.lethal), w.clone().setY(PLATFORM_H + 0.9), 620);
     e.pose = { kind: 'flinch', t: 0, dur: 0.5 };
     // 红闪
     const mats = e.rig.materials();
@@ -924,9 +924,9 @@ export class BattleScene3D {
       for (const m of mats) m.emissive.copy(m.color).multiplyScalar(0.16);
     });
     if (!this.reduced) this.spawnFx(flashLightFx(w, STATE_COLORS.hit, o.lethal ? 4.5 : 2.6, 0.35), w.clone().setY(0), 520);
-    this.spawnFloat(w, `<span class="dmg-float ${o.lethal || o.instakill ? 'lethal' : ''}">-${fmtN(o.amount)}</span>`);
+    this.spawnFloat(w, `<span class="dmg-float ${o.lethal ? 'lethal' : ''}">-${fmtN(o.amount)}</span>`);
     if (o.segment && o.segment.total > 1) this.spawnFloat(w, `<span class="b3-seg">${o.segment.index}/${o.segment.total} 段</span>`, 30);
-    if (o.lethal || o.instakill) this.shake(0.18);
+    if (o.lethal) this.shake(0.18);
   }
 
   playHeal(pid: string, o: { amount?: number }): void {

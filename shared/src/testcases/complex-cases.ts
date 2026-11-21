@@ -33,20 +33,20 @@ export const COMPLEX_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-X002', name: '秒杀 × 反弹：非免疫秒杀可被太极反弹', category: 'complex', seed: 301,
-    desc: '延迟秒杀（非noReflect）指向马保国 → 太极判定成功则秒杀反弹给来源',
+    id: 'TC-X002', name: '极高伤害 × 反弹：非免疫高额伤害可被太极反弹', category: 'complex', seed: 301,
+    desc: '延迟高额伤害（非noReflect）指向马保国 → 太极判定成功则伤害反弹给来源',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'default' }, { id: 'M', char: 'mabaoguo' }], 301);
       g.addDeferred({
         kind: 'damage', room: 'R1', explodeRound: 1, source: 'A', createdAtRound: 1,
-        payload: { target: 'M', amount: 999, source: 'A', dtype: 'special', instakill: true, tag: 'test-kill' },
+        payload: { target: 'M', amount: 999, source: 'A', dtype: 'special', tag: 'test-kill' },
       });
       playThrows(g, [{ A: 'rock', M: 'paper' }]); // M 胜 → M 行动 skip → 回合末
       actQueue(g, { M: { type: 'skip' } });
       const reflected = g.logs.some((l) => l.text.includes('太极判定成功'));
       const mDead = !isAlive(g, 'M');
       const aDead = !isAlive(g, 'A');
-      // 一致性：若反弹成功 → A 秒杀死亡，M 存活；否则 M 死
+      // 一致性：若反弹成功 → A 承受 999 死亡，M 存活；否则 M 死
       const ok = (reflected && aDead && isAlive(g, 'M')) || (!reflected && mDead && isAlive(g, 'A'));
       return check(ok, `反弹=${reflected} → 一致的死亡结果（M死=${mDead}, A死=${aDead}）`,
         `reflected=${reflected}, M alive=${isAlive(g, 'M')}, A alive=${isAlive(g, 'A')}`, g);

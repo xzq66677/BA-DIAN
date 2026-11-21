@@ -307,7 +307,7 @@ export const CHARACTER_CASES: TestCase[] = [
   },
   {
     id: 'TC-C034', name: '马保国：大伊万爆炸不触发太极反弹', category: 'character', charId: 'mabaoguo', seed: 234,
-    desc: '大伊万秒杀为 noReflect，马保国直接死亡（规则原文例外）',
+    desc: '大伊万极高伤害为 noReflect，马保国直接死亡（规则原文例外）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'ivan-girl' }, { id: 'B', char: 'mabaoguo' }], 234);
       g.players['B'].room = 'R2'; // 和目标房间一致

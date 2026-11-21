@@ -780,30 +780,18 @@ export class Game implements GameLike {
 
     // 4. 结算
     const before = tp.hp;
-    if (req.instakill) {
-      const killData: DamageEventData = {
-        target: tp.id, source: req.source, amount: before,
-        hpBefore: before, hpAfter: 0, lethal: true,
-        instakill: true, dtype: req.dtype, tag: req.tag,
-        segment: req.segment, aoe: req.aoe, room: tp.room,
-        ...(req.groupId ? { groupId: req.groupId } : {}),
-      };
-      this.log('damage', `${tp.name} 受到秒杀效果（${req.tag || '伤害'}${req.segment ? ` 第${req.segment.index}/${req.segment.total}段` : ''}）`, killData as unknown as Record<string, unknown>, true);
-      tp.hp = 0;
-    } else {
-      tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
-      const dmgData: DamageEventData = {
-        target: tp.id, source: req.source, amount: req.amount,
-        hpBefore: before, hpAfter: tp.hp, lethal: tp.hp <= 0,
-        dtype: req.dtype, tag: req.tag, segment: req.segment,
-        aoe: req.aoe, room: tp.room,
-        reflected: !!req.reflected, transferred: !!req.transferred,
-        ...(req.groupId ? { groupId: req.groupId } : {}),
-      };
-      this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, dmgData as unknown as Record<string, unknown>, true);
-    }
+    tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
+    const dmgData: DamageEventData = {
+      target: tp.id, source: req.source, amount: req.amount,
+      hpBefore: before, hpAfter: tp.hp, lethal: tp.hp <= 0,
+      dtype: req.dtype, tag: req.tag, segment: req.segment,
+      aoe: req.aoe, room: tp.room,
+      reflected: !!req.reflected, transferred: !!req.transferred,
+      ...(req.groupId ? { groupId: req.groupId } : {}),
+    };
+    this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, dmgData as unknown as Record<string, unknown>, true);
 
-    // 战绩：实际掉血量（秒杀按剩余血量计）
+    // 战绩：实际掉血量
     const dealt = Math.max(0, before - tp.hp);
     if (this.stats[tp.id]) this.stats[tp.id].damageTaken += dealt;
     if (req.source && req.source !== tp.id && this.stats[req.source]) this.stats[req.source].damageDealt += dealt;
@@ -954,11 +942,12 @@ export class Game implements GameLike {
         for (const pid of members) {
           this.applyDamage({
             target: pid,
+            // 极高伤害数值替代专用秒杀机制（作者确认，Issue #6）：对当前血量体系等效即死，
+            // 走普通扣血管线（HP 归零淘汰，战绩按实际损失血量计）
             amount: 999999,
             source: ev.source,
             dtype: 'special',
             aoe: true, // 房间级毁灭：躲藏/隐身不提供保护（卡片原文「毁灭此房所有生物」；同伍六七 AOE 语义）
-            instakill: true,
             noReflect: true,
             tag: 'ivan',
             groupId: ivanGroup,

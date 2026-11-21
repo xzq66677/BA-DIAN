@@ -1075,7 +1075,7 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
       {/* ── 演出叠加层（全部 key=事件 seq：同类事件重复触发会重播动画） ── */}
       {hit && (
         <span className="hitcut" key={`hc-${hit.key}`} data-testid="hitcut">
-          <span className={`hitcut-slash ${hit.lethal || hit.instakill ? 'lethal' : ''}`} />
+          <span className={`hitcut-slash ${hit.lethal ? 'lethal' : ''}`} />
           <span className="hitcut-flash" />
           {hit.segment && hit.segment.total > 1 && (
             <span className="hitcut-seg">{hit.segment.index}/{hit.segment.total}段</span>
@@ -1083,7 +1083,7 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
         </span>
       )}
       {hit && (
-        <span className={`dmg-float ${hit.lethal || hit.instakill ? 'lethal' : ''}`} key={`df-${hit.key}`}>
+        <span className={`dmg-float ${hit.lethal ? 'lethal' : ''}`} key={`df-${hit.key}`}>
           -{fmtHp(hit.amount)}
         </span>
       )}

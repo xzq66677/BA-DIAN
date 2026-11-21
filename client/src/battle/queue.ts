@@ -70,8 +70,8 @@ function eventMs(e: BattleEvent, mode: QueueMode, speed: Speed, reduced: boolean
   let base = BASE_MS[e.kind] ?? 300;
   // 多段伤害段间紧凑（总时长仍覆盖斩击动画）
   if (e.kind === 'damage' && e.segment && e.segment.total > 1) base = 430;
-  // 致命/秒杀衔接淘汰演出，停留更久
-  if ((e.kind === 'damage' && e.lethal) || e.instakill) base = 900;
+  // 致命伤害衔接淘汰演出，停留更久
+  if (e.kind === 'damage' && e.lethal) base = 900;
   if (reduced) base = Math.min(base, 240);
   return Math.round(base / speed);
 }
@@ -84,7 +84,7 @@ function estimateMs(clusters: EventCluster[]): number {
     for (const e of c.events) {
       if (c.mode === 'fast' && droppableInFast(e)) continue;
       total += BASE_MS[e.kind] ?? 300;
-      if ((e.kind === 'damage' && e.lethal) || e.instakill) total += 260;
+      if (e.kind === 'damage' && e.lethal) total += 260;
     }
   }
   return total;

@@ -215,7 +215,7 @@ describe('结构化事件：AOE / 多段分组', () => {
     expect(groups.size).toBe(1);
     for (const l of dd) {
       const d = damageData(l);
-      expect(d.instakill).toBe(true);
+      expect(d.amount).toBe(999999);
       expect(d.lethal).toBe(true);
       expect(d.tag).toBe('ivan');
       expect(d.room).toBe('R2');

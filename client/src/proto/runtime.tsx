@@ -265,11 +265,11 @@ export function ProtoCard({ p, snap, bp, size = 'md', onClick, targetable, selec
       {hit && (
         <>
           <span className="hitcut" key={`hc-${hit.key}`}>
-            <span className={`hitcut-slash ${hit.lethal || hit.instakill ? 'lethal' : ''}`} />
+            <span className={`hitcut-slash ${hit.lethal ? 'lethal' : ''}`} />
             <span className="hitcut-flash" />
             {hit.segment && hit.segment.total > 1 && <span className="hitcut-seg">{hit.segment.index}/{hit.segment.total}段</span>}
           </span>
-          <span className={`dmg-float ${hit.lethal || hit.instakill ? 'lethal' : ''}`} key={`df-${hit.key}`}>-{fmtHp(hit.amount)}</span>
+          <span className={`dmg-float ${hit.lethal ? 'lethal' : ''}`} key={`df-${hit.key}`}>-{fmtHp(hit.amount)}</span>
         </>
       )}
       {heal && (

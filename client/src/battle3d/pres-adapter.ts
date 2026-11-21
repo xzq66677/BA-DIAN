@@ -13,7 +13,7 @@ import type { PresentationState } from '../battle/useBattlePresentation.js';
 export type SceneCommand =
   | { c: 'attackDecl'; seq: number; sourceId: string; targetId: string; amount?: number; room?: string }
   | { c: 'action'; seq: number; pid: string; fx: string; targetId?: string }
-  | { c: 'hit'; seq: number; pid: string; amount: number; hpBefore?: number; hpAfter?: number; lethal?: boolean; instakill?: boolean; segment?: { index: number; total: number }; sourceId?: string; room?: string; tag?: string }
+  | { c: 'hit'; seq: number; pid: string; amount: number; hpBefore?: number; hpAfter?: number; lethal?: boolean; segment?: { index: number; total: number }; sourceId?: string; room?: string; tag?: string }
   | { c: 'heal'; seq: number; pid: string; amount?: number }
   | { c: 'miss'; seq: number; pid: string }
   | { c: 'death'; seq: number; pid: string }
@@ -54,7 +54,7 @@ export function presToCommands(prev: PresentationState, next: PresentationState)
   // 3. 实际命中 / 回复 / 未命中
   diffBucket(prev.hits, next.hits, (pid, v) => ({
     c: 'hit', seq: v.key, pid, amount: v.amount, hpBefore: v.hpBefore, hpAfter: v.hpAfter,
-    lethal: v.lethal, instakill: v.instakill, segment: v.segment, sourceId: v.sourceId,
+    lethal: v.lethal, segment: v.segment, sourceId: v.sourceId,
   }), out);
   diffBucket(prev.heals, next.heals, (pid, v) => ({
     c: 'heal', seq: v.key, pid, amount: v.amount,
@@ -91,7 +91,7 @@ export function presToCommands(prev: PresentationState, next: PresentationState)
 export interface SceneLike {
   playAttackDecl(sourceId: string, targetId: string): void;
   playAction(pid: string, fx: string, targetId?: string): void;
-  playHit(pid: string, o: { amount: number; lethal?: boolean; instakill?: boolean; segment?: { index: number; total: number }; sourceId?: string; room?: string; tag?: string }): void;
+  playHit(pid: string, o: { amount: number; lethal?: boolean; segment?: { index: number; total: number }; sourceId?: string; room?: string; tag?: string }): void;
   playHeal(pid: string, o: { amount?: number }): void;
   playMiss(pid: string): void;
   playEliminate(pid: string): void;
