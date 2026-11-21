@@ -311,10 +311,14 @@ export const CHARACTER_CASES: TestCase[] = [
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'ivan-girl' }, { id: 'B', char: 'mabaoguo' }], 234);
       g.players['B'].room = 'R2'; // 和目标房间一致
-      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
-      actQueue(g, { A: { type: 'throwIvan', room: 'R2' } }); // 回合末爆炸（A已行动）
-      const ok = !isAlive(g, 'B') && !g.logs.some((l) => l.text.includes('太极判定成功') && l.round === 1);
-      return check(ok, 'B 被大伊万毁灭，未触发太极反弹', `B alive=${isAlive(g, 'B')}`, g);
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第1回合 A 胜，投掷
+      actQueue(g, { A: { type: 'throwIvan', room: 'R2' } });
+      const boomR1 = g.logs.some((l) => l.text.includes('大伊万在 R2 爆炸'));
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第2回合 A 再胜（引爆回合）
+      actQueue(g, { A: { type: 'skip' } }); // 行动结束 → 回合末爆炸
+      const ok = boomR1 === false && !isAlive(g, 'B')
+        && !g.logs.some((l) => l.text.includes('太极判定成功'));
+      return check(ok, '第2回合末爆炸毁灭 B，全程未触发太极反弹', `B alive=${isAlive(g, 'B')}, boomR1=${boomR1}`, g);
     }),
   },
   {
@@ -389,62 +393,134 @@ export const CHARACTER_CASES: TestCase[] = [
 
   // ═══════════════ 20.6 卖大伊万的小女孩 ═══════════════
   {
-    id: 'TC-C050', name: '大伊万：投掷与爆炸分离，回合末爆炸', category: 'character', charId: 'ivan-girl', seed: 250,
-    desc: '投掷后行动队列继续，所有人行动结束后爆炸',
+    id: 'TC-C050', name: '大伊万：投掷与爆炸分离，投掷后第一个分出胜负回合末爆炸', category: 'character', charId: 'ivan-girl', seed: 250,
+    desc: '投掷回合引信未开（投掷后行动队列继续、回合末不爆）；下一回合分出胜负，其回合末爆炸',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'ivan-girl' }, 'B', 'C'], 250);
       g.players['B'].room = 'R2';
-      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // A 胜
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 第1回合 A 胜
       actQueue(g, { A: { type: 'throwIvan', room: 'R2' } });
-      const threwBeforeOver = g.logs.some((l) => l.text.includes('投掷大伊万'));
-      const exploded = g.logs.some((l) => l.text.includes('大伊万在 R2 爆炸'));
-      const ok = threwBeforeOver && exploded && !isAlive(g, 'B');
-      return check(ok, '投掷后回合末爆炸，R2 的 B 被毁灭', `B alive=${isAlive(g, 'B')}, exploded=${exploded}`, g);
+      const boomR1 = g.logs.some((l) => l.text.includes('大伊万在 R2 爆炸'));
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 第2回合 A 再胜（引爆回合）
+      actQueue(g, { A: { type: 'skip' } }); // 行动结束 → 回合末爆炸
+      const threw = g.logs.some((l) => l.text.includes('投掷大伊万'));
+      const ok = threw && boomR1 === false && !isAlive(g, 'B') && isAlive(g, 'A') && isAlive(g, 'C');
+      return check(ok, '投掷回合不炸，第2回合末爆炸毁灭 R2 的 B（A、C 不受影响）',
+        `boomR1=${boomR1}, B alive=${isAlive(g, 'B')}, A=${isAlive(g, 'A')}, C=${isAlive(g, 'C')}`, g);
     }),
   },
   {
-    id: 'TC-C051', name: '大伊万：爆炸时动态判定成员（移动可逃离/进入）', category: 'character', charId: 'ivan-girl', seed: 251,
-    desc: '目标房间玩家在爆炸前移动离开 → 不受影响；移动进入 → 受影响（不使用投掷时快照）',
+    id: 'TC-C051', name: '大伊万：爆炸时动态判定成员（引爆回合内移动可逃离/进入）', category: 'character', charId: 'ivan-girl', seed: 251,
+    desc: '引燃回合内目标房间玩家移动离开 → 不受影响；移动进入 → 受影响（不使用投掷时快照）',
     run: () => run(() => {
-      const g2 = makeGame([{ id: 'A', char: 'ivan-girl' }, 'B', 'C', 'D'], 252);
+      const g2 = makeGame([{ id: 'A', char: 'ivan-girl' }, 'B', 'C', 'D'], 251);
       g2.players['B'].room = 'R2';
       g2.players['C'].room = 'R3';
       g2.players['D'].room = 'R4';
-      playThrows(g2, [{ A: 'rock', B: 'rock', C: 'rock', D: 'scissors' }]); // rock 组（A、B、C）胜
+      playThrows(g2, [{ A: 'rock', B: 'scissors', C: 'scissors', D: 'scissors' }]); // 第1回合 A 胜
+      actQueue(g2, { A: { type: 'throwIvan', room: 'R2' } });
+      playThrows(g2, [{ A: 'rock', B: 'rock', C: 'rock', D: 'scissors' }]); // 第2回合 A、B、C 胜（引爆回合）
       actQueue(g2, {
         B: { type: 'move', room: 'R3' }, // B 逃离 R2
         C: { type: 'move', room: 'R2' }, // C 进入 R2（投掷时不在）
-        A: { type: 'throwIvan', room: 'R2' },
-      });
+        A: { type: 'skip' },
+      }); // 行动结束 → 回合末按爆炸时成员结算
+      const boomR1 = g2.logs.some((l) => l.text.includes('大伊万在 R2 爆炸') && l.round === 1);
       const bAlive = isAlive(g2, 'B');
       const cDead = !isAlive(g2, 'C');
-      const ok = bAlive && cDead;
-      return check(ok, 'B（已离开）存活，C（爆炸时在 R2）被毁灭（不使用投掷时快照）', `B alive=${bAlive}, C alive=${isAlive(g2, 'C')}`, g2);
+      const ok = boomR1 === false && bAlive && cDead;
+      return check(ok, '第1回合不爆；引燃回合末 B（已离开）存活，C（爆炸时在 R2）被毁灭',
+        `boomR1=${boomR1}, B alive=${bAlive}, C alive=${isAlive(g2, 'C')}`, g2);
     }),
   },
   {
     id: 'TC-C052', name: '大伊万：含自己所在房间，投掷者不离开则被毁灭', category: 'character', charId: 'ivan-girl', seed: 252,
-    desc: '投掷到自己房间且不移动 → 自己也被秒杀（可能平局）',
+    desc: '投掷到自己房间且不移动 → 引燃回合末自己也被秒杀；异房间他人不受影响（同归于尽场景见 TC-C058）',
     run: () => run(() => {
-      const g = makeGame([{ id: 'A', char: 'ivan-girl' }, 'B'], 253);
-      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // A 胜
+      const g = makeGame([{ id: 'A', char: 'ivan-girl' }, 'B'], 252); // B 在 R2，不受 R1 爆炸影响
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第1回合 A 胜
       actQueue(g, { A: { type: 'throwIvan', room: 'R1' } });
-      const ok = !isAlive(g, 'A') && (g.winner === null ? true : g.winner === undefined);
-      // A 自爆后 B 存活 → B 胜（如果 B 未被波及）
-      return check(!isAlive(g, 'A'), 'A 被自己投掷的大伊万毁灭', `A alive=${isAlive(g, 'A')}, winner=${g.winner}`, g);
+      const boomR1 = g.logs.some((l) => l.text.includes('大伊万在 R1 爆炸'));
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第2回合 A 再胜（引爆回合）
+      actQueue(g, { A: { type: 'skip' } }); // 行动结束 → 回合末爆炸
+      const ok = boomR1 === false && !isAlive(g, 'A') && isAlive(g, 'B') && g.winner === 'B';
+      return check(ok, '第2回合末 A 被自己投掷的大伊万毁灭，B（R2）存活并获胜',
+        `A alive=${isAlive(g, 'A')}, B alive=${isAlive(g, 'B')}, winner=${g.winner}`, g);
     }),
   },
   {
     id: 'TC-C053', name: '大伊万：爆炸秒杀与死亡（多目标）', category: 'character', charId: 'ivan-girl', seed: 253,
     desc: '爆炸房间内多名玩家全部毁灭',
     run: () => run(() => {
-      const g = makeGame([{ id: 'A', char: 'ivan-girl' }, 'B', 'C'], 254);
+      const g = makeGame([{ id: 'A', char: 'ivan-girl' }, 'B', 'C'], 253);
       g.players['B'].room = 'R2'; g.players['C'].room = 'R2';
-      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'paper' }]); // 三人循环 → 平局回合翻页
-      playThrows(g, [{ A: 'rock', B: 'rock', C: 'rock' }, { A: 'rock', B: 'scissors', C: 'scissors' }]); // 第2回合同拳平局翻页，第3回合 A 胜
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'paper' }]); // 第1回合三人循环 → 平局回合翻页
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 第2回合 A 胜，投掷
       actQueue(g, { A: { type: 'throwIvan', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 第3回合 A 再胜（引爆回合）
+      actQueue(g, { A: { type: 'skip' } }); // 行动结束 → 回合末爆炸
       const ok = !isAlive(g, 'B') && !isAlive(g, 'C') && isAlive(g, 'A') && g.winner === 'A';
       return check(ok, 'B、C 被毁灭，A 获胜', `B=${isAlive(g,'B')}, C=${isAlive(g,'C')}, winner=${g.winner}`, g);
+    }),
+  },
+  {
+    id: 'TC-C056', name: '大伊万：平局回合顺延引爆（不消耗炸弹）', category: 'character', charId: 'ivan-girl', seed: 285,
+    desc: '投掷后下一回合若为平局 → 不爆且炸弹保留；再下一个分出胜负回合末才爆',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ivan-girl' }, { id: 'B', char: 'default', room: 'R2' }], 285);
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第1回合 A 胜
+      actQueue(g, { A: { type: 'throwIvan', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 第2回合平局 → 顺延
+      const boomR2 = g.logs.some((l) => l.text.includes('大伊万在 R2 爆炸'));
+      const kept = g.deferred.length === 1;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第3回合 A 胜（引爆回合）
+      actQueue(g, { A: { type: 'skip' } }); // 行动结束 → 回合末引爆
+      const ok = boomR2 === false && kept && !isAlive(g, 'B') && g.winner === 'A';
+      return check(ok, '平局回合不爆且炸弹保留，第3回合末引爆毁灭 B', `boomR2=${boomR2}, kept=${kept}, B alive=${isAlive(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C057', name: '大伊万：爆炸命中躲藏目标（AOE 不受躲藏限制）', category: 'character', charId: 'ivan-girl', seed: 286,
+    desc: '爆炸时目标房间内躲藏的玩家仍被毁灭（卡片原文「毁灭此房所有生物」；「若赢可离开躲避」指移动逃生）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ivan-girl' }, { id: 'B', char: 'default', room: 'R2', hidden: true }], 286);
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第1回合 A 胜
+      actQueue(g, { A: { type: 'throwIvan', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第2回合 A 再胜（引爆回合）
+      actQueue(g, { A: { type: 'skip' } }); // 行动结束 → 回合末爆炸
+      const missed = g.logs.some((l) => l.text.includes('未命中'));
+      const ok = !isAlive(g, 'B') && isAlive(g, 'A') && g.winner === 'A' && !missed;
+      return check(ok, '躲藏在 R2 的 B 被爆炸毁灭', `B alive=${isAlive(g, 'B')}, winner=${g.winner}, missedLog=${missed}`, g);
+    }),
+  },
+  {
+    id: 'TC-C058', name: '大伊万：炸弹先结算后判胜（可同归于尽）', category: 'character', charId: 'ivan-girl', seed: 287,
+    desc: '激活回合内行动打死最后一人 → 行动阶段不提前终局 → 回合末炸弹照样引爆 → 全灭平局',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ivan-girl', hp: 1 }, { id: 'B', char: 'default', room: 'R1' }], 287); // 两人同在 R1
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第1回合 A 胜
+      actQueue(g, { A: { type: 'throwIvan', room: 'R1' } }); // 扔进自己房间
+      playThrows(g, [{ A: 'scissors', B: 'rock' }]); // 第2回合 B 胜（引爆回合）
+      actQueue(g, { B: { type: 'attack', targetId: 'A' } }); // B 打死 A（hp1），行动阶段不提前终局
+      const boomR2 = g.logs.some((l) => l.text.includes('大伊万在 R1 爆炸'));
+      const ok = boomR2 && !isAlive(g, 'A') && !isAlive(g, 'B') && g.winner === null && g.phase === 'over';
+      return check(ok, 'B 击杀 A 后炸弹仍引爆并带走 B → 同归于尽平局',
+        `A alive=${isAlive(g, 'A')}, B alive=${isAlive(g, 'B')}, winner=${g.winner}`, g);
+    }),
+  },
+  {
+    id: 'TC-C059', name: '大伊万：投掷者死亡后炸弹照常引爆', category: 'character', charId: 'ivan-girl', seed: 288,
+    desc: '投掷后在引燃回合被击杀 → 炸弹仍于该回合末爆炸，毁灭爆炸时房间内成员',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ivan-girl', hp: 1 }, { id: 'B', char: 'default', room: 'R1' }, { id: 'C', char: 'default', room: 'R2' }], 288);
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 第1回合 A 胜
+      actQueue(g, { A: { type: 'throwIvan', room: 'R2' } }); // C 在 R2
+      playThrows(g, [{ A: 'scissors', B: 'rock', C: 'rock' }]); // 第2回合 B、C 胜（引爆回合）
+      actQueue(g, { B: { type: 'attack', targetId: 'A' }, C: { type: 'skip' } }); // B 杀死 A（行动阶段不提前终局）
+      const boomR2 = g.logs.some((l) => l.text.includes('大伊万在 R2 爆炸'));
+      const ok = boomR2 && !isAlive(g, 'A') && !isAlive(g, 'C') && isAlive(g, 'B') && g.winner === 'B';
+      return check(ok, 'A 先死，第2回合末炸弹仍毁灭 R2 的 C，B 获胜',
+        `A alive=${isAlive(g, 'A')}, C alive=${isAlive(g, 'C')}, B alive=${isAlive(g, 'B')}, winner=${g.winner}`, g);
     }),
   },
 

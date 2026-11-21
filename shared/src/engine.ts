@@ -396,7 +396,9 @@ export class Game implements GameLike {
    */
   private endRoundAfterJudge(): void {
     if (this.phase === 'over') return;
-    if (this.aliveIds().length <= 1) {
+    // 判定历史入史可能触发死亡钩子（如大屁孩三同自爆）；终局判定在有已激活炸弹时延迟（见 checkWin），
+    // 让回合走到回合末、炸弹结算完再定胜负。
+    if (this.aliveIds().length <= 1 && !this.hasArmedIvan()) {
       this.checkWin();
       return;
     }
@@ -878,6 +880,11 @@ export class Game implements GameLike {
 
   checkWin(): boolean {
     if (this.phase === 'over') return true;
+    // 炸弹先结算、后判胜（Issue #6）：存在已激活（explodeRound<=roundNo）、待本回合末引爆的大伊万时，
+    // 延迟终局判定——让本回合完整走完，回合末延迟事件结算后再做最终胜负判断（最后一人在房内可被同归于尽）。
+    // endRound 的延迟事件结算会把 due 伊万移除，因此 endRound 末尾的最终 checkWin 到达此处时
+    // hasArmedIvan() 必为 false，不会被再次延迟。
+    if (this.hasArmedIvan()) return false;
     const alive = this.aliveIds();
     if (alive.length === 1) {
       this.phase = 'over';
@@ -902,6 +909,11 @@ export class Game implements GameLike {
       this.log('info', `游戏结束时取消 ${this.deferred.length} 个未结算的延迟事件`);
       this.deferred = [];
     }
+  }
+
+  /** 是否存在已激活、待本回合末引爆的大伊万（用于把终局判定延迟到炸弹结算之后） */
+  private hasArmedIvan(): boolean {
+    return this.deferred.some((d) => d.kind === 'ivan' && d.explodeRound <= this.roundNo);
   }
 
   // ─── 回合末（延迟事件结算） ───────────────────────────────────
@@ -945,6 +957,7 @@ export class Game implements GameLike {
             amount: 999999,
             source: ev.source,
             dtype: 'special',
+            aoe: true, // 房间级毁灭：躲藏/隐身不提供保护（卡片原文「毁灭此房所有生物」；同伍六七 AOE 语义）
             instakill: true,
             noReflect: true,
             tag: 'ivan',

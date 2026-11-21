@@ -472,8 +472,8 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                 <span>◈ {me.room} · 我的房间</span>
                 <span className="zone-n">{myRoomMembers.length} 人{myRoomMembers.some((m) => m.id === game.currentActor) ? ' · 行动中' : ''}</span>
                 {myRoomPendingIvan && (
-                  <span className="ivan-pending bt-mine-pending" title={`大伊万将在第 ${myRoomPendingIvan.explodeRound} 回合末爆炸`}>
-                    💣 第 {myRoomPendingIvan.explodeRound} 回合末爆炸
+                  <span className="ivan-pending bt-mine-pending" title={`大伊万预计在第 ${myRoomPendingIvan.explodeRound} 回合末爆炸（平局回合顺延）`}>
+                    💣 预计第 {myRoomPendingIvan.explodeRound} 回合末爆炸
                   </span>
                 )}
               </div>
@@ -946,8 +946,8 @@ function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTarge
         ))}
       </div>
       {pendingIvan && (
-        <span className="ivan-pending" title={`大伊万将在第 ${pendingIvan.explodeRound} 回合末爆炸`}>
-          💣 第 {pendingIvan.explodeRound} 回合末爆炸
+        <span className="ivan-pending" title={`大伊万预计在第 ${pendingIvan.explodeRound} 回合末爆炸（平局回合顺延）`}>
+          💣 预计第 {pendingIvan.explodeRound} 回合末爆炸
         </span>
       )}
       {boomHere && <span key={pres.ivanBoom?.key} className="ivan-boom-fx" aria-hidden />}

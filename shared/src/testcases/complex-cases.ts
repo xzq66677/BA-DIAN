@@ -53,18 +53,21 @@ export const COMPLEX_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-X003', name: '延迟爆炸 × 回合顺序：爆炸在所有行动结束后', category: 'complex', seed: 302,
-    desc: '投掷发生在行动队列中，爆炸日志发生在回合末（行动之后）',
+    id: 'TC-X003', name: '延迟爆炸 × 回合顺序：爆炸在引燃回合所有行动结束后', category: 'complex', seed: 302,
+    desc: '投掷发生在第1回合行动队列中，爆炸发生在第2回合（下一分出胜负回合）行动结束后的回合末',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'ivan-girl' }, { id: 'B', char: 'wuliuqi' }, 'C'], 302);
       g.players['B'].room = 'R2';
-      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // A 胜（rock>scissors 组）
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 第1回合 A 胜
       actQueue(g, { A: { type: 'throwIvan', room: 'R2' } });
+      const boomR1 = g.logs.some((l) => l.text.includes('大伊万在 R2 爆炸'));
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 第2回合 A 再胜（引爆回合）
+      actQueue(g, { A: { type: 'skip' } });
       const throwSeq = g.logs.findIndex((l) => l.text.includes('投掷大伊万'));
       const boomSeq = g.logs.findIndex((l) => l.text.includes('大伊万在 R2 爆炸'));
-      // 爆炸日志序号 > 投掷日志序号（回合末结算）
-      const ok = throwSeq >= 0 && boomSeq > throwSeq && !isAlive(g, 'B');
-      return check(ok, '爆炸在所有行动结束后结算', `throw@${throwSeq}, boom@${boomSeq}, B alive=${isAlive(g, 'B')}`, g);
+      // 爆炸日志序号 > 投掷日志序号（引燃回合末结算）
+      const ok = boomR1 === false && throwSeq >= 0 && boomSeq > throwSeq && !isAlive(g, 'B');
+      return check(ok, '投掷后下一分出胜负回合末爆炸', `boomR1=${boomR1}, throw@${throwSeq}, boom@${boomSeq}, B alive=${isAlive(g, 'B')}`, g);
     }),
   },
   {

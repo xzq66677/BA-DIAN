@@ -257,11 +257,11 @@ const wuliuqi: CharDef = {
   },
 };
 
-/** 6. 卖大伊万的小女孩：掷大伊万至任意房间（含自己），回合末爆炸，动态判定成员 */
+/** 6. 卖大伊万的小女孩：掷大伊万至任意房间（含自己），投掷后第一个分出胜负回合末爆炸（平局回合顺延），动态判定成员 */
 const xiaonuhai: CharDef = {
   id: 'ivan-girl',
   name: '卖大伊万的小女孩',
-  desc: '掷一颗大伊万至任意房间（含自己所在房间）。爆炸时间：所有人行动结束后（回合末）；爆炸时动态判定目标房间内成员并全部毁灭（秒杀，不触发反弹类被动）。',
+  desc: '掷一颗大伊万至任意房间（含自己所在房间）。扔出当回合引信未开；投掷后第一个分出胜负的回合引信激活，该回合末检测目标房间内存活者（含躲藏/隐身）全部毁灭（秒杀，不触发反弹类被动）；平局回合顺延不消耗。炸弹先结算后判胜，可同归于尽。',
   hp: 3,
   attack: 1,
   attackType: 'melee',
@@ -269,7 +269,7 @@ const xiaonuhai: CharDef = {
     {
       name: 'throwIvan',
       label: '投掷大伊万',
-      desc: '向任意房间（含自己所在房间）投掷大伊万，所有人行动结束后爆炸，毁灭爆炸时房间内所有玩家。',
+      desc: '向任意房间（含自己所在房间）投掷大伊万。投掷回合不炸；投掷后第一个分出胜负的回合末爆炸（平局回合顺延），毁灭爆炸时房间内所有玩家（躲藏也算）。',
       roomHint: true,
       validate: (ctx) => {
         const room = ctx.params.room;
@@ -279,13 +279,15 @@ const xiaonuhai: CharDef = {
       execute: (ctx) => {
         const game = ctx.game;
         const room = ctx.params.room!;
-        const explodeRound = game.rules.ivanExplodeTiming === 'nextRoundEnd' ? game.roundNo + 1 : game.roundNo;
+        // 最早可能引爆回合：投掷当回合引信未开，投掷后第一个分出胜负的回合末引爆；
+        // 中间的平局回合会在结算处顺延（endRound 只在 roundResolved 时引燃伊万），无法提前算准具体回合。
+        const explodeRound = game.roundNo + 1;
         game.addDeferred({
           kind: 'ivan', room, explodeRound,
           source: ctx.actor, createdAtRound: game.roundNo,
         });
-        // 结构化 data（V3 演出链）：投掷者/目标房间/爆炸回合公开可见，不涉隐藏信息
-        game.log('deferred', `💣 ${game.getPlayer(ctx.actor).name} 向 ${room} 投掷大伊万！第 ${explodeRound} 回合所有人行动结束后爆炸`,
+        // 结构化 data（V3 演出链）：投掷者/目标房间/最早爆炸回合公开可见，不涉隐藏信息
+        game.log('deferred', `💣 ${game.getPlayer(ctx.actor).name} 向 ${room} 投掷大伊万！预计第 ${explodeRound} 回合末爆炸（若中间出现平局回合则顺延）`,
           { pid: ctx.actor, room, explodeRound }, true);
       },
     },

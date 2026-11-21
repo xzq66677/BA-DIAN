@@ -357,8 +357,6 @@ export interface RuleConfig {
   allowSkip: boolean;
   /** 二次判定（行动排序）的出拳方式：serverRoll=服务端种子代掷 */
   secondJudgeMode: 'serverRoll';
-  /** 大伊万爆炸时机：sameRoundEnd=投掷回合所有人行动结束后；nextRoundEnd=下一回合末 */
-  ivanExplodeTiming: 'sameRoundEnd' | 'nextRoundEnd';
   /** 默认初始血量（角色未指定时） */
   defaultMaxHp: number;
   /** 默认攻击力 */
@@ -374,7 +372,6 @@ export const DEFAULT_RULES: RuleConfig = {
   allowSeek: true,
   allowSkip: true,
   secondJudgeMode: 'serverRoll',
-  ivanExplodeTiming: 'sameRoundEnd',
   defaultMaxHp: 3,
   defaultAttack: 1,
   berserkDamage: 1,
