@@ -690,12 +690,12 @@ function namesOf(game: GameSnapshot, ids: string[]): string {
 
 function verdictText(game: GameSnapshot, rv: RevealInfo): string {
   switch (rv.outcome) {
-    case 'cycle': return '三人循环 → 本子轮无效，全员重新出拳';
-    case 'alltie': return '全员同拳平局 → 重新出拳';
+    case 'cycle': return '三人循环 → 平局回合，下回合全员重新出拳';
+    case 'alltie': return '全员同拳平局 → 平局回合，下回合重新出拳';
     case 'tieWin': return `领域生效：${namesOf(game, rv.winners)} 平局判胜`;
     default: {
       const w = namesOf(game, rv.winners);
-      const l = rv.losers.length > 0 ? `${namesOf(game, rv.losers)} 本子轮无资格` : '';
+      const l = rv.losers.length > 0 ? `${namesOf(game, rv.losers)} 无资格` : '';
       return `${w} 获得行动资格${l ? `；${l}` : ''}`;
     }
   }
@@ -707,7 +707,6 @@ function RevealBoard({ game }: { game: GameSnapshot }) {
   const rv: RevealInfo | null = game.reveal ?? null;
   const alive = game.players.filter((p) => p.alive);
   const submitted = game.submittedIds;
-  const rps1History = game.judgeRecords.filter((r) => r.stage === 'rps1');
   const waiting = game.phase === 'rps1';
   const submittedCount = alive.filter((p) => submitted.includes(p.id)).length;
   // 行动阶段：判定已完成，揭示台收缩为紧凑状态条（把空间还给战场），保留判定结果与出牌顺序
@@ -749,9 +748,9 @@ function RevealBoard({ game }: { game: GameSnapshot }) {
       <div className="rb-head">
         <span className="rb-title">🎴 出拳揭示</span>
         {waiting ? (
-          <span className="rb-stat">子轮 {game.subRound} · 已出拳 {submittedCount}/{alive.length}（提交期间保密）</span>
+          <span className="rb-stat">已出拳 {submittedCount}/{alive.length}（提交期间保密）</span>
         ) : rv ? (
-          <span className="rb-stat">{rv.stage === 'rps1' ? '初次判定' : '排序判定'} · 子轮 {rv.sub}</span>
+          <span className="rb-stat">{rv.stage === 'rps1' ? '初次判定' : `排序判定 · 子轮 ${rv.sub}`}</span>
         ) : (
           <span className="rb-stat">等待判定</span>
         )}
@@ -782,7 +781,7 @@ function RevealBoard({ game }: { game: GameSnapshot }) {
             ))}
           </div>
           <div className="rb-verdict">
-            <span className="rb-verdict-label">{waiting ? '上一子轮' : '判定结果'}</span>
+            <span className="rb-verdict-label">{waiting ? '上一轮判定' : '判定结果'}</span>
             {verdictText(game, rv)}
           </div>
         </>
@@ -792,16 +791,8 @@ function RevealBoard({ game }: { game: GameSnapshot }) {
         </div>
       )}
 
-      {rps1History.length > 1 && (
-        <div className="rb-history">
-          <span className="rb-history-label">本轮判定记录</span>
-          {rps1History.map((r) => (
-            <span key={`h-${r.sub}`} className={`rb-hchip oh-${r.outcome}`}>
-              子轮{r.sub} · {r.outcome === 'cycle' ? '三人循环' : r.outcome === 'alltie' ? '同拳平局' : r.outcome === 'tieWin' ? '领域判胜' : '分出胜负'}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* 平局（同拳/三人循环）现为独立回合：judgeRecords 每回合至多一条 rps1 记录，
+          原「本轮判定记录」多子轮历史条已无存在场景，随平局重判机制一并移除 */}
     </div>
   );
 }
@@ -1326,7 +1317,7 @@ function StatsPanel({ game, meId, counts, onClose }: {
             </tbody>
           </table>
           <p className="stats-tip">
-            战绩只做统计展示，不参与任何规则判定。出拳胜负按每个判定子轮计（循环/同拳重判记为平）。
+            战绩只做统计展示，不参与任何规则判定。出拳胜负按每回合判定计（平局回合记为平）。
           </p>
         </div>
       </div>

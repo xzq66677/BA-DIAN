@@ -30,20 +30,20 @@ describe('领域：平局判胜', () => {
     expect(g.judgeRecords.some((r) => r.outcome === 'tieWin')).toBe(true);
   });
 
-  it('未展开领域时同拳平局仍走重判（不误判胜）', () => {
+  it('未展开领域时同拳平局 → 平局回合结束（不误判胜）', () => {
     const g = makeGame([{ id: 'A', char: 'gojo' }, 'B'], 12);
     throws(g, { A: 'rock', B: 'rock' });
     expect(g.phase).toBe('rps1');
-    expect(g.subRound).toBe(2);
+    expect(g.roundNo).toBe(2);
     expect(g.qualified).toEqual([]);
   });
 
-  it('三人循环不是平局：领域不触发，仍全员重判', () => {
+  it('三人循环不是平局：领域不触发，平局回合结束进入下一回合', () => {
     const g = makeGame([{ id: 'A', char: 'gojo' }, 'B', 'C'], 13);
     g.openDomain('A');
     throws(g, { A: 'rock', B: 'paper', C: 'scissors' });
     expect(g.phase).toBe('rps1');
-    expect(g.subRound).toBe(2);
+    expect(g.roundNo).toBe(2);
     expect(g.qualified).toEqual([]);
     expect(g.logs.some((l) => l.text.includes('三人循环不属于「平局」'))).toBe(true);
   });
@@ -146,12 +146,12 @@ describe('领域：持续性', () => {
     expect(g.charState('A').domain).toBe(true);
   });
 
-  it('判定重来（平局重判子轮）不清除领域', () => {
+  it('平局回合翻页不清除领域', () => {
     const g = makeGame([{ id: 'A', char: 'gojo' }, 'B', 'C'], 32);
-    // 三拳循环 → 重判，领域仍在（但循环不触发判胜）
+    // 三拳循环 → 平局回合翻页，领域仍在（但循环不触发判胜）
     g.openDomain('A');
     throws(g, { A: 'rock', B: 'paper', C: 'scissors' });
-    expect(g.subRound).toBe(2);
+    expect(g.roundNo).toBe(2);
     expect(g.charState('A').domain).toBe(true);
     expect(g.domainHolder).toBe('A');
   });

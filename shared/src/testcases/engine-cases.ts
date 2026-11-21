@@ -41,35 +41,36 @@ export const ENGINE_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-E003', name: '初次判定平局全员重新判定', category: 'engine', seed: 3,
-    desc: '全员同拳 → 平局，不产生资格，进入下一子轮重新提交',
+    id: 'TC-E003', name: '初次判定平局=独立回合，翻页重新判定', category: 'engine', seed: 3,
+    desc: '全员同拳 → 平局回合就地结束（无人行动、回合末照常结算），进入下一回合重新出拳',
     run: () => run(() => {
       const g = makeGame(['A', 'B', 'C'], 3);
       playThrows(g, [{ A: 'rock', B: 'rock', C: 'rock' }]);
-      const ok1 = g.phase === 'rps1' && g.subRound === 2 && g.qualified.length === 0;
+      const ok1 = g.phase === 'rps1' && g.roundNo === 2 && g.subRound === 1 && g.qualified.length === 0;
       const ok2 = g.judgeHistory('A').length === 1 && g.judgeHistory('A')[0] === 'tie';
-      // 第二子轮分出胜负
+      // 第 2 回合分出胜负
       playThrows(g, [{ A: 'rock', B: 'rock', C: 'scissors' }]);
-      const ok3 = g.phase === 'act' && g.qualified.sort().join(',') === 'A,B';
+      const ok3 = g.phase === 'act' && g.qualified.slice().sort().join(',') === 'A,B';
       return check(ok1 && ok2 && ok3,
-        '平局后子轮+1、无资格、历史记 tie；重判后 A、B 获得资格',
-        `subRound=${g.subRound}, phase=${g.phase}, q=${g.qualified.join(',')}, hist=${JSON.stringify(g.judgeHistory('A'))}`, g);
+        '平局回合结束翻页（roundNo=2、无资格、历史记 tie）；第 2 回合判定后 A、B 获得资格',
+        `roundNo=${g.roundNo}, phase=${g.phase}, q=${g.qualified.join(',')}, hist=${JSON.stringify(g.judgeHistory('A'))}`, g);
     }),
   },
   {
-    id: 'TC-E004', name: '初次判定三人循环全员重判（不随机）', category: 'engine', seed: 4,
-    desc: '三人各出不同拳（循环）→ 全员重新判定，不随机决定胜者',
+    id: 'TC-E004', name: '初次判定三人循环=平局回合（不随机）', category: 'engine', seed: 4,
+    desc: '三人各出不同拳（循环）→ 平局回合结束，不随机决定胜者，下一回合重新判定',
     run: () => run(() => {
       const g = makeGame(['A', 'B', 'C'], 4);
       playThrows(g, [{ A: 'rock', B: 'scissors', C: 'paper' }]);
-      const ok1 = g.phase === 'rps1' && g.subRound === 2 && g.qualified.length === 0;
+      const ok1 = g.phase === 'rps1' && g.roundNo === 2 && g.qualified.length === 0;
       const hist = g.judgeHistory('A');
       const ok2 = hist.length === 1 && hist[0] === 'tie';
       playThrows(g, [{ A: 'paper', B: 'paper', C: 'paper' }, { A: 'rock', B: 'scissors', C: 'rock' }]);
-      const ok3 = g.phase === 'act';
+      // 第 2 回合同拳平局（再翻页），第 3 回合石头组胜出
+      const ok3 = g.roundNo === 3 && g.phase === 'act';
       return check(ok1 && ok2 && ok3,
-        '三人循环 → 重判子轮、全员记 tie、重判后可分出胜负',
-        `subRound=${g.subRound}, phase=${g.phase}, hist=${JSON.stringify(hist)}`, g);
+        '三人循环 → 平局回合、全员记 tie；后两回合先平局再分出胜负',
+        `roundNo=${g.roundNo}, phase=${g.phase}, hist=${JSON.stringify(hist)}`, g);
     }),
   },
   {
@@ -154,8 +155,8 @@ export const ENGINE_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-E011', name: '二次判定平局/循环重新判定直至完整顺序', category: 'engine', seed: 102,
-    desc: '多名胜者排序时出现同拳或三人循环 → 重判，最终队列完整且不重复',
+    id: 'TC-E011', name: '连续平局回合后分出胜负，胜者排序完整', category: 'engine', seed: 102,
+    desc: '前两回合同拳平局各自翻页，第 3 回合布组三人胜出；多名胜者经排序判定，队列完整且不重复',
     run: () => run(() => {
       const g = makeGame(['A', 'B', 'C', 'D'], 102);
       playThrows(g, [
@@ -163,11 +164,11 @@ export const ENGINE_CASES: TestCase[] = [
         { A: 'paper', B: 'paper', C: 'paper', D: 'paper' },
         { A: 'rock', B: 'paper', C: 'paper', D: 'paper' },
       ]);
-      // 初次：平局重判两次后 B、C、D（布组）胜
+      // 初次判定：前两回合同拳平局各自翻页，第 3 回合 B、C、D（布组）胜
       const q = g.qualified.length;
       const uniq = new Set(g.queue);
-      const ok = q === 3 && uniq.size === 3 && g.queue.length === 3 && g.phase === 'act';
-      return check(ok, '3名胜者全部在队列中且顺序完整', `qualified=${q}, queue=${g.queue.join(',')}`, g);
+      const ok = q === 3 && uniq.size === 3 && g.queue.length === 3 && g.phase === 'act' && g.roundNo === 3;
+      return check(ok, '3名胜者全部在队列中且顺序完整', `qualified=${q}, roundNo=${g.roundNo}, queue=${g.queue.join(',')}`, g);
     }),
   },
 
@@ -512,6 +513,57 @@ export const ENGINE_CASES: TestCase[] = [
       const ok = g.phase === 'over' && g.winner === 'A';
       const resultLog = g.logs.find((l) => l.type === 'result');
       return check(ok && !!resultLog, 'A 获胜，日志包含胜利结果', `winner=${g.winner}, log=${resultLog?.text}`, g);
+    }),
+  },
+
+  // ─── 平局算一回合 ────────────────────────────────────────────
+  {
+    id: 'TC-E038', name: '平局回合照常回合末结算（roundsAlive/throwTie/小结）', category: 'engine', seed: 130,
+    desc: '平局是完整回合：回合末小结含「平局」，每名存活者 roundsAlive+1、throwTie+1',
+    run: () => run(() => {
+      const g = makeGame(['A', 'B', 'C'], 130);
+      playThrows(g, [{ A: 'paper', B: 'paper', C: 'paper' }]); // 同拳平局回合
+      const snap = g.snapshot() as unknown as { stats: Record<string, { throwTie: number; roundsAlive: number }> };
+      const statsOk = ['A', 'B', 'C'].every((pid) =>
+        snap.stats[pid].throwTie === 1 && snap.stats[pid].roundsAlive === 2); // 构造时即 1，平局回合翻页再 +1
+      const summaryOk = g.logs.some((l) => l.text.includes('回合小结') && l.text.includes('平局'));
+      const ok = g.roundNo === 2 && g.phase === 'rps1' && statsOk && summaryOk;
+      return check(ok, '平局回合结束并照常结算（翻页、小结、战绩）',
+        `roundNo=${g.roundNo}, tie=${snap.stats['A'].throwTie}, alive1=${snap.stats['A'].roundsAlive}, summary=${summaryOk}`, g);
+    }),
+  },
+  {
+    id: 'TC-E039', name: '判定历史跨平局回合累计：三个平局回合触发大屁孩自爆', category: 'engine', seed: 131,
+    desc: '平局算一回合 → 大屁孩连续三个平局回合凑齐三同 → 第三个平局回合自爆（角色机制消费平局回合）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A', 'B'], 131);
+      playThrows(g, [{ P: 'rock', A: 'rock', B: 'rock' }]); // 第1回合平局
+      playThrows(g, [{ P: 'rock', A: 'rock', B: 'rock' }]); // 第2回合平局
+      const aliveAfterTwo = isAlive(g, 'P');
+      playThrows(g, [{ P: 'rock', A: 'rock', B: 'rock' }]); // 第3回合平局 → tie×3 → 自爆
+      const dead = !isAlive(g, 'P');
+      const othersAlive = isAlive(g, 'A') && isAlive(g, 'B');
+      const ok = aliveAfterTwo && dead && othersAlive;
+      return check(ok, '前两回合 P 存活，第三平局回合三同自爆（A、B 存活）',
+        `P alive=${isAlive(g, 'P')}, roundNo=${g.roundNo}`, g);
+    }),
+  },
+  {
+    id: 'TC-E040', name: '平局回合不引爆炸弹，顺延到下一个分出胜负回合末', category: 'engine', seed: 132,
+    desc: '伊万到期落在平局回合 → 回合末不爆且事件保留；下一个分出胜负回合末爆炸',
+    run: () => run(() => {
+      const g = makeGame(['A', 'B'], 132);
+      g.players['B'].room = 'R2';
+      g.addDeferred({ kind: 'ivan', room: 'R2', explodeRound: 1, source: 'A', createdAtRound: 1 });
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 第1回合平局 → 炸弹不激活
+      const boomR1 = g.logs.some((l) => l.text.includes('大伊万在 R2 爆炸'));
+      const kept = g.deferred.length === 1;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第2回合 A 胜
+      actQueue(g, { A: { type: 'skip' } }); // 行动结束 → 回合末引爆
+      const boomR2 = g.logs.some((l) => l.text.includes('大伊万在 R2 爆炸'));
+      const ok = !boomR1 && kept && boomR2 && !isAlive(g, 'B');
+      return check(ok, '平局回合不引爆（事件保留），分出胜负回合末 B 被毁灭',
+        `boomR1=${boomR1}, kept=${kept}, boomR2=${boomR2}, B alive=${isAlive(g, 'B')}`, g);
     }),
   },
 ];

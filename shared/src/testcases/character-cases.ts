@@ -440,8 +440,8 @@ export const CHARACTER_CASES: TestCase[] = [
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'ivan-girl' }, 'B', 'C'], 254);
       g.players['B'].room = 'R2'; g.players['C'].room = 'R2';
-      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'paper' }]); // 三人循环 → 重判
-      playThrows(g, [{ A: 'rock', B: 'rock', C: 'rock' }, { A: 'rock', B: 'scissors', C: 'scissors' }]); // A 胜
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'paper' }]); // 三人循环 → 平局回合翻页
+      playThrows(g, [{ A: 'rock', B: 'rock', C: 'rock' }, { A: 'rock', B: 'scissors', C: 'scissors' }]); // 第2回合同拳平局翻页，第3回合 A 胜
       actQueue(g, { A: { type: 'throwIvan', room: 'R2' } });
       const ok = !isAlive(g, 'B') && !isAlive(g, 'C') && isAlive(g, 'A') && g.winner === 'A';
       return check(ok, 'B、C 被毁灭，A 获胜', `B=${isAlive(g,'B')}, C=${isAlive(g,'C')}, winner=${g.winner}`, g);

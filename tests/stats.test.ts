@@ -15,7 +15,7 @@ const statsOf = (g: ReturnType<typeof makeGame>, pid: string): Stats =>
   (g.snapshot() as unknown as { stats: Record<string, Stats> }).stats[pid];
 
 describe('局内战绩', () => {
-  it('出拳胜/负/平按子轮累计（循环与同拳记平）', () => {
+  it('出拳胜/负/平按回合判定累计（平局回合记平）', () => {
     const g = makeGame(['A', 'B', 'C'], 1);
     g.submitThrow('A', 'rock');
     g.submitThrow('B', 'scissors');
@@ -24,7 +24,7 @@ describe('局内战绩', () => {
     expect(statsOf(g, 'B').throwLose).toBe(1);
     expect(statsOf(g, 'C').throwLose).toBe(1);
 
-    // 新一轮：三人循环 → 全员记平
+    // 新一局：三人循环 → 全员记平
     const g2 = makeGame(['A', 'B', 'C'], 2);
     g2.submitThrow('A', 'rock');
     g2.submitThrow('B', 'scissors');

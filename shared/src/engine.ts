@@ -75,6 +75,15 @@ export class Game implements GameLike {
   private deathChainDepth = 0;
   /** 事件组计数（AOE/多段/延迟伤害的演出分组标识） */
   private eventGroupSeq = 0;
+  /**
+   * 本回合的回合级判定是否已分出胜负。
+   * 平局（同拳/三人循环）算一个完整回合但不分胜负 → false；
+   * 分出胜负（含领域 tieWin、含胜者全灭无人行动）→ true。回合翻页时重置。
+   * 大伊万等延迟事件据此只在「分出胜负的回合」末引爆。
+   */
+  private roundResolved = false;
+  /** 最近一次已结算的判定记录（跨回合保留）：平局回合翻页清空 judgeRecords 后，揭示台仍能显示上一轮出拳 */
+  private lastReveal: JudgeRoundRecord | null = null;
 
   constructor(config: GameConfig) {
     this.seed = config.seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
@@ -306,18 +315,20 @@ export class Game implements GameLike {
     }
   }
 
-  /** 解析当前判定子轮 */
+  /** 解析当前回合判定（全员提交完毕后调用） */
   private resolveJudgeSubRound(): void {
     if (this.phase !== 'rps1') return;
     const entrants = this.aliveIds();
     const tieWin = (cands: PlayerId[]) => this.tieWinHolder(cands);
     const outcome = resolveSubRound(this.pendingThrows, entrants, tieWin);
-    this.judgeRecords.push({
-      stage: 'rps1', sub: this.subRound,
+    const rec: JudgeRoundRecord = {
+      stage: 'rps1', sub: this.subRound, round: this.roundNo,
       throws: { ...this.pendingThrows },
       outcome: outcome.status,
       winners: outcome.winners, losers: outcome.losers,
-    });
+    };
+    this.judgeRecords.push(rec);
+    this.lastReveal = rec;
     this.recordThrowStats(entrants, outcome);
     // 已结算出拳进入历史（AI 反制与回放统计用，不含未结算数据）
     for (const pid of entrants) {
@@ -326,31 +337,38 @@ export class Game implements GameLike {
     }
 
     const throwsDesc = entrants.map((pid) => `${this.players[pid].name}:${this.throwName(this.pendingThrows[pid]!)}`).join('，');
+    // 平局（同拳平局 / 三人循环）算一个完整回合：本回合无人获得行动资格，就地进入回合末结算并翻页，
+    // 下一回合重新进行一轮完整的回合判定（不再有「同回合内重判子轮」的概念）。
     if (outcome.status === 'cycle') {
-      this.log('judge', `判定子轮${this.subRound}（${throwsDesc}）：三人循环，全员重新判定`);
+      this.log('judge', `回合判定（${throwsDesc}）：三人循环，平局——本回合无人获得行动资格，回合结束`);
       if (this.domainHolder) {
-        this.log('judge', `领域说明：三人循环不属于「平局」，${this.players[this.domainHolder].name} 的领域本子轮不触发`);
+        this.log('judge', `领域说明：三人循环不属于「平局」，${this.players[this.domainHolder].name} 的领域本回合不触发`);
       }
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
-      this.nextJudgeSubRound();
+      this.roundSummary.push('回合判定平局（三人循环）');
+      this.roundResolved = false;
+      this.endRoundAfterJudge();
       return;
     }
     if (outcome.status === 'alltie') {
-      this.log('judge', `判定子轮${this.subRound}（${throwsDesc}）：同拳平局，全员重新判定`);
+      this.log('judge', `回合判定（${throwsDesc}）：同拳平局——本回合无人获得行动资格，回合结束`);
       if (this.domainHolder) {
-        this.log('judge', `领域说明：${this.players[this.domainHolder].name} 的领域本子轮未生效（不在本子轮候选或不具备平局算胜）`);
+        this.log('judge', `领域说明：${this.players[this.domainHolder].name} 的领域本回合未生效（不在本回合候选或不具备平局算胜）`);
       }
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
-      this.nextJudgeSubRound();
+      this.roundSummary.push('回合判定平局（同拳平局）');
+      this.roundResolved = false;
+      this.endRoundAfterJudge();
       return;
     }
     if (outcome.status === 'tieWin') {
-      this.log('judge', `判定子轮${this.subRound}（${throwsDesc}）：平局，但${this.players[outcome.winners[0]].name}领域生效判胜`);
+      this.log('judge', `回合判定（${throwsDesc}）：平局，但${this.players[outcome.winners[0]].name}领域生效判胜`);
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
     } else {
-      this.log('judge', `判定子轮${this.subRound}（${throwsDesc}）：分出胜负`);
+      this.log('judge', `回合判定（${throwsDesc}）：分出胜负`);
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
     }
+    this.roundResolved = true;
 
     if ((this.phase as GamePhase) === 'over') return; // 判定过程中可能触发自爆等导致终局
 
@@ -372,17 +390,17 @@ export class Game implements GameLike {
     this.beginActionPhase(winnersAlive);
   }
 
-  private nextJudgeSubRound(): void {
+  /**
+   * 平局回合收尾：判定历史入史可能触发死亡钩子（如大屁孩三同自爆），
+   * 若终局则止；否则进入回合末（延迟事件照常结算、回合翻页）。
+   */
+  private endRoundAfterJudge(): void {
     if (this.phase === 'over') return;
-    // 判定过程中死亡（如自爆）者退出
     if (this.aliveIds().length <= 1) {
       this.checkWin();
       return;
     }
-    this.subRound++;
-    this.pendingThrows = {};
-    this.submittedIds = [];
-    this.log('judge', `重新判定（子轮${this.subRound}），请所有存活玩家再次出拳`);
+    this.endRound();
   }
 
   private throwName(t: Throw): string {
@@ -424,6 +442,8 @@ export class Game implements GameLike {
       append: (pid, step, stage, sub) => this.appendJudgeHistory(pid, step, stage, sub),
     });
     this.judgeRecords.push(...rounds);
+    for (const r of rounds) r.round = this.roundNo;
+    if (rounds.length > 0) this.lastReveal = rounds[rounds.length - 1];
     if (this.phase === 'over') return; // 排序判定过程中可能触发自爆等导致终局
     const aliveOrder = order.filter((pid) => this.players[pid].alive);
     this.qualified = winners.filter((pid) => this.players[pid].alive);
@@ -906,6 +926,8 @@ export class Game implements GameLike {
     // 延迟事件（大伊万爆炸 / 通用延迟伤害）：动态判定结算时状态
     const due = this.deferred.filter((d) => d.explodeRound <= this.roundNo);
     for (const ev of due) {
+      // 大伊万只在「分出胜负」的回合末引爆：平局回合跳过（事件保留，顺延至下一个分出胜负回合）
+      if (ev.kind === 'ivan' && !this.roundResolved) continue;
       this.deferred = this.deferred.filter((d) => d.id !== ev.id);
       if (ev.kind === 'damage' && ev.payload) {
         this.log('deferred', `延迟伤害结算：${String((ev.payload as { label?: string }).label || '')}`);
@@ -937,6 +959,7 @@ export class Game implements GameLike {
 
     this.roundNo++;
     this.subRound = 1;
+    this.roundResolved = false; // 新回合尚未判定，重置「本回合已分出胜负」标记
     for (const pid of this.aliveIds()) {
       if (this.stats[pid]) this.stats[pid].roundsAlive++;
     }
@@ -984,14 +1007,16 @@ export class Game implements GameLike {
    * 出拳揭示（对局公开信息）。
    * 只取**已经结算完成**的判定记录：提交阶段的 pendingThrows 永不外泄，
    * 因此全员都能看到彼此出了什么，同时不破坏隐藏出拳的公平性。
-   * 优先返回本回合最近一次初次判定（行动阶段仍保留展示），否则回退到排序判定。
+   * 优先返回本回合最近一次回合判定（行动阶段仍保留展示），其次本回合排序判定，
+   * 最后跨回合回退到上一轮判定（平局回合翻页后，揭示台仍显示上一轮出拳）。
    */
   revealInfo(): RevealInfo | null {
     const rps1 = this.judgeRecords.filter((r) => r.stage === 'rps1');
-    const rec = rps1.length > 0 ? rps1[rps1.length - 1] : this.judgeRecords[this.judgeRecords.length - 1];
+    const rec = rps1.length > 0 ? rps1[rps1.length - 1]
+      : (this.judgeRecords.length > 0 ? this.judgeRecords[this.judgeRecords.length - 1] : this.lastReveal);
     if (!rec) return null;
     return {
-      round: this.roundNo,
+      round: rec.round ?? this.roundNo,
       stage: rec.stage,
       sub: rec.sub,
       throws: { ...rec.throws } as Record<PlayerId, Throw>,

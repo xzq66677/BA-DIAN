@@ -4,7 +4,7 @@
  * 需求：石头剪刀布的出拳结果，每个人都要能看到彼此出了什么（不破坏公平性）。
  *  - 提交阶段：快照里不得出现任何拳种（只暴露「谁已提交」）。
  *  - 判定结算后：快照 reveal 包含全部参与者的出拳与胜负归属。
- *  - 平局/循环重判：揭示的是上一子轮，新子轮提交期间不泄露新拳种。
+ *  - 平局/循环翻页：揭示保留上一轮出拳，新一回合提交期间不泄露新拳种。
  */
 
 import { describe, it, expect } from 'vitest';
@@ -13,6 +13,7 @@ import { makeGame } from '../shared/src/testcases/helpers.js';
 const snapOf = (g: ReturnType<typeof makeGame>) =>
   g.snapshot() as unknown as {
     phase: string;
+    roundNo: number;
     subRound: number;
     submittedIds: string[];
     reveal: { stage: string; sub: number; throws: Record<string, string>; outcome: string; winners: string[]; losers: string[] } | null;
@@ -49,7 +50,7 @@ describe('出拳揭示：全员可见且不破坏公平性', () => {
     expect(snap.reveal!.throws.A).toBe('rock');
   });
 
-  it('三人循环：揭示上一子轮，重新出拳期间不泄露新拳种', () => {
+  it('三人循环：平局回合翻页后揭示仍保留，下一回合出拳期间不泄露新拳种', () => {
     const g = makeGame(['A', 'B', 'C'], 1);
     g.submitThrow('A', 'rock');
     g.submitThrow('B', 'scissors');
@@ -59,9 +60,9 @@ describe('出拳揭示：全员可见且不破坏公平性', () => {
     expect(s1.reveal!.sub).toBe(1);
     expect(s1.reveal!.throws).toEqual({ A: 'rock', B: 'scissors', C: 'paper' });
     expect(s1.phase).toBe('rps1');
-    expect(s1.subRound).toBe(2);
+    expect(s1.roundNo).toBe(2); // 平局回合已翻页
 
-    // 子轮2：只有 A 提交，reveal 仍停留在子轮1（A 之前出的石头）
+    // 第 2 回合：只有 A 提交，reveal 仍停留在上一轮（平局回合）的出拳
     g.submitThrow('A', 'scissors');
     const s2 = snapOf(g);
     expect(s2.reveal!.sub).toBe(1);
@@ -69,13 +70,13 @@ describe('出拳揭示：全员可见且不破坏公平性', () => {
     expect(s2.submittedIds).toEqual(['A']);
   });
 
-  it('同拳平局重判：揭示仍公开且标记为 alltie', () => {
+  it('同拳平局：翻页后揭示仍公开且标记为 alltie', () => {
     const g = makeGame(['A', 'B'], 1);
     g.submitThrow('A', 'paper');
     g.submitThrow('B', 'paper');
     const snap = snapOf(g);
     expect(snap.reveal!.outcome).toBe('alltie');
     expect(snap.reveal!.throws).toEqual({ A: 'paper', B: 'paper' });
-    expect(snap.subRound).toBe(2);
+    expect(snap.roundNo).toBe(2);
   });
 });
