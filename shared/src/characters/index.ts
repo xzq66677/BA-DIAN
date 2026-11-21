@@ -82,7 +82,7 @@ const gojo: CharDef = {
       validate: (ctx) => ctx.game.charState(ctx.actor).domain ? '领域已展开' : null,
       execute: (ctx) => {
         ctx.game.openDomain(ctx.actor);
-        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！远程免瞄准，平局算其胜（领域持续保留，直至被覆盖）`, { pid: ctx.actor }, true);
+        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！远程免瞄准，平局算其胜（领域持续保留，直至被覆盖）`, { pid: ctx.actor, domain: true }, true);
       },
     },
   ],
@@ -115,7 +115,7 @@ const laodaye: CharDef = {
       validate: (ctx) => ctx.game.charState(ctx.actor).domain ? '领域已展开' : null,
       execute: (ctx) => {
         ctx.game.openDomain(ctx.actor);
-        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！近战5伤远程3伤，平局算其胜`, { pid: ctx.actor }, true);
+        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！近战5伤远程3伤，平局算其胜`, { pid: ctx.actor, domain: true }, true);
       },
     },
     {

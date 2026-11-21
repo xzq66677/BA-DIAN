@@ -440,6 +440,101 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | D3-006 | 角色清单提取 | 11 角色（default/bagun/chuixiao/gojo/laodaye/mabaoguo/wuliuqi/ivan-girl/hero-today/dajianke/dapihuai）+ 全部技能/机制，见 Phase D 覆盖矩阵 | characters/index.ts |
 | D3-007 | 技术选型 | **Three.js 0.187（vanilla）+ 薄 React 封装**。理由：①仅引入 `three` 一个依赖，移动端体积可控；②演出队列是命令式时序模型，与 imperative scene API 天然契合；③React 仅做状态→命令桥接，渲染循环/资源释放完全自主可控；④无 WebGL 环境可整体回退现有 2D 牌桌（测试/低端机安全） | 决策记录 |
 
-## 遗留事项
+## 十七轮 · BA-DIAN V4.2 · 3D持续开发（2026-11-21，已完成）
 
-见 docs/KNOWN_ISSUES.md（今日勇者技能缺失、真实浏览器端到端受限、二次判定手动出拳 UI 未做等）。
+> 承接十六轮 V4.1（HEAD=`eaec5f9`，battle3d 场景已提交）。本轮以真实运行画面为依据完成两轮实质迭代、演出矩阵取证与工程验收。全程未提交、未推送、未部署；工作区上一轮未提交修改（dist-dev 构建产物 + docs/screenshots-v3 截图）全部保留。
+
+### Phase 0 · 接手审查（以实际运行为准，不以文档标记为准）
+
+| 编号 | 核查项 | 结论 | 证据 |
+|---|---|---|---|
+| V4-001 | 工作区状态 | HEAD=`eaec5f9`；未提交改动仅 dist-dev 构建产物与 v3 截图（上轮产物，保护不清理） | git status |
+| V4-002 | 环境 | 本机为全新复制环境：node_modules 缺失 → `npm install` + esbuild postinstall 批准重建；无 systemd 生产实例（3100/3200 均空闲，可安全起开发实例） | 实装过程 |
+| V4-003 | 基线 TS | client/server `tsc --noEmit` 双 0 错误 | 实跑 |
+| V4-004 | 基线测试 | 260 通过 / 5 跳过；e2e 1 文件因环境（esbuild 时序）失败，修复 esbuild 后复跑通过 | npm test 实跑 |
+| V4-005 | 基线实机 | :3200（dist-dev）自动对局 0 JS 错误；3D 战场真实呈现：六棱石台房间+台阶+界柱+主题图腾+石径、低模人形（姿态/朝向）、中央事件舞台+徽记、出拳揭示、行动坞、终局舞台、伊万投掷/爆炸、淘汰印章、复活爆发、领域穹顶、镜头聚焦/轨道/重置 | shot3d.ts 抓帧 10 张 + 0 JS 错误 |
+| V4-006 | 基线缺口（视觉审稿） | ① 桌面默认机位裁切「我的房间」（近端平台被底边+行动坞切掉）；② 揭示台 640px 遮挡远端弧线房间；③ 中央舞台空置；④ 死者名牌全尺寸悬浮抢眼；⑤ 移动端视口未验证；⑥ playDomain 为死代码（领域展开 trigger 被映射为通用 playTrigger，爆发/ticker/聚焦从未触发）；⑦ WebGL 上下文丢失（后详，B-031） | d3-01~10 逐张审稿 + 代码核查 |
+
+### 迭代 1（P0 视觉与健壮性，全部实测验证）
+
+| 编号 | 任务 | 说明 |
+|---|---|---|
+| T-1700 | 桌面默认机位重取景 | `layout.ts defaultPose`：桌面 radius 4.2→5.0 / height 12.8→14.4 / look.z 1.5→1.7 / fov 51——避开顶部揭示台（~130px）与底部行动坞（~190px）两块 UI 遮挡区，「我的房间」整体可见（修复前后截图对比：d3-01 新版我的房间+角色+底座完整入画） |
+| T-1701 | 揭示台收紧 | 3D 模式揭示面板 640→520px、字号 12px、背景透明度 0.78，远端房间遮挡减少 |
+| T-1702 | 中央事件核心升级 | 徽记八面体 0.5→0.68 + emissive 提升 + 极淡加色光柱（一次性常驻旋转呼吸，reduced-motion 静止）——待机阶段中央空场有「事件核心」存在感 |
+| T-1703 | 死者名牌弱化 | `.b3-plate.is-dead`：透明度 0.62 + 缩放 0.86（经内联 transform 追加 `scale(var(--dead-scale))`，避免被投影定位覆盖） |
+| T-1704 | **B-031 兜底：WebGL 上下文丢失自动回退 2D** | `webglcontextlost` 监听（preventDefault + 500ms 恢复等待）：恢复→继续；未恢复→`onContextLost` → Battle3D `setFailed` → 整体回退 2D 牌桌。实测：上下文丢失后 2D 牌桌完整接管（房间/日志/演出控制条/发言全在位），对局 0 中断 0 JS 错误（mx-*-battlefield-over 截图为证） |
+| T-1705 | 空闲降帧渲染 | 无补间/特效/行走/镜头运动时按 20fps 渲染，活动期恢复满帧；相机趋近过程保持满帧（`camMoving` 判定）——降低 GPU 负载与移动端耗电 |
+| T-1706 | 后台标签页暂停 | `visibilitychange` hidden → 停 rAF+clock；回前台恢复（dispose 同步移除监听） |
+
+### 迭代 2（演出覆盖矩阵 + 真实缺口修复）
+
+| 编号 | 任务 | 说明 |
+|---|---|---|
+| T-1710 | 场景调试探针 | `scene.debugStats()`（fx/tweens/walks/entities/rooms）+ `window.__b3scene`（E2E 只读探针，卸载时清理） |
+| T-1711 | 演出矩阵取证脚本 | `scripts/pres3d-matrix.ts`：三视口（1440×900 / 390×844 / 844×390）各跑一局真实对局，单次 evaluate 批量探测 + MutationObserver 瞬态演出记录器（`__seen`）+ 上下文丢失时刻记录器（`__ctxLostAt`：时刻/回合/阶段/ticker 现场快照）；`LINEUP=gojo` 定向布阵（全员五条悟：2 条命→复活、领域→domain） |
+| T-1712 | **B-032：领域展开演出链断裂修复（playDomain 死代码）** | 引擎：两处领域 trigger 日志补结构化标记 `data.domain=true`（shared/src/characters/index.ts）；events.ts：trigger 解析分支 domain→`{kind:'domain'}`（旧数据安全降级为普通 trigger）；queue.ts：`BASE_MS.domain=850`、不进 fast 可丢弃名单；useBattlePresentation：`domainDecl` 叠加态 + 110ms 过期 + sfx major；pres-adapter：`{c:'domain'}` 命令 + `scene.playDomain(pid)` 接线。实测：三视口 `✨ 领域展开！` ticker + 爆发 + 聚焦全部触发（`seen.domainTicker` 18~204 次/局，截图 mx-*-domainTicker） |
+| T-1713 | 软件渲染器降级 | 检测 SwiftShader/llvmpipe（WEBGL_debug_renderer_info）→ `antialias:false` + `pixelRatio:1`（MSAA 在软件渲染下极贵）；硬件 GPU 保持全质量 |
+| T-1714 | **B-033：3D 面板 backdrop-filter 逐帧模糊移除** | 揭示台/日志/行动坞三处 `backdrop-filter: blur` 悬浮在持续渲染的 WebGL 画布上 → 软件/低端 GPU 每帧全屏模糊合成（实测 SwiftShader 环境反复 GL 上下文丢失的相关因素之一）；提高底色不透明度替代（0.9~0.93），硬件 GPU 同样省电 |
+| T-1715 | powerPreference 收敛 | 移除 `powerPreference:'high-performance'`（混合 GPU/驱动重评估可致运行中丢上下文；稳定性优先，改后桌面连续 2 局全程 3D 存活） |
+
+### 迭代 3（移动端真实可玩布局，三视口实测）
+
+| 编号 | 任务 | 说明 |
+|---|---|---|
+| T-1720 | 横屏机位 | 844×390：radius 6.2 / height 14.5 / fov 50——近端房间不被行动坞裁切、远端房间+名牌完整（mx-landscape-hitFloat 实测） |
+| T-1721 | 窄屏揭示面板与视角按钮重叠修复 | <900px：揭示面板左对齐 `width: calc(100% - 104px)`，右上角留出「视角/2D」按钮组（修复前两者叠压，修复后干净分离，mx-narrow-attackBeam 实测） |
+| T-1722 | 横屏揭示面板让位 | 横屏矮视口：面板收窄至 min(62%, 470px) 靠左，远端中央房间不被遮挡 |
+| T-1723 | 3D 窄屏顶栏紧凑化 | gap/padding/字号收敛，顶栏高度明显下降（修复前 3 行占屏 ~1/3） |
+
+### B-031 · WebGL 上下文丢失（✅ 根因已定位并修复；残余风险已策略化兜底）
+
+排查过程（全部留证）：
+- 触发：对局中 `webglcontextlost`（无 JS 错误、页面不崩溃），3D 画布白屏 → T-1704 兜底自动回退 2D，对局继续无感。
+- 波及：本机 SwiftShader（headless）与 Intel UHD D3D11（headed 硬件 GPU）均复现；窄屏/横屏更频繁。
+- 排除项：空闲场景 40s 存活；单类演出高压循环（12 类 × 60 次）全部存活；40 次连续截图存活；FX dispose 无泄漏（disposeObj 全量释放 geometry/material）。
+- 特征：多发生在回合 2~5 的安静阶段（出拳/行动等待期，tickers='' floats=0），非负载峰值时刻——后成为定位根因的关键线索。
+
+**根因（十八轮 Phase C 定位并修复）**：`detectWebGL()` 每次调用都创建真实 WebGL 上下文，而 `useState(!detectWebGL())` 在**每次渲染**都会执行（函数组件体随渲染重复运行）——高频快照广播的对局里每渲染泄漏一个探测上下文；Chromium 对存活 WebGL 上下文数量有上限，**触顶时驱逐最旧存活上下文**，主游戏画布一旦成为最旧者即被驱逐。这完美解释「安静阶段丢失」（渲染越频繁泄漏越快）与「FX 压测却存活」（单页挂载后泄漏停止）。
+
+### 十八轮 · Phase C · B-031 根因修复 + GL 会话降级策略（2026-11-21，与十七轮同日接续）
+
+| 编号 | 任务 | 说明 |
+|---|---|---|
+| T-1800 | **B-031 根因修复** | ① `Battle3D.tsx`：`useState(() => !detectWebGL())` 懒初始化（只执行一次）；② `detectWebGL()` 与场景软件渲染探测的探测上下文用 `WEBGL_lose_context.loseContext()` 显式释放。实测复现路径消除 |
+| T-1801 | `gl-policy.ts` 会话降级策略 | 每次丢失计数（sessionStorage，跨 Game 页挂载存活）；会话累计 ≥3 次，或 60s 内连续 ≥2 次 → **本会话持久降级 2D**（防「重建 3D → 再丢失」循环）；用户 UI 主动切回 3D 清除标记（`clearSessionDegraded`）；策略纯函数化，jsdom 单测 9 例 |
+| T-1802 | `gllog.ts` 诊断日志 | 丢失/恢复/降级/场景初始化全程留痕（附带回合/阶段/`debugStats()` 上下文；只读，不参与游戏逻辑） |
+| T-1803 | 上下文恢复窗口优化 | 500ms → 4000ms（GPU 进程重启/驱动恢复通常秒级，过短易误降级）；新增 `onContextRestored` 分级处理（恢复成功但已达阈值 → 仍主动降级，宁可 2D 不冒重建循环风险） |
+| T-1804 | 演出覆盖矩阵 B-031 项闭环 | 「3D→2D 回退」取证保留；根因修复后复验 |
+| T-1805 | **B-035：e2e「战斗演出」用例双模式兼容 + 驱动加固** | HP 条断言扩为 `.ccard-hpbar, .b3-hpbar`（3D 名牌 HP 条）；驱动点击改原生 DOM click（React 高频重渲染下 Playwright actionability 超时 → 驱动静默停滞 → 无事件可采样的偶发失败根因）。复跑两轮 5/5 稳定 |
+
+### 演出覆盖矩阵（三视口真实对局取证汇总）
+
+| 演出类别 | 3D 呈现 | 取证 | 视口 |
+|---|---|---|---|
+| 攻击宣告 | 攻击姿态 + 蓝色预警光束 + 镜头聚焦 | mx-*-attackBeam ×3 视口 | 全 |
+| 普通攻击/受击 | 前扑 + 斩击 + 伤害飘字 + HP 条 | mx-*-hitFloat ×3 | 全 |
+| 多段伤害 | 斩击序列 + 分组飘字 | mx-landscape-slashCombo | 横屏 |
+| 回复 | 施法姿态 + 治疗环 + 上升数字 | mx-landscape-healRing | 横屏 |
+| 移动 | 弧线行走 + 行走姿态 + 尘土 + 落点聚焦 | mx-*-walk3d ×3 | 全 |
+| 未命中 | 闪避侧移 + 「未命中」浮层 | 代码路径 + battle3d.test.ts 适配层用例；随机对局未自然触发（B-010 前置校验使 miss 罕见），如实标注 | — |
+| AOE | 房间脉冲告警环 + 分组顺序 | mx-narrow-zoneAlert | 窄屏 |
+| 淘汰 | 印章 + 红环 + 闪光 + 震屏 + 倒地 + 名牌弱化 | mx-*-deathStamp ×2 + d3-08 | 全 |
+| 复活 | 金色爆发 + 起身 + 「N 命复活」 | mx-*-reviveBurst ×2（gojo 布阵 9~12 次/局） | 全 |
+| 领域展开 | 爆发 + 闪光 + ticker + 聚焦 + 穹顶（B-032 修复后） | mx-*-domainTicker ×3 | 全 |
+| 大伊万 | 投掷物弧线飞行 + 落点冲击波 + 待爆警示 | d3-03/04（V3 链路沿用）+ mx-narrow-ivanTicker/boomTicker | 桌面+窄屏 |
+| 终局 | 演出链播完 → 聚光舞台 + 胜者卡 + 摘要；战场终局态 | mx-*-finale-modal + battlefield-over ×3 | 全 |
+| 3D→2D 回退 | 上下文丢失自动回退，2D 全功能接管 | mx-*-battlefield-over（回退后画面） | 全 |
+
+### 工程验收
+
+| 编号 | 项 | 结果 |
+|---|---|---|
+| T-1730 | tsc --noEmit | client/server 双 0 错误（多轮复验） |
+| T-1731 | npm test | **21 文件 / 282 用例全部通过**（含真实 Chromium E2E 5 例；两轮复跑均全过） |
+| T-1732 | 生产构建隔离 | 本轮构建全部输出 dist-dev（:3200），e2e 走 dist-e2e（B-030 隔离在位）；client/dist 与 server/dist 仅因 server 端 domain 标记重建（B-032 需要，tsc 全量重编译，内容与 HEAD 等价+新标记） |
+| T-1733 | 保护用户修改 | 未提交、未推送、未部署、未动生产配置；工作区继承的上轮未提交内容（dist-dev 旧产物、screenshots-v3）原样保留 |
+| T-1734 | **B-034：e2e 断言不兼容 3D 模式** | 「单人开局→战场渲染」用例断言 `.ccard-art img`（2D 房间卡）——3D 模式下战场卡牌由场景与名牌头像（`.b3-av img`）取代，WebGL 环境必然 0 张失败（HEAD=eaec5f9 已引入；V4.1 记录的 247 通过为 3D 集成前的基线）。修复：断言扩为 `.ccard-art img, .b3-av img, .ms-art img`（双模式兼容，意图不变：卡面图至少 1 张真实加载） |
+| T-1806 | 测试分布核实 | 282 = 共享用例 108 + 领域 20 + 战斗演出事件 14 + 演出队列 23 + 广播游标 4 + 退出/占用 7 + AI 回归与难度 15 + 联机集成 11 + 超时兜底 6 + 隐藏出拳 4 + 战绩 4 + 互动 4 + 回放 3 + 多局日志 6 + 音效 3 + UI 组件 11 + 退出逃生口 1 + battle3d 27 + 终局延迟呈现 6 + E2E 5（逐文件实测核对） |
+
+

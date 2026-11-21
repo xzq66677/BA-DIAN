@@ -16,6 +16,8 @@ import {
   slashFx, ringBurst, beamFx, projectileFx, explosionFx, healFx, skillAuraFx,
   flashLightFx, dustFx, domainBurstFx, type FxInstance,
 } from './fx.js';
+import { gllog } from './gllog.js';
+import { B3D_RESTORE_WAIT_MS } from './gl-policy.js';
 
 // ── 对外数据契约（与 net.ts 的 GameSnapshot 字段对齐的最小子集） ──
 export interface SnapPlayerLite {
@@ -40,6 +42,10 @@ export interface SnapLite {
 export interface SceneHooks {
   onPickPlayer: (pid: string) => void;
   onPickRoom: (rid: string) => void;
+  /** WebGL 上下文丢失且恢复窗口内未恢复（上下文已死）→ 调用方应回退 2D 牌桌 */
+  onContextLost?: () => void;
+  /** 上下文在恢复窗口内成功恢复（three.js 自动重建 GL 资源）→ 调用方做丢失计数/降级判定 */
+  onContextRestored?: () => void;
 }
 
 // ── 内部实体 ────────────────────────────────────────────────
@@ -127,6 +133,8 @@ export class BattleScene3D {
   private shakeAmp = 0;
   private finaleWinner: string | null = null;
   private roomPickMode = false;
+  private lastRender = 0;
+  private camMoving = true;
   private targetablePids = new Set<string>();
   private lastSnapshot: SnapLite | null = null;
   private myRoom: string | null = null;
@@ -140,13 +148,62 @@ export class BattleScene3D {
   constructor(container: HTMLElement, hooks: SceneHooks) {
     this.container = container;
     this.hooks = hooks;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // 软件渲染器（SwiftShader / llvmpipe，低端设备/无 GPU 环境）降级：关抗锯齿 + 锁 1× 像素比，
+    // 显著降低 GPU 负载（此类环境 MSAA 极贵且易导致上下文丢失）；硬件 GPU 保持全质量
+    const probeCanvas = document.createElement('canvas');
+    const probeGl = probeCanvas.getContext('webgl2') as WebGL2RenderingContext | null
+      || probeCanvas.getContext('webgl') as WebGLRenderingContext | null;
+    let software = false;
+    let rendererLabel = '';
+    try {
+      const ext = probeGl?.getExtension('WEBGL_debug_renderer_info') as { UNMASKED_RENDERER_WEBGL: number } | null;
+      const r = ext && probeGl ? String(probeGl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+      rendererLabel = r;
+      software = /swiftshader|llvmpipe|softpipe|basic render/i.test(r);
+    } catch { /* 探测失败按硬件处理 */ }
+    // 探测上下文用完即释放：残留上下文累计会触发 Chromium「最旧上下文驱逐」（B-031 实证根因）
+    const lose = (probeGl as { getExtension?: (n: string) => unknown } | null)
+      ?.getExtension?.('WEBGL_lose_context') as { loseContext(): void } | null | undefined;
+    lose?.loseContext();
+    // 不设 powerPreference:'high-performance'：混合 GPU / 部分驱动环境下 Chromium
+    // 会因适配器/功耗状态重评估中途丢弃 GL 上下文（实测本环境稳定复现）。
+    // 默认策略下浏览器自行选择适配器，稳定性优先。
+    this.renderer = new THREE.WebGLRenderer({ antialias: !software, alpha: false });
+    this.renderer.setPixelRatio(software ? 1 : Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.setClearColor(BG);
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.className = 'b3-canvas';
+    gllog.push('scene-init', {
+      renderer: rendererLabel, software,
+      pixelRatio: this.renderer.getPixelRatio(),
+    }, true);
+
+    // WebGL 上下文丢失：preventDefault 阻止默认处置，在恢复窗口（B3D_RESTORE_WAIT_MS）
+    // 内等待驱动/GPU 进程恢复（three.js 在 webglcontextrestored 时自动重建 GL 资源）；
+    // 超时未恢复 → 通知上层回退 2D。恢复与超时都经 gllog 留痕。
+    this.renderer.domElement.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      if (this.disposed) return;
+      const lostAt = Date.now();
+      gllog.push('ctx-lost', { renderer: rendererLabel }, true);
+      let restored = false;
+      const onRestored = () => {
+        restored = true;
+        if (this.disposed) return;
+        gllog.push('ctx-restored', { afterMs: Date.now() - lostAt }, true);
+        this.hooks.onContextRestored?.();
+      };
+      this.renderer.domElement.addEventListener('webglcontextrestored', onRestored, { once: true });
+      window.setTimeout(() => {
+        this.renderer.domElement.removeEventListener('webglcontextrestored', onRestored);
+        if (!restored && !this.disposed) {
+          gllog.push('ctx-lost-timeout', { waitMs: B3D_RESTORE_WAIT_MS }, true);
+          this.hooks.onContextLost?.();
+        }
+      }, B3D_RESTORE_WAIT_MS);
+    });
 
     this.overlay = document.createElement('div');
     this.overlay.className = 'b3-overlay';
@@ -220,15 +277,26 @@ export class BattleScene3D {
     this.scene.add(coreRing);
     // 悬浮徽记（缓慢旋转的八面体，全场可见的"事件核心"）
     const emblem = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.5),
-      new THREE.MeshStandardMaterial({ color: 0xf0d68a, emissive: 0xa08030, emissiveIntensity: 0.7, roughness: 0.3, metalness: 0.6 }),
+      new THREE.OctahedronGeometry(0.68),
+      new THREE.MeshStandardMaterial({ color: 0xf0d68a, emissive: 0xa08030, emissiveIntensity: 0.85, roughness: 0.3, metalness: 0.6 }),
     );
-    emblem.position.y = 2.6;
+    emblem.position.y = 2.7;
     emblem.name = 'core-emblem';
     this.scene.add(emblem);
-    const emblemLight = new THREE.PointLight(0xffe2a0, 8, 12, 1.8);
-    emblemLight.position.set(0, 2.6, 0);
+    const emblemLight = new THREE.PointLight(0xffe2a0, 10, 13, 1.8);
+    emblemLight.position.set(0, 2.7, 0);
     this.scene.add(emblemLight);
+    // 光柱（极淡的加色圆柱，让中央空场在待机阶段也有"事件核心"的存在感）
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.34, 5.2, 16, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xffe2a0, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending,
+        depthWrite: false, side: THREE.DoubleSide,
+      }),
+    );
+    beam.position.y = 3.1;
+    beam.name = 'core-beam';
+    this.scene.add(beam);
   }
 
   // ── 房间：六棱石台 + 全尺寸图腾 ────────────────────────────
@@ -1091,7 +1159,7 @@ export class BattleScene3D {
       e.group.getWorldPosition(world);
       world.y += PLATFORM_H + e.rig.headHeight() + 0.55;
       const p = proj(world);
-      e.plate.style.transform = `translate(-50%,-100%) translate(${((p.x * 0.5 + 0.5) * w).toFixed(1)}px,${((-p.y * 0.5 + 0.5) * h).toFixed(1)}px)`;
+      e.plate.style.transform = `translate(-50%,-100%) translate(${((p.x * 0.5 + 0.5) * w).toFixed(1)}px,${((-p.y * 0.5 + 0.5) * h).toFixed(1)}px) scale(var(--dead-scale, 1))`;
       e.plate.style.display = p.z > 1 ? 'none' : '';
       const t = this.targetablePids.has(e.pid) && e.alive;
       e.plate.classList.toggle('is-targetable', t);
@@ -1127,7 +1195,21 @@ export class BattleScene3D {
     el.addEventListener('pointerup', this.onUp);
     el.addEventListener('wheel', this.onWheel, { passive: false });
     window.addEventListener('resize', this.resize);
+    // 后台标签页暂停渲染（省电 / 移动端 GPU 压力），回前台恢复
+    document.addEventListener('visibilitychange', this.onVisibility);
   }
+
+  private onVisibility = (): void => {
+    if (this.disposed) return;
+    if (document.hidden) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+      this.clock.stop();
+    } else if (!this.raf) {
+      this.clock.start();
+      this.loop();
+    }
+  };
 
   private onDown = (e: PointerEvent): void => {
     this.downPos = { x: e.clientX, y: e.clientY, t: Date.now() };
@@ -1262,6 +1344,19 @@ export class BattleScene3D {
     this.shakeAmp = 0;
   }
 
+  /** E2E/取证探针：当前演出活动量（不参与游戏逻辑） */
+  debugStats(): { fx: number; tweens: number; walks: number; entities: number; rooms: number } {
+    let walks = 0;
+    for (const e of this.entities.values()) if (e.walk) walks++;
+    return {
+      fx: this.fxList.length,
+      tweens: this.tweens.length,
+      walks,
+      entities: this.entities.size,
+      rooms: this.rooms.size,
+    };
+  }
+
   private shake(amp: number): void {
     this.shakeAmp = Math.max(this.shakeAmp, this.reduced ? amp * 0.2 : amp);
   }
@@ -1285,7 +1380,6 @@ export class BattleScene3D {
     const dt = Math.min(0.05, this.clock.getDelta());
     this.elapsed += dt;
     const snap = this.lastSnapshot;
-
     // 补间
     for (const t of this.tweens) {
       if (t.dead) continue;
@@ -1423,12 +1517,23 @@ export class BattleScene3D {
     const emblem = this.scene.getObjectByName('core-emblem');
     if (emblem && !this.reduced) {
       emblem.rotation.y += dt * 0.6;
-      emblem.position.y = 2.6 + Math.sin(this.elapsed * 1.4) * 0.12;
+      emblem.position.y = 2.7 + Math.sin(this.elapsed * 1.4) * 0.12;
+      const beam = this.scene.getObjectByName('core-beam');
+      if (beam) (beam as THREE.Mesh).scale.setScalar(1 + Math.sin(this.elapsed * 1.4) * 0.06);
     }
 
     this.updateCamera(dt);
-    this.updateOverlay();
-    this.renderer.render(this.scene, this.camera);
+    // 空闲降帧：无补间/特效/行走/镜头运动时按 20fps 渲染（降低 GPU 负载与移动端耗电；
+    // 有演出或用户交互时恢复满帧）。JS 侧动画状态每帧照常推进。
+    const busy = this.tweens.length > 0 || this.fxList.length > 0 || this.dragging
+      || this.shakeAmp > 0.001 || this.finaleWinner !== null || this.camMoving
+      || Math.abs(this.focus.w - this.focusWTarget) > 0.01;
+    const minFrame = busy ? 0 : 0.05;
+    if (this.elapsed - this.lastRender >= minFrame) {
+      this.lastRender = this.elapsed;
+      this.updateOverlay();
+      this.renderer.render(this.scene, this.camera);
+    }
   };
 
   private updateCamera(dt: number): void {
@@ -1441,11 +1546,16 @@ export class BattleScene3D {
     const look = new THREE.Vector3(base.look.x, 1.1, base.look.z);
     const focusV = new THREE.Vector3(this.focus.x, 1.0, this.focus.z);
     look.lerp(focusV, Math.min(1, this.focus.w));
+    const lookBefore = this.lookCur.clone();
     this.lookCur.lerp(look, Math.min(1, dt * (this.reduced ? 8 : 3.4)));
     const camTarget = new THREE.Vector3(pos.x, pos.y, pos.z);
     camTarget.x += (this.focus.x * this.focus.w) * 0.22;
     camTarget.z += (this.focus.z * this.focus.w) * 0.18;
+    const camBefore = this.camera.position.clone();
     this.camera.position.lerp(camTarget, Math.min(1, dt * (this.reduced ? 8 : 3)));
+    // 相机是否仍在运动（供空闲降帧判定：趋近过程保持满帧）
+    this.camMoving = this.camera.position.distanceTo(camBefore) > 0.004
+      || this.lookCur.distanceTo(lookBefore) > 0.004;
     if (this.shakeAmp > 0.001) {
       this.shakeAmp *= Math.pow(0.002, dt);
       this.camera.position.x += (Math.random() - 0.5) * this.shakeAmp;
@@ -1458,12 +1568,14 @@ export class BattleScene3D {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    gllog.push('scene-disposed', {}, false);
     cancelAnimationFrame(this.raf);
     this.renderer.domElement.removeEventListener('pointerdown', this.onDown);
     this.renderer.domElement.removeEventListener('pointermove', this.onMove);
     this.renderer.domElement.removeEventListener('pointerup', this.onUp);
     this.renderer.domElement.removeEventListener('wheel', this.onWheel);
     window.removeEventListener('resize', this.resize);
+    document.removeEventListener('visibilitychange', this.onVisibility);
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       if (m.geometry) m.geometry.dispose();

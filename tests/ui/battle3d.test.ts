@@ -1,7 +1,8 @@
 /**
  * 拔典 3D 战场 · 单元测试（jsdom，无 WebGL 依赖）
- * 覆盖：布局数学 / 视觉元数据完整性 / 演出适配层（pres diff → 场景命令）/ 回退检测。
+ * 覆盖：布局数学 / 视觉元数据完整性 / 演出适配层（pres diff → 场景命令）/ 回退检测 / 降级策略 / 诊断日志。
  */
+// @vitest-environment jsdom
 
 import { describe, it, expect } from 'vitest';
 import { TABLE, roomPosition, roomSlot, defaultPose, orbitPose, stableMembers } from '../../client/src/battle3d/layout.js';
@@ -10,6 +11,10 @@ import { CHARACTERS } from '../../shared/src/characters/index.js';
 import { presToCommands, applyCommands, type SceneLike } from '../../client/src/battle3d/pres-adapter.js';
 import { EMPTY_PRESENTATION, type PresentationState } from '../../client/src/battle/useBattlePresentation.js';
 import { detectWebGL, preferredRenderer } from '../../client/src/battle3d/Battle3D.js';
+import {
+  recordContextLost, markSessionDegraded, isSessionDegraded, clearSessionDegraded,
+} from '../../client/src/battle3d/gl-policy.js';
+import { gllog } from '../../client/src/battle3d/gllog.js';
 
 // ── 布局 ─────────────────────────────────────────────────────
 
@@ -210,5 +215,98 @@ describe('WebGL 回退', () => {
 
   it('渲染器偏好可被查询参数/localStorage 覆盖', () => {
     expect(['3d', '2d']).toContain(preferredRenderer());
+  });
+});
+
+// ── 上下文丢失会话级降级策略（Phase C / B-031 兜底） ─────────
+
+describe('gl-policy 会话降级策略', () => {
+  it('单次丢失不降级；累计达上限降级', () => {
+    sessionStorage.clear();
+    // 累计场景：间隔 >60s，不触发 rapid 窗口
+    const v1 = recordContextLost(1000);
+    expect(v1).toMatchObject({ count: 1, degrade: false, reason: '' });
+    const v2 = recordContextLost(1000 + 70_000);
+    expect(v2).toMatchObject({ count: 2, degrade: false, reason: '' });
+    const v3 = recordContextLost(1000 + 140_000);
+    expect(v3).toMatchObject({ count: 3, degrade: true, reason: 'total' });
+    expect(isSessionDegraded()).toBe(true);
+  });
+
+  it('60s 窗口内连续两次丢失 → 立即降级（rapid）', () => {
+    sessionStorage.clear();
+    const v1 = recordContextLost(10_000);
+    expect(v1.degrade).toBe(false);
+    const v2 = recordContextLost(10_000 + 30_000); // 30s 后第二次
+    expect(v2).toMatchObject({ count: 2, degrade: true, reason: 'rapid' });
+    expect(isSessionDegraded()).toBe(true);
+  });
+
+  it('降级后再次记录保持 degrade 语义一致（不崩溃）', () => {
+    sessionStorage.clear();
+    // 累计 3 次（间隔 >60s 不触发 rapid）→ 降级
+    recordContextLost(1000);
+    recordContextLost(1000 + 70_000);
+    recordContextLost(1000 + 140_000);
+    expect(isSessionDegraded()).toBe(true);
+    const v = recordContextLost(1000 + 210_000); // 已降级后继续记录：保持 degrade 语义
+    expect(v.degrade).toBe(true);
+    expect(v.count).toBeGreaterThanOrEqual(3);
+  });
+
+  it('清除降级标记后解除持久降级，但累计计数继续生效', () => {
+    sessionStorage.clear();
+    recordContextLost(1000);
+    recordContextLost(1100); // rapid → 降级
+    expect(isSessionDegraded()).toBe(true);
+    clearSessionDegraded();
+    expect(isSessionDegraded()).toBe(false);
+    // 清除只解除标记；会话累计计数仍在 → 再丢一次达 3 次 → 再次降级（total）
+    const v = recordContextLost(1000 + 70_000);
+    expect(v).toMatchObject({ count: 3, degrade: true, reason: 'total' });
+  });
+
+  it('preferredRenderer 在会话降级时返回 2d（?r=3d 查询参数仍可临时强制）', () => {
+    sessionStorage.clear();
+    markSessionDegraded();
+    expect(preferredRenderer()).toBe('2d');
+    sessionStorage.clear();
+  });
+});
+
+// ── GL 诊断日志（Phase A） ───────────────────────────────────
+
+describe('gllog 诊断日志', () => {
+  it('记录事件并携带回合/阶段上下文', () => {
+    gllog.clear();
+    gllog.setContext(() => ({ round: 3, phase: 'act' }));
+    gllog.push('ctx-lost', { renderer: 'test' }, true);
+    gllog.push('ctx-restored', { afterMs: 120 });
+    const es = gllog.entries();
+    expect(es).toHaveLength(2);
+    expect(es[0]).toMatchObject({ ev: 'ctx-lost', round: 3, phase: 'act', info: { renderer: 'test' } });
+    expect(es[1].info).toEqual({ afterMs: 120 });
+    expect(es[0].t).toBeGreaterThan(0);
+  });
+
+  it('环形缓冲有上限（240 条），最旧被丢弃', () => {
+    gllog.clear();
+    gllog.setContext(() => ({ round: -1, phase: '' }));
+    for (let i = 0; i < 300; i++) gllog.push('tick', { i });
+    expect(gllog.entries().length).toBe(240);
+    expect(gllog.entries()[0].info).toEqual({ i: 60 });
+  });
+
+  it('dump 输出可读文本（含事件名与回合）', () => {
+    gllog.clear();
+    gllog.setContext(() => ({ round: 2, phase: 'rps1' }));
+    gllog.push('scene-init', { software: true });
+    expect(gllog.dump()).toContain('scene-init');
+    expect(gllog.dump()).toContain('r2');
+    gllog.clear();
+  });
+
+  it('取证探针挂载到 window.__b3log', () => {
+    expect(typeof (window as unknown as { __b3log?: { dump(): string } }).__b3log?.dump).toBe('function');
   });
 });

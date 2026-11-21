@@ -93,18 +93,22 @@ export function defaultPose(aspect: number, roomCount: number): CamPose {
   const wide = roomCount >= 6 ? 1.12 : roomCount >= 5 ? 1.06 : 1;
   if (aspect < 0.75) {
     // 手机竖屏：窄视口 → 高机位 + 大 FOV，全场纵向铺满
-    return { radius: 2.0 * wide, height: 17.5 * wide, look: { x: 0, z: 1.6 }, fov: 62 };
+    // （look.z 偏向前缘：给顶部状态层留出余量，我的房间不贴底）
+    return { radius: 2.2 * wide, height: 18.4 * wide, look: { x: 0, z: 1.9 }, fov: 62 };
   }
   if (aspect < 1.05) {
     // 近方形 / 平板竖屏
-    return { radius: 2.8 * wide, height: 15.0 * wide, look: { x: 0, z: 1.5 }, fov: 56 };
+    return { radius: 3.0 * wide, height: 15.8 * wide, look: { x: 0, z: 1.8 }, fov: 56 };
   }
   if (aspect > 2.1) {
-    // 手机横屏（如 844×390）：矮视口 → 低平机位，横向铺开
-    return { radius: 4.6 * wide, height: 11.0 * wide, look: { x: 0, z: 1.6 }, fov: 54 };
+    // 手机横屏（如 844×390）：矮视口 → 高机位 + 小 FOV 压缩透视，横向铺开；
+    // 保证近端「我的房间」不被底部操作坞裁切、远端房间不被顶部揭示台遮挡
+    return { radius: 6.2 * wide, height: 14.5 * wide, look: { x: 0, z: 2.2 }, fov: 50 };
   }
-  // 桌面（约 16:9 ~ 4:3）：高机位俯瞰全场，远端房间与名牌留出顶部余量
-  return { radius: 4.2 * wide, height: 12.8 * wide, look: { x: 0, z: 1.5 }, fov: 50 };
+  // 桌面（约 16:9 ~ 4:3）：高机位俯瞰全场。
+  // 取景需避开顶部揭示台（~130px）与底部行动坞（~190px）两块 UI 遮挡区：
+  // 拉远 + 抬高机位，保证近端「我的房间」整体可见、远端房间名牌不被裁切。
+  return { radius: 5.0 * wide, height: 14.4 * wide, look: { x: 0, z: 1.7 }, fov: 51 };
 }
 
 /**

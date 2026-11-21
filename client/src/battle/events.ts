@@ -30,6 +30,7 @@ export type BattleEventKind =
   | 'miss'        // 未命中 / 被抵消
   | 'ivanThrow'   // 大伊万投掷：投掷物从来源飞向目标房间
   | 'ivanBoom'    // 大伊万爆炸：目标房间落点冲击
+  | 'domain'      // 领域展开（重大事件：爆发 + 聚焦，引擎日志 data.domain=true 标记）
   | 'trigger';    // 技能 / 被动触发
 
 export interface BattleEvent {
@@ -168,6 +169,10 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
       // 命数复活（ReviveEventData 独有 livesLeft 字段，如五条悟 2 条命）
       if (pid && livesLeft !== undefined) {
         return { kind: 'revive', seq: log.seq, targetId: pid, livesLeft, important: true };
+      }
+      // 领域展开（引擎 data.domain=true 结构化标记；重大事件，独立于普通技能触发）
+      if (pid && d.domain === true) {
+        return { kind: 'domain', seq: log.seq, targetId: pid, important: true };
       }
       if (pid) return { kind: 'trigger', seq: log.seq, pid, important: log.important };
       return null;

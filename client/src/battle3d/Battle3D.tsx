@@ -6,14 +6,23 @@
  *  - 挂载/卸载 BattleScene3D（StrictMode 双调用安全）；
  *  - 快照 → syncSnapshot；pres diff → 场景演出命令；
  *  - 目标高亮 / 房间选择模式 / reduced-motion / myRoom 透传；
- *  - 暴露 resetView（视角恢复按钮）与失败状态。
+ *  - 暴露 resetView（视角恢复按钮）与失败状态；
+ *  - 上下文丢失分级处理（B-031）：恢复窗口内恢复→继续；未恢复→本局回退 2D；
+ *    会话内反复丢失→按 gl-policy 持久降级 2D（防重建循环）。
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BattleScene3D, type SnapLite } from './scene.js';
 import { presToCommands, applyCommands } from './pres-adapter.js';
+import { gllog } from './gllog.js';
+import {
+  recordContextLost, markSessionDegraded, isSessionDegraded, clearSessionDegraded,
+} from './gl-policy.js';
 import type { PresentationState } from '../battle/useBattlePresentation.js';
 import type { GameSnapshot } from '../net.js';
+
+// 会话降级标记的清除入口（Game.tsx 用户主动切 3D 时调用）
+export { clearSessionDegraded };
 
 /** WebGL 能力检测（jsdom / 旧设备 / 被禁用 → false，安全回退 2D） */
 export function detectWebGL(): boolean {
@@ -21,19 +30,26 @@ export function detectWebGL(): boolean {
     const c = document.createElement('canvas');
     const gl = c.getContext('webgl2') as WebGL2RenderingContext | null
       || c.getContext('webgl') as WebGLRenderingContext | null;
+    // 探测上下文必须立即释放：Chromium 对存活 WebGL 上下文数量有上限，
+    // 残留的探测上下文会累计并在触顶时「驱逐最旧存活上下文」——主游戏画布
+    // 一旦成为最旧者即被驱逐（webglcontextlost），这是 B-031 的实证根因。
+    const lose = (gl as { getExtension?: (n: string) => unknown } | null)
+      ?.getExtension?.('WEBGL_lose_context') as { loseContext(): void } | null | undefined;
+    lose?.loseContext();
     return !!gl;
   } catch {
     return false;
   }
 }
 
-/** 渲染器偏好（localStorage 持久化；?r=2d 查询参数临时强制 2D） */
+/** 渲染器偏好（localStorage 持久化；?r=2d 查询参数临时强制 2D；会话级降级优先于用户偏好） */
 export function preferredRenderer(): '3d' | '2d' {
   try {
     if (typeof window === 'undefined') return '2d';
     const q = new URLSearchParams(window.location.search).get('r');
     if (q === '2d') return '2d';
     if (q === '3d') return '3d';
+    if (isSessionDegraded()) return '2d';
     return localStorage.getItem('badian-renderer') === '2d' ? '2d' : '3d';
   } catch {
     return '3d';
@@ -61,8 +77,14 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
   const { game, pres, myRoom, myIds, targetablePids, roomPickMode, reducedMotion, onPickPlayer, onPickRoom } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<BattleScene3D | null>(null);
-  const [failed, setFailed] = useState(!detectWebGL());
+  // 懒初始化：detectWebGL 每次调用都会创建真实 WebGL 上下文。此前写法
+  // useState(!detectWebGL()) 在每次渲染都同步执行（函数组件体每次渲染都会跑），
+  // 频繁快照广播的对局中每渲染泄漏一个探测上下文 → 上下文触顶 → 主画布被驱逐。
+  // React 的懒初始化器保证只执行一次（B-031 根因修复）。
+  const [failed, setFailed] = useState(() => !detectWebGL());
   const presRef = useRef<PresentationState>(pres);
+  const gameRef = useRef(game);
+  gameRef.current = game;
   const hooksRef = useRef({ onPickPlayer, onPickRoom });
   hooksRef.current = { onPickPlayer, onPickRoom };
 
@@ -70,21 +92,48 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
   useEffect(() => {
     const host = hostRef.current;
     if (!host || failed) return;
+    // 诊断日志上下文（回合/阶段/场景统计；只读，不参与游戏逻辑）
+    gllog.setContext(() => ({
+      round: gameRef.current?.roundNo ?? -1,
+      phase: gameRef.current?.phase ?? '',
+    }));
+    gllog.setStats(() => sceneRef.current?.debugStats() ?? null);
     let scene: BattleScene3D;
     try {
       scene = new BattleScene3D(host, {
         onPickPlayer: (pid) => hooksRef.current.onPickPlayer(pid),
         onPickRoom: (rid) => hooksRef.current.onPickRoom(rid),
+        // 恢复窗口内未恢复（上下文已死）：本局回退 2D；
+        // 会话累计丢失达阈值 → 持久降级（此后新挂载的 Game 页直接 2D，防重建循环）
+        onContextLost: () => {
+          const v = recordContextLost();
+          gllog.push('fallback-2d', { lostCount: v.count, degrade: v.degrade, reason: v.reason || 'no-restore' }, true);
+          if (v.degrade) markSessionDegraded();
+          setFailed(true);
+        },
+        // 恢复成功：继续 3D；但已达降级阈值 → 主动降级（宁可 2D 也不再冒重建循环的风险）
+        onContextRestored: () => {
+          const v = recordContextLost();
+          if (v.degrade) {
+            gllog.push('degrade-after-restore', { lostCount: v.count, reason: v.reason || 'total' }, true);
+            setFailed(true);
+          }
+        },
       });
-    } catch {
+    } catch (e) {
+      gllog.push('scene-init-error', { error: String(e) }, true);
       setFailed(true);
       return;
     }
+    gllog.push('scene-created', {}, false);
     sceneRef.current = scene;
     scene.setReducedMotion(reducedMotion);
+    // E2E/取证探针（只读调试统计，不参与游戏逻辑）
+    (window as unknown as { __b3scene?: BattleScene3D }).__b3scene = scene;
     return () => {
       scene.dispose();
       sceneRef.current = null;
+      delete (window as unknown as { __b3scene?: BattleScene3D }).__b3scene;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [failed]);
