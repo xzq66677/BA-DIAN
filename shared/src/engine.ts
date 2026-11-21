@@ -2,7 +2,8 @@
  * 拔典 · 核心规则引擎
  * 独立于前端与网络层。所有游戏结果由本引擎统一判定。
  *
- * 阶段机：rps1（隐藏出拳→判定，可能多子轮）→ act（行动队列依次行动）→ roundEnd（回合末事件）→ 下一回合 / over
+ * 阶段机：rps1（隐藏出拳→判定）→ rps2（二次判定：资格者亲自出拳→排序）→ act（行动队列依次行动）
+ *        → roundEnd（回合末事件）→ 下一回合 / over
  */
 
 import {
@@ -53,6 +54,19 @@ export class Game implements GameLike {
   queue: PlayerId[] = [];
   actIndex = 0;
   entrantOrder: PlayerId[] = [];
+  // ─── 二次判定（行动排序）交互状态（player 模式；每回合重置） ───
+  /** 待排序组的队列：队首即当前子轮的参与组（递归排序用迭代方式实现） */
+  orderQueue: PlayerId[][] = [];
+  /** 当前子轮的参与组（空数组表示当前不在出拳等待中） */
+  orderGroup: PlayerId[] = [];
+  /** 已经确定的顺序前缀（完整排序由 finishOrdering 落成 action queue） */
+  orderOrder: PlayerId[] = [];
+  /** 当前子轮已提交的出拳（结算前不外泄，与 rps1 的 pendingThrows 同语义） */
+  orderPending: Partial<Record<PlayerId, Throw>> = {};
+  /** 当前子轮已提交的玩家（公开信息：用于「已出拳 x/y」展示） */
+  orderSubmittedIds: PlayerId[] = [];
+  /** 二次判定子轮计数（每回合重置，写入 JudgeRoundRecord.sub） */
+  orderSub = 0;
   histories: Record<PlayerId, JudgeStep[]> = {};
   /** 已结算出拳的历史记录（跨回合，供硬核 AI 反制；只记录已揭示的拳种） */
   throwHistory: Record<PlayerId, Throw[]> = {};
@@ -428,9 +442,10 @@ export class Game implements GameLike {
   // ─── 二次判定与行动队列 ───────────────────────────────────────
 
   private beginActionPhase(winners: PlayerId[]): void {
-    // 只有一名资格者时无需排序：直接入队（不额外掷拳、不产生空排序记录）
-    if (winners.length === 1) {
-      const only = winners[0];
+    const aliveWinners = winners.filter((pid) => this.players[pid].alive);
+    // 只有一名资格者时无需排序：直接入队（不额外出拳、不产生空排序记录）
+    if (aliveWinners.length === 1) {
+      const only = aliveWinners[0];
       this.qualified = [only];
       this.queue = [only];
       this.actIndex = 0;
@@ -439,18 +454,45 @@ export class Game implements GameLike {
       this.advanceQueue(true);
       return;
     }
+    if (aliveWinners.length === 0) {
+      this.log('info', '无人获得行动资格，回合直接结束');
+      this.endRound();
+      return;
+    }
+    if (this.rules.secondJudgeMode === 'serverRoll') {
+      this.beginActionPhaseServerRoll(aliveWinners);
+      return;
+    }
+    // ── player 模式：资格者**亲自出拳**，逐子轮递归排序 ──
+    this.phase = 'rps2';
+    this.qualified = aliveWinners;
+    this.orderQueue = [aliveWinners];
+    this.orderOrder = [];
+    this.orderGroup = [];
+    this.orderPending = {};
+    this.orderSubmittedIds = [];
+    this.orderSub = 0;
+    this.log('phase', `—— 第 ${this.roundNo} 回合 · 行动排序判定（二次判定：资格者亲自出拳）——`, undefined, true);
+    this.log('info', '二次判定只决定行动先后、不剥夺行动资格；输者整组先动、赢者整组靠后，同侧继续判定');
+    this.startOrderSubRound();
+  }
 
+  /**
+   * 服务端代掷排序（`secondJudgeMode: 'serverRoll'`，自动化用例 / 机制测试场使用）。
+   *
+   * 与交互版严格同源的两条约定：
+   *  1. **领域不参与二次判定**（不传 tieWin：平局就是平局，重掷）；
+   *  2. **不写判定历史**（不传 history sink：大屁孩等只受回合判定影响）。
+   */
+  private beginActionPhaseServerRoll(winners: PlayerId[]): void {
     const roll = (pids: PlayerId[]) => rollThrows(pids, this.rng);
-    const tieWin = (cands: PlayerId[]) => this.tieWinHolder(cands);
-    const { order, rounds } = resolveActionOrder(winners, roll, tieWin, {
-      append: (pid, step, stage, sub) => this.appendJudgeHistory(pid, step, stage, sub),
-    });
+    const { order, rounds } = resolveActionOrder(winners, roll);
     this.judgeRecords.push(...rounds);
     for (const r of rounds) r.round = this.roundNo;
     if (rounds.length > 0) this.lastReveal = rounds[rounds.length - 1];
     if (this.phase === 'over') return; // 排序判定过程中可能触发自爆等导致终局
     const aliveOrder = order.filter((pid) => this.players[pid].alive);
-    this.qualified = winners.filter((pid) => this.players[pid].alive);
+    this.qualified = aliveOrder;
     this.queue = aliveOrder;
     this.actIndex = 0;
 
@@ -469,6 +511,125 @@ export class Game implements GameLike {
       }
     }
     this.log('order', `⭐ 行动顺序（二次判定胜负决定，输者先动）：${aliveOrder.map(nameOf).join(' → ')}`, undefined, true);
+    this.phase = 'act';
+    this.advanceQueue(true);
+  }
+
+  // ─── 二次判定（行动排序）：玩家亲自出拳（player 模式） ────────
+
+  /** 当前排序子轮等待出拳的玩家（非 rps2 阶段为空数组） */
+  currentOrderGroup(): PlayerId[] {
+    return this.phase === 'rps2' ? [...this.orderGroup] : [];
+  }
+
+  /**
+   * 二次判定出拳（隐藏提交，与 rps1 同语义）。
+   *
+   * 只有「当前子轮参与组」内、尚存活且本子轮未提交的玩家能出拳；
+   * 全组提交完毕后立即结算该子轮。领域不参与判定，也不写角色判定历史。
+   */
+  submitOrderThrow(pid: PlayerId, t: Throw): ActionResult {
+    if (this.phase !== 'rps2') return { ok: false, error: '当前不是行动排序出拳阶段' };
+    const p = this.players[pid];
+    if (!p || !p.alive) return { ok: false, error: '玩家不存在或已淘汰' };
+    if (!this.orderGroup.includes(pid)) return { ok: false, error: '不在本子轮的出拳名单内' };
+    if (this.orderSubmittedIds.includes(pid)) return { ok: false, error: '本子轮已出拳，不能重复提交' };
+    if (!['rock', 'scissors', 'paper'].includes(t)) return { ok: false, error: '非法出拳' };
+    this.orderPending[pid] = t;
+    this.orderSubmittedIds.push(pid);
+    const waiting = this.orderGroup.filter((x) => this.players[x].alive && !this.orderSubmittedIds.includes(x));
+    if (waiting.length === 0) this.resolveOrderSubRound();
+    return { ok: true };
+  }
+
+  /** 超时兜底：为当前排序子轮未提交者代掷（服务端调用，不泄露给客户端） */
+  forceFillOrderThrows(): void {
+    if (this.phase !== 'rps2') return;
+    for (const pid of [...this.orderGroup]) {
+      if (this.phase !== 'rps2') return;
+      if (!this.players[pid].alive) continue;
+      if (this.orderSubmittedIds.includes(pid)) continue;
+      this.submitOrderThrow(pid, randomThrow(this.rng));
+      this.log('info', `${this.players[pid].name} 超时，系统代掷排序出拳`);
+    }
+  }
+
+  /** 取下一个待出拳的组；组内只剩 0/1 人时直接确定顺序，全部排完则进入行动阶段 */
+  private startOrderSubRound(): void {
+    if (this.phase !== 'rps2') return;
+    while (this.orderQueue.length > 0) {
+      const group = this.orderQueue.shift()!;
+      const alive = group.filter((pid) => this.players[pid].alive);
+      if (alive.length <= 1) {
+        this.orderOrder.push(...alive);
+        continue;
+      }
+      this.orderGroup = alive;
+      this.orderPending = {};
+      this.orderSubmittedIds = [];
+      const names = alive.map((pid) => this.players[pid].name).join('、');
+      this.log('phase', `行动排序出拳（子轮 ${this.orderSub + 1}）：等待 ${names} 出拳`, undefined, true);
+      return;
+    }
+    this.finishOrdering();
+  }
+
+  /**
+   * 结算当前排序子轮。
+   *
+   * 领域（tieWin）**不参与**二次判定；判定历史也不写 rps2（大屁孩的攻击/自爆只看回合判定）。
+   * 胜负决定顺序：输者整组排前、赢者整组排后；平局（同拳 / 三人循环）同组重掷。
+   */
+  private resolveOrderSubRound(): void {
+    if (this.phase !== 'rps2') return;
+    const group = this.orderGroup.filter((pid) => this.players[pid].alive);
+    this.orderGroup = [];
+    if (group.length <= 1) {
+      this.orderOrder.push(...group);
+      this.orderPending = {};
+      this.orderSubmittedIds = [];
+      this.startOrderSubRound();
+      return;
+    }
+    const sub = ++this.orderSub;
+    if (sub > 10000) throw new Error('二次判定子轮数超出安全上限');
+    const outcome = resolveSubRound(this.orderPending, group);
+    const rec: JudgeRoundRecord = {
+      stage: 'rps2', sub, round: this.roundNo,
+      throws: { ...this.orderPending },
+      outcome: outcome.status,
+      winners: outcome.winners, losers: outcome.losers,
+    };
+    this.judgeRecords.push(rec);
+    this.lastReveal = rec;
+    const throwsDesc = group
+      .map((pid) => `${this.players[pid].name}:${this.throwName(this.orderPending[pid]!)}`)
+      .join('，');
+    const names = (ids: PlayerId[]) => ids.map((pid) => this.players[pid].name).join('、');
+    if (outcome.status === 'resolved') {
+      this.log('judge', `行动排序（子轮 ${sub}，${throwsDesc}）：${names(outcome.winners)} 胜出 → ${names(outcome.losers)} 优先行动`);
+      // 递归：输者整组先排、赢者整组后排（队列 FIFO，先放赢者再放输者）
+      this.orderQueue.unshift(outcome.winners);
+      this.orderQueue.unshift(outcome.losers);
+    } else {
+      this.log('judge', `行动排序（子轮 ${sub}，${throwsDesc}）：${outcome.status === 'cycle' ? '三人循环' : '同拳平局'}，重新出拳`);
+      this.orderQueue.unshift(group);
+    }
+    this.orderPending = {};
+    this.orderSubmittedIds = [];
+    this.startOrderSubRound();
+  }
+
+  /** 排序完成：落成行动队列并进入行动阶段 */
+  private finishOrdering(): void {
+    this.orderGroup = [];
+    this.orderPending = {};
+    this.orderSubmittedIds = [];
+    const aliveOrder = this.orderOrder.filter((pid) => this.players[pid].alive);
+    this.qualified = aliveOrder;
+    this.queue = aliveOrder;
+    this.actIndex = 0;
+    this.log('order', `⭐ 行动顺序（二次判定胜负决定，输者先动）：${aliveOrder.map((pid) => this.players[pid].name).join(' → ')}`, undefined, true);
     this.phase = 'act';
     this.advanceQueue(true);
   }
@@ -975,6 +1136,13 @@ export class Game implements GameLike {
     this.qualified = [];
     this.queue = [];
     this.actIndex = 0;
+    // 二次判定（排序）交互状态：每回合重置
+    this.orderQueue = [];
+    this.orderGroup = [];
+    this.orderOrder = [];
+    this.orderPending = {};
+    this.orderSubmittedIds = [];
+    this.orderSub = 0;
     this.judgeRecords = [];
     this.entrantOrder = this.aliveIds();
     this.roundSummary = [];
@@ -1018,10 +1186,19 @@ export class Game implements GameLike {
    * 最后跨回合回退到上一轮判定（平局回合翻页后，揭示台仍显示上一轮出拳）。
    */
   revealInfo(): RevealInfo | null {
+    // rps2 阶段优先揭示「最近一次已结算的排序子轮」：玩家每出完一轮出拳就能看到彼此的手势；
+    // 尚未结算任何排序子轮时回退到回合判定（仍展示获得资格的那次判定结果）。
+    if (this.phase === 'rps2') {
+      const rps2 = this.judgeRecords.filter((r) => r.stage === 'rps2');
+      if (rps2.length > 0) return this.toRevealInfo(rps2[rps2.length - 1]);
+    }
     const rps1 = this.judgeRecords.filter((r) => r.stage === 'rps1');
     const rec = rps1.length > 0 ? rps1[rps1.length - 1]
       : (this.judgeRecords.length > 0 ? this.judgeRecords[this.judgeRecords.length - 1] : this.lastReveal);
-    if (!rec) return null;
+    return rec ? this.toRevealInfo(rec) : null;
+  }
+
+  private toRevealInfo(rec: JudgeRoundRecord): RevealInfo {
     return {
       round: rec.round ?? this.roundNo,
       stage: rec.stage,
@@ -1031,6 +1208,18 @@ export class Game implements GameLike {
       winners: [...(rec.winners ?? [])],
       losers: [...(rec.losers ?? [])],
     };
+  }
+
+  /**
+   * 本回合最近一次已结算的**排序子轮**。
+   * 行动阶段仍需要它来解释「为什么是这个行动顺序」（排序通常一子轮就结束，
+   * 若只依赖 revealInfo 的 rps1 优先策略，玩家几乎看不到排序判定的拳种与胜负）。
+   */
+  orderRevealInfo(): RevealInfo | null {
+    const rps2 = this.judgeRecords.filter((r) => r.stage === 'rps2' && (r.round ?? this.roundNo) === this.roundNo);
+    const rec = rps2.length > 0 ? rps2[rps2.length - 1]
+      : (this.lastReveal && this.lastReveal.stage === 'rps2' ? this.lastReveal : null);
+    return rec ? this.toRevealInfo(rec) : null;
   }
 
   snapshot(): Record<string, unknown> {
@@ -1060,6 +1249,13 @@ export class Game implements GameLike {
       judgeRecords: this.judgeRecords.map((r) => ({ ...r, throws: { ...r.throws } })),
       /** 已揭示的出拳（全员可见）；提交阶段为 null，不泄露任何拳种 */
       reveal: this.revealInfo(),
+      /** 本回合最近一次排序子轮的揭示（行动阶段用来解释行动顺序来源） */
+      orderReveal: this.orderRevealInfo(),
+      /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
+      orderGroup: this.phase === 'rps2' ? [...this.orderGroup] : [],
+      orderSubmittedIds: [...this.orderSubmittedIds],
+      orderResult: [...this.orderOrder],
+      orderSub: this.orderSub,
       /** 局内战绩（每人一份，纯统计） */
       stats: Object.fromEntries(this.playerIds.map((pid) => [pid, { ...this.stats[pid] }])),
       /** 领域持有者（全场唯一；null 表示当前无领域生效） */

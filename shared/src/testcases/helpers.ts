@@ -45,7 +45,9 @@ export function makeGame(
   );
   const game = new Game({
     seed,
-    rules,
+    // 自动化用例不驱动「二次判定亲自出拳」的交互流程：默认改用服务端代掷排序（与线上规则同源，
+    // 只是出拳来源不同）。需要验证交互排序的用例显式传 rules 覆盖即可。
+    rules: { secondJudgeMode: 'serverRoll', ...(rules || {}) },
     chars: CHARACTERS,
     players: specs.map((s) => ({ id: s.id, name: s.id, charId: s.char, type: 'local' as const })),
   });

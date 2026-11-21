@@ -16,6 +16,7 @@ const ROSTER = ['default', 'bagun', 'chuixiao', 'gojo', 'mabaoguo', 'wuliuqi', '
 function makeAiGame(seed: number, count: number, chars: string[] = ROSTER): Game {
   return new Game({
     seed,
+    rules: { secondJudgeMode: 'serverRoll' },
     chars: CHARACTERS,
     players: Array.from({ length: count }, (_, i) => ({
       id: `AI${i + 1}`, name: `AI${i + 1}`, charId: chars[i % chars.length], type: 'ai' as const,
