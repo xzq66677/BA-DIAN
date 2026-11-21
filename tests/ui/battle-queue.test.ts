@@ -295,6 +295,39 @@ describe('队列播放', () => {
     expect(kinds.has('attackDecl')).toBe(false); // fast 模式丢弃低重要度事件
   });
 
+  it('极端拥堵保留重大簇：淘汰/复活/大伊万不被积压丢弃（Phase D）', { timeout: 30000 }, async () => {
+    const { q, started } = collect();
+    const logs: LogLike[] = [];
+    let seq = 0;
+    // 大量普通伤害积压（> turbo 阈值）+ 夹杂一次淘汰与一次复活
+    for (let i = 0; i < 20; i++) {
+      logs.push(log(++seq, 'damage', { target: `T${i}`, source: 'A', amount: 1, hpBefore: 3, hpAfter: 2 }));
+      logs.push(log(++seq, 'action', { pid: 'A', fx: 'attack', label: '攻击' }));
+      if (i === 7) logs.push(log(++seq, 'eliminate', { pid: 'T7' }, true));
+      if (i === 13) logs.push(log(++seq, 'trigger', { pid: 'T13', livesLeft: 2 }, true));
+    }
+    q.pushLogs(logs);
+    await drain(q, 15000);
+    // 重大事件必须被演出（普通伤害被丢弃是允许的）
+    expect(started.some((e) => e.kind === 'eliminate' && e.targetId === 'T7')).toBe(true);
+    expect(started.some((e) => e.kind === 'revive' && e.targetId === 'T13')).toBe(true);
+  });
+
+  it('极端拥堵保留致命一击簇（lethal damage 不被丢弃）', { timeout: 30000 }, async () => {
+    const { q, started } = collect();
+    const logs: LogLike[] = [];
+    let seq = 0;
+    for (let i = 0; i < 20; i++) {
+      logs.push(log(++seq, 'damage', { target: `T${i}`, source: 'A', amount: 1, hpBefore: 3, hpAfter: 2 }));
+      logs.push(log(++seq, 'action', { pid: 'A', fx: 'attack', label: '攻击' }));
+      if (i === 10) logs.push(log(++seq, 'damage', { target: 'T10', source: 'A', amount: 3, hpBefore: 3, hpAfter: 0, lethal: true }, true));
+    }
+    q.pushLogs(logs);
+    await drain(q, 15000);
+    const lethal = started.filter((e) => e.kind === 'damage' && e.lethal);
+    expect(lethal.some((e) => e.targetId === 'T10')).toBe(true);
+  });
+
   it('极端拥堵：丢弃最旧积压、保留最新事件（最新事件不丢演出）', { timeout: 30000 }, async () => {
     const { q, started, flushes } = collect();
     const logs: LogLike[] = [];

@@ -65,6 +65,13 @@ export class Humanoid {
     this.legR = { pivot: new THREE.Group(), mesh: new THREE.Mesh(legGeo.clone(), matDark), mat: matDark };
     this.legL.pivot.position.set(-0.13, 0.56, 0);
     this.legR.pivot.position.set(0.13, 0.56, 0);
+    const shoeGeo = new THREE.BoxGeometry(0.15, 0.09, 0.22);
+    const shoeL = new THREE.Mesh(shoeGeo, matDark);
+    shoeL.position.set(0, -0.52, 0.04);
+    const shoeR = new THREE.Mesh(shoeGeo.clone(), matDark);
+    shoeR.position.set(0, -0.52, 0.04);
+    this.legL.mesh.add(shoeL);
+    this.legR.mesh.add(shoeR);
     this.legL.pivot.add(this.legL.mesh);
     this.legR.pivot.add(this.legR.mesh);
 
@@ -75,6 +82,19 @@ export class Humanoid {
     belt.position.y = 0.03;
     this.torso.add(chest, belt);
     this.torso.position.y = 0.56;
+
+    // ── 剪影细节：肩部块（轮廓更分明，低模辨识度提升） ──
+    const shoulderGeo = new THREE.BoxGeometry(0.16, 0.14, 0.3);
+    const shoulderL = new THREE.Mesh(shoulderGeo, matMain);
+    shoulderL.position.set(-0.27, 0.44, 0);
+    const shoulderR = new THREE.Mesh(shoulderGeo.clone(), matMain);
+    shoulderR.position.set(0.27, 0.44, 0);
+    this.torso.add(shoulderL, shoulderR);
+
+    // ── 发型/帽兜块（accent 色，头顶轮廓差异化） ──
+    const hair = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.12, 0.36), matAccent);
+    hair.position.y = 0.17;
+    this.headGrp.add(hair);
 
     // ── 手臂（肩部枢轴） ──
     const armGeo = new THREE.CylinderGeometry(0.065, 0.06, 0.46, 8);

@@ -538,3 +538,118 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | T-1806 | 测试分布核实 | 282 = 共享用例 108 + 领域 20 + 战斗演出事件 14 + 演出队列 23 + 广播游标 4 + 退出/占用 7 + AI 回归与难度 15 + 联机集成 11 + 超时兜底 6 + 隐藏出拳 4 + 战绩 4 + 互动 4 + 回放 3 + 多局日志 6 + 音效 3 + UI 组件 11 + 退出逃生口 1 + battle3d 27 + 终局延迟呈现 6 + E2E 5（逐文件实测核对） |
 
 
+
+
+---
+
+## 二十三轮 · V4.3：3D 战场稳定性与体验闭环（2026-11-21）
+
+> 承接 V4.2（HEAD=db9cf08 前的工作区，用户随后将 B-031 根因修复与 GL 会话降级连同 V4.2 内容提交为 db9cf08）。本轮目标：B-031 根因定位与修复、长局可靠性验证、演出节奏分级、移动端复验。全程未提交、未推送、未部署；构建全部输出 dist-dev（:3200），e2e 走 dist-e2e，client/dist 与 server/dist 未触碰。
+
+### B-031 根因定论与修复（本轮核心成果）
+
+| 编号 | 项 | 内容 | 证据 |
+|---|---|---|---|
+| T-1901 | **根因实证** | `Battle3D.tsx` 的 `useState(!detectWebGL())` 非懒初始化：Battle3D 作为函数被 GameInner 每次渲染调用，`detectWebGL()` 每次同步创建一个**不释放的 WebGL 探测上下文**；AI 局广播频繁 → 存活上下文数累计触达 Chromium 上限（16）→「驱逐最旧存活上下文」，GC 已回收旧探测画布时被驱逐的正是主游戏画布。完美解释 B-031 全部既有特征：无 JS 错误、与 GPU 负载无关（SwiftShader/硬件 GPU 都复现）、非确定性、多发于快照广播期 | 探针实证：对局中等价调用 24 次后主画布 `webglcontextlost` + 控制台 `Too many active WebGL contexts`（.tmp-build/probe-ctx2.ts）；修复后完整对局 getContext(webgl) 调用数恒为 4（挂载期），全程 0 丢失 0 警告 |
+| T-1902 | **根因修复** | ① `useState(() => !detectWebGL())` 懒初始化（只执行一次）；② `detectWebGL()` 与 scene.ts 构造器探针用 `WEBGL_lose_context.loseContext()` 即时释放 | A/B 对比实测（见 T-1901） |
+| T-1903 | **Phase C 会话降级策略**（gl-policy.ts） | 每次上下文丢失计数（sessionStorage，跨 Game 挂载存活）：会话累计 ≥3 次或 60s 内 ≥2 次 → 本会话持续降级 2D（防重建循环崩溃）；恢复窗口 500ms→4000ms（GPU 进程重启秒级，500ms 易误降级）；恢复成功但已达阈值 → 主动降级（宁可 2D 不再冒循环风险）；用户在 UI 主动切 3D → 清除降级标记重新计数 | gl-policy 单测 5 例 + 端到端注入三场景全过（A 恢复路径/4s 超时回退/重载持久降级，.tmp-build/soak-ctx.ts） |
+| T-1904 | **Phase A 诊断日志**（gllog.ts） | 环形缓冲（240 条）记录 scene-init（渲染器/软件渲染/像素比）/ctx-lost/ctx-restored（含恢复耗时）/ctx-lost-timeout/fallback-2d/degrade-after-restore/scene-disposed，每条带时间戳/回合/阶段/场景统计；`window.__b3log` 取证探针；只读观测，不影响游戏逻辑 | 单测 4 例；注入测试 gllog 留痕完整核对 |
+| T-1905 | **恢复后状态一致性** | three r187 在 `webglcontextrestored` 自动重建 GL 资源（源码核对 `onContextRestore→initGLContext`）；场景层再强制一次 `resize()` 重建绘制缓冲 | 注入测试 A：恢复后 entities 4→4 一致、继续渲染 |
+
+### 渲染器切换生命周期修复（审查发现）
+
+| 编号 | 项 | 内容 | 证据 |
+|---|---|---|---|
+| T-1906 | **3D↔2D 切换资源泄漏** | 原实现：挂载 effect 依赖 `[failed]`，切 2D 后 view div 卸载但 scene 不 dispose（raf 循环 + WebGL 上下文持续空转）；2D 模式无任何切回 3D 的入口。修复：Battle3D 增加 `active` 生命周期参数（false → dispose）；场景重建以 epoch 代数驱动快照/演出/高亮/reduced-motion 立即水合（不等下一次广播）；2D 模式提供「3D」按钮（对称闭环） | soak-toggle.ts：切 2D → scene 卸载 + bt-table 接管；切回 3D → entities/rooms 立即恢复 4/4，gllog 记录 disposed→created；0 JS 错误 |
+
+### Phase B 长局压力验证（soak3d.ts，新增脚本）
+
+| 场景 | 结果 |
+|---|---|
+| 多局连续对局（restart→大厅→再开局） | g1 182 事件/15 回合 + g2 连续局 108 事件/10 回合 + g3 gojo 473 事件/48 回合，三局全部完整结束、场景复用无重建 |
+| 后台暂停/恢复 | document.hidden 模拟：暂停中 0 fps，恢复后帧率与暂停前一致（12→13fps；随后 29fps 为演出期空闲降帧解除的正常表现，无双启动特征） |
+| WebGL 上下文丢失注入 | 恢复路径（2s 后 restoreContext → 继续渲染状态一致）/不恢复路径（4s 窗口超时 → fallback-2d → 2D 牌桌推进 8 个动作）/会话持久降级（标记 → 重载直接 2D）三场景全过 |
+| 资源观测量 | 三局 heap 12~13MB 稳定；DOM 节点随事件数正常波动（377~1110）；全程 **0 JS 错误 / 0 上下文丢失 / 0 "Too many contexts" 警告** |
+
+### Phase D 演出分级与节奏
+
+| 编号 | 项 | 内容 |
+|---|---|---|
+| T-1907 | **镜头聚焦三级优先级** | S 级（终局/大伊万链/领域/复活）> A 级（淘汰/AOE）> B 级（攻击宣告/移动/行动者切换）；高优先级保持期内忽略低优先级请求（防争抢）；聚焦令牌化（新聚焦使旧衰减定时器失效，防旧定时器提前压低新聚焦）。B 级聚焦权重/时长收敛（宣告 0.42/800ms→0.34/700ms，移动 0.3/900→0.24/650ms） |
+| T-1908 | **复活聚焦补全** | playRevive 此前无聚焦（S 级事件缺镜头价值）→ 补 S 级聚焦 0.6/1100ms；队列 revive 时长 700→820ms 对齐金色爆发+起身可读时长 |
+| T-1909 | **拥堵丢弃保留 S/A 级簇**（本轮 Phase D 实质改进） | 时间线探针发现：AI 局后半段日志批量涌入（实测 131~473 条一瞬到达）→ 旧策略「丢弃全部旧积压」把大伊万/淘汰/领域也丢掉 → 终局前几乎无演出。改进：turbo 丢弃只清 B 级簇（eliminate/revive/domain/ivanThrow/ivanBoom/lethal damage 保留）；fast 模式重大事件时长 260→420ms 下限（可辨认）；保留上限循环优先丢非重大簇。验证：终局窗口演出活动从 0~3 浮层提升至 5~7 持续；gojo 矩阵 reviveBurst ×9 / domainTicker 36~69 次捕获恢复 | 
+
+### Phase E 打击感
+
+| 编号 | 项 | 内容 |
+|---|---|---|
+| T-1910 | 受击挤压（squash & stretch） | 受击瞬间 260ms 体积脉冲（y 压缩 16% / xz 膨胀 9%），基准缩放取实体创建值（连续受击不累积漂移）；reduced-motion 时禁用 |
+| T-1911 | 致命/重击微慢动作 | lethal 或 amount≥3 时全体演出 90ms 慢速一拍（dt×0.15，纯视觉；结算与演出队列时序不受影响）；reduced-motion 时禁用 |
+
+### Phase F 移动端验证（mobile3d-check.ts，新增脚本；模拟视口）
+
+| 视口 | 结果 |
+|---|---|
+| 390×844（竖屏） | 无横向溢出；**发现并修复：揭示板与「视角/2D」按钮组重叠 12px**（CSS 预留 104px < 按钮组实际 108px → 预留改 116px，复测重叠=false）；受击/淘汰演出捕获 ✓；触摸轨道拖拽（pointer 事件）0 错误 ✓；2D 回退 ✓；行动坞占战场高 46%（设计内） |
+| 844×390（横屏） | 全部检查通过（重叠=false、行动坞占 25%、无溢出、0 JS 错误、2D 回退 ✓） |
+| ⚠️ 标注 | 本验证为 Playwright 设备视口模拟（无真实触屏/GPU/浏览器内核差异）；顶栏按钮高 23px 为 V4.2 有意紧凑化，实机触摸体验建议真机复核 |
+
+### 演出矩阵回归（pres3d-matrix.ts，随机 + gojo 双轮）
+
+| 视口 | 随机轮 | gojo 轮 | JS 错误 / ctxLost |
+|---|---|---|---|
+| desktop 1440×900 | attackBeam, walk3d | attackBeam, domainTicker, hitFloat, **reviveBurst**（seen: domain 36 + revive 9） | 0 / 0 |
+| narrow 390×844 | attackBeam, walk3d | attackBeam, domainTicker, hitFloat（seen: domain 41） | 0 / 0 |
+| landscape 844×390 | attackBeam, domainTicker | attackBeam, domainTicker（seen: domain 69） | 0 / 0 |
+
+- 随机轮早期 captured 偏少 → 时间线探针定性为对局日志「批量涌入 + 旧拥堵策略丢全部积压」所致（非演出链回归）→ T-1909 修复后 S 级捕获恢复。矩阵截图见 `docs/screenshots-v4/v43/`。
+
+### 工程验收
+
+| 编号 | 项 | 结果 |
+|---|---|---|
+| T-1912 | tsc --noEmit | client/server 双 0 错误（多轮复验） |
+| T-1913 | npm test | **21 文件 / 284 用例全部通过**（含真实 Chromium E2E 5 例；V4.2 基线 282 + 队列保留策略 2 + battle3d gl-policy/gllog 9 - 分布重核；逐项跑通无跳过） |
+| T-1914 | 构建隔离 | dist-dev 多轮构建（:3200 开发实例验证用）；e2e 独立 dist-e2e（B-030 在位）；client/dist 与 server/dist 零触碰 |
+| T-1915 | 交付边界 | 未提交、未推送、未部署、未动生产配置。注：用户在会话中自行将 B-031 根因修复/GL 会话降级/切换修复之前的部分连同 V4.2 内容提交（db9cf08），本轮其余增量（切换生命周期/D/E/F/拥堵保留/脚本/截图）保留在工作区未提交 |
+| T-1916 | 新增文件 | client/src/battle3d/gllog.ts、gl-policy.ts；scripts/soak3d.ts、mobile3d-check.ts；docs/screenshots-v4/v43/（15 张取证） |
+
+### V4.3 遗留与下一阶段建议
+
+1. **真实环境复核**：B-031 根因修复后需在真机（手机/桌面硬件浏览器）长局观察确认零丢失；会话降级策略在真实驱动崩溃场景的表现待实机反馈。
+2. **降级阈值可调**：B3D_MAX_LOST=3 / 60s 窗口为经验值，如真实环境出现过早降级可参数化暴露。
+3. **演出时长分级再校准**：fast 模式重大事件 420ms 下限在极高频对局（gojo 12+ 复活/局）的累计停留时长可再观察。
+4. **顶栏触摸热区**：23px 高的顶栏按钮在真机上的可点性待反馈（V4.2 紧凑化决策，本轮未动）。
+5. 本轮验证均为模拟视口/无头 Chromium；实机横竖屏切换、真实触控轨道手感未覆盖。
+
+
+---
+
+## 二十四轮 · V4.4：3D 战场体验迭代（用户 11 项需求，2026-11-21）
+
+> 用户实测反馈 11 项（含 2 张真实游玩截图）。原则同前：不动规则/数值/结算；构建全部 dist-dev；未提交未推送未部署。
+
+| # | 需求 | 实现 | 验证 |
+|---|---|---|---|
+| 1 | 移动房间要有行走动画 | **根因修复**：快照与演出同批到达时，快照 effect 先于演出 effect → 实体已被 syncEntity **瞬移**到新房间，随后的 playWalk 起终点相同 → 动画不可见。修复：抽出 startWalkTo 共用，syncEntity 房间迁移改为「从当前位置平滑走到新槽位」（快照权威=终态，视觉=过渡）；playWalk 复用同一函数保留尘土+聚焦 | 三局实测 debugStats.walks>0（AI 移动可见行走） |
+| 2 | 点战场房间直接选房，不要下拉 | 3D 选房行动时：全部房间石台绿光高亮（edge/beacon 变绿）；confirm-bar 用 `.room-pick-hint` 提示替代 select 下拉；**3D 模式不预填房间**（防误确认移动到默认房），确认按钮在选择前禁用；2D 牌桌保留下拉 | E2E：下拉=0、提示联动、点击 R2 → 已选+确认可用（两回合复验） |
+| 3 | 看板太大挡视线 | 3D 揭示板：顶部居中 → **左上角**（width min(56%,470px)）；隐藏长说明文案；等待列表/揭示卡/判定行密度收紧 | E2E：x=8、宽 37%，不再遮挡远端房间 |
+| 4 | 死亡尸体及时回收 | killPose 后 2.6s 淡出（0.8s tween）→ rig.root.visible=false；名牌保留「淘汰」徽标；复活 standUp 恢复可见 | debugStats 新增 bodiesHidden 计数，实测峰值 3 |
+| 5 | 建模优化+打击感 | rig 剪影细节：肩部块/发型块（accent 色）/鞋块；打击感：受击**击退位移**（沿攻击来源方向推开回弹）+ 命中**白闪→红闪两段**（先白一瞬再红）；叠加 V4.3 squash/hitstop | 三局 0 错误；截图目视轮廓更分明 |
+| 6 | 房内直接再来一局 | 服务端 `restart({autoStart})`：重置后立即以原座位开局（一次广播，不回大厅中间态）；`room:restart` handler 传 autoStart:true；**无参 restart 行为不变**（回大厅），存量测试全兼容 | E2E：「再来一局」→ 0s 内进入新局（无 .seat-slot 大厅闪现）→ 新局健康运行（logs 86~154） |
+| 7 | 喝牛奶/今日运势全局播报 | 播报链路：pres 新增 announce 桶 → 战场中央上方 `.global-announce` 横幅（3D/2D 共用，2.1s 自动消失）；milk 由既有 action fx 触发；**引擎 fortune trigger 日志补结构化 data {pid,fortune,roll}**（同 B-032 手法，不动规则） | E2E：运势/牛奶横幅均捕获；queue BASE_MS.fortune=900、fortune 入拥堵保留名单 |
+| 8 | 躲藏目标点不了要说原因 | pickTargetOrDetail 四分支原因提示：👻隐身 / 🙈躲藏（注明 AOE 与无视躲藏仍可命中）/ ⚔异房间近战不可及 / 🎯远程需先瞄准 | 逻辑实现+TS 通过；端到端机会性验证未稳定复现（依赖 AI 躲藏行为），如实标注 |
+| 9 | 运势用后技能卡灰化 | 快照 `char.fortuneUsed`（引擎已有状态，全量下发）→ options 标记 used → scard `is-used` 灰化+disabled+「🚫 本局已使用」 | E2E 诊断：is-used 类与 disabled property 均在（初判误报系 React 用 DOM property 渲染 disabled，getAttribute 为 null） |
+| 10 | 两人 UI 重叠 | 名牌按房间成员序水平错开（58px×slot，updateOverlay 应用）；房间标签外移（1.7→2.0 半径）下移避让 | 截图复核：同房间 3 人名牌横向分散清晰 |
+| 11 | 看不到日志 | 顶栏「📜 日志」加**未读徽标**（抽屉收起时新增日志计数；挂载时已有日志不计入——修复 useRef 初始值竞态）；金色 badge 数字 | E2E：主循环捕获徽标「4」；调试日志证实 seen/unread 计算正确 |
+
+### 工程验收
+
+| 编号 | 项 | 结果 |
+|---|---|---|
+| T-1920 | tsc --noEmit | client/server 双 0 错误 |
+| T-1921 | npm test | **21 文件 / 284 用例全部通过**（含 E2E 5；restart 无参语义不变→存量 restart 测试零改动兼容） |
+| T-1922 | 新增文件 | .tmp-build/verify-v44*.ts（验证脚本，临时）；取证截图 D:/tmp/badian-shots/v44-*.png |
+| T-1923 | 交付边界 | 未提交/未推送/未部署；client/dist、server/dist、部署配置零触碰 |
+| T-1924 | 遗留 | ⑧躲藏提示的端到端机会性验证（依赖 AI 行为频率）；名牌错开 58px 步长在极端人数（6 人同房）下的观感待真机反馈；restart 直达开局后「返回房间大厅」入口仍保留在终局面板 |
+
