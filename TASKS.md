@@ -265,6 +265,46 @@
 | B-022 | 单人 vs AI 也布防 30s/45s 超时 → 出拳被代掷、行动被自动跳过（AI 即时应答，无人等待） | FIXED |
 | B-023 | 同房间第二局战斗日志不再更新：引擎 `logSeq` 每局从 1 重算，与上一局 seq 撞号 → 服务端增量过滤与客户端去重把新日志全当旧日志丢弃。改为 `Room` 维护跨局游标 `logSeqCursor` 作为 `GameConfig.logSeqOffset`，并下发 `gameNo` 让客户端在新局清空日志 | FIXED |
 
+## 十二轮 · Arena 视觉升级与专项核查（2026-11-20，进行中）
+
+### 阶段0 · 专项核查结论（以当前仓库实际代码为准）
+
+| 编号 | 核查项 | 结论 | 证据 |
+|---|---|---|---|
+| C-01 | `_lastLogSeq` 生命周期 | 基本正确，两处待改进 | `server/src/index.ts` broadcastRoom：每次广播推进游标、重连重置为 0 → 重连客户端补发最近 300 条（客户端按 seq 去重）。改进点：① 游标是「房间级单游标」，重连重置会让**所有**客户端重复收到 300 条（去重后无害但浪费带宽）→ 改为按 socket 定向补发；② 通过 `(room as any)._lastLogSeq` 隐藏字段挂载，应收编为 Room 正式字段 |
+| C-02 | `slice(-300)` 截断 | 安全，有界历史策略成立 | 服务端 `newLogs` 取增量后最多 300 条；快照始终权威，截断只影响日志历史展示，不影响状态一致性。同房间多局 seq 续接已由 T-1000/T-1002 修复并有 6 例回归 |
+| C-03 | seq 单调性/去重 | 正确 | 引擎 `logSeq` 私有自增；`Room.logSeqCursor` 跨局续接（restart 前先 syncLogSeqCursor）；room-logseq.test.ts 6 例全过 |
+| C-04 | Snapshot 与 newLogs 一致性 | 正确 | 快照已不携带日志（带宽优化），日志唯一通道是增量；重连补发覆盖断线窗口 |
+| C-05 | 快照差分猜测事件 | **确认存在（违反任务书要求）** | `Game.tsx` `flashMap` 用 `prevHp` ref 差分猜测伤害（受击闪烁+飘字）；heal 无反馈；move 无 from/to 反馈。修复：引擎补结构化字段，演出改由事件驱动 |
+| C-06 | `data.fx` 规范化 | 需规范化 | 引擎在 action 日志注入 `fx`（attack/move/heal/milk/skill），客户端还有 `l.type==='damage'&&d.source?'attack'` 之类的猜测回退。规范化为类型化 payload，淘汰猜测回退 |
+| C-07 | 演出与快照不一致/重复播放 | **确认存在** | ① fx key `${pid}-${fx}` 不含事件号 → 同类事件连续触发不重播动画；② `setTimeout(setActionFx({}),1400)` 全局清空所有 fx；③ `flashMap` 950ms 内第二次受击不重播、被击杀者(`!p.alive`)完全不闪；④ AOE 9 段伤害瞬时落定无分组演出；⑤ 重连后 `lastFxSeq=0` 会把补发的 300 条历史日志全部重播特效。→ 由 BattleEventQueue 统一解决 |
+| C-08 | 隐藏信息泄漏 | 未发现泄漏 | 快照不含 pendingThrows/histories；reveal 仅结算后子轮；日志无隐私内容；`char` 运行时字段（aim/stickDrawn/domain/insults/attackOverride/fortuneUsed）均为公开信息且已有公开日志 |
+| C-09 | Arena UI 功能保留 | 全部在位 | 卡牌/牌桌/揭示台/日志/丢番茄/战绩/横竖屏均在 Game.tsx + tcg.css，本任务只增不删 |
+| C-10 | CSS 体系复用 | 复用扩展 | tcg.css 变量/动画/组件体系完整，只追加新动画与降级规则，不推翻重建 |
+| C-11 | Replay 关闭 | 保持关闭 | `Game.tsx:78 REPLAY_ENABLED = false`，不改 |
+| C-12 | 测试数字以实测为准 | **实测 185/185 全过**（13 文件，含真实 Chromium E2E 4 例） | 本轮 `npm test` 实跑结果，README 数字与实测一致 |
+
+### 阶段0 补充发现
+
+| 编号 | 描述 | 状态 |
+|---|---|---|
+| B-024 | `Game.tsx` fx/flash 动画不可重播（React key 不含事件标识），同玩家连续同类动作第二次动画不播 | FIXED（演出队列接管，key=事件 seq） |
+| B-025 | 重连补发的历史日志会按 fx 规则重播特效（`lastFxSeq` 初始为 0），违反「重连后不重复播放」 | FIXED（`initFromLogs` 以接收水位初始化游标） |
+| B-026 | `App.tsx` `enterSession` 不重置 `gameNoRef`，跨房间加入时可能跳过一次新局清空 | FIXED（enterSession/exitSession 重置） |
+| B-027 | **E2E 构建把 React 开发版打进生产 bundle**：vitest 进程内 `NODE_ENV=test` 执行 `vite build`，dev React + StrictMode 双调用 effect（setup→cleanup→setup）会让演出队列被 cleanup 误杀。修复：E2E 构建强制 `NODE_ENV=production`（部署脚本 systemd 环境无 NODE_ENV，不受影响）；同时队列增加 `revive()` 兼容 StrictMode | FIXED（E2E 5/5 + revive 回归测试） |
+| B-028 | 拥堵策略两轮修正：① 按簇数判拥堵会把 AI 局正常节奏误判为拥堵并冲刷全部演出（正是任务书要解决的「瞬间刷完」）→ 改按**积压时长**判定；② 快速对局的整场日志一次性到达会触发全量冲刷 → 改为**丢弃最旧、保留最新**（最新事件永不丢演出） | FIXED（battle-queue.test.ts 21 例覆盖） |
+
+### P0-P2 实施记录（全部实测验证）
+
+| 编号 | 任务 | 状态 | 说明 |
+|---|---|---|---|
+| T-1200 | 结构化事件 schema（P0） | DONE | `types.ts` 新增 `BattleFxKind/AttackDeclEventData/DamageEventData/HealEventData/MoveEventData/EliminateEventData/ReviveEventData/ActionEventData`；`DamageRequest` 增 `groupId`；引擎补齐 攻击宣告/扣血(amount/hpBefore/hpAfter/lethal/room/groupId)/回复/移动(from/to)/淘汰(pid/cause/killer)/复活(livesLeft)/行动(fx+targetId+room) 全量结构化 data；旧数据客户端安全降级。回归：tests/battle-events.test.ts 14 例 |
+| T-1201 | 服务端广播游标收编（P0） | DONE | `_lastLogSeq` 从 index.ts 的 as-any 隐藏字段改为 `Room.broadcastLogSeq` + `takeNewLogs()/catchUpLogs()`；断线重连改为**按 socket 定向补发最近 300 条**（不再重置全局游标——否则其它客户端重复收历史）。回归：tests/broadcast-cursor.test.ts 4 例 |
+| T-1202 | BattleEventQueue（P0） | DONE | `client/src/battle/`：events.ts（日志→类型化演出事件，旧数据降级）+ queue.ts（分簇/幂等游标/分组/积压时长拥堵策略/倍速 1×2×4×/跳过本段/跳过全部/reduced-motion 时长收敛/StrictMode revive）。回归：tests/ui/battle-queue.test.ts 21 例 |
+| T-1203 | 演出 UI 集成（P0/P1/P2） | DONE | Game.tsx 删除快照差分 flashMap 与 fx 猜测逻辑，全部改由演出队列驱动：受击斩击（弹出+斜向斩击线+冲击闪光+震动+伤害飘字+HP条延迟平滑下降）、回复（柔光+上升数字+HP条上升）、移动（FLIP 卡片跨房间飞行+目标房间高亮+from→to 横幅）、淘汰（印章+灰化收尾）、复活（金色爆发）、AOE/伊万（房间脉冲告警+分组顺序）、未命中（不触发受击）。演出控制条（倍速/跳过本段/全部跳过，演出中浮现，不锁输入）。揭示卡逐张翻开节奏。CSS：斩击/治疗/死亡/复活/房间告警 keyframes + `prefers-reduced-motion` 全面降级 |
+| T-1204 | 浏览器实测（P3） | DONE | Playwright E2E 5/5（新增「战斗演出」用例：hitcut/dmg-float/控制条/HP条/无JS错误）；截图实测：斩击红闪+斜向斩击线+HP条下降（scripts/visual-check.ts、scripts/visual-hitcut.ts 可复跑） |
+| T-1205 | 回归测试 | DONE | **npm test：16 文件 / 225 用例全部通过**（原 185 + 新增 40：battle-events 14 + battle-queue 21 + broadcast-cursor 4 + e2e 演出 1）；`npm run build` 双端通过 |
+
 ## 遗留事项
 
 见 docs/KNOWN_ISSUES.md（今日勇者技能缺失、真实浏览器端到端受限、二次判定手动出拳 UI 未做等）。

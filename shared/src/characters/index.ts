@@ -236,6 +236,7 @@ const wuliuqi: CharDef = {
       return true;
     });
     game.log('damage', `⚔️ 伍六七释放三段AOE！释放房间 ${room}（攻击时固定），目标：${targets.map((pid) => game.players[pid].name).join('、') || '无'}`, undefined, true);
+    const aoeGroup = game.nextGroupId();
     for (let seg = 1; seg <= 3; seg++) {
       for (const pid of targets) {
         if (!game.players[pid].alive) continue; // 每段独立结算，段间死亡不再受击
@@ -247,6 +248,7 @@ const wuliuqi: CharDef = {
           aoe: true,
           segment: { index: seg, total: 3 },
           tag: 'wuliuqi-aoe',
+          groupId: aoeGroup,
         });
         if (game.isOver()) return { ok: true };
       }

@@ -11,6 +11,9 @@ import {
   type LogType, type DeferredEvent, type JudgeRoundRecord, type ActionRequest,
   type ActionResult, type GamePlayerConfig, type RuleConfig, type CharRuntimeState,
   type RevealInfo, type PlayerStats, emptyStats,
+  type BattleFxKind, type AttackDeclEventData, type DamageEventData,
+  type HealEventData, type MoveEventData, type EliminateEventData, type ReviveEventData,
+  type ActionEventData,
   DEFAULT_RULES, fmtNum,
 } from './types.js';
 import { RNG, randomThrow } from './rng.js';
@@ -70,6 +73,8 @@ export class Game implements GameLike {
   roundSummary: string[] = [];
   private deferredSeq = 0;
   private deathChainDepth = 0;
+  /** 事件组计数（AOE/多段/延迟伤害的演出分组标识） */
+  private eventGroupSeq = 0;
 
   constructor(config: GameConfig) {
     this.seed = config.seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
@@ -251,7 +256,16 @@ export class Game implements GameLike {
     if (!p || !p.alive) return;
     const before = p.hp;
     p.hp = Math.min(p.maxHp, Math.round((p.hp + amount) * 10000) / 10000);
-    this.log('heal', `${p.name} 回复 ${fmtNum(amount)}：${fmtNum(before)} → ${fmtNum(p.hp)}`);
+    const data: HealEventData = { target: pid, amount, hpBefore: before, hpAfter: p.hp };
+    this.log('heal', `${p.name} 回复 ${fmtNum(amount)}：${fmtNum(before)} → ${fmtNum(p.hp)}`, data as unknown as Record<string, unknown>);
+  }
+
+  /**
+   * 生成一个新的事件组标识（AOE / 多段 / 延迟伤害演出分组用）。
+   * 同一次行动产生的全部伤害应共享同一 groupId。
+   */
+  nextGroupId(): string {
+    return `GRP-${this.roundNo}-${++this.eventGroupSeq}`;
   }
 
   appendJudgeHistory(pid: PlayerId, step: JudgeStep, stage: 'rps1' | 'rps2', sub: number): void {
@@ -477,12 +491,21 @@ export class Game implements GameLike {
       if (req.type === 'heal') st.heals++;
       if (req.type === 'move') st.moves++;
     }
-    const fx = req.type === 'attack' ? 'attack'
+    const fx: BattleFxKind = req.type === 'attack' ? 'attack'
       : req.type === 'move' ? 'move'
       : req.type === 'heal' ? 'heal'
       : req.type === 'milk' ? 'milk'
+      : req.type === 'aim' ? 'aim'
+      : req.type === 'hide' ? 'hide'
+      : req.type === 'seek' ? 'seek'
+      : req.type === 'skip' ? 'skip'
       : 'skill';
-    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, { pid, fx, label: this.actionLabel(req) }, true);
+    const actionData: ActionEventData = {
+      pid, fx, label: this.actionLabel(req),
+      ...(req.targetId ? { targetId: req.targetId } : {}),
+      ...(req.room ? { room: req.room } : {}),
+    };
+    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, actionData as unknown as Record<string, unknown>, true);
     this.roundSummary.push(`${p.name} ${this.actionLabel(req)}`);
     if ((this.phase as GamePhase) === 'over') return { ok: true };
     this.actIndex++;
@@ -552,7 +575,8 @@ export class Game implements GameLike {
       p.hidden = false;
       this.log('state', `${p.name} 移动后现身（离开躲藏）`);
     }
-    this.log('move', `${p.name} 从 ${from} 移动到 ${room}`, { pid }, true);
+    const moveData: MoveEventData = { pid, from, to: room };
+    this.log('move', `${p.name} 从 ${from} 移动到 ${room}`, moveData as unknown as Record<string, unknown>, true);
     return { ok: true };
   }
 
@@ -597,7 +621,8 @@ export class Game implements GameLike {
       ?? (ranged
         ? (cd.rangedDamage ?? cd.attack ?? this.rules.defaultAttack)
         : (cd.meleeDamage ?? cd.attack ?? this.rules.defaultAttack));
-    this.log('damage', `${this.players[pid].name} ${ranged ? '远程' : '近战'}攻击 ${tp.name}（伤害 ${fmtNum(amount)}）`, undefined, true);
+    const decl: AttackDeclEventData = { declared: true, source: pid, target: targetId, amount, ranged, room: tp.room };
+    this.log('damage', `${this.players[pid].name} ${ranged ? '远程' : '近战'}攻击 ${tp.name}（伤害 ${fmtNum(amount)}）`, decl as unknown as Record<string, unknown>, true);
     this.applyDamage({
       target: targetId,
       amount,
@@ -612,7 +637,12 @@ export class Game implements GameLike {
     const p = this.players[pid];
     const before = p.hp;
     p.hp = p.maxHp;
-    this.log('heal', `${p.name} 回复：${fmtNum(before)} → ${fmtNum(p.hp)}（满血）`, { pid }, true);
+    const data: HealEventData = {
+      target: pid,
+      amount: Math.round((p.hp - before) * 10000) / 10000,
+      hpBefore: before, hpAfter: p.hp,
+    };
+    this.log('heal', `${p.name} 回复：${fmtNum(before)} → ${fmtNum(p.hp)}（满血）`, data as unknown as Record<string, unknown>, true);
     return { ok: true };
   }
 
@@ -670,7 +700,12 @@ export class Game implements GameLike {
     for (const { pid, cd } of transferHooks) {
       const r = cd.onBeforeDamage!({ game: this, req, owner: pid });
       if (r === 'skip') {
-        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`);
+        const cancelData: DamageEventData = {
+          target: req.target, source: req.source, missed: true,
+          dtype: req.dtype, tag: req.tag, aoe: req.aoe,
+          ...(req.groupId ? { groupId: req.groupId } : {}),
+        };
+        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`, cancelData as unknown as Record<string, unknown>);
         applied.missed = true;
         return applied;
       }
@@ -686,7 +721,12 @@ export class Game implements GameLike {
 
     // 2. 躲避判定：指向性攻击无法命中躲藏/隐身目标
     if ((tp.hidden || tp.invisible) && !req.aoe && !req.ignoreHide && !req.bypassHide) {
-      this.log('state', `${tp.name} 处于躲藏/隐身，${req.source ? this.players[req.source].name + ' 的' : ''}攻击未命中`);
+      const missData: DamageEventData = {
+        target: tp.id, source: req.source, missed: true,
+        dtype: req.dtype, tag: req.tag, aoe: req.aoe, room: tp.room,
+        ...(req.groupId ? { groupId: req.groupId } : {}),
+      };
+      this.log('state', `${tp.name} 处于躲藏/隐身，${req.source ? this.players[req.source].name + ' 的' : ''}攻击未命中`, missData as unknown as Record<string, unknown>);
       applied.missed = true;
       return applied;
     }
@@ -698,7 +738,12 @@ export class Game implements GameLike {
     for (const { pid, cd } of defenseHooks) {
       const r = cd.onBeforeDamage!({ game: this, req, owner: pid });
       if (r === 'skip') {
-        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`);
+        const cancelData2: DamageEventData = {
+          target: req.target, source: req.source, missed: true,
+          dtype: req.dtype, tag: req.tag, aoe: req.aoe,
+          ...(req.groupId ? { groupId: req.groupId } : {}),
+        };
+        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`, cancelData2 as unknown as Record<string, unknown>);
         applied.missed = true;
         return applied;
       }
@@ -714,11 +759,26 @@ export class Game implements GameLike {
     // 4. 结算
     const before = tp.hp;
     if (req.instakill) {
-      this.log('damage', `${tp.name} 受到秒杀效果（${req.tag || '伤害'}${req.segment ? ` 第${req.segment.index}/${req.segment.total}段` : ''}）`, undefined, true);
+      const killData: DamageEventData = {
+        target: tp.id, source: req.source, amount: before,
+        hpBefore: before, hpAfter: 0, lethal: true,
+        instakill: true, dtype: req.dtype, tag: req.tag,
+        segment: req.segment, aoe: req.aoe, room: tp.room,
+        ...(req.groupId ? { groupId: req.groupId } : {}),
+      };
+      this.log('damage', `${tp.name} 受到秒杀效果（${req.tag || '伤害'}${req.segment ? ` 第${req.segment.index}/${req.segment.total}段` : ''}）`, killData as unknown as Record<string, unknown>, true);
       tp.hp = 0;
     } else {
       tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
-      this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, { target: tp.id, source: req.source }, true);
+      const dmgData: DamageEventData = {
+        target: tp.id, source: req.source, amount: req.amount,
+        hpBefore: before, hpAfter: tp.hp, lethal: tp.hp <= 0,
+        dtype: req.dtype, tag: req.tag, segment: req.segment,
+        aoe: req.aoe, room: tp.room,
+        reflected: !!req.reflected, transferred: !!req.transferred,
+        ...(req.groupId ? { groupId: req.groupId } : {}),
+      };
+      this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, dmgData as unknown as Record<string, unknown>, true);
     }
 
     // 战绩：实际掉血量（秒杀按剩余血量计）
@@ -758,7 +818,8 @@ export class Game implements GameLike {
       p.hp = p.maxHp;
       p.hidden = false;
       p.invisible = false;
-      this.log('trigger', `💫 ${p.name} 消耗一条命（剩余 ${livesLeft - 1} 条），以 ${fmtNum(p.maxHp)} HP 复活！`, { pid }, true);
+      const reviveData: ReviveEventData = { pid, livesLeft: livesLeft - 1 };
+      this.log('trigger', `💫 ${p.name} 消耗一条命（剩余 ${livesLeft - 1} 条），以 ${fmtNum(p.maxHp)} HP 复活！`, reviveData as unknown as Record<string, unknown>, true);
       return;
     }
 
@@ -773,7 +834,8 @@ export class Game implements GameLike {
       this.log('trigger', `🌀 ${p.name} 的领域随其退场消失`, { pid }, true);
     }
     if (killer && killer !== pid && this.stats[killer]) this.stats[killer].kills++;
-    this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, undefined, true);
+    const elimData: EliminateEventData = { pid, cause, ...(killer && killer !== pid ? { killer } : {}) };
+    this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, elimData as unknown as Record<string, unknown>, true);
     this.roundSummary.push(`${p.name} 被淘汰（${cause}）`);
     this.qualified = this.qualified.filter((x) => x !== pid);
     // 注意：queue 不在此处过滤——已行动过的索引不应因淘汰而移位；
@@ -852,6 +914,7 @@ export class Game implements GameLike {
       } else if (ev.kind === 'ivan') {
         const members = this.roomMembers(ev.room);
         this.log('deferred', `💥 大伊万在 ${ev.room} 爆炸！爆炸时房间内成员：${members.length ? members.map((pid) => this.players[pid].name).join('、') : '（无存活玩家）'}`, undefined, true);
+        const ivanGroup = this.nextGroupId();
         for (const pid of members) {
           this.applyDamage({
             target: pid,
@@ -861,6 +924,7 @@ export class Game implements GameLike {
             instakill: true,
             noReflect: true,
             tag: 'ivan',
+            groupId: ivanGroup,
           });
         }
         if ((this.phase as GamePhase) === 'over') return;

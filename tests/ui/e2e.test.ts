@@ -18,7 +18,9 @@ let baseUrl = '';
 
 beforeAll(async () => {
   // B-014 教训：E2E 前强制重建客户端，防止 dist 陈旧（服务端走 vitest 实时转换，无需构建）
-  execSync('npx vite build client', { cwd: path.resolve(import.meta.dirname, '../..'), stdio: 'pipe' });
+  // B-027：构建必须以 NODE_ENV=production 执行 —— vitest 进程内 NODE_ENV=test 会把
+  // React 开发版打进 bundle（体积翻倍 + StrictMode 双调用 effect），E2E 就会测到非生产行为
+  execSync('npx vite build client', { cwd: path.resolve(import.meta.dirname, '../..'), stdio: 'pipe', env: { ...process.env, NODE_ENV: 'production' } });
   const mod = await import('../../server/src/index.js');
   const httpServer = (mod as unknown as { httpServer: import('node:http').Server }).httpServer;
   (mod as unknown as { startServer: (port?: number) => void }).startServer(0);
@@ -86,6 +88,72 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     await page.waitForTimeout(4000);
     const logs = await page.locator('.log-scroll .log-line').count();
     expect(logs).toBeGreaterThan(3);
+    await page.close();
+  });
+
+  it('战斗演出：结构化事件驱动受击斩击 / 演出控制条 / HP条 / 无JS错误', async () => {
+    const page = await newPage(browser);
+    const jsErrors: string[] = [];
+    page.on('pageerror', (e) => jsErrors.push(String(e)));
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
+
+    // 单人开局：2 个随机 AI（对局必有攻击/伤害/移动事件）
+    await page.locator('input[placeholder="输入昵称"]').fill('演出验证员');
+    const selects = page.locator('select');
+    await selects.nth(2).selectOption('2');
+    await page.getByRole('button', { name: /单人开局/ }).click();
+    await page.getByText(/行动坞/).waitFor({ timeout: 20000 });
+
+    const evidence = {
+      hitcut: 0, dmgFloat: 0, hpbar: 0, battleCtl: 0, zoneAlert: 0, moveBanner: 0, deathStamp: 0,
+    };
+    const sample = async () => {
+      const s = await page.evaluate(() => ({
+        hitcut: document.querySelectorAll('.hitcut').length,
+        dmgFloat: document.querySelectorAll('.dmg-float').length,
+        hpbar: document.querySelectorAll('.ccard-hpbar').length,
+        ctl: !!document.querySelector('.battle-ctl'),
+        zoneAlert: document.querySelectorAll('.zone-alert').length,
+        moveBanner: document.querySelectorAll('.move-banner').length,
+        deathStamp: document.querySelectorAll('.death-stamp').length,
+      })).catch(() => null);
+      if (!s) return;
+      evidence.hitcut = Math.max(evidence.hitcut, s.hitcut);
+      evidence.dmgFloat = Math.max(evidence.dmgFloat, s.dmgFloat);
+      evidence.hpbar = Math.max(evidence.hpbar, s.hpbar);
+      evidence.zoneAlert = Math.max(evidence.zoneAlert, s.zoneAlert);
+      evidence.moveBanner = Math.max(evidence.moveBanner, s.moveBanner);
+      evidence.deathStamp = Math.max(evidence.deathStamp, s.deathStamp);
+      if (s.ctl) evidence.battleCtl++;
+
+    };
+
+    // 自驱动若干回合（出拳 + 轮到时跳过），高频采样演出层
+    const t0 = Date.now();
+    while (Date.now() - t0 < 28000) {
+      await sample();
+      const veilBtn = page.locator('.pv-actions button').first();
+      if (await veilBtn.isVisible({ timeout: 200 }).catch(() => false)) await veilBtn.click();
+      const throwCard = page.locator('.throw-card').first();
+      if (await throwCard.isVisible({ timeout: 200 }).catch(() => false)) await throwCard.click();
+      const skip = page.locator('.scard', { hasText: '跳过' }).first();
+      if (await skip.isVisible({ timeout: 200 }).catch(() => false)) {
+        await skip.click();
+        const confirm = page.locator('.confirm-bar button', { hasText: '确认发动' }).first();
+        if (await confirm.isVisible({ timeout: 200 }).catch(() => false) && await confirm.isEnabled().catch(() => false)) {
+          await confirm.click();
+        }
+      }
+      await page.waitForTimeout(280);
+    }
+    await sample();
+
+    // 主断言：HP 条随卡面渲染（演出体系挂载）；观察到战场演出痕迹；全程无未捕获 JS 错误
+    expect(evidence.hpbar).toBeGreaterThanOrEqual(1);
+    const anyFx = evidence.hitcut + evidence.dmgFloat + evidence.battleCtl + evidence.moveBanner + evidence.zoneAlert;
+    expect(anyFx).toBeGreaterThan(0);
+    expect(jsErrors).toEqual([]);
     await page.close();
   });
 

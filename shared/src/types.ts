@@ -66,6 +66,11 @@ export interface DamageRequest {
   tag?: string;
   /** 原始效果附加（转移伤害时不随转移） */
   effects?: DamageEffect[];
+  /**
+   * 事件组标识（演出层用）：同一次行动产生的多段/AOE/延迟伤害共享一个 groupId，
+   * 前端据此把多个目标组织成一次分组演出（先突出房间，再逐目标受击）。
+   */
+  groupId?: string;
 }
 
 /** 伤害附带效果（状态、控制等）。转移伤害时被剥离。 */
@@ -98,6 +103,88 @@ export interface LogEntry {
   /** 重点事件（伤害/淘汰/触发/判定结果/回合小结等，前端高亮） */
   important?: boolean;
   data?: Record<string, unknown>;
+}
+
+// ─── 结构化事件负载（data 字段的类型化 schema） ────────────────
+//
+// 演出层（前端 BattleEventQueue）只信任这里的结构化字段，
+// 不通过快照 HP 差分或日志文本猜测事件（任务书硬约束）。
+// 所有字段对旧事件可缺省：前端对缺失字段安全降级。
+
+/** 演出提示类型：引擎在 action 日志上标注的视觉反馈类别 */
+export type BattleFxKind =
+  | 'attack' | 'heal' | 'move' | 'milk' | 'skill'
+  | 'aim' | 'hide' | 'seek' | 'skip';
+
+/** 攻击宣告（type:'damage' 且 declared=true）：扣血事件之前的「出手意向」提示 */
+export interface AttackDeclEventData {
+  declared: true;
+  source: PlayerId;
+  target: PlayerId;
+  amount: number;
+  ranged?: boolean;
+  room?: RoomId;
+}
+
+/** 实际扣血事件（type:'damage' 且非 declared）：受击演出的唯一权威来源 */
+export interface DamageEventData {
+  target: PlayerId;
+  /** 来源玩家（爆炸/暴走等无来源时缺省；均为公开信息） */
+  source?: PlayerId;
+  /** 实际伤害量（instakill 时为结算前 HP） */
+  amount?: number;
+  hpBefore?: number;
+  hpAfter?: number;
+  /** 致命伤害（后续会有 eliminate 事件衔接） */
+  lethal?: boolean;
+  dtype?: 'physical' | 'mental' | 'special';
+  tag?: string;
+  segment?: { index: number; total: number };
+  aoe?: boolean;
+  instakill?: boolean;
+  /** 未命中（躲藏/隐身/被完全抵消）——不触发受击演出 */
+  missed?: boolean;
+  /** 目标结算时所在房间（AOE 房间高亮用） */
+  room?: RoomId;
+  /** 事件组：AOE/多段/延迟伤害共用（同组演出分组呈现） */
+  groupId?: string;
+  reflected?: boolean;
+  transferred?: boolean;
+}
+
+export interface HealEventData {
+  target: PlayerId;
+  amount: number;
+  hpBefore: number;
+  hpAfter: number;
+  source?: PlayerId;
+}
+
+export interface MoveEventData {
+  pid: PlayerId;
+  from: RoomId;
+  to: RoomId;
+}
+
+export interface EliminateEventData {
+  pid: PlayerId;
+  cause: string;
+  /** 击杀者（本游戏内击杀者始终公开，与淘汰日志文本一致） */
+  killer?: PlayerId;
+}
+
+/** 命数消耗复活（如五条悟 2 条命） */
+export interface ReviveEventData {
+  pid: PlayerId;
+  livesLeft: number;
+}
+
+export interface ActionEventData {
+  pid: PlayerId;
+  fx: BattleFxKind;
+  label: string;
+  targetId?: PlayerId;
+  room?: RoomId;
 }
 
 /** 延迟事件（回合末结算，如大伊万） */

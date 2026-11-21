@@ -14,6 +14,7 @@ import { CHARACTERS } from '../../shared/src/characters/index.js';
 import type {
   PlayerId, ActionRequest, Throw, GamePlayerConfig, RuleConfig, AiDifficulty,
   InteractionEvent, InteractionKind, ReplayFrame, ReplayRecord, ReplaySummary, ReplayPlayer,
+  LogEntry,
 } from '../../shared/src/types.js';
 import { randomThrow, RNG } from '../../shared/src/rng.js';
 
@@ -100,6 +101,17 @@ export class Room {
   private logSeqCursor = 0;
   /** 第几局（1 起；重开累加。客户端据此清空上一局日志） */
   private gameNo = 0;
+  /**
+   * 广播游标：已经通过 room:update 增量下发过的最大日志 seq。
+   * 广播是房间级的（所有座位同一份 newLogs），因此游标挂在房间上；
+   * 断线重连的补发走 catchUpLogs（按 socket 定向补发最近 N 条），不重置本游标，
+   * 避免其它在线客户端重复收到历史日志。
+   */
+  private broadcastLogSeq = 0;
+  /** 单次增量广播最多下发的日志条数（有界历史；快照始终权威，截断只影响日志展示） */
+  static readonly MAX_BROADCAST_LOGS = 300;
+  /** 断线重连时补发的最近日志条数 */
+  static readonly RECONNECT_CATCHUP_LOGS = 300;
 
   constructor(code: string, config?: Partial<RoomConfig>) {
     this.code = code;
@@ -237,6 +249,28 @@ export class Room {
     if (!logs || logs.length === 0) return;
     const last = logs[logs.length - 1].seq;
     if (last > this.logSeqCursor) this.logSeqCursor = last;
+  }
+
+  /**
+   * 取走待广播的增量日志（seq 大于上次广播游标的部分，最多 MAX_BROADCAST_LOGS 条），
+   * 并推进广播游标。每场广播只调用一次，所有座位共用同一份增量。
+   */
+  takeNewLogs(): LogEntry[] {
+    const logs = this.game?.logs ?? [];
+    const fresh = logs.filter((l) => l.seq > this.broadcastLogSeq);
+    if (logs.length > 0) {
+      this.broadcastLogSeq = Math.max(this.broadcastLogSeq, logs[logs.length - 1].seq);
+    }
+    return fresh.slice(-Room.MAX_BROADCAST_LOGS);
+  }
+
+  /**
+   * 断线重连补发：最近 N 条日志（不推进广播游标，仅对该 socket 定向下发）。
+   * 客户端按 seq 去重，快照始终权威，日志只作展示与演出素材。
+   */
+  catchUpLogs(limit: number = Room.RECONNECT_CATCHUP_LOGS): LogEntry[] {
+    const logs = this.game?.logs ?? [];
+    return logs.slice(-limit);
   }
 
   /** AI 行动驱动（AI 与真人使用同一引擎接口，难度决定决策质量） */
@@ -379,6 +413,7 @@ export class Room {
     if (this.state === 'lobby') return { ok: false, error: '房间尚未开始过' };
     // 丢弃本局前先把日志游标推到本局最大 seq，下一局续接，避免 seq 回退撞号
     this.syncLogSeqCursor();
+    this.broadcastLogSeq = this.logSeqCursor;
     this.state = 'lobby';
     this.game = null;
     this.recording = null;

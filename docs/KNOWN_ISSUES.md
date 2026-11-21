@@ -40,3 +40,9 @@
 - 今日勇者技能表与「喝牛奶（嘲讽）」为用户确认规则（2026-11-19），实现见 characters/index.ts；运势触发时机为假设 A-16。
 - 角色数值/机制均来自《拔典1/2_角色速查表》（OCR 整理版），存疑处见 `docs/角色速查表-原始数据.md` 的 OCR 校对清单；本实现未将 OCR 存疑内容当作绝对正确的正式规则（见 GAME_RULES 待确认项）。
 - 规则假设 A-01~A-15 全部列于 `docs/GAME_RULES.md`，可通过 `RuleConfig` 配置调整的部分已参数化。
+
+## 十三轮 Arena 视觉升级（2026-11-20）补充
+
+- **构建环境敏感（B-027，已修）**：`vite build` 在 `NODE_ENV=test` 下会把 React **开发版**打进生产 bundle（体积翻倍 + StrictMode 对 effect 的 setup→cleanup→setup 双调用生效）。曾导致 E2E 环境里演出队列被 effect cleanup 误杀。现已：E2E 构建强制 `NODE_ENV=production`；队列 `revive()` 对 StrictMode 双调用免疫。**部署脚本（systemd/bash）环境无 NODE_ENV，不受影响**；但若未来在 CI 中以非常规 NODE_ENV 跑 `npm run build`，需注意保持 `NODE_ENV=production`。
+- **演出队列拥堵策略**：按「积压时长」判定（>9s 压缩、>22s 丢最旧保最新），不再按簇数——AI 局一次广播天然携带多个行动，簇数多≠拥堵。阈值（`FAST_BACKLOG_MS`/`TURBO_BACKLOG_MS`）若未来调整，需重跑 `tests/ui/battle-queue.test.ts`（含时长敏感用例，已标 timeout）。
+- **旧格式日志兼容**：演出层对缺结构化字段的旧日志安全降级（不演出或退化为行动者提示）；引擎现已全量产出结构化 data，仅历史回放数据（B-023 之前的旧房间）可能触发降级路径。

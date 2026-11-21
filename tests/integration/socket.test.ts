@@ -117,7 +117,9 @@ describe('拔典联机系统', () => {
     );
     const code = createRes.code;
     const me = createRes.seats[0];
-    await emit(host, 'room:addAI', { code, playerId: me.playerId, token: me.token, count: 2 });
+    // AI 角色固定为 default（对局时长确定，避免随机角色组合偶发拖过 50s 等待；
+    // 「随机选角」行为由下方「AI 角色选择」用例专项覆盖）
+    await emit(host, 'room:addAI', { code, playerId: me.playerId, token: me.token, count: 2, charId: 'default' });
 
     // 先注册监听器再开始游戏（避免错过首条广播造成驱动死锁）
     const overPromise = waitFor(host, 'game:over', 50000);

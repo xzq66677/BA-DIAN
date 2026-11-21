@@ -71,6 +71,15 @@ over ◀──checkWin── roundEnd（延迟事件：ivan/damage）◀──�
 - 广播：`room:update` = 大厅快照 + 游戏快照 + 增量日志（按 seq 去重）+ `you`。
   - **seq 在房间内单调递增**：引擎的 `logSeq` 每局从 1 开始，`Room` 用跨局游标 `logSeqCursor` 在开新局时作为 `GameConfig.logSeqOffset` 传入，因此同一房间第二局之后 seq 继续增长，增量过滤与客户端去重都不会把新日志误判为旧日志。
   - `lobbySnapshot().gameNo` 每开一局 +1，客户端据此清空上一局日志（否则两局日志会首尾相接、回合号重复）。
+  - **广播游标与重连补发**：增量游标 `Room.broadcastLogSeq`（`takeNewLogs()` 取走增量并推进，房间级单游标，单次上限 300 条）；断线重连时向该 socket 单独补发最近 300 条（`catchUpLogs()`，不推进游标、不影响其它座位的增量）。
+
+### 7b. 结构化战斗事件与演出队列（client/src/battle）
+
+- **事件 schema（shared/src/types.ts）**：演出所需日志全部携带类型化 `data` —— 攻击宣告（declared/source/target/amount/ranged）、实际扣血（target/source/amount/hpBefore/hpAfter/lethal/dtype/tag/segment/aoe/room/groupId/reflected/transferred）、回复（target/amount/hpBefore/hpAfter）、移动（pid/from/to）、淘汰（pid/cause/killer）、复活（pid/livesLeft）、行动（pid/fx/label/targetId/room）。字段可缺省，旧事件客户端安全降级。
+- **演出队列（BattleEventQueue）**：纯类实现，与 React 解耦。按 seq 幂等消费日志 → 解析为类型化演出事件 → 分簇（引擎一次行动的日志以 action 收尾，簇首即行动 fx，先播行动者再按序演事件）→ 顺序/分组播放（AOE/多段/延迟伤害同 groupId，先房间告警再逐目标）。
+- **拥堵策略**：按「积压时长」而非簇数判定（AI 局一次广播天然携带多个行动）；积压 >9s 进入 fast 压缩（跳过低重要度事件），>22s 丢弃最旧簇、保留最新（最新事件永不丢演出，被丢内容的结果已由快照呈现）。支持 1×/2×/4× 倍速、跳过本段、跳过全部；`prefers-reduced-motion` 时长收敛。
+- **权威边界**：快照（game.players）始终是显示权威；演出叠加层（斩击/飘字/HP条/飞行动画/死亡印章）只做视觉表现，由结构化事件驱动，不通过快照 HP 差分猜测，也不触发任何规则效果。重连时 `initFromLogs` 仅推进游标，不回放历史特效；局号变化 `clear()` 清空，不把旧事件演到新局。
+- **HP 条**：CSS 过渡（延迟 0.26s + 0.42s 缓动）让斩击先落下、血条随后平滑变化；宽度始终来自真实快照值。
 
 ### 8. 机制测试场
 - `shared/src/testcases` 为唯一测试数据源：103 个用例（编号 TC-E/TC-C/TC-X）。

@@ -97,6 +97,7 @@ export default function App() {
     net.currentCode = code;
     localStorage.setItem('badian-session', JSON.stringify(s));
     setLogs([]);
+    gameNoRef.current = null; // 跨房间加入：上一局的局号比较基线一并清掉
     setPage('lobby');
   };
 
@@ -106,6 +107,7 @@ export default function App() {
     setLobby(null);
     setGame(null);
     setLogs([]);
+    gameNoRef.current = null;
     setPage('home');
   };
   exitRef.current = exitSession;

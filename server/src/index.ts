@@ -77,15 +77,9 @@ function broadcastLobby(): void {
 }
 
 function broadcastRoom(room: Room): void {
-  const lastLogSeq = (room as unknown as { _lastLogSeq?: number })._lastLogSeq ?? 0;
   const snap = room.game ? room.game.snapshot() : null;
-  let newLogs: unknown[] = [];
-  if (room.game) {
-    // 增量日志：只发新条目（seq 去重由客户端处理）
-    const logs = room.game.logs as { seq: number }[];
-    newLogs = logs.filter((l) => l.seq > lastLogSeq).slice(-300);
-    if (logs.length > 0) (room as unknown as { _lastLogSeq?: number })._lastLogSeq = logs[logs.length - 1].seq;
-  }
+  // 增量日志：房间级单游标，只发新条目（seq 去重由客户端处理；上限 Room.MAX_BROADCAST_LOGS）
+  const newLogs = room.takeNewLogs();
   for (const seat of room.seats) {
     if (!seat.socketId) continue;
     io.to(seat.socketId).emit('room:update', {
@@ -95,6 +89,16 @@ function broadcastRoom(room: Room): void {
       you: seat.playerId,
     });
   }
+}
+
+/** 向单个 socket 定向补发房间状态（断线重连：附带最近日志，不影响其它座位的广播游标） */
+function sendRoomStateTo(room: Room, socketId: string): void {
+  io.to(socketId).emit('room:update', {
+    lobby: room.lobbySnapshot(),
+    game: room.game ? room.game.snapshot() : null,
+    newLogs: room.catchUpLogs(),
+    you: room.seatBySocket(socketId)[0]?.playerId ?? null,
+  });
 }
 
 io.on('connection', (socket: Socket) => {
@@ -169,9 +173,9 @@ io.on('connection', (socket: Socket) => {
     socket.data.roomCode = room.code;
     ack?.({ ok: true, code: room.code, playerId: seat.playerId, name: seat.name });
     // 重连后权限检查：状态照常下发，禁止通过重连绕过行动限制（提交仍校验当前行动者）
-    // 重置日志序号：重连客户端会收到最近日志补发（客户端按 seq 去重）
-    (room as unknown as { _lastLogSeq?: number })._lastLogSeq = 0;
-    broadcastRoom(room);
+    // 日志补发只发给重连的这个 socket（最近 N 条，客户端按 seq 去重）；
+    // 不再重置房间级广播游标——否则其它在线客户端会重复收到整段历史日志。
+    sendRoomStateTo(room, socket.id);
     broadcastLobby();
   });
 
