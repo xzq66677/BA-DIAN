@@ -13,7 +13,15 @@ export type JudgeStep = 'win' | 'tie' | 'lose';
 
 export type PlayerType = 'human' | 'ai' | 'local';
 
-export type GamePhase = 'rps1' | 'act' | 'roundEnd' | 'over';
+/**
+ * 对局阶段：
+ * - `rps1`：初回合判定（全员隐藏出拳）
+ * - `rps2`：二次判定 / 行动排序（**资格者亲自出拳**，多子轮递归；领域不参与）
+ * - `act`：行动阶段（行动队列依次行动）
+ * - `roundEnd`：回合末结算（延迟事件）
+ * - `over`：终局
+ */
+export type GamePhase = 'rps1' | 'rps2' | 'act' | 'roundEnd' | 'over';
 
 export interface CharRuntimeState {
   [key: string]: unknown;
@@ -352,8 +360,12 @@ export interface RuleConfig {
   allowSeek: boolean;
   /** 是否允许「跳过」 */
   allowSkip: boolean;
-  /** 二次判定（行动排序）的出拳方式：serverRoll=服务端种子代掷 */
-  secondJudgeMode: 'serverRoll';
+  /**
+   * 二次判定（行动排序）的出拳方式：
+   * - `player`（默认，线上对局）：资格者**亲自出拳**，逐子轮递归提交，服务端只负责结算；
+   * - `serverRoll`：服务端种子代掷（保留给自动化用例 / 机制测试场等无人交互场景）。
+   */
+  secondJudgeMode: 'player' | 'serverRoll';
   /** 默认初始血量（角色未指定时） */
   defaultMaxHp: number;
   /** 默认攻击力 */
@@ -368,7 +380,7 @@ export const DEFAULT_RULES: RuleConfig = {
   allowHide: true,
   allowSeek: true,
   allowSkip: true,
-  secondJudgeMode: 'serverRoll',
+  secondJudgeMode: 'player',
   defaultMaxHp: 3,
   defaultAttack: 1,
   berserkDamage: 1,

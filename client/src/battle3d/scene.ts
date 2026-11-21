@@ -30,7 +30,7 @@ export interface SnapLite {
   players: SnapPlayerLite[];
   roomIds: string[];
   currentActor: string | null;
-  phase: 'rps1' | 'act' | 'roundEnd' | 'over';
+  phase: 'rps1' | 'rps2' | 'act' | 'roundEnd' | 'over';
   winner: string | null;
   domainHolder?: string | null;
   deferred?: { id: string; kind: string; room: string; explodeRound: number }[];

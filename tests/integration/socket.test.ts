@@ -132,6 +132,13 @@ describe('拔典联机系统', () => {
       if (game.phase === 'rps1') {
         const throws = ['rock', 'scissors', 'paper'];
         host.emit('game:throw', { code, playerId: me.playerId, token: me.token, throw: throws[Math.floor(Math.random() * 3)] }, () => {});
+      } else if (game.phase === 'rps2') {
+        // 二次判定（行动排序）：只有当前子轮参与组里的本机身份需要出拳
+        const group = (game.orderGroup as string[] | undefined) ?? [];
+        const done = (game.orderSubmittedIds as string[] | undefined) ?? [];
+        if (!group.includes(me.playerId) || done.includes(me.playerId)) return;
+        const throws = ['rock', 'scissors', 'paper'];
+        host.emit('game:throw', { code, playerId: me.playerId, token: me.token, throw: throws[Math.floor(Math.random() * 3)] }, () => {});
       } else if (game.phase === 'act') {
         const cur = game.currentActor as string | null;
         if (cur !== me.playerId) return;

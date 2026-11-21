@@ -19,6 +19,7 @@ function playAIGame(seed: number, playerCount: number, maxRounds = 400): {
 } {
   const g = new Game({
     seed,
+    rules: { secondJudgeMode: 'serverRoll' },
     chars: CHARACTERS,
     players: Array.from({ length: playerCount }, (_, i) => ({
       id: `AI${i + 1}`, name: `AI${i + 1}`, charId: ROSTER[i % ROSTER.length], type: 'ai' as const,

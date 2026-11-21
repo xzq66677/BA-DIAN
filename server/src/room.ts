@@ -119,6 +119,8 @@ export class Room {
       turnTimeoutMs: 45000,
       submitTimeoutMs: 30000,
       ...config,
+      // 线上对局默认「二次判定由资格者亲自出拳」；显式传 serverRoll 时保留（自动化用例 / 回放复现）
+      rules: { secondJudgeMode: 'player', ...(config?.rules ?? {}) },
     };
     if (config?.aiDifficulty && AI_DIFFICULTIES.includes(config.aiDifficulty)) {
       this.aiDifficulty = config.aiDifficulty;
@@ -205,10 +207,11 @@ export class Room {
     return { ok: true };
   }
 
-  /** 玩家提交出拳（服务端统一入口，隐藏提交） */
+  /** 玩家提交出拳（服务端统一入口，隐藏提交；按阶段路由到回合判定 / 二次判定） */
   submitThrow(playerId: PlayerId, t: Throw): { ok: boolean; error?: string } {
     if (!this.game) return { ok: false, error: '游戏未开始' };
-    const r = this.game.submitThrow(playerId, t);
+    const g = this.game;
+    const r = g.phase === 'rps2' ? g.submitOrderThrow(playerId, t) : g.submitThrow(playerId, t);
     if (!r.ok) return r;
     this.disarmSubmitTimeout();
     this.afterGameMutation();
@@ -238,7 +241,7 @@ export class Room {
       this.onGameOver(this);
       return;
     }
-    if (this.game.phase === 'rps1') this.armSubmitTimeout();
+    if (this.game.phase === 'rps1' || this.game.phase === 'rps2') this.armSubmitTimeout();
     if (this.game.phase === 'act') this.armActTimeout();
     this.onBroadcast(this);
   }
@@ -291,6 +294,18 @@ export class Room {
         }
         continue;
       }
+      if (g.phase === 'rps2') {
+        // 二次判定（行动排序）：只有「当前子轮参与组」里的 AI 需要出拳
+        const group = g.currentOrderGroup();
+        const pending = group.filter((pid) => !g.orderSubmittedIds.includes(pid) && this.seatOf(pid)?.type === 'ai');
+        if (pending.length === 0) break;
+        for (const pid of pending) {
+          const t = aiThrow(g, pid, this.aiDifficulty);
+          g.submitOrderThrow(pid, t);
+          this.captureFrame();
+        }
+        continue;
+      }
       if (g.phase === 'act') {
         const cur = g.currentActor();
         if (!cur) break;
@@ -324,11 +339,14 @@ export class Room {
         const g = this.game;
         if (!g || this.state !== 'playing' || g.isOver()) return;
         const pendingAIThrow = g.phase === 'rps1'
-          && this.seats.some((s) => s.type === 'ai' && g.players[s.playerId]?.alive && !g.submittedIds.includes(s.playerId));
+          ? this.seats.some((s) => s.type === 'ai' && g.players[s.playerId]?.alive && !g.submittedIds.includes(s.playerId))
+          : g.phase === 'rps2'
+            ? g.currentOrderGroup().some((pid) => this.seatOf(pid)?.type === 'ai' && !g.orderSubmittedIds.includes(pid))
+            : false;
         const cur = g.currentActor();
         const aiTurn = g.phase === 'act' && !!cur && this.seatOf(cur)?.type === 'ai';
         // 现场签名：同一现场连续 3 次驱动都推不动就不再重试，避免刷广播
-        const sig = `${g.phase}|${g.roundNo}|${g.subRound}|${g.submittedIds.length}|${g.actIndex}|${g.queue.length}`;
+        const sig = `${g.phase}|${g.roundNo}|${g.subRound}|${g.submittedIds.length}|${g.orderSubmittedIds.length}|${g.actIndex}|${g.queue.length}`;
         if (!pendingAIThrow && !aiTurn) {
           this.aiWatchdogSig = sig;
           this.aiWatchdogTries = 0;
@@ -367,13 +385,18 @@ export class Room {
     return this.seats.filter((s) => s.type === 'human').length >= 2;
   }
 
-  /** 出拳超时：系统代掷（不泄露原选择——本来就没有） */
+  /** 出拳超时：系统代掷（rps1 回合判定 / rps2 行动排序 共用同一超时配置） */
   private armSubmitTimeout(): void {
     this.disarmSubmitTimeout();
     if (this.config.submitTimeoutMs <= 0 || !this.needsTimeout()) return;
     this.submitTimer = setTimeout(() => {
-      if (this.game && this.game.phase === 'rps1') {
-        this.game.forceFillThrows();
+      const g = this.game;
+      if (!g) return;
+      if (g.phase === 'rps1') {
+        g.forceFillThrows();
+        this.afterGameMutation();
+      } else if (g.phase === 'rps2') {
+        g.forceFillOrderThrows();
         this.afterGameMutation();
       }
     }, this.config.submitTimeoutMs);

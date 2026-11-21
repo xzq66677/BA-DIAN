@@ -80,7 +80,7 @@ export interface ReplayPlayer {
 export interface ReplayFrame {
   i: number;
   roundNo: number;
-  phase: 'rps1' | 'act' | 'roundEnd' | 'over';
+  phase: 'rps1' | 'rps2' | 'act' | 'roundEnd' | 'over';
   subRound: number;
   players: ReplayPlayer[];
   roomIds: string[];
@@ -147,7 +147,7 @@ export interface GameSnapshot {
   seed: number;
   roundNo: number;
   subRound: number;
-  phase: 'rps1' | 'act' | 'roundEnd' | 'over';
+  phase: 'rps1' | 'rps2' | 'act' | 'roundEnd' | 'over';
   players: SnapPlayer[];
   roomIds: string[];
   submittedIds: string[];
@@ -160,6 +160,13 @@ export interface GameSnapshot {
   judgeRecords: { stage: string; sub: number; throws: Record<string, string>; outcome: string; winners?: string[]; losers?: string[] }[];
   /** 出拳揭示：全员可见，仅在子轮结算完成后出现 */
   reveal?: RevealInfo | null;
+  /** 本回合最近一次排序子轮的揭示（行动阶段用来说明行动顺序来源；无排序则 null） */
+  orderReveal?: RevealInfo | null;
+  /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
+  orderGroup?: string[];
+  orderSubmittedIds?: string[];
+  orderResult?: string[];
+  orderSub?: number;
   /** 局内战绩（每人一份） */
   stats?: Record<string, PlayerStats>;
   /** 领域持有者（全场唯一；null 表示当前无领域生效） */
