@@ -70,7 +70,7 @@ export default function ProtoA({ onBack }: { onBack: () => void; onSwitch?: (a: 
               data-room={rid}
               className={`pa-room ${SLOT[rid] ?? 'pa-room-top'} ${ms.length === 0 ? 'empty' : ''} ${acting ? 'zone-acting' : ''} ${alertHere ? `zone-alert zone-alert-${bp.pres.zoneAlert?.kind}` : ''} ${boomHere ? 'zone-boom' : ''} ${pending ? 'zone-pending' : ''}`}
             >
-              {pending && <span className="pa-pending-tag">💣 第 {pending.explodeRound} 回合末爆炸</span>}
+              {pending && <span className="pa-pending-tag">💣 预计第 {pending.explodeRound} 回合末爆炸（平局顺延）</span>}
               <div className="pa-room-title">
                 <span>◈ {rid}</span>
                 <span>{ms.length > 0 ? `${ms.length} 人${acting ? ' · 行动中' : ''}` : '空'}</span>

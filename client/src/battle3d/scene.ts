@@ -620,7 +620,7 @@ export class BattleScene3D {
       const domainHere = members.some((m) => m.char.domain === true);
       room.pendingIvan = pending;
       room.labelCount.textContent = `${members.length} 人${acting ? ' · 行动中' : ''}`;
-      room.labelPending.textContent = pending ? `💣 第 ${pendingD!.explodeRound} 回合末爆炸` : '';
+      room.labelPending.textContent = pending ? `💣 预计第 ${pendingD!.explodeRound} 回合末爆炸（平局顺延）` : '';
       room.label.classList.toggle('is-empty', members.length === 0);
       room.label.classList.toggle('is-pending', pending);
       room.label.classList.toggle('is-acting', acting);
