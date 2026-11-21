@@ -548,5 +548,8 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | T-1904 | 客户端交互 | 行动坞排序出拳面板（复用交设备遮罩 `ThrowPrivacy`，`stage='rps2'`）与等待态文案；揭示台按「初次判定 / 排序判定·子轮 N」呈现并给出排序结论；顶栏阶段文案 |
 | T-1905 | 测试 | 新增 `tests/order-rps2.test.ts` 12 例（递归/平局重掷/领域不参与/大屁孩历史/超时/房间集成）；既有用例显式 `serverRoll`；socket 集成驱动补 rps2 分支 |
 | T-1906 | 工程验收 | `npm test` **22 文件 / 294 用例全过**；`npm run build`（server tsc + client vite）通过；client / server `tsc --noEmit` 双 0 错误 |
+| T-1907 | **修复：单设备多人出拳遮罩概率性白屏**（用户实测） | `ThrowPrivacy` 用数组下标追踪出拳身份，提交后名单收缩导致 `myIds[idx]` 为 undefined → 渲染抛 TypeError → React 卸载整棵树（所有面板消失）；触发与否取决于「广播 vs ack」到达顺序。改按 `playerId` 追踪 + 身份消失回退遮罩 + 提交异常兜底 |
+| T-1908 | 全局错误边界 | 新增 `client/src/ErrorBoundary.tsx`，`main.tsx` 包裹 `<App/>`：渲染异常显示可读提示 + 重新载入，不再白屏 |
+| T-1909 | 回归与复核 | 新增 `tests/ui/throw-privacy.test.tsx` 4 例；`npm test` **23 文件 / 298 用例全过**；Playwright 实跑本机 3 人局（点第 3 个身份）不白屏、无 console 报错 |
 
 

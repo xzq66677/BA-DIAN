@@ -1246,18 +1246,30 @@ function CardDetail({ p, onClose, canKick, onKick, stats, onInteract, gotCount }
 
 // ── 隐藏出拳（交设备遮罩，卡背式选择） ────────────────────
 
-function ThrowPrivacy({ myIds, game, lobby, stage = 'rps1' }: {
+export function ThrowPrivacy({ myIds, game, lobby, stage = 'rps1' }: {
   myIds: { playerId: string; name: string; token: string }[];
   game: GameSnapshot;
   lobby: LobbyState;
   /** rps1=回合判定；rps2=行动排序（二次判定） */
   stage?: 'rps1' | 'rps2';
 }) {
-  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  // 用 playerId 而不是数组下标追踪当前出拳身份：每次提交后该身份会从 myIds 中移除，
+  // 数组会收缩。若用下标（旧实现），一旦「选中的下标 >= 新长度」，渲染里读 me.name 就会
+  // 抛 TypeError —— React 会卸载整棵树，表现为「所有面板突然全部消失」。
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const isOrder = stage === 'rps2';
+  const me = activeId ? myIds.find((i) => i.playerId === activeId) ?? null : null;
 
-  if (activeIdx === null) {
+  // 选中的身份已不在待出拳名单里（自己已提交 / 阶段推进）→ 回到选择遮罩
+  useEffect(() => {
+    if (activeId && !myIds.some((i) => i.playerId === activeId)) {
+      setActiveId(null);
+      setError('');
+    }
+  }, [activeId, myIds]);
+
+  if (!me) {
     return (
       <div className="privacy-veil">
         <p>{isOrder ? '🔀 行动排序出拳（二次判定）— 以下身份还未出拳' : '🎲 隐藏出拳阶段 — 以下身份还未出拳'}</p>
@@ -1266,8 +1278,8 @@ function ThrowPrivacy({ myIds, game, lobby, stage = 'rps1' }: {
         </div>
         <p className="pv-hint tcg-chip" style={{ display: 'inline-block' }}>为防止偷看，请依次传递设备，由本人亲自出拳</p>
         <div className="pv-actions" style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {myIds.map((i, idx) => (
-            <button key={i.playerId} className="tcg-btn" onClick={() => setActiveIdx(idx)}>
+          {myIds.map((i) => (
+            <button key={i.playerId} className="tcg-btn" onClick={() => setActiveId(i.playerId)}>
               我是 {i.name}，开始出拳
             </button>
           ))}
@@ -1276,19 +1288,24 @@ function ThrowPrivacy({ myIds, game, lobby, stage = 'rps1' }: {
     );
   }
 
-  const me = myIds[activeIdx];
   const p = game.players.find((x) => x.id === me.playerId);
+  // 闭包里用局部常量：避免 await 期间外部状态变化导致取到已失效的身份
+  const { playerId: mePlayerId, token: meToken, name: meName } = me;
 
   async function throwIt(t: string) {
     setError('');
-    const r = await net.submitThrow(lobby.code, me.playerId, me.token, t) as { ok: boolean; error?: string };
-    if (!r.ok) { setError(r.error || '提交失败'); return; }
-    setActiveIdx(null); // 返回遮罩，不回显拳种
+    try {
+      const r = await net.submitThrow(lobby.code, mePlayerId, meToken, t) as { ok: boolean; error?: string };
+      if (!r.ok) { setError(r.error || '提交失败'); return; }
+      setActiveId(null); // 返回遮罩，不回显拳种
+    } catch (e) {
+      setError('提交失败：' + String((e as Error)?.message ?? e));
+    }
   }
 
   return (
     <div className="privacy-veil hand-throw-veil">
-      <p>请 <span className="pv-name">{me.name}</span> 出拳（{p?.charName} · 房间 {p?.room}）</p>
+      <p>请 <span className="pv-name">{meName}</span> 出拳（{p?.charName} · 房间 {p?.room}）</p>
       {isOrder && <p className="pv-hint tcg-chip" style={{ display: 'inline-block' }}>本次出拳只决定行动先后，不会失去行动资格</p>}
       <div className="throw-row">
         {(['rock', 'scissors', 'paper'] as const).map((t) => (
@@ -1299,7 +1316,7 @@ function ThrowPrivacy({ myIds, game, lobby, stage = 'rps1' }: {
         ))}
       </div>
       {error && <div className="error-text">{error}</div>}
-      <button className="tcg-btn ghost" onClick={() => setActiveIdx(null)}>返回（暂不出拳）</button>
+      <button className="tcg-btn ghost" onClick={() => setActiveId(null)}>返回（暂不出拳）</button>
     </div>
   );
 }
