@@ -58,8 +58,10 @@
   width: min(340px, 34vw);
   max-height: 46vh;
   z-index: 20;
-  background: rgba(13, 18, 26, 0.88);
-  backdrop-filter: blur(10px);
+  background: rgba(13, 18, 26, 0.93);
+  /* 不用 backdrop-filter：3D 面板悬浮在持续渲染的 WebGL 画布上，
+     逐帧软件/低端 GPU 模糊合成开销极大（实测 SwiftShader 环境反复触发 GL 上下文丢失），
+     提高底色不透明度替代（硬件 GPU 上同样省电） */
   border: 1px solid rgba(216, 176, 74, 0.35);
   border-radius: 12px;
   padding: 8px 10px;
@@ -78,8 +80,7 @@
   transform: translateX(-50%);
   width: min(96vw, 940px);
   z-index: 21;
-  background: rgba(10, 14, 20, 0.85);
-  backdrop-filter: blur(10px);
+  background: rgba(10, 14, 20, 0.92);
   border: 1px solid rgba(216, 176, 74, 0.45);
   border-radius: 16px;
   padding: 8px 12px 10px;
@@ -99,22 +100,31 @@
   z-index: 22;
   max-height: 34vh;
 }
-/* 揭示台：顶部悬浮条 */
-.s3d-mode .bt3d-reveal-wrap { top: 8px; width: min(96%, 640px); }
+/* 揭示台：顶部悬浮条（3D 模式下收紧宽度与密度，减少对远端弧线房间的遮挡） */
+.s3d-mode .bt3d-reveal-wrap { top: 6px; width: min(92%, 520px); }
 .s3d-mode .reveal-board {
-  background: rgba(13, 18, 26, 0.82);
-  backdrop-filter: blur(8px);
+  background: rgba(13, 18, 26, 0.9);
   border-color: rgba(216, 176, 74, 0.4);
+  font-size: 12px;
+  padding: 6px 10px;
 }
-/* 窄屏竖屏：操作坞/抽屉进一步收敛 */
+/* 窄屏竖屏：操作坞/抽屉进一步收敛；揭示面板右侧让位给「视角/2D」按钮组 */
 @media (max-width: 900px) {
   .s3d-mode .log-side { width: min(300px, 62vw); max-height: 38vh; top: 8px; right: 8px; }
   .s3d-mode .action-dock { width: 98vw; bottom: 8px; padding: 6px 8px 8px; }
   .s3d-mode .chat-dock { width: min(260px, 60vw); max-height: 30vh; }
+  .s3d-mode .bt3d-reveal-wrap { left: 8px; transform: none; width: calc(100% - 104px); }
+  .s3d-mode .bt3d-reveal-wrap .reveal-board { font-size: 11px; padding: 4px 8px; }
+  /* 顶栏紧凑化（3D 模式按钮较多，避免占掉 1/3 屏高） */
+  .s3d-mode .tcg-header { gap: 4px; padding: 4px 8px; }
+  .s3d-mode .tcg-header .tcg-btn { padding: 3px 8px; font-size: 11px; }
+  .s3d-mode .tcg-header .tcg-chip { padding: 2px 7px; font-size: 11px; }
 }
 @media (orientation: landscape) and (max-height: 560px) {
   .s3d-mode .log-side { max-height: 52vh; }
   .s3d-mode .action-dock { width: min(92vw, 860px); }
+  /* 横屏：揭示面板收窄居左，远端中央房间不被遮挡 */
+  .s3d-mode .bt3d-reveal-wrap { width: min(62%, 470px); left: 8px; transform: none; }
 }
 
 .b3-host {
@@ -206,6 +216,8 @@
 }
 .b3-plate.is-dead {
   filter: grayscale(1) brightness(0.7);
+  opacity: 0.62;
+  --dead-scale: 0.86;
   cursor: pointer;
 }
 

@@ -15,6 +15,7 @@ import {
 import { useCardRoomFlip } from '../battle/flip.js';
 import { sfx } from '../audio/sfx.js';
 import { Battle3D, detectWebGL, preferredRenderer, setPreferredRenderer } from '../battle3d/Battle3D.js';
+import { clearSessionDegraded } from '../battle3d/gl-policy.js';
 import '../battle3d/battle3d.css';
 
 const THROW_LABEL: Record<string, string> = { rock: '石头', scissors: '剪刀', paper: '布' };
@@ -291,6 +292,8 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
     const next = use3d ? '2d' : '3d';
     setRendererModeState(next);
     setPreferredRenderer(next);
+    // 用户主动切回 3D：清除会话级降级标记（明确选择优先，重新开始丢失计数）
+    if (next === '3d') clearSessionDegraded();
   }
   // 3D 沉浸模式：日志/发言默认收起（辅助层），可从顶栏展开
   useEffect(() => {

@@ -22,6 +22,7 @@ export type SceneCommand =
   | { c: 'ivanThrow'; seq: number; pid: string; room: string }
   | { c: 'ivanBoom'; seq: number; room: string }
   | { c: 'zoneAlert'; seq: number; room: string; kind: 'aoe' | 'ivan' }
+  | { c: 'domain'; seq: number; pid: string }
   | { c: 'trigger'; seq: number; pid: string };
 
 function diffBucket<T extends { key: number }>(
@@ -84,6 +85,10 @@ export function presToCommands(prev: PresentationState, next: PresentationState)
   if (next.zoneAlert && next.zoneAlert.kind === 'aoe' && next.zoneAlert.key !== prev.zoneAlert?.key) {
     out.push({ c: 'zoneAlert', seq: next.zoneAlert.key, room: next.zoneAlert.room, kind: 'aoe' });
   }
+  // 8. 领域展开（重大事件：爆发 + 聚焦；穹顶由快照 domainHolder 持续驱动）
+  if (next.domainDecl && next.domainDecl.key !== prev.domainDecl?.key) {
+    out.push({ c: 'domain', seq: next.domainDecl.key, pid: next.domainDecl.pid });
+  }
   return out;
 }
 
@@ -101,6 +106,7 @@ export interface SceneLike {
   playIvanBoom(room: string): void;
   playRoomAlert(room: string, kind: 'aoe' | 'ivan'): void;
   playTrigger(pid: string): void;
+  playDomain(pid: string): void;
 }
 
 export function applyCommands(scene: SceneLike, cmds: SceneCommand[]): void {
@@ -120,6 +126,7 @@ export function applyCommands(scene: SceneLike, cmds: SceneCommand[]): void {
       case 'ivanThrow': scene.playIvanThrow(c.pid, c.room); break;
       case 'ivanBoom': scene.playIvanBoom(c.room); break;
       case 'zoneAlert': scene.playRoomAlert(c.room, c.kind); break;
+      case 'domain': scene.playDomain(c.pid); break;
       case 'trigger': scene.playTrigger(c.pid); break;
     }
   }

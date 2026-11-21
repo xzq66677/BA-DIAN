@@ -73,10 +73,12 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     // 战场出现
     await page.getByText(/行动坞/).waitFor({ timeout: 20000 });
     await expect(page.locator('.battlefield')).toBeVisible();
-    // 角色卡在场上（AI 已有随机角色 → 卡面 img）
+    // 角色卡在场上（AI 已有随机角色 → 卡面 img）：
+    // 2D 牌桌 = .ccard-art img；3D 战场 = .b3-av img（名牌头像）+ .ms-art img（我的席位）
     await page.waitForTimeout(1500);
     const cardImgs = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('.ccard-art img')).filter((i) => (i as HTMLImageElement).naturalWidth > 0).length,
+      Array.from(document.querySelectorAll('.ccard-art img, .b3-av img, .ms-art img'))
+        .filter((i) => (i as HTMLImageElement).naturalWidth > 0).length,
     );
     expect(cardImgs).toBeGreaterThanOrEqual(1);
 
@@ -115,7 +117,8 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
       const s = await page.evaluate(() => ({
         hitcut: document.querySelectorAll('.hitcut').length,
         dmgFloat: document.querySelectorAll('.dmg-float').length,
-        hpbar: document.querySelectorAll('.ccard-hpbar').length,
+        // HP 条：2D 牌桌 = .ccard-hpbar；3D 战场 = .b3-hpbar（名牌）——双模式兼容
+        hpbar: document.querySelectorAll('.ccard-hpbar, .b3-hpbar').length,
         ctl: !!document.querySelector('.battle-ctl'),
         zoneAlert: document.querySelectorAll('.zone-alert').length,
         moveBanner: document.querySelectorAll('.move-banner').length,
@@ -133,21 +136,25 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     };
 
     // 自驱动若干回合（出拳 + 轮到时跳过），高频采样演出层
+    // 点击用原生 DOM click：React 高频重渲染下 Playwright actionability 检查会超时
+    // （"waiting for element to be stable"）导致驱动静默停滞 → 对局无事件可采样。
     const t0 = Date.now();
     while (Date.now() - t0 < 28000) {
       await sample();
-      const veilBtn = page.locator('.pv-actions button').first();
-      if (await veilBtn.isVisible({ timeout: 200 }).catch(() => false)) await veilBtn.click();
-      const throwCard = page.locator('.throw-card').first();
-      if (await throwCard.isVisible({ timeout: 200 }).catch(() => false)) await throwCard.click();
-      const skip = page.locator('.scard', { hasText: '跳过' }).first();
-      if (await skip.isVisible({ timeout: 200 }).catch(() => false)) {
-        await skip.click();
-        const confirm = page.locator('.confirm-bar button', { hasText: '确认发动' }).first();
-        if (await confirm.isVisible({ timeout: 200 }).catch(() => false) && await confirm.isEnabled().catch(() => false)) {
-          await confirm.click();
+      await page.evaluate(() => {
+        const click = (el: Element | null | undefined) => { if (el) (el as HTMLElement).click(); };
+        const q = (s: string) => document.querySelector(s);
+        click(q('.pv-actions button'));
+        click(q('.throw-card'));
+        const cards = Array.from(document.querySelectorAll('.scard'));
+        const skip = cards.find((c) => (c.textContent || '').includes('跳过'));
+        if (skip) {
+          click(skip);
+          const confirm = Array.from(document.querySelectorAll('.confirm-bar button'))
+            .find((b) => (b.textContent || '').includes('确认发动') && !(b as HTMLButtonElement).disabled);
+          click(confirm);
         }
-      }
+      }).catch(() => {});
       await page.waitForTimeout(280);
     }
     await sample();

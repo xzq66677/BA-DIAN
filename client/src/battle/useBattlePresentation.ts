@@ -56,11 +56,13 @@ export interface PresentationState {
   moveBanner: MoveBannerView | null;
   ivanThrow: IvanThrowView | null;
   ivanBoom: IvanBoomView | null;
+  /** 领域展开（重大事件）：爆发 + 聚焦（3D 场景穹顶由快照 domainHolder 驱动） */
+  domainDecl: { key: number; pid: string } | null;
 }
 
 export const EMPTY_PRESENTATION: PresentationState = {
   fx: {}, decls: {}, hits: {}, heals: {}, misses: {}, deaths: {}, revives: {}, zoneAlert: null, moveBanner: null,
-  ivanThrow: null, ivanBoom: null,
+  ivanThrow: null, ivanBoom: null, domainDecl: null,
 };
 
 /** 叠加层展示时长（ms，覆盖 CSS 动画全长）；reduced-motion 时缩短 */
@@ -74,6 +76,7 @@ const ZONE_MS = 1000;
 const BANNER_MS = 1300;
 const IVAN_THROW_MS = 1150;
 const IVAN_BOOM_MS = 1250;
+const DOMAIN_MS = 1100;
 
 export interface BattlePresentationApi {
   setSpeed: (s: Speed) => void;
@@ -157,6 +160,7 @@ export function useBattlePresentation(
       eliminate: { kind: 'eliminate', major: true },
       revive: { kind: 'revive' },
       miss: { kind: 'decl' },
+      domain: { kind: 'decl', major: true },
       ivanThrow: { kind: 'throw', major: true },
       ivanBoom: { kind: 'boom', major: true },
     };
@@ -170,7 +174,7 @@ export function useBattlePresentation(
     timersRef.current.clear();
   }
 
-  function scheduleExpiry(key: 'fx' | 'decls' | 'hits' | 'heals' | 'misses' | 'deaths' | 'revives' | 'zoneAlert' | 'moveBanner' | 'ivanThrow' | 'ivanBoom', id: string, ms: number): void {
+  function scheduleExpiry(key: 'fx' | 'decls' | 'hits' | 'heals' | 'misses' | 'deaths' | 'revives' | 'zoneAlert' | 'moveBanner' | 'ivanThrow' | 'ivanBoom' | 'domainDecl', id: string, ms: number): void {
     const t = setTimeout(() => {
       timersRef.current.delete(t);
       setPres((prev) => {
@@ -272,6 +276,12 @@ export function useBattlePresentation(
           const t = e.targetId!;
           next.revives = { ...prev.revives, [t]: { key: e.seq, livesLeft: e.livesLeft ?? 1 } };
           scheduleExpiry('revives', t, REVIVE_MS);
+          break;
+        }
+        case 'domain': {
+          const t = e.targetId!;
+          next.domainDecl = { key: e.seq, pid: t };
+          scheduleExpiry('domainDecl', 'decl', DOMAIN_MS);
           break;
         }
         case 'trigger':
