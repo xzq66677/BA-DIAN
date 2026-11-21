@@ -255,7 +255,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
         {isHost && game.phase === 'over' && (
           <button className="tcg-btn" onClick={() => net.restart(lobby.code, meId, myIds[0].token)}>重新开始</button>
         )}
-        <button className="tcg-btn ghost" onClick={async () => { await net.leave(lobby.code, meId, myIds[0].token); onExit(); }}>退出房间</button>
+        <button className="tcg-btn ghost" onClick={onExit}>退出房间</button>
       </header>
 
       {game.phase === 'over' && !winDismissed && (
@@ -286,7 +286,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                 <button className="tcg-btn ghost" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 观看回放</button>
               )}
               <button className="tcg-btn ghost" onClick={() => { setWinDismissed(true); setStatsOpen(true); }}>📊 本局战绩</button>
-              <button className="tcg-btn ghost" onClick={async () => { setWinDismissed(true); await net.leave(lobby.code, meId, myIds[0].token); onExit(); }}>离开房间</button>
+              <button className="tcg-btn ghost" onClick={onExit}>离开房间</button>
               <button className="tcg-btn ghost" onClick={() => setWinDismissed(true)}>查看战场</button>
             </div>
           </div>

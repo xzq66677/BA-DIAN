@@ -91,6 +91,22 @@ function broadcastRoom(room: Room): void {
   }
 }
 
+/**
+ * 解散房间（通知成员、清理绑定、销毁）。房间无真人可继续时由退出/离线流程调用。
+ */
+function dissolveRoom(room: Room): void {
+  io.to(room.code).emit('room:dissolved', { code: room.code });
+  for (const seat of room.seats) {
+    if (seat.socketId) {
+      const s = io.sockets.sockets.get(seat.socketId);
+      if (s) s.data.roomCode = undefined;
+    }
+  }
+  room.dispose();
+  rooms.delete(room.code);
+  broadcastLobby();
+}
+
 /** 向单个 socket 定向补发房间状态（断线重连：附带最近日志，不影响其它座位的广播游标） */
 function sendRoomStateTo(room: Room, socketId: string): void {
   io.to(socketId).emit('room:update', {
@@ -114,7 +130,7 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('room:create', (data: { name: string; charId?: string; localPlayers?: string[] }, ack?: (r: unknown) => void) => {
     const active = socketActiveRoom(socket);
-    if (active) { ack?.({ ok: false, error: `你已在房间 ${active.code} 中，请先退出该房间` }); return; }
+    if (active) { ack?.({ ok: false, error: `你已在房间 ${active.code} 中，请先退出该房间（或点「退出旧房间」解除占用）`, activeCode: active.code }); return; }
     if (!data.name || !data.name.trim()) { ack?.({ ok: false, error: '请先填写昵称' }); return; }
     try {
       const code = genRoomCode();
@@ -145,7 +161,12 @@ io.on('connection', (socket: Socket) => {
   // ── 加入房间 ──
   socket.on('room:join', (data: { code: string; name: string; charId?: string }, ack?: (r: unknown) => void) => {
     const active = socketActiveRoom(socket);
-    if (active && active.code !== (data.code || '').toUpperCase()) { ack?.({ ok: false, error: `你已在房间 ${active.code} 中，请先退出该房间` }); return; }
+    if (active && active.code === (data.code || '').toUpperCase()) {
+      // 同一设备不能在同一个房间出现两个自己：重复加入直接拒绝，引导回到房间
+      ack?.({ ok: false, error: '你已在该房间中，不能重复加入（刷新页面即可回到房间）', activeCode: active.code });
+      return;
+    }
+    if (active) { ack?.({ ok: false, error: `你已在房间 ${active.code} 中，请先退出该房间（或点「退出旧房间」解除占用）`, activeCode: active.code }); return; }
     if (!data.name || !data.name.trim()) { ack?.({ ok: false, error: '请先填写昵称' }); return; }
     const room = getRoom(data.code || '');
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
@@ -243,9 +264,14 @@ io.on('connection', (socket: Socket) => {
     }
     room.removeSeat(data.targetId);
     // 目标若与本 socket 绑定且无其他座位，清理房间绑定
-    for (const st of room.seatBySocket(socket.id)) { void st; }
     if (room.seatBySocket(socket.id).length === 0 && socket.data.roomCode === room.code) socket.data.roomCode = undefined;
-    ack?.({ ok: true });
+    // 只剩 AI（无真人可继续）→ 解散，避免僵尸房占用房间列表
+    if (room.seats.length === 0 || room.humanSeats().length === 0) {
+      ack?.({ ok: true, dissolved: true });
+      dissolveRoom(room);
+      return;
+    }
+    ack?.({ ok: true, dissolved: false });
     broadcastRoom(room);
     broadcastLobby();
   });
@@ -267,7 +293,13 @@ io.on('connection', (socket: Socket) => {
     }
     room.addChat('系统', `${target.name} 被房主移出房间`);
     room.removeSeat(data.targetId);
-    ack?.({ ok: true });
+    // 只剩 AI（无真人可继续）→ 解散，避免僵尸房
+    if (room.seats.length === 0 || room.humanSeats().length === 0) {
+      ack?.({ ok: true, dissolved: true });
+      dissolveRoom(room);
+      return;
+    }
+    ack?.({ ok: true, dissolved: false });
     broadcastRoom(room);
     broadcastLobby();
   });
@@ -293,36 +325,81 @@ io.on('connection', (socket: Socket) => {
     broadcastLobby();
   });
 
+  /**
+   * 退出房间（整台设备退出）。
+   *
+   * 一个 socket 可能绑定多个身份（单设备多人 / 多身份会话）——退出时**全部一起退出**，
+   * 否则会留下同设备的僵尸座位，导致该设备之后创建/加入房间被「你已在房间 X 中」永久卡死
+   * （B-029），且对局中残留的活人会卡死行动队列（无超时布防时无人推进）。
+   *
+   * 解散规则：退出后房间内没有真人（只剩 AI / 空）→ 默认解散房间（B-029 用户要求：
+   * 退出对局默认结束该房间）；仍有其他真人 → 房间继续（对局中退出者被引擎淘汰公示）。
+   */
   socket.on('room:leave', (data: { code: string; playerId: PlayerId; token: string }, ack?: (r: unknown) => void) => {
     const room = getRoom(data.code || '');
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     const seat = room.seatOf(data.playerId);
     if (!seat || seat.token !== data.token) { ack?.({ ok: false, error: '身份验证失败' }); return; }
-    // 对局中退出 = 引擎内淘汰（不留僵尸玩家），日志公示
+    const mine = room.seatBySocket(socket.id);
+    // 对局中退出：该设备的全部存活身份在引擎内淘汰（日志公示）
     if (room.state === 'playing' && room.game) {
-      const gp = room.game.players[data.playerId];
-      if (gp && gp.alive) {
-        room.game.log('info', `🚪 ${gp.name} 主动退出对局`, { pid: data.playerId }, true);
-        room.game.eliminate(data.playerId, 'left');
+      for (const s of mine) {
+        const gp = room.game.players[s.playerId];
+        if (gp && gp.alive) {
+          room.game.log('info', `🚪 ${gp.name} 主动退出对局`, { pid: s.playerId }, true);
+          room.game.eliminate(s.playerId, 'left');
+        }
       }
     }
-    room.removeSeat(data.playerId);
+    for (const s of mine) room.removeSeat(s.playerId);
     if (room.seatBySocket(socket.id).length === 0) socket.data.roomCode = undefined;
     socket.leave(room.code);
-    // 房主离开且无人可继任 → 解散
-    if (room.seats.length === 0) {
-      room.dispose();
-      rooms.delete(room.code);
+    // 没有真人可继续 → 默认解散（只剩 AI 的房间没有存在意义）
+    if (room.seats.length === 0 || room.humanSeats().length === 0) {
       ack?.({ ok: true, dissolved: true });
-      broadcastLobby();
+      dissolveRoom(room);
       return;
     }
-    // 游戏中离开：该玩家标记断线（对局继续，超时自动代打）
-    if (room.game && room.state === 'playing') {
-      const gp = room.game.players[data.playerId];
-      if (gp) gp.type = gp.type; // 状态不变，由超时机制兜底
+    ack?.({ ok: true, dissolved: false });
+    broadcastRoom(room);
+  });
+
+  // ── 退出旧房间（逃生口） ──
+  // 客户端被「你已在房间 X 中」卡住时的自助出口：以 socket 为凭证（无需 token——
+  // 只有持有这条连接的人才能操作自己的座位），移除该 socket 绑定的全部身份，
+  // 无真人可继续时解散房间。
+  socket.on('room:detach', (_data: unknown, ack?: (r: unknown) => void) => {
+    const code = socket.data.roomCode as string | undefined;
+    const room = code ? getRoom(code) : undefined;
+    if (!room) {
+      socket.data.roomCode = undefined;
+      ack?.({ ok: true, dissolved: false, detached: false });
+      return;
     }
-    ack?.({ ok: true });
+    const mine = room.seatBySocket(socket.id);
+    if (mine.length === 0) {
+      socket.data.roomCode = undefined;
+      ack?.({ ok: true, dissolved: false, detached: false });
+      return;
+    }
+    if (room.state === 'playing' && room.game) {
+      for (const s of mine) {
+        const gp = room.game.players[s.playerId];
+        if (gp && gp.alive) {
+          room.game.log('info', `🚪 ${gp.name} 主动退出对局`, { pid: s.playerId }, true);
+          room.game.eliminate(s.playerId, 'left');
+        }
+      }
+    }
+    for (const s of mine) room.removeSeat(s.playerId);
+    socket.data.roomCode = undefined;
+    socket.leave(room.code);
+    if (room.seats.length === 0 || room.humanSeats().length === 0) {
+      ack?.({ ok: true, dissolved: true, detached: true, code: room.code });
+      dissolveRoom(room);
+      return;
+    }
+    ack?.({ ok: true, dissolved: false, detached: true, code: room.code });
     broadcastRoom(room);
   });
 
@@ -395,19 +472,8 @@ io.on('connection', (socket: Socket) => {
     if (!room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可解散房间' }); return; }
     const seat = room.seatOf(data.playerId);
     if (!seat || seat.token !== data.token) { ack?.({ ok: false, error: '身份验证失败' }); return; }
-    // 通知房间内所有客户端
-    io.to(room.code).emit('room:dissolved', { code: room.code });
-    // 清除成员 socket 的房间绑定（避免残留阻断后续加入）
-    for (const seat2 of room.seats) {
-      if (seat2.socketId) {
-        const s2 = io.sockets.sockets.get(seat2.socketId);
-        if (s2) s2.data.roomCode = undefined;
-      }
-    }
-    room.dispose();
-    rooms.delete(room.code);
     ack?.({ ok: true });
-    broadcastLobby();
+    dissolveRoom(room);
   });
 
   // ── 大厅房间列表请求 ──

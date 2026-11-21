@@ -101,7 +101,20 @@ export default function App() {
     setPage('lobby');
   };
 
+  /**
+   * 退出会话：统一出口。先尽力通知服务端退出（服务端会移除本设备的**全部**身份，
+   * 房间无真人可继续时默认解散——B-029），再清理本地状态。
+   * 所有「退出房间 / 离开房间 / 返回首页」入口都应走到这里，避免残留座位卡死后续加入。
+   */
   const exitSession = () => {
+    const s = session;
+    const l = lobby;
+    // 尽力退出（房间可能已被解散/不存在，失败可忽略）；用主身份即可——服务端按整台设备退出
+    if (s && s.identities.length > 0) {
+      void net.leave(s.code, s.identities[0].playerId, s.identities[0].token).catch(() => {});
+    } else if (l) {
+      void net.detach().catch(() => {});
+    }
     localStorage.removeItem('badian-session');
     setSession(null);
     setLobby(null);

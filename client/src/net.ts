@@ -309,6 +309,10 @@ class Net {
   leave(code: string, playerId: string, token: string) {
     return this.emit('room:leave', { code, playerId, token });
   }
+  /** 退出旧房间（逃生口）：以当前连接为凭证，移除本 socket 绑定的全部身份；无真人可继续时房间解散 */
+  detach() {
+    return this.emit('room:detach', {});
+  }
   submitThrow(code: string, playerId: string, token: string, t: string) {
     return this.emit('game:throw', { code, playerId, token, throw: t });
   }

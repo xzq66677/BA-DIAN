@@ -305,6 +305,32 @@
 | T-1204 | 浏览器实测（P3） | DONE | Playwright E2E 5/5（新增「战斗演出」用例：hitcut/dmg-float/控制条/HP条/无JS错误）；截图实测：斩击红闪+斜向斩击线+HP条下降（scripts/visual-check.ts、scripts/visual-hitcut.ts 可复跑） |
 | T-1205 | 回归测试 | DONE | **npm test：16 文件 / 225 用例全部通过**（原 185 + 新增 40：battle-events 14 + battle-queue 21 + broadcast-cursor 4 + e2e 演出 1）；`npm run build` 双端通过 |
 
+## 十三轮 · 房间退出/占用系统修复（2026-11-21，B-029）
+
+用户报告：退出对局后首页卡死在「你已在房间 97FR 中，请先退出该房间」，且房间列表显示「暂无房间」。
+
+### 根因（三缺陷叠加）
+
+1. **单设备多人退出只移除主身份**：`room:leave` 仅移除发起退出的 playerId，同 socket 的其余本机身份（P2/P3）残留在服务端并保持绑定 → 之后创建/加入房间被 `socketActiveRoom` 守卫永久拒绝（截图中的卡死）
+2. **对局中退出不处理引擎**：残留的本机身份在引擎里仍是活人（无超时布防的房间行动队列永久卡死）
+3. **同房间重复加入被放行**：`room:join` 对 `active.code === data.code` 不拒绝 → `addSeat` 产生「两个自己」
+4. **僵尸房**：只剩 AI（无真人）的房间永远占用房间列表
+
+### 修复（新语义）
+
+| 编号 | 任务 | 状态 | 说明 |
+|---|---|---|---|
+| T-1300 | 整台设备退出 | DONE | `room:leave` 移除发起 socket 绑定的**全部**身份；对局中在引擎内淘汰并日志公示；房主移交逻辑不变 |
+| T-1301 | 无真人默认解散 | DONE | leave/kick/removeSeat 之后房间内无真人（空/只剩 AI）→ 默认解散（`dissolveRoom`：广播 room:dissolved + 清绑定 + 销毁）。仍有其他真人则房间继续（多真人房不受影响） |
+| T-1302 | 重复加入拒绝 | DONE | 同 socket join 同房间 → 拒绝并提示「刷新页面即可回到房间」（不再产生两个自己）；跨房间占用拒绝携带 `activeCode` |
+| T-1303 | `room:detach` 逃生口 | DONE | 以 socket 为凭证（无需 token——只有持有连接的人能操作自己的座位），移除全部绑定身份并按同样规则解散 |
+| T-1304 | 客户端统一退出 | DONE | `App.exitSession` 统一通知服务端退出（所有「退出/离开」入口都走它）；GamePage/Lobby 退出按钮只调 onExit，避免双份 leave |
+| T-1305 | 首页占用逃生口 | DONE | create/join 被拒（activeCode）时展示：**↩ 回到房间**（本地 session 匹配则令牌恢复）/ **🚪 退出旧房间并继续**（detach） |
+| T-1306 | 回归测试 | DONE | `tests/integration/room-exit.test.ts` 7 例（多身份退出解散/重复加入拒绝/对局中退出淘汰+房主移交/唯一真人退出解散/detach/大厅多身份退出/踢人规则）+ `tests/ui/exit-guard.test.tsx`（逃生口 UI 渲染） |
+| T-1307 | 浏览器实测 | DONE | Playwright 复现用户场景：单设备 3 人开局 → 对局中退出 → 再次创建**直接成功**（修复前永久卡死）；`npm run deploy` 后线上 socket 验证结构化事件与退出语义 |
+
+实测：`npm test` **18 文件 / 233 用例全部通过**；双端 build 通过。
+
 ## 遗留事项
 
 见 docs/KNOWN_ISSUES.md（今日勇者技能缺失、真实浏览器端到端受限、二次判定手动出拳 UI 未做等）。

@@ -37,7 +37,7 @@ export default function Lobby({ lobby, session, onExit }: {
   }
 
   async function leave() {
-    await net.leave(lobby.code, me.playerId, me.token);
+    // App.exitSession 统一负责通知服务端退出（含本设备全部身份与解散规则）
     onExit();
   }
   async function dissolve() {

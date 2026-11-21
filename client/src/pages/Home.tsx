@@ -3,6 +3,15 @@ import { net, type RoomListEntry } from '../net.js';
 import { CHARACTER_LIST } from '../../../shared/src/characters/index.js';
 import { thumbOf, cardMeta } from '../cards.js';
 
+/** 创建/加入被服务端拒绝时携带的占用房间码（B-029 逃生口） */
+interface RoomOpResult {
+  ok: boolean;
+  code?: string;
+  seats?: { playerId: string; name: string; token: string }[];
+  error?: string;
+  activeCode?: string;
+}
+
 export default function Home({ onEnter, onArena }: {
   onEnter: (code: string, identities: { playerId: string; name: string; token: string }[]) => void;
   onArena: () => void;
@@ -14,6 +23,8 @@ export default function Home({ onEnter, onArena }: {
   const [charId, setCharId] = useState('default');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  /** 服务端提示「你已在房间 X 中」时的占用房间码：展示 回到房间 / 退出旧房间 逃生口 */
+  const [stuckCode, setStuckCode] = useState<string | null>(null);
   const [rooms, setRooms] = useState<RoomListEntry[]>([]);
   const [showRules, setShowRules] = useState(false);
   const [detail, setDetail] = useState<string | null>(null);
@@ -39,8 +50,13 @@ export default function Home({ onEnter, onArena }: {
       await net.connect();
       const myName = name.trim() || '玩家1';
       const localNames = Array.from({ length: localCount }, (_, i) => (localCount === 1 ? myName : `${myName}${i + 1}`));
-      const r = await net.createRoom(myName, localNames, charId) as { ok: boolean; code?: string; seats?: { playerId: string; name: string; token: string }[]; error?: string };
-      if (!r.ok || !r.code || !r.seats) { setError(r.error || '创建失败'); return; }
+      const r = await net.createRoom(myName, localNames, charId) as RoomOpResult;
+      if (!r.ok || !r.code || !r.seats) {
+        setError(r.error || '创建失败');
+        if (r.activeCode) setStuckCode(r.activeCode);
+        return;
+      }
+      setStuckCode(null);
       onEnter(r.code, r.seats.map((s) => ({ playerId: s.playerId, name: s.name, token: s.token })));
       if (autoStart) {
         const me = r.seats[0];
@@ -57,10 +73,45 @@ export default function Home({ onEnter, onArena }: {
       localStorage.setItem('badian-name', name.trim());
       await net.connect();
       const target = (code || joinCode).trim().toUpperCase();
-      const r = await net.joinRoom(target, name.trim() || '玩家', charId) as { ok: boolean; code?: string; seats?: { playerId: string; name: string; token: string }[]; error?: string };
-      if (!r.ok || !r.code || !r.seats) { setError(r.error || '加入失败'); return; }
+      const r = await net.joinRoom(target, name.trim() || '玩家', charId) as RoomOpResult;
+      if (!r.ok || !r.code || !r.seats) {
+        setError(r.error || '加入失败');
+        if (r.activeCode) setStuckCode(r.activeCode);
+        return;
+      }
+      setStuckCode(null);
       const mine = r.seats[r.seats.length - 1];
       onEnter(r.code, [{ playerId: mine.playerId, name: mine.name, token: mine.token }]);
+    });
+  }
+
+  /** 被占用房间逃生口①：回到该房间（仅当本地会话与该房间匹配——用令牌恢复身份） */
+  async function resumeStuck() {
+    if (!stuckCode) return;
+    await wrap(async () => {
+      const raw = localStorage.getItem('badian-session');
+      if (!raw) { setError('本设备没有该房间的会话凭证，请用「退出旧房间」解除占用'); return; }
+      const s = JSON.parse(raw) as { code: string; identities: { playerId: string; name: string; token: string }[] };
+      if (s.code !== stuckCode || !s.identities?.length) { setError('本设备没有该房间的会话凭证，请用「退出旧房间」解除占用'); return; }
+      await net.connect();
+      const main = s.identities[0];
+      const r = await net.reconnect(stuckCode, main.playerId, main.token) as { ok: boolean; error?: string };
+      if (!r.ok) { setError(`恢复失败：${r.error || '房间可能已解散'}，请用「退出旧房间」解除占用`); return; }
+      setStuckCode(null);
+      setError('');
+      onEnter(stuckCode, s.identities);
+    });
+  }
+
+  /** 被占用房间逃生口②：以当前连接为凭证退出旧房间（服务端移除本设备全部身份），然后重试 */
+  async function detachStuck() {
+    if (!stuckCode) return;
+    await wrap(async () => {
+      localStorage.removeItem('badian-session');
+      const r = await net.detach() as { ok: boolean; error?: string };
+      if (!r.ok) { setError(r.error || '退出旧房间失败'); return; }
+      setStuckCode(null);
+      setError('已退出旧房间，可重新创建/加入');
     });
   }
 
@@ -136,6 +187,15 @@ export default function Home({ onEnter, onArena }: {
           </label>
           <button className="tcg-btn" disabled={busy || joinCode.trim().length < 4 || !name.trim()} onClick={() => joinRoom()}>加入房间</button>
           <button className="tcg-btn ghost" onClick={onArena}>🧪 机制测试场</button>
+          {stuckCode && (
+            <div className="stuck-panel">
+              <div>🔒 你在该设备的连接仍占用着房间 <b>{stuckCode}</b></div>
+              <div className="btn-row" style={{ marginTop: 8 }}>
+                <button className="tcg-btn" disabled={busy} onClick={resumeStuck}>↩ 回到房间 {stuckCode}</button>
+                <button className="tcg-btn danger" disabled={busy} onClick={detachStuck}>🚪 退出旧房间并继续</button>
+              </div>
+            </div>
+          )}
           {error && <div className="error-text">{error}</div>}
         </div>
 

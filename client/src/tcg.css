@@ -871,6 +871,18 @@
   padding: 0 5px;
 }
 
+/* 首页·占用房间逃生口（B-029） */
+.stuck-panel {
+  margin-top: 10px;
+  border: 1px solid rgba(226, 170, 48, 0.5);
+  background: rgba(226, 170, 48, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #ffd166;
+}
+.stuck-panel b { color: var(--gold-2); letter-spacing: 2px; }
+
 /* 确认条 */
 .confirm-bar {
   margin-top: 10px;
