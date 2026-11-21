@@ -33,38 +33,41 @@ export const COMPLEX_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-X002', name: '秒杀 × 反弹：非免疫秒杀可被太极反弹', category: 'complex', seed: 301,
-    desc: '延迟秒杀（非noReflect）指向马保国 → 太极判定成功则秒杀反弹给来源',
+    id: 'TC-X002', name: '极高伤害 × 反弹：非免疫高额伤害可被太极反弹', category: 'complex', seed: 301,
+    desc: '延迟高额伤害（非noReflect）指向马保国 → 太极判定成功则伤害反弹给来源',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'default' }, { id: 'M', char: 'mabaoguo' }], 301);
       g.addDeferred({
         kind: 'damage', room: 'R1', explodeRound: 1, source: 'A', createdAtRound: 1,
-        payload: { target: 'M', amount: 999, source: 'A', dtype: 'special', instakill: true, tag: 'test-kill' },
+        payload: { target: 'M', amount: 999, source: 'A', dtype: 'special', tag: 'test-kill' },
       });
       playThrows(g, [{ A: 'rock', M: 'paper' }]); // M 胜 → M 行动 skip → 回合末
       actQueue(g, { M: { type: 'skip' } });
       const reflected = g.logs.some((l) => l.text.includes('太极判定成功'));
       const mDead = !isAlive(g, 'M');
       const aDead = !isAlive(g, 'A');
-      // 一致性：若反弹成功 → A 秒杀死亡，M 存活；否则 M 死
+      // 一致性：若反弹成功 → A 承受 999 死亡，M 存活；否则 M 死
       const ok = (reflected && aDead && isAlive(g, 'M')) || (!reflected && mDead && isAlive(g, 'A'));
       return check(ok, `反弹=${reflected} → 一致的死亡结果（M死=${mDead}, A死=${aDead}）`,
         `reflected=${reflected}, M alive=${isAlive(g, 'M')}, A alive=${isAlive(g, 'A')}`, g);
     }),
   },
   {
-    id: 'TC-X003', name: '延迟爆炸 × 回合顺序：爆炸在所有行动结束后', category: 'complex', seed: 302,
-    desc: '投掷发生在行动队列中，爆炸日志发生在回合末（行动之后）',
+    id: 'TC-X003', name: '延迟爆炸 × 回合顺序：爆炸在引燃回合所有行动结束后', category: 'complex', seed: 302,
+    desc: '投掷发生在第1回合行动队列中，爆炸发生在第2回合（下一分出胜负回合）行动结束后的回合末',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'ivan-girl' }, { id: 'B', char: 'wuliuqi' }, 'C'], 302);
       g.players['B'].room = 'R2';
-      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // A 胜（rock>scissors 组）
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 第1回合 A 胜
       actQueue(g, { A: { type: 'throwIvan', room: 'R2' } });
+      const boomR1 = g.logs.some((l) => l.text.includes('大伊万在 R2 爆炸'));
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 第2回合 A 再胜（引爆回合）
+      actQueue(g, { A: { type: 'skip' } });
       const throwSeq = g.logs.findIndex((l) => l.text.includes('投掷大伊万'));
       const boomSeq = g.logs.findIndex((l) => l.text.includes('大伊万在 R2 爆炸'));
-      // 爆炸日志序号 > 投掷日志序号（回合末结算）
-      const ok = throwSeq >= 0 && boomSeq > throwSeq && !isAlive(g, 'B');
-      return check(ok, '爆炸在所有行动结束后结算', `throw@${throwSeq}, boom@${boomSeq}, B alive=${isAlive(g, 'B')}`, g);
+      // 爆炸日志序号 > 投掷日志序号（引燃回合末结算）
+      const ok = boomR1 === false && throwSeq >= 0 && boomSeq > throwSeq && !isAlive(g, 'B');
+      return check(ok, '投掷后下一分出胜负回合末爆炸', `boomR1=${boomR1}, throw@${throwSeq}, boom@${boomSeq}, B alive=${isAlive(g, 'B')}`, g);
     }),
   },
   {

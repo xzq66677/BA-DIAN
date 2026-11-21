@@ -49,7 +49,6 @@ export interface BattleEvent {
   hpBefore?: number;
   hpAfter?: number;
   lethal?: boolean;
-  instakill?: boolean;
   dtype?: string;
   tag?: string;
   segment?: { index: number; total: number };
@@ -122,7 +121,6 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
           sourceId: str(d.source), amount,
           hpBefore: num(d.hpBefore), hpAfter,
           lethal: d.lethal === true || hpAfter === 0,
-          instakill: d.instakill === true,
           dtype: str(d.dtype), tag: str(d.tag),
           segment: (d.segment as { index: number; total: number } | undefined) ?? undefined,
           room: str(d.room),

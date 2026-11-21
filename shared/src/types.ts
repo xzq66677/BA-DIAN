@@ -50,8 +50,6 @@ export interface DamageRequest {
   aoe?: boolean;
   /** 多段信息：第 index 段 / 共 total 段 */
   segment?: { index: number; total: number };
-  /** 秒杀：独立效果类型，HP 直接归零 */
-  instakill?: boolean;
   /** 无视躲藏（如拔棍） */
   ignoreHide?: boolean;
   /** 精神类锁定无视躲藏（如大贱客辱骂） */
@@ -131,7 +129,7 @@ export interface DamageEventData {
   target: PlayerId;
   /** 来源玩家（爆炸/暴走等无来源时缺省；均为公开信息） */
   source?: PlayerId;
-  /** 实际伤害量（instakill 时为结算前 HP） */
+  /** 实际伤害量 */
   amount?: number;
   hpBefore?: number;
   hpAfter?: number;
@@ -141,7 +139,6 @@ export interface DamageEventData {
   tag?: string;
   segment?: { index: number; total: number };
   aoe?: boolean;
-  instakill?: boolean;
   /** 未命中（躲藏/隐身/被完全抵消）——不触发受击演出 */
   missed?: boolean;
   /** 目标结算时所在房间（AOE 房间高亮用） */
@@ -357,8 +354,6 @@ export interface RuleConfig {
   allowSkip: boolean;
   /** 二次判定（行动排序）的出拳方式：serverRoll=服务端种子代掷 */
   secondJudgeMode: 'serverRoll';
-  /** 大伊万爆炸时机：sameRoundEnd=投掷回合所有人行动结束后；nextRoundEnd=下一回合末 */
-  ivanExplodeTiming: 'sameRoundEnd' | 'nextRoundEnd';
   /** 默认初始血量（角色未指定时） */
   defaultMaxHp: number;
   /** 默认攻击力 */
@@ -374,7 +369,6 @@ export const DEFAULT_RULES: RuleConfig = {
   allowSeek: true,
   allowSkip: true,
   secondJudgeMode: 'serverRoll',
-  ivanExplodeTiming: 'sameRoundEnd',
   defaultMaxHp: 3,
   defaultAttack: 1,
   berserkDamage: 1,

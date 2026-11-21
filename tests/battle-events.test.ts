@@ -192,8 +192,17 @@ describe('结构化事件：AOE / 多段分组', () => {
     toActionPhase(g, { A: 'rock', B: 'rock', C: 'scissors' });
     const r = g.submitAction('A', { type: 'throwIvan', room: 'R2' });
     expect(r.ok).toBe(true);
-    // 回合末爆炸：走完 B 的行动（C 无资格）
+    // 投掷回合引信未开：走完本回合行动（B 也有资格）不爆炸，进入第 2 回合
     let guard = 0;
+    while (g.phase === 'act' && guard++ < 20) {
+      const cur = g.currentActor();
+      if (!cur) break;
+      g.submitAction(cur, { type: 'skip' });
+    }
+    expect(g.phase).toBe('rps1');
+    // 第 2 回合：分出胜负并走完行动 → 引燃回合结束，回合末爆炸
+    toActionPhase(g, { A: 'rock', B: 'rock', C: 'scissors' });
+    guard = 0;
     while (g.phase === 'act' && guard++ < 20) {
       const cur = g.currentActor();
       if (!cur) break;
@@ -206,7 +215,7 @@ describe('结构化事件：AOE / 多段分组', () => {
     expect(groups.size).toBe(1);
     for (const l of dd) {
       const d = damageData(l);
-      expect(d.instakill).toBe(true);
+      expect(d.amount).toBe(999999);
       expect(d.lethal).toBe(true);
       expect(d.tag).toBe('ivan');
       expect(d.room).toBe('R2');

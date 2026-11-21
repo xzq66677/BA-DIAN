@@ -27,7 +27,6 @@ export interface HitView {
   hpBefore?: number;
   hpAfter?: number;
   lethal?: boolean;
-  instakill?: boolean;
   dtype?: string;
   tag?: string;
   segment?: { index: number; total: number };
@@ -219,10 +218,10 @@ export function useBattlePresentation(
           const t = e.targetId!;
           next.hits = { ...prev.hits, [t]: {
             key: e.seq, amount: e.amount ?? 0, hpBefore: e.hpBefore, hpAfter: e.hpAfter,
-            lethal: e.lethal, instakill: e.instakill, dtype: e.dtype, tag: e.tag,
+            lethal: e.lethal, dtype: e.dtype, tag: e.tag,
             segment: e.segment, sourceId: e.sourceId,
           } };
-          scheduleExpiry('hits', t, e.lethal || e.instakill ? HIT_MS + 400 : HIT_MS);
+          scheduleExpiry('hits', t, e.lethal ? HIT_MS + 400 : HIT_MS);
           // AOE/延迟事件组：同组只在首个事件时触发房间告警（不逐目标重播）
           if (e.groupId && e.room && prev.zoneAlert?.groupId !== e.groupId) {
             next.zoneAlert = { key: e.seq, groupId: e.groupId, room: e.room, kind: e.tag === 'ivan' ? 'ivan' : 'aoe' };

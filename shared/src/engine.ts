@@ -73,6 +73,8 @@ export class Game implements GameLike {
   roundSummary: string[] = [];
   private deferredSeq = 0;
   private deathChainDepth = 0;
+  /** 正在结算回合末延迟事件（endRound 循环期间置位）：期间淘汰不触发终局判定，结算完统一判 */
+  private settlingDeferred = false;
   /** 事件组计数（AOE/多段/延迟伤害的演出分组标识） */
   private eventGroupSeq = 0;
   /**
@@ -396,7 +398,9 @@ export class Game implements GameLike {
    */
   private endRoundAfterJudge(): void {
     if (this.phase === 'over') return;
-    if (this.aliveIds().length <= 1) {
+    // 判定历史入史可能触发死亡钩子（如大屁孩三同自爆）；终局判定在有已激活炸弹时延迟（见 checkWin），
+    // 让回合走到回合末、炸弹结算完再定胜负。
+    if (this.aliveIds().length <= 1 && !this.hasArmedIvan()) {
       this.checkWin();
       return;
     }
@@ -778,30 +782,18 @@ export class Game implements GameLike {
 
     // 4. 结算
     const before = tp.hp;
-    if (req.instakill) {
-      const killData: DamageEventData = {
-        target: tp.id, source: req.source, amount: before,
-        hpBefore: before, hpAfter: 0, lethal: true,
-        instakill: true, dtype: req.dtype, tag: req.tag,
-        segment: req.segment, aoe: req.aoe, room: tp.room,
-        ...(req.groupId ? { groupId: req.groupId } : {}),
-      };
-      this.log('damage', `${tp.name} 受到秒杀效果（${req.tag || '伤害'}${req.segment ? ` 第${req.segment.index}/${req.segment.total}段` : ''}）`, killData as unknown as Record<string, unknown>, true);
-      tp.hp = 0;
-    } else {
-      tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
-      const dmgData: DamageEventData = {
-        target: tp.id, source: req.source, amount: req.amount,
-        hpBefore: before, hpAfter: tp.hp, lethal: tp.hp <= 0,
-        dtype: req.dtype, tag: req.tag, segment: req.segment,
-        aoe: req.aoe, room: tp.room,
-        reflected: !!req.reflected, transferred: !!req.transferred,
-        ...(req.groupId ? { groupId: req.groupId } : {}),
-      };
-      this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, dmgData as unknown as Record<string, unknown>, true);
-    }
+    tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
+    const dmgData: DamageEventData = {
+      target: tp.id, source: req.source, amount: req.amount,
+      hpBefore: before, hpAfter: tp.hp, lethal: tp.hp <= 0,
+      dtype: req.dtype, tag: req.tag, segment: req.segment,
+      aoe: req.aoe, room: tp.room,
+      reflected: !!req.reflected, transferred: !!req.transferred,
+      ...(req.groupId ? { groupId: req.groupId } : {}),
+    };
+    this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, dmgData as unknown as Record<string, unknown>, true);
 
-    // 战绩：实际掉血量（秒杀按剩余血量计）
+    // 战绩：实际掉血量
     const dealt = Math.max(0, before - tp.hp);
     if (this.stats[tp.id]) this.stats[tp.id].damageTaken += dealt;
     if (req.source && req.source !== tp.id && this.stats[req.source]) this.stats[req.source].damageDealt += dealt;
@@ -878,6 +870,13 @@ export class Game implements GameLike {
 
   checkWin(): boolean {
     if (this.phase === 'over') return true;
+    // 炸弹先结算、后判胜（Issue #6）：存在已激活（explodeRound<=roundNo）、待本回合末引爆的大伊万时，
+    // 延迟终局判定——让本回合完整走完，回合末延迟事件结算后再做最终胜负判断（最后一人在房内可被同归于尽）。
+    // settlingDeferred：延迟事件结算循环期间不定胜负——同一发爆炸连杀两人时，第一人淘汰后剩余人数
+    // 可能为 1，若当场定胜负会错误产生「幸存者」（其随后也会被同一发炸死，应为平局）。
+    // endRound 的延迟事件结算会把 due 伊万移除并在循环结束后复位 settlingDeferred，
+    // 因此 endRound 末尾的最终 checkWin 到达此处时两项条件必为 false，最终判定正常执行。
+    if (this.settlingDeferred || this.hasArmedIvan()) return false;
     const alive = this.aliveIds();
     if (alive.length === 1) {
       this.phase = 'over';
@@ -904,6 +903,11 @@ export class Game implements GameLike {
     }
   }
 
+  /** 是否存在已激活、待本回合末引爆的大伊万（用于把终局判定延迟到炸弹结算之后） */
+  private hasArmedIvan(): boolean {
+    return this.deferred.some((d) => d.kind === 'ivan' && d.explodeRound <= this.roundNo);
+  }
+
   // ─── 回合末（延迟事件结算） ───────────────────────────────────
 
   private endRound(): void {
@@ -923,8 +927,10 @@ export class Game implements GameLike {
     }
     if ((this.phase as GamePhase) === 'over') return;
 
-    // 延迟事件（大伊万爆炸 / 通用延迟伤害）：动态判定结算时状态
+    // 延迟事件（大伊万爆炸 / 通用延迟伤害）：动态判定结算时状态。
+    // settlingDeferred 期间淘汰不定胜负（同一发爆炸连杀两人时须统一判平局，见 checkWin）
     const due = this.deferred.filter((d) => d.explodeRound <= this.roundNo);
+    this.settlingDeferred = true;
     for (const ev of due) {
       // 大伊万只在「分出胜负」的回合末引爆：平局回合跳过（事件保留，顺延至下一个分出胜负回合）
       if (ev.kind === 'ivan' && !this.roundResolved) continue;
@@ -932,7 +938,6 @@ export class Game implements GameLike {
       if (ev.kind === 'damage' && ev.payload) {
         this.log('deferred', `延迟伤害结算：${String((ev.payload as { label?: string }).label || '')}`);
         this.applyDamage(ev.payload as DamageRequest & { label?: string });
-        if ((this.phase as GamePhase) === 'over') return;
       } else if (ev.kind === 'ivan') {
         const members = this.roomMembers(ev.room);
         // 结构化 data（V3 演出链）：爆炸房间 + 投掷来源，供落点/冲击波演出
@@ -942,18 +947,20 @@ export class Game implements GameLike {
         for (const pid of members) {
           this.applyDamage({
             target: pid,
+            // 极高伤害数值替代专用秒杀机制（作者确认，Issue #6）：对当前血量体系等效即死，
+            // 走普通扣血管线（HP 归零淘汰，战绩按实际损失血量计）
             amount: 999999,
             source: ev.source,
             dtype: 'special',
-            instakill: true,
+            aoe: true, // 房间级毁灭：躲藏/隐身不提供保护（卡片原文「毁灭此房所有生物」；同伍六七 AOE 语义）
             noReflect: true,
             tag: 'ivan',
             groupId: ivanGroup,
           });
         }
-        if ((this.phase as GamePhase) === 'over') return;
       }
     }
+    this.settlingDeferred = false;
 
     if (this.checkWin()) return;
 

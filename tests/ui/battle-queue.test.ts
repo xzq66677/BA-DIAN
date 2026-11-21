@@ -55,10 +55,9 @@ describe('日志 → 演出事件解析（结构化字段，旧数据兼容）',
     expect(e.groupId).toBe('GRP-1-1');
   });
 
-  it('秒杀事件：lethal 自动为真', () => {
-    const e = parseBattleEvent(log(2, 'damage', { target: 'B', amount: 3, hpBefore: 3, hpAfter: 0, instakill: true }))!;
+  it('致命伤害事件：HP 归零后 lethal 自动为真', () => {
+    const e = parseBattleEvent(log(2, 'damage', { target: 'B', amount: 999999, hpBefore: 3, hpAfter: 0 }))!;
     expect(e.lethal).toBe(true);
-    expect(e.instakill).toBe(true);
   });
 
   it('未命中事件：miss 且不产生伤害数值', () => {

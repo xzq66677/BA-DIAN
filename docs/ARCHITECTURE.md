@@ -19,7 +19,7 @@
 │  judge.ts   初次判定（分组递归）+ 二次判定排序（输者先，递归分组）                   │
 │  rng.ts     mulberry32 种子随机（全对局随机性唯一来源，可复现）                      │
 │  chardef.ts 角色接口（钩子/技能/修饰器），characters/ 注册表（10+1 角色实现）        │
-│  types.ts   全部类型与 RuleConfig（规则开关，如 ivanExplodeTiming）                 │
+│  types.ts   全部类型与 RuleConfig（规则开关，如 secondJudgeMode）                 │
 │  testcases/ 测试用例数据（vitest 与网页测试场共用同一份）                            │
 └───────────────────────────────────────────────────────────────────────────────────┘
 ```

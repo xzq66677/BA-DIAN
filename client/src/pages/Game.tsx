@@ -472,8 +472,8 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                 <span>◈ {me.room} · 我的房间</span>
                 <span className="zone-n">{myRoomMembers.length} 人{myRoomMembers.some((m) => m.id === game.currentActor) ? ' · 行动中' : ''}</span>
                 {myRoomPendingIvan && (
-                  <span className="ivan-pending bt-mine-pending" title={`大伊万将在第 ${myRoomPendingIvan.explodeRound} 回合末爆炸`}>
-                    💣 第 {myRoomPendingIvan.explodeRound} 回合末爆炸
+                  <span className="ivan-pending bt-mine-pending" title={`大伊万预计在第 ${myRoomPendingIvan.explodeRound} 回合末爆炸（平局回合顺延）`}>
+                    💣 预计第 {myRoomPendingIvan.explodeRound} 回合末爆炸
                   </span>
                 )}
               </div>
@@ -946,8 +946,8 @@ function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTarge
         ))}
       </div>
       {pendingIvan && (
-        <span className="ivan-pending" title={`大伊万将在第 ${pendingIvan.explodeRound} 回合末爆炸`}>
-          💣 第 {pendingIvan.explodeRound} 回合末爆炸
+        <span className="ivan-pending" title={`大伊万预计在第 ${pendingIvan.explodeRound} 回合末爆炸（平局回合顺延）`}>
+          💣 预计第 {pendingIvan.explodeRound} 回合末爆炸
         </span>
       )}
       {boomHere && <span key={pres.ivanBoom?.key} className="ivan-boom-fx" aria-hidden />}
@@ -1075,7 +1075,7 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
       {/* ── 演出叠加层（全部 key=事件 seq：同类事件重复触发会重播动画） ── */}
       {hit && (
         <span className="hitcut" key={`hc-${hit.key}`} data-testid="hitcut">
-          <span className={`hitcut-slash ${hit.lethal || hit.instakill ? 'lethal' : ''}`} />
+          <span className={`hitcut-slash ${hit.lethal ? 'lethal' : ''}`} />
           <span className="hitcut-flash" />
           {hit.segment && hit.segment.total > 1 && (
             <span className="hitcut-seg">{hit.segment.index}/{hit.segment.total}段</span>
@@ -1083,7 +1083,7 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
         </span>
       )}
       {hit && (
-        <span className={`dmg-float ${hit.lethal || hit.instakill ? 'lethal' : ''}`} key={`df-${hit.key}`}>
+        <span className={`dmg-float ${hit.lethal ? 'lethal' : ''}`} key={`df-${hit.key}`}>
           -{fmtHp(hit.amount)}
         </span>
       )}
