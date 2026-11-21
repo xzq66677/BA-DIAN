@@ -10,8 +10,12 @@ import ReplayViewer from './Replay.js';
 import {
   useBattlePresentation,
   type FxView, type HitView, type HealView, type DeathView, type ReviveView,
+  type PresentationState,
 } from '../battle/useBattlePresentation.js';
+import { useCardRoomFlip } from '../battle/flip.js';
 import { sfx } from '../audio/sfx.js';
+import { Battle3D, detectWebGL, preferredRenderer, setPreferredRenderer } from '../battle3d/Battle3D.js';
+import '../battle3d/battle3d.css';
 
 const THROW_LABEL: Record<string, string> = { rock: '石头', scissors: '剪刀', paper: '布' };
 const THROW_ICON: Record<string, string> = { rock: '✊', scissors: '✌️', paper: '✋' };
@@ -102,11 +106,12 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   }
 
   // ── 战斗演出（BattleEventQueue）：全部由服务端结构化事件驱动，
-  //    不再用快照 HP 差分猜测伤害；快照仍是显示权威，叠加层只做视觉。 ──
-  const { pres, queue: queueState, api: presApi } = useBattlePresentation(logs, lobby.gameNo);
+  //    不再用快照 HP 差分猜测伤害；快照仍是显示权威，叠加层只做视觉。
+  //    终局延迟呈现：规则立即结算（快照 over），终局弹层等最后关键演出播完再登场。 ──
+  const { pres, queue: queueState, api: presApi, finaleWaiting } = useBattlePresentation(logs, lobby.gameNo, game.phase);
   const reducedMotion = useReducedMotion();
   // 移动演出的 FLIP 卡片飞行动画（跟随快照房间变化，不依赖队列时序）
-  useCardRoomFlip(game.players, reducedMotion);
+  useCardRoomFlip(game.players, reducedMotion, '.bt-room-cards .ccard[data-pid], .bt-mine-cards .ccard[data-pid]', 'flip-flying');
 
   // 角色详情弹层
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -228,16 +233,74 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   }
 
   const pendingLocalIds = myIds.filter((i) => game.players.find((p) => p.id === i.playerId)?.alive && !game.submittedIds.includes(i.playerId));
-  const opponents = game.players.filter((p) => p.id !== meId);
   const livingCount = game.players.filter((p) => p.alive).length;
+
+  // ── 沉浸牌桌派生值：弧形远端房间 / 我的房间成员 / 中央事件播报 ──
+  const myRoom = me?.room ?? null;
+  const farRooms = useMemo(() => {
+    const rooms = game.roomIds.filter((r) => r !== myRoom);
+    // 稳定排序：按房间内人数（多人的房间居中）与名称
+    return rooms.slice().sort((a, b) => {
+      const na = game.players.filter((p) => p.alive && p.room === a).length;
+      const nb = game.players.filter((p) => p.alive && p.room === b).length;
+      if (na !== nb) return nb - na;
+      return a.localeCompare(b);
+    });
+  }, [game.roomIds, game.players, myRoom]);
+  const roomMembersOf = (rid: string) => game.players.filter((p) => (p.alive || pres.deaths[p.id]) && p.room === rid);
+  const myRoomMembers = myRoom ? roomMembersOf(myRoom) : [];
+  const myRoomPendingIvan = myRoom ? game.deferred?.find((d) => d.kind === 'ivan' && d.room === myRoom) : undefined;
+  const eventTicker = pres.ivanBoom
+    ? '💥 大伊万爆炸！'
+    : pres.ivanThrow
+      ? '💣 大伊万投掷！'
+      : pres.zoneAlert
+        ? '⚔️ 范围事件！'
+        : '';
+  const tickerKey = pres.ivanBoom?.key ?? pres.ivanThrow?.key ?? pres.zoneAlert?.key ?? 0;
 
   function pickTargetOrDetail(pid: string) {
     if (selAction?.targetHint && validTargets.some((t) => t.id === pid)) setSelTarget(pid);
     else setDetailId(pid);
   }
 
+  // ── 3D 战场渲染器：WebGL 可用时默认 3D；?r=2d / localStorage / 舞台按钮可切回 2D 牌桌 ──
+  // 挂载在 pickTargetOrDetail/validTargets 之后（依赖二者）。
+  const [rendererMode, setRendererModeState] = useState<'3d' | '2d'>(() => preferredRenderer());
+  const webglOk = useMemo(() => detectWebGL(), []);
+  const reducedMotion3d = useReducedMotion();
+  const targetablePids = useMemo(
+    () => (selAction?.targetHint && myTurnId ? validTargets.map((t) => t.id) : []),
+    [selAction, validTargets, myTurnId],
+  );
+  const roomPickMode = !!myTurnId && (!!selAction?.roomHint || selAction?.key === 'move');
+  const myRoom3d = me?.room ?? null;
+  const battle3d = Battle3D({
+    game,
+    pres,
+    myIds: myIds.map((i) => i.playerId),
+    myRoom: myRoom3d,
+    targetablePids,
+    roomPickMode,
+    reducedMotion: reducedMotion3d,
+    onPickPlayer: pickTargetOrDetail,
+    onPickRoom: (rid) => setSelRoom(rid),
+  });
+  const use3d = rendererMode === '3d' && webglOk && !battle3d.failed;
+  function toggleRenderer() {
+    const next = use3d ? '2d' : '3d';
+    setRendererModeState(next);
+    setPreferredRenderer(next);
+  }
+  // 3D 沉浸模式：日志/发言默认收起（辅助层），可从顶栏展开
+  useEffect(() => {
+    if (use3d) { setLogOpen(false); setChatOpen(false); }
+    else { setLogOpen(!compact && !narrow); setChatOpen(!compact && !narrow); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [use3d]);
+
   return (
-    <div className="tcg-app has-chat">
+    <div className={`tcg-app has-chat ${use3d ? 's3d-mode' : ''}`}>
       <header className="tcg-header">
         <span className="tcg-logo">拔典</span>
         <span className="tcg-chip hide-sm">房间 {lobby.code}</span>
@@ -277,7 +340,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
         <button className="tcg-btn ghost" onClick={onExit}>退出房间</button>
       </header>
 
-      {game.phase === 'over' && !winDismissed && (
+      {game.phase === 'over' && !winDismissed && !finaleWaiting && (
         <div className="win-overlay" onClick={() => setWinDismissed(true)}>
           <div className={`win-modal anim-in ${game.winner ? '' : 'draw'}`} onClick={(e) => e.stopPropagation()}>
             {game.winner ? (
@@ -331,16 +394,17 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
       )}
 
       <div className={`tcg-main ${logOpen ? '' : 'no-log'}`}>
-        {/* ── 牌桌（斗地主式：上方对手座位 / 中央牌桌 / 下方我的手牌） ── */}
-        <section className={`battlefield ddz-table anim-in ${game.phase === 'over' ? 'is-over' : ''}`}>
-          <div className="bf-turn">第 <b>{game.roundNo}</b> 回合 · {phaseText()}</div>
-
+        {/* ── 战场主体：3D 战场（WebGL 可用时默认）或沉浸牌桌 2D 回退 ── */}
+        <section className={`battlefield ${use3d ? 'bt3d-stage' : 'bt-table'} anim-in ${game.phase === 'over' ? 'is-over' : ''}`}>
+          {!use3d && (
+            <>
           {/* 大伊万投掷物飞行层 */}
           <IvanProjectile throwView={pres.ivanThrow} game={game} />
 
-          {/* 演出控制：仅在演出进行中浮现；终局后不再显示（避免「对局结束了还在播演出」的错觉） */}
-          {game.phase !== 'over' && (queueState.playing || queueState.depth > 0) && (
-            <div className="battle-ctl" data-testid="battle-ctl">
+          {/* 演出控制：演出进行中浮现；终局等待期间保持可见并追加「直接结算」，
+              玩家可随时跳过剩余演出让终局弹层立即登场（规则已结算，仅视觉放行） */}
+          {(queueState.playing || queueState.depth > 0 || finaleWaiting) && (
+            <div className="battle-ctl" data-testid="battle-ctl" data-queue-depth={String(queueState.depth)} data-queue-playing={queueState.playing ? '1' : '0'}>
               <span className="bc-depth">🎬 {queueState.depth}</span>
               {[1, 2, 4].map((s) => (
                 <button
@@ -351,30 +415,40 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
               ))}
               <button className="bc-btn" onClick={presApi.skipCurrent}>⏭ 跳过本段</button>
               <button className="bc-btn" onClick={presApi.skipAll}>⏹ 全部跳过</button>
+              {finaleWaiting && <button className="bc-btn bc-finish" onClick={presApi.skipFinaleWait}>⏩ 直接结算</button>}
             </div>
           )}
+          {finaleWaiting && <div className="finale-wait-chip">⚔ 终局演出呈现中…</div>}
 
-          <div className="ddz-opponents">
-            {opponents.length === 0 && <div className="ddz-empty">等待其他玩家入座…</div>}
-            {opponents.map((p) => (
-              <SeatChip
-                key={p.id}
-                p={p}
+          {/* 弧形远端房间（我的房间在桌沿区） */}
+          <div className="bt-arc">
+            {farRooms.map((rid, i) => (
+              <BtRoom
+                key={rid}
+                rid={rid}
+                pos={i}
+                arcLen={farRooms.length}
                 game={game}
-                acting={game.currentActor === p.id}
-                mine={myIds.some((i) => i.playerId === p.id)}
-                submitted={game.phase === 'rps1' && game.submittedIds.includes(p.id)}
-                throwView={throwViewOf(game, p.id)}
-                targetable={!!selAction?.targetHint && validTargets.some((t) => t.id === p.id)}
-                hit={pres.hits[p.id]}
-                gotCount={interactCounts[p.id]?.got ?? 0}
-                onInteract={game.phase !== 'over' ? () => throwAt(p.id, 'tomato') : undefined}
-                onClick={() => pickTargetOrDetail(p.id)}
+                pres={pres}
+                fx={pres.fx}
+                hits={pres.hits}
+                heals={pres.heals}
+                misses={pres.misses}
+                deaths={pres.deaths}
+                revives={pres.revives}
+                myIds={myIds}
+                selActionHint={!!selAction?.targetHint}
+                validTargets={validTargets}
+                pickTargetOrDetail={pickTargetOrDetail}
+                interactCounts={interactCounts}
+                throwAt={game.phase !== 'over' ? throwAt : undefined}
               />
             ))}
+            {farRooms.length === 0 && <div className="bt-arc-empty">等待其他房间入座…</div>}
           </div>
 
-          <div className="ddz-center">
+          {/* 中央桌：出拳揭示（rps 完整 / act 收缩）+ 事件播报 + 移动横幅 */}
+          <div className="bt-center">
             <RevealBoard game={game} />
             {pres.moveBanner && (
               <div className="move-banner" key={pres.moveBanner.key}>
@@ -382,70 +456,74 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                 &nbsp;{pres.moveBanner.from} → {pres.moveBanner.to}
               </div>
             )}
-            <div className="zones">
-              {game.roomIds.map((rid) => {
-                // 淘汰演出窗口内保留死亡卡位（动画播完后自然移出桌面，座位区仍有灰化标识）
-                const members = game.players.filter((p) => (p.alive || pres.deaths[p.id]) && p.room === rid);
-                const hasActor = members.some((m) => m.id === game.currentActor);
-                const alertHere = pres.zoneAlert?.room === rid;
-                const moveHere = pres.moveBanner?.to === rid;
-                const boomHere = pres.ivanBoom?.room === rid;
-                // 待爆警示（快照 deferred 驱动：真实游戏状态，非装饰）
-                const pendingIvan = game.deferred?.find((d) => d.kind === 'ivan' && d.room === rid);
-                const isWinnerRoom = game.phase === 'over' && game.winner && members.some((m) => m.id === game.winner);
-                return (
-                  <div
-                    key={rid}
-                    data-room={rid}
-                    className={`zone ${hasActor ? 'zone-acting' : ''} ${alertHere ? `zone-alert zone-alert-${pres.zoneAlert?.kind}` : ''} ${moveHere ? 'zone-move' : ''} ${boomHere ? 'zone-boom' : ''} ${pendingIvan ? 'zone-pending-ivan' : ''} ${isWinnerRoom ? 'zone-winner' : ''}`}
-                  >
-                    <div className="zone-title">
-                      <span>◈ {rid}</span>
-                      <span className="zone-n">
-                        {members.length > 0 ? `${members.length} 人${hasActor ? ' · 行动中' : ''}` : '空房间'}
-                      </span>
-                    </div>
-                    <div className="zone-cards">
-                      {members.length === 0 && <div className="zone-empty">{pendingIvan ? '💣 待爆炸' : '空房间'}</div>}
-                      {members.map((p) => (
-                        <CharCardView
-                          key={p.id}
-                          p={p}
-                          game={game}
-                          isMine={myIds.some((i) => i.playerId === p.id)}
-                          isTargetable={!!selAction?.targetHint && validTargets.some((t) => t.id === p.id)}
-                          submitted={game.phase === 'rps1' && game.submittedIds.includes(p.id)}
-                          throwView={throwViewOf(game, p.id)}
-                          fx={pres.fx[p.id]}
-                          hit={pres.hits[p.id]}
-                          heal={pres.heals[p.id]}
-                          miss={pres.misses[p.id]}
-                          death={pres.deaths[p.id]}
-                          revive={pres.revives[p.id]}
-                          isWinner={game.phase === 'over' && game.winner === p.id}
-                          onClick={() => pickTargetOrDetail(p.id)}
-                        />
-                      ))}
-                    </div>
-                    {pendingIvan && (
-                      <span className="ivan-pending" title={`大伊万将在第 ${pendingIvan.explodeRound} 回合末爆炸`}>
-                        💣 第 {pendingIvan.explodeRound} 回合末爆炸
-                      </span>
-                    )}
-                    {boomHere && <span key={pres.ivanBoom?.key} className="ivan-boom-fx" aria-hidden />}
-                  </div>
-                );
-              })}
-            </div>
+            {eventTicker && (
+              <div className="bt-ticker" key={tickerKey}>{eventTicker}</div>
+            )}
           </div>
+
+          {/* 桌沿：我的房间区（我的卡 + 同房间玩家，目标点选与演出一致） */}
+          {me && (
+            <div
+              data-room={me.room}
+              className={`bt-mine ${myRoomMembers.some((m) => m.id === game.currentActor) ? 'zone-acting' : ''} ${pres.zoneAlert?.room === me.room ? `zone-alert zone-alert-${pres.zoneAlert?.kind}` : ''} ${pres.ivanBoom?.room === me.room ? 'zone-boom' : ''} ${myRoomPendingIvan ? 'zone-pending-ivan' : ''}`}
+            >
+              <div className="bt-mine-head">
+                <span className="bt-mine-icon">🏠</span>
+                <span>◈ {me.room} · 我的房间</span>
+                <span className="zone-n">{myRoomMembers.length} 人{myRoomMembers.some((m) => m.id === game.currentActor) ? ' · 行动中' : ''}</span>
+                {myRoomPendingIvan && (
+                  <span className="ivan-pending bt-mine-pending" title={`大伊万将在第 ${myRoomPendingIvan.explodeRound} 回合末爆炸`}>
+                    💣 第 {myRoomPendingIvan.explodeRound} 回合末爆炸
+                  </span>
+                )}
+              </div>
+              <div className="bt-mine-cards">
+                {myRoomMembers.length === 0 && <div className="zone-empty">空房间</div>}
+                {myRoomMembers.map((p) => (
+                  <CharCardView
+                    key={p.id}
+                    p={p}
+                    game={game}
+                    isMine={myIds.some((i) => i.playerId === p.id)}
+                    isTargetable={!!selAction?.targetHint && validTargets.some((t) => t.id === p.id)}
+                    submitted={game.phase === 'rps1' && game.submittedIds.includes(p.id)}
+                    throwView={throwViewOf(game, p.id)}
+                    fx={pres.fx[p.id]}
+                    hit={pres.hits[p.id]}
+                    heal={pres.heals[p.id]}
+                    miss={pres.misses[p.id]}
+                    death={pres.deaths[p.id]}
+                    revive={pres.revives[p.id]}
+                    isWinner={game.phase === 'over' && game.winner === p.id}
+                    gotCount={interactCounts[p.id]?.got ?? 0}
+                    onInteract={game.phase !== 'over' && p.alive && p.id !== meId ? () => throwAt(p.id, 'tomato') : undefined}
+                    onClick={() => pickTargetOrDetail(p.id)}
+                  />
+                ))}
+              </div>
+              {pres.ivanBoom?.room === me.room && <span key={pres.ivanBoom?.key} className="ivan-boom-fx" aria-hidden />}
+            </div>
+          )}
+            </>
+          )}
+          {use3d && (
+            <>
+              {battle3d.view}
+              <div className="bt3d-corner">
+                <button className="tcg-btn ghost tiny" title="恢复默认视角（也可拖动旋转 / 滚轮缩放）" onClick={battle3d.resetView}>⛶ 视角</button>
+                <button className="tcg-btn ghost tiny" title="切换到 2D 牌桌" onClick={toggleRenderer}>2D</button>
+              </div>
+              <div className="bt3d-reveal-wrap"><RevealBoard game={game} /></div>
+            </>
+          )}
         </section>
 
         <aside className={`log-side ${logOpen ? 'log-open' : 'log-closed'}`}>
           <LogPanel logs={logs} />
         </aside>
 
-        {/* ── 我的席位 + 手牌 ── */}
-        <section className="action-dock ddz-hand anim-in">
+        {/* ── 我的席位 + 手牌（3D 模式：底部悬浮操作坞） ── */}
+        <section className={`action-dock ddz-hand anim-in ${use3d ? ((myTurnId || game.phase === 'rps1') ? 'is-my-turn' : 'is-waiting') : ''}`}>
           <div className="hand-layout">
             <MySeat p={me} isHost={isHost} acting={game.currentActor === meId} throwView={me ? throwViewOf(game, me.id) : null} hit={pres.hits[meId]} />
             <div className="hand-main">
@@ -806,68 +884,82 @@ function RevealBoard({ game }: { game: GameSnapshot }) {
   );
 }
 
-// ── 对手座位（斗地主式顶部座位条） ─────────────────────
+// ── 弧形远端房间（沉浸牌桌：地形图腾 + 房间成员卡 + 状态聚焦） ──
 
-function SeatChip({ p, game, acting, mine, submitted, throwView, targetable, hit, gotCount, onInteract, onClick }: {
-  p: SnapPlayer;
+const ROOM_TOTEM: Record<string, string> = { R1: '🏔', R2: '🌲', R3: '🏘', R4: '🏰', R5: '🌋', R6: '🌊' };
+
+function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTargets, pickTargetOrDetail, interactCounts, throwAt, fx, hits, heals, misses, deaths, revives }: {
+  rid: string;
+  /** 弧形位置（0..n），用于错落变换 */
+  pos: number;
+  /** 弧形房间总数（错落几何用） */
+  arcLen: number;
   game: GameSnapshot;
-  acting: boolean;
-  mine: boolean;
-  submitted: boolean;
-  throwView: ThrowView | null;
-  targetable: boolean;
-  hit?: HitView;
-  gotCount?: number;
-  onInteract?: () => void;
-  onClick: () => void;
+  pres: PresentationState;
+  myIds: { playerId: string }[];
+  selActionHint: boolean;
+  validTargets: SnapPlayer[];
+  pickTargetOrDetail: (pid: string) => void;
+  interactCounts: Record<string, { given: number; got: number }>;
+  throwAt?: (targetId: string, kind: 'tomato') => void;
+  fx: Record<string, FxView>;
+  hits: Record<string, HitView>;
+  heals: Record<string, HealView>;
+  misses: Record<string, { key: number; sourceId?: string }>;
+  deaths: Record<string, DeathView>;
+  revives: Record<string, ReviveView>;
 }) {
-  const meta = cardMeta(p.charId);
-  const dead = !p.alive;
-  const cls = [
-    'seat',
-    dead ? 'is-dead' : '',
-    acting ? 'is-acting' : '',
-    targetable ? 'is-targetable' : '',
-    !dead && throwView ? `has-throw rv-${throwView.result}` : '',
-    hit ? 'seat-hit' : '',
-  ].filter(Boolean).join(' ');
-
+  const members = game.players.filter((p) => (p.alive || !!pres.deaths[p.id]) && p.room === rid);
+  const hasActor = members.some((m) => m.id === game.currentActor);
+  const alertHere = pres.zoneAlert?.room === rid;
+  const boomHere = pres.ivanBoom?.room === rid;
+  const pendingIvan = game.deferred?.find((d) => d.kind === 'ivan' && d.room === rid);
+  const isWinnerRoom = game.phase === 'over' && game.winner && members.some((m) => m.id === game.winner);
+  // 弧形错落：两侧房间略微下沉（中轴最高）
+  const mid = (arcLen - 1) / 2;
+  const off = Math.abs(pos - mid);
+  const drop = off * 14;
   return (
-    <div className={cls} data-pid={p.id} onClick={onClick} title={`${p.name} · ${p.charName}`}>
-      <div className="seat-avatar">
-        {meta?.img ? <img src={meta.img} alt={p.charName} /> : <span className="seat-ph">拔</span>}
-        {throwView && (
-          <span className={`seat-throw t-${throwView.t}`} title={`出了${THROW_LABEL[throwView.t]}`}>
-            {THROW_ICON[throwView.t]}
-          </span>
-        )}
-        {!throwView && submitted && !dead && <span className="seat-throw pending" title="已出拳（保密）">🎴</span>}
-        {!!gotCount && <span className="seat-got" title={`被丢了 ${gotCount} 次`}>🍅{gotCount}</span>}
-        {!dead && p.char?.domain === true && (
-          <span className="seat-domain" title="领域生效中（判定平局算其胜）">✨</span>
-        )}
+    <div
+      data-room={rid}
+      style={{ ['--bt-drop' as string]: `${drop}px` }}
+      className={`bt-room ${members.length === 0 ? 'empty' : ''} ${hasActor ? 'zone-acting' : ''} ${alertHere ? `zone-alert zone-alert-${pres.zoneAlert?.kind}` : ''} ${boomHere ? 'zone-boom' : ''} ${pendingIvan ? 'zone-pending-ivan' : ''} ${isWinnerRoom ? 'zone-winner' : ''}`}
+    >
+      <div className="bt-room-head">
+        <span className="bt-room-icon">{ROOM_TOTEM[rid] ?? '◈'}</span>
+        <span className="bt-room-name">◈ {rid}</span>
+        <span className="zone-n">{members.length > 0 ? `${members.length} 人${hasActor ? ' · 行动中' : ''}` : '空房间'}</span>
       </div>
-      <div className="seat-info">
-        <div className="seat-name">
-          {p.name}
-          {mine && <span className="seat-tag">本机</span>}
-          {dead && <span className="seat-tag dead">淘汰</span>}
-        </div>
-        <div className="seat-sub">
-          <span className="seat-hp">❤ {fmtHp(p.hp)}/{fmtHp(p.maxHp)}</span>
-          <span className="seat-room">📍{p.room}</span>
-        </div>
+      <div className="bt-room-cards">
+        {members.length === 0 && <div className="zone-empty">{pendingIvan ? '💣 待爆炸' : '空房间'}</div>}
+        {members.map((p) => (
+          <CharCardView
+            key={p.id}
+            p={p}
+            game={game}
+            isMine={myIds.some((i) => i.playerId === p.id)}
+            isTargetable={selActionHint && validTargets.some((t) => t.id === p.id)}
+            submitted={game.phase === 'rps1' && game.submittedIds.includes(p.id)}
+            throwView={throwViewOf(game, p.id)}
+            fx={fx[p.id]}
+            hit={hits[p.id]}
+            heal={heals[p.id]}
+            miss={misses[p.id]}
+            death={deaths[p.id]}
+            revive={revives[p.id]}
+            isWinner={game.phase === 'over' && game.winner === p.id}
+            gotCount={interactCounts[p.id]?.got ?? 0}
+            onInteract={throwAt && p.alive && !myIds.some((i) => i.playerId === p.id) ? () => throwAt(p.id, 'tomato') : undefined}
+            onClick={() => pickTargetOrDetail(p.id)}
+          />
+        ))}
       </div>
-      {acting && !dead && <span className="seat-acting">行动中</span>}
-      {hit && !dead && <span className="dmg-float" key={hit.key}>-{fmtHp(hit.amount)}</span>}
-      {game.phase === 'over' && game.winner === p.id && <span className="seat-crown">🏆</span>}
-      {onInteract && !dead && (
-        <button
-          className="seat-tomato"
-          title="丢番茄（纯娱乐，不影响对局）"
-          onClick={(e) => { e.stopPropagation(); onInteract(); }}
-        >🍅</button>
+      {pendingIvan && (
+        <span className="ivan-pending" title={`大伊万将在第 ${pendingIvan.explodeRound} 回合末爆炸`}>
+          💣 第 {pendingIvan.explodeRound} 回合末爆炸
+        </span>
       )}
+      {boomHere && <span key={pres.ivanBoom?.key} className="ivan-boom-fx" aria-hidden />}
     </div>
   );
 }
@@ -906,7 +998,7 @@ const FX_ICON: Record<string, string> = {
   aim: '🎯', hide: '🙈', seek: '🔍', skip: '⏭️',
 };
 
-function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx, hit, heal, miss, death, revive, isWinner, onClick }: {
+function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx, hit, heal, miss, death, revive, isWinner, gotCount, onInteract, onClick }: {
   p: SnapPlayer;
   game: GameSnapshot;
   isMine: boolean;
@@ -921,6 +1013,9 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
   revive?: ReviveView;
   /** 终局胜者（金色光环 + 皇冠） */
   isWinner?: boolean;
+  /** 局内小互动（丢番茄）：卡面快捷按钮 + 被砸计数 */
+  gotCount?: number;
+  onInteract?: () => void;
   onClick: () => void;
 }) {
   const meta = cardMeta(p.charId);
@@ -976,7 +1071,15 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
         )}
         {p.hidden && !dead && <span className="cbadge cbadge-hide">🙈 躲藏</span>}
         {p.invisible && !dead && <span className="cbadge cbadge-hide">👻 隐身</span>}
+        {!!gotCount && <span className="ccard-got" title={`被丢了 ${gotCount} 次`}>🍅{gotCount}</span>}
       </div>
+      {onInteract && !dead && (
+        <button
+          className="ccard-tomato"
+          title="丢番茄（纯娱乐，不影响对局）"
+          onClick={(e) => { e.stopPropagation(); onInteract(); }}
+        >🍅</button>
+      )}
 
       {/* ── 演出叠加层（全部 key=事件 seq：同类事件重复触发会重播动画） ── */}
       {hit && (
@@ -1175,7 +1278,7 @@ function IvanProjectile({ throwView, game }: { throwView: { key: number; pid: st
     if (!throwView || throwView.key === lastKey.current) return;
     lastKey.current = throwView.key;
     const from = document.querySelector(`[data-pid="${throwView.pid}"] .ccard-frame, [data-pid="${throwView.pid}"]`) as HTMLElement | null;
-    const zone = document.querySelector(`.zone[data-room="${throwView.room}"]`) as HTMLElement | null;
+    const zone = document.querySelector(`[data-room="${throwView.room}"]`) as HTMLElement | null;
     const fr = from?.getBoundingClientRect();
     const zr = zone?.getBoundingClientRect();
     const x0 = fr && fr.width > 0 ? fr.left + fr.width / 2 : window.innerWidth / 2;
@@ -1357,58 +1460,6 @@ function useReducedMotion(): boolean {
     };
   }, []);
   return on;
-}
-
-// ── 移动演出：卡片跨房间 FLIP 飞行动画 ─────────────────────
-//
-// 快照到达时房间成员已经重排（React 直接把卡渲染进新 zone）。
-// 本 hook 在布局提交后测量新旧位置差，用 transform 把卡片从旧位置"放回"再过渡到新位置。
-// 与演出队列解耦：即使队列处于快进/清空状态，移动落位动画依然正确、不会错位。
-
-const FLIP_MS = 560;
-
-function useCardRoomFlip(players: SnapPlayer[], reduced: boolean): void {
-  const prevRef = useRef<Map<string, { x: number; y: number; room: string }>>(new Map());
-  useLayoutEffect(() => {
-    const cards = document.querySelectorAll<HTMLElement>('.zone-cards .ccard[data-pid]');
-    const next = new Map<string, { x: number; y: number; room: string }>();
-    for (const el of cards) {
-      const pid = el.getAttribute('data-pid');
-      if (!pid) continue;
-      const r = el.getBoundingClientRect();
-      next.set(pid, { x: r.left + r.width / 2, y: r.top + r.height / 2, room: players.find((p) => p.id === pid)?.room ?? '' });
-    }
-    const prev = prevRef.current;
-    if (!reduced) {
-      for (const el of cards) {
-        const pid = el.getAttribute('data-pid');
-        if (!pid) continue;
-        const p = players.find((x) => x.id === pid);
-        const old = prev.get(pid);
-        if (!old || !p || p.room === old.room || !p.alive) continue;
-        const cur = next.get(pid);
-        if (!cur) continue;
-        const dx = old.x - cur.x;
-        const dy = old.y - cur.y;
-        if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue;
-        el.classList.add('flip-flying');
-        el.style.transition = 'none';
-        el.style.transform = `translate(${dx}px, ${dy}px)`;
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            el.style.transition = `transform ${FLIP_MS}ms cubic-bezier(0.22, 0.9, 0.3, 1)`;
-            el.style.transform = '';
-            setTimeout(() => {
-              el.style.transition = '';
-              el.style.transform = '';
-              el.classList.remove('flip-flying');
-            }, FLIP_MS + 60);
-          });
-        });
-      }
-    }
-    prevRef.current = next;
-  }, [players, reduced]);
 }
 
 function matchMediaSafe(q: string): boolean {

@@ -14,8 +14,11 @@ import { BattleEventQueue, type QueueState, type Speed } from './queue.js';
 import type { BattleEvent, LogLike } from './events.js';
 import { sfx, type SfxKind } from '../audio/sfx.js';
 
-/** 行动者卡 fx（⚔️/💊/🚶/✨ 弹出动画） */
-export interface FxView { kind: string; key: number }
+/** 行动者卡 fx（⚔️/💊/🚶/✨ 弹出动画）；targetId 供 3D 场景确定动作朝向（2D 不使用） */
+export interface FxView { kind: string; key: number; targetId?: string }
+
+/** 攻击宣告（出手意向：来源 → 目标）；2D 不使用，3D 场景据此画预警光束 */
+export interface DeclView { key: number; targetId: string; amount?: number; room?: string }
 
 /** 受击斩击演出（伤害数字与 HP 流程全部来自服务端结构化字段） */
 export interface HitView {
@@ -43,6 +46,8 @@ export interface IvanBoomView { key: number; room: string }
 
 export interface PresentationState {
   fx: Record<string, FxView>;
+  /** 攻击宣告（来源卡 → 目标）；随 3D 战场新增，2D 忽略 */
+  decls: Record<string, DeclView>;
   hits: Record<string, HitView>;
   heals: Record<string, HealView>;
   misses: Record<string, { key: number; sourceId?: string }>;
@@ -55,7 +60,7 @@ export interface PresentationState {
 }
 
 export const EMPTY_PRESENTATION: PresentationState = {
-  fx: {}, hits: {}, heals: {}, misses: {}, deaths: {}, revives: {}, zoneAlert: null, moveBanner: null,
+  fx: {}, decls: {}, hits: {}, heals: {}, misses: {}, deaths: {}, revives: {}, zoneAlert: null, moveBanner: null,
   ivanThrow: null, ivanBoom: null,
 };
 
@@ -75,13 +80,22 @@ export interface BattlePresentationApi {
   setSpeed: (s: Speed) => void;
   skipCurrent: () => void;
   skipAll: () => void;
+  /** 跳过终局等待：清空剩余演出，立即交由终局 UI 接管（规则已结算，仅视觉放行） */
+  skipFinaleWait: () => void;
 }
 
 export interface BattlePresentation {
   pres: PresentationState;
   queue: QueueState;
   api: BattlePresentationApi;
+  /** 终局延迟呈现：true = 规则已终局，但剩余关键演出仍在呈现，终局 UI 应等待 */
+  finaleWaiting: boolean;
 }
+
+/** 终局等待兜底上限（ms）：即使演出链异常未清空，也保证终局 UI 最终登场（不死锁） */
+export const FINALE_WAIT_MAX_MS = 6500;
+/** 队列播完后的短暂驻留（ms）：让最后一击的伤害数字/血条落定再进入终局舞台 */
+const FINALE_GRACE_MS = 620;
 
 function reducedMotionPreferred(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
@@ -91,8 +105,15 @@ function reducedMotionPreferred(): boolean {
 /**
  * @param logs 全量日志（App 增量合并后的列表）
  * @param gameNo 局号：变化即新一局，清空队列与叠加层（旧事件不演到新局）
+ * @param gamePhase 对局阶段（可选）：'over' 时启用终局延迟呈现——
+ *        等待队列中剩余演出（致命链/爆炸/淘汰）播完再交给终局 UI，防止终局弹层抢断最后一幕。
+ *        兜底：最长等待 FINALE_WAIT_MAX_MS；可 skipFinaleWait 立即放行；重连（队列空）不等待。
  */
-export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattlePresentation {
+export function useBattlePresentation(
+  logs: LogLike[],
+  gameNo?: number,
+  gamePhase?: 'rps1' | 'act' | 'roundEnd' | 'over',
+): BattlePresentation {
   const [pres, setPres] = useState<PresentationState>(EMPTY_PRESENTATION);
   const [queueState, setQueueState] = useState<QueueState>({ playing: false, depth: 0, mode: 'normal', speed: 1 });
   const queueRef = useRef<BattleEventQueue | null>(null);
@@ -103,6 +124,14 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
   /** 队列模式镜像（音效拥堵压缩判定用，避免闭包过期） */
   const modeRef = useRef<'normal' | 'fast'>('normal');
   const reducedRef = useRef(false);
+  // ── 终局延迟呈现（finale gate）──
+  const [finaleWaiting, setFinaleWaiting] = useState(false);
+  const overSeenRef = useRef(false);
+  const finaleFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 兜底放行已使用：跳过/超时后不再因残段重新锁定终局 UI（防死循环） */
+  const fallbackArmedRef = useRef(false);
+  const queueStateRef = useRef(queueState);
+  queueStateRef.current = queueState;
 
   // 回调经由 ref 转发，保证队列持有的一直是最新闭包
   const applyEventRef = useRef<(e: BattleEvent) => void>(() => {});
@@ -142,7 +171,7 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
     timersRef.current.clear();
   }
 
-  function scheduleExpiry(key: 'fx' | 'hits' | 'heals' | 'misses' | 'deaths' | 'revives' | 'zoneAlert' | 'moveBanner' | 'ivanThrow' | 'ivanBoom', id: string, ms: number): void {
+  function scheduleExpiry(key: 'fx' | 'decls' | 'hits' | 'heals' | 'misses' | 'deaths' | 'revives' | 'zoneAlert' | 'moveBanner' | 'ivanThrow' | 'ivanBoom', id: string, ms: number): void {
     const t = setTimeout(() => {
       timersRef.current.delete(t);
       setPres((prev) => {
@@ -178,8 +207,12 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
         case 'attackDecl': {
           const pid = e.pid ?? e.sourceId;
           if (!pid) break;
-          next.fx = { ...prev.fx, [pid]: { kind: e.fx ?? (e.kind === 'attackDecl' ? 'attack' : 'skill'), key: e.seq } };
+          next.fx = { ...prev.fx, [pid]: { kind: e.fx ?? (e.kind === 'attackDecl' ? 'attack' : 'skill'), key: e.seq, targetId: e.targetId } };
           scheduleExpiry('fx', pid, e.kind === 'attackDecl' ? 420 : FX_MS);
+          if (e.kind === 'attackDecl' && e.targetId) {
+            next.decls = { ...prev.decls, [pid]: { key: e.seq, targetId: e.targetId, amount: e.amount, room: e.room } };
+            scheduleExpiry('decls', pid, 520);
+          }
           break;
         }
         case 'damage': {
@@ -288,9 +321,52 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
       clearAllTimers();
       setPres({ ...EMPTY_PRESENTATION });
       bootstrappedRef.current = false;
+      // 终局等待一并复位（新对局不继承旧局等待状态）
+      overSeenRef.current = false;
+      fallbackArmedRef.current = false;
+      if (finaleFallbackRef.current) { clearTimeout(finaleFallbackRef.current); finaleFallbackRef.current = null; }
+      setFinaleWaiting(false);
     }
     if (gameNo !== undefined) gameNoRef.current = gameNo;
   }, [gameNo, queue]);
+
+  // ── 终局延迟呈现：规则立即结算（快照权威），终局 UI 等最后关键演出播完 ──
+  // 统一协调器（依赖 [gamePhase, queueState]）：必须覆盖「over 快照与尾随日志同批到达」——
+  // 该场景下 phase effect 先于日志入队运行（effect 顺序），仅靠 phase 变化判定会漏判。
+  // 兜底：从 over 起最长 FINALE_WAIT_MAX_MS；skipFinaleWait/兜底放行后 fallbackArmedRef
+  // 置位，防止「放行 → 队列仍有残段 → 重新锁定」的死循环。
+  useEffect(() => {
+    if (gamePhase !== 'over') {
+      if (overSeenRef.current) {
+        overSeenRef.current = false;
+        fallbackArmedRef.current = false;
+        if (finaleFallbackRef.current) { clearTimeout(finaleFallbackRef.current); finaleFallbackRef.current = null; }
+        setFinaleWaiting(false);
+      }
+      return;
+    }
+    overSeenRef.current = true;
+    const busy = queueStateRef.current.playing || queueStateRef.current.depth > 0;
+    if (busy && !fallbackArmedRef.current) {
+      if (!finaleWaiting) setFinaleWaiting(true);
+      if (finaleFallbackRef.current === null) {
+        finaleFallbackRef.current = setTimeout(() => {
+          fallbackArmedRef.current = true; // 兜底已用：本局不再重入等待（不死锁）
+          setFinaleWaiting(false);
+        }, FINALE_WAIT_MAX_MS);
+      }
+    }
+  }, [gamePhase, queueState, finaleWaiting]);
+
+  // 等待中：队列播完 → 短驻留（最后一击落定）→ 放行
+  useEffect(() => {
+    if (!finaleWaiting) return;
+    const q = queueStateRef.current;
+    if (!q.playing && q.depth === 0) {
+      const t = setTimeout(() => setFinaleWaiting(false), FINALE_GRACE_MS);
+      return () => clearTimeout(t);
+    }
+  }, [finaleWaiting, queueState]);
 
   // 日志增量 → 队列（首包仅推进游标，不回放历史）
   const lastLenRef = useRef(0);
@@ -311,7 +387,13 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
     setSpeed: (s) => queue.setSpeed(s),
     skipCurrent: () => queue.skipCurrent(),
     skipAll: () => queue.skipAll(),
+    skipFinaleWait: () => {
+      if (finaleFallbackRef.current) { clearTimeout(finaleFallbackRef.current); finaleFallbackRef.current = null; }
+      fallbackArmedRef.current = true; // 玩家明确跳过：后续残段不再重新锁定终局 UI
+      queue.skipAll(); // onFlush 清空全部叠加层，直接呈现权威快照
+      setFinaleWaiting(false);
+    },
   }), [queue]);
 
-  return { pres, queue: queueState, api };
+  return { pres, queue: queueState, api, finaleWaiting };
 }

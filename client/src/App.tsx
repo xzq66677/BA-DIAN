@@ -3,6 +3,7 @@ import Home from './pages/Home.js';
 import Lobby from './pages/Lobby.js';
 import GamePage from './pages/Game.js';
 import Arena from './pages/Arena.js';
+import PrototypePage from './proto/Prototype.js';
 import { net, type LobbyState, type GameSnapshot } from './net.js';
 
 export type Page = 'home' | 'lobby' | 'game' | 'arena';
@@ -124,6 +125,12 @@ export default function App() {
     setPage('home');
   };
   exitRef.current = exitSession;
+
+  // 原型探索模式（Phase B 设计探索专用）：?proto=A|B|C —— 浏览器内真实引擎对局 + 架构原型
+  const protoArch = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('proto') : null;
+  if (protoArch === 'A' || protoArch === 'B' || protoArch === 'C') {
+    return <PrototypePage arch={protoArch} />;
+  }
 
   if (page === 'arena') {
     return <Arena onBack={() => setPage(session ? (lobby?.state === 'lobby' ? 'lobby' : 'game') : 'home')} />;

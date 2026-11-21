@@ -1,0 +1,472 @@
+/* ═══════════════════════════════════════════════════════════
+   拔典 · 3D 战场覆盖层样式
+   与 2D 牌桌同一设计语言：深色桌面 + 描金 + 朱红/翠绿语义。
+   覆盖层分两块：交互层（名牌/房间标签，pointer-events:auto）
+   与飘字层（pointer-events:none）。
+   ═══════════════════════════════════════════════════════════ */
+
+/* 3D 舞台：战场区块本身成为全出血 3D 画布 */
+.battlefield.bt3d-stage {
+  padding: 6px;
+  min-height: clamp(430px, 56vh, 720px);
+}
+.battlefield.bt3d-stage::before { display: none; }
+
+/* ═══════════════════════════════════════════════════════════
+   沉浸模式（s3d-mode）：3D 画布占满整个游戏视口，
+   旧面板转为悬浮操作/信息层 —— 3D 战场是第一视觉主体。
+   ═══════════════════════════════════════════════════════════ */
+.s3d-mode .tcg-app-root { display: none; }
+.s3d-mode {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+.s3d-mode .tcg-header {
+  position: relative;
+  flex-shrink: 0;
+  top: auto;
+  padding: 6px 12px;
+}
+.s3d-mode .tcg-main {
+  flex: 1;
+  min-height: 0;
+  display: block;
+  position: relative;
+  padding: 0;
+  gap: 0;
+  max-width: none;
+  overflow: hidden;
+}
+.s3d-mode .battlefield {
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid rgba(216, 176, 74, 0.25);
+  padding: 0;
+  min-height: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+/* 日志：右上悬浮抽屉（信息辅助层） */
+.s3d-mode .log-side {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: min(340px, 34vw);
+  max-height: 46vh;
+  z-index: 20;
+  background: rgba(13, 18, 26, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(216, 176, 74, 0.35);
+  border-radius: 12px;
+  padding: 8px 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.s3d-mode .log-side .log-scroll {
+  max-height: calc(46vh - 52px);
+}
+/* 操作坞：底部悬浮（操作层融合 3D 舞台） */
+.s3d-mode .action-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  width: min(96vw, 940px);
+  z-index: 21;
+  background: rgba(10, 14, 20, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(216, 176, 74, 0.45);
+  border-radius: 16px;
+  padding: 8px 12px 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.s3d-mode .action-dock.is-waiting .hand-layout { display: none; }
+.s3d-mode .action-dock .hand-layout { gap: 8px; }
+.s3d-mode .action-dock .my-seat { flex-shrink: 0; }
+.s3d-mode .hand-fan { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+.s3d-mode .confirm-bar { flex-wrap: wrap; }
+/* 发言：左下抽屉 */
+.s3d-mode .chat-dock {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  width: min(300px, 32vw);
+  z-index: 22;
+  max-height: 34vh;
+}
+/* 揭示台：顶部悬浮条 */
+.s3d-mode .bt3d-reveal-wrap { top: 8px; width: min(96%, 640px); }
+.s3d-mode .reveal-board {
+  background: rgba(13, 18, 26, 0.82);
+  backdrop-filter: blur(8px);
+  border-color: rgba(216, 176, 74, 0.4);
+}
+/* 窄屏竖屏：操作坞/抽屉进一步收敛 */
+@media (max-width: 900px) {
+  .s3d-mode .log-side { width: min(300px, 62vw); max-height: 38vh; top: 8px; right: 8px; }
+  .s3d-mode .action-dock { width: 98vw; bottom: 8px; padding: 6px 8px 8px; }
+  .s3d-mode .chat-dock { width: min(260px, 60vw); max-height: 30vh; }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  .s3d-mode .log-side { max-height: 52vh; }
+  .s3d-mode .action-dock { width: min(92vw, 860px); }
+}
+
+.b3-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  touch-action: none;
+  cursor: grab;
+}
+.b3-host:active { cursor: grabbing; }
+.b3-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* 横屏矮视口：舞台保持主导 */
+@media (orientation: landscape) and (max-height: 560px) {
+  .battlefield.bt3d-stage { min-height: 300px; }
+}
+/* 窄屏：舞台略降，给行动坞留出空间 */
+@media (max-width: 900px) {
+  .battlefield.bt3d-stage { min-height: 46vh; }
+}
+
+/* 交互覆盖层 */
+.b3-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.b3-overlay > * { pointer-events: auto; }
+
+/* 飘字层（不拦截点击） */
+.b3-floats {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 6;
+}
+.b3-float {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ── 角色名牌 ─────────────────────────────────────────────── */
+.b3-plate {
+  position: absolute;
+  left: 0;
+  top: 0;
+  min-width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px 5px;
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.92), rgba(11, 15, 20, 0.88));
+  border: 1px solid rgba(216, 176, 74, 0.5);
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  will-change: transform;
+  z-index: 4;
+}
+.b3-plate:hover {
+  border-color: var(--gold-2, #f0d68a);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6), 0 0 12px rgba(216, 176, 74, 0.35);
+}
+.b3-plate.is-targetable {
+  border-color: var(--green-glow, #4ade80);
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.4), 0 4px 14px rgba(0, 0, 0, 0.5);
+  animation: b3-glow-green 1.4s infinite;
+}
+@keyframes b3-glow-green {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.35), 0 4px 14px rgba(0,0,0,0.5); }
+  50% { box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.7), 0 0 18px rgba(74, 222, 128, 0.45); }
+}
+.b3-plate.is-acting {
+  border-color: var(--gold-2, #f0d68a);
+  box-shadow: 0 0 0 2px rgba(240, 214, 138, 0.5), 0 4px 16px rgba(216, 176, 74, 0.45);
+}
+.b3-plate.is-dead {
+  filter: grayscale(1) brightness(0.7);
+  cursor: pointer;
+}
+
+.b3-av {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #2e2013, #1f150b);
+  border: 1px solid rgba(216, 176, 74, 0.4);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--gold-2, #f0d68a);
+}
+.b3-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 18%;
+}
+.b3-nm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text, #e8e4d8);
+  letter-spacing: 1px;
+  max-width: 130px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.b3-nm-me {
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(126, 200, 255, 0.18);
+  border: 1px solid rgba(126, 200, 255, 0.5);
+  color: #9fc7ff;
+  flex-shrink: 0;
+}
+.b3-hpbar {
+  width: 88px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(216, 176, 74, 0.3);
+  overflow: hidden;
+}
+.b3-hp-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #63d97e, #8ce6a0);
+  transition: width 0.45s cubic-bezier(0.3, 0.7, 0.3, 1), background 0.3s ease;
+}
+.b3-badges {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 140px;
+}
+.b3-bdg {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(154, 160, 168, 0.4);
+  color: #cfd6de;
+}
+.b3-bdg.act {
+  background: rgba(240, 214, 138, 0.16);
+  border-color: rgba(240, 214, 138, 0.6);
+  color: var(--gold-2, #f0d68a);
+  animation: b3-act-pulse 1.3s ease infinite;
+}
+@keyframes b3-act-pulse {
+  0%, 100% { box-shadow: 0 0 2px rgba(240, 214, 138, 0.4); }
+  50% { box-shadow: 0 0 8px rgba(240, 214, 138, 0.9); }
+}
+.b3-bdg.dom {
+  border-color: rgba(154, 106, 224, 0.7);
+  color: #c9a8ff;
+  background: rgba(154, 106, 224, 0.15);
+}
+.b3-bdg.dead {
+  border-color: rgba(200, 60, 50, 0.6);
+  color: #ffb3ab;
+  background: rgba(60, 8, 4, 0.5);
+}
+.b3-bdg.win {
+  border-color: rgba(240, 214, 138, 0.8);
+  color: #ffe9b0;
+  background: rgba(216, 176, 74, 0.25);
+}
+
+/* ── 房间标签 ─────────────────────────────────────────────── */
+.b3-roomlabel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--gold-2, #f0d68a);
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.85), rgba(11, 15, 20, 0.8));
+  border: 1px solid rgba(216, 176, 74, 0.35);
+  border-radius: 999px;
+  will-change: transform;
+  user-select: none;
+}
+.b3-rl-icon { font-size: 13px; }
+.b3-rl-count { color: var(--text-dim, #9aa0a8); font-size: 11px; font-weight: 600; }
+.b3-rl-pending { color: #ffb36a; font-size: 10px; font-weight: 800; }
+.b3-roomlabel.is-empty { opacity: 0.55; }
+.b3-roomlabel.is-acting {
+  border-color: var(--gold-2, #f0d68a);
+  box-shadow: 0 0 10px rgba(216, 176, 74, 0.4);
+  animation: b3-act-pulse 1.4s ease infinite;
+}
+.b3-roomlabel.is-pending {
+  border-color: rgba(255, 152, 40, 0.8);
+  animation: b3-pending-pulse 1.6s ease infinite;
+}
+@keyframes b3-pending-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(255, 152, 40, 0.4); }
+  50% { box-shadow: 0 0 14px rgba(255, 152, 40, 0.85); }
+}
+.b3-roomlabel.is-winner {
+  border-color: var(--gold-2, #f0d68a);
+  box-shadow: 0 0 16px rgba(240, 214, 138, 0.75);
+}
+.b3-roomlabel.is-pickable {
+  cursor: pointer;
+  border-color: var(--green-glow, #4ade80);
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.35), 0 0 14px rgba(74, 222, 128, 0.4);
+}
+.b3-roomlabel.is-pickable:hover {
+  transform-origin: center;
+  background: rgba(74, 222, 128, 0.15);
+}
+/* 告警样式（与 2D .zone-alert 语义一致） */
+.b3-roomlabel.zone-alert { animation: b3-alert-pulse 0.95s ease; }
+.b3-roomlabel.zone-alert-aoe { border-color: rgba(226, 61, 48, 0.85); }
+.b3-roomlabel.zone-alert-ivan { border-color: rgba(255, 152, 40, 0.9); }
+@keyframes b3-alert-pulse {
+  0% { box-shadow: 0 0 0 rgba(226, 61, 48, 0); }
+  30% { box-shadow: 0 0 20px rgba(226, 61, 48, 0.8); }
+  100% { box-shadow: 0 0 0 rgba(226, 61, 48, 0); }
+}
+.b3-roomlabel.hit-flash { animation: hit-splat 0.82s ease; }
+
+/* ── 战场事件横幅（投掷/爆炸/领域展开） ────────────────────── */
+.b3-ticker {
+  display: inline-block;
+  padding: 4px 14px;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #ffd9a0;
+  background: rgba(30, 18, 6, 0.85);
+  border: 1px solid rgba(255, 152, 40, 0.7);
+  border-radius: 999px;
+  white-space: nowrap;
+  animation: b3-ticker-anim 1.15s ease forwards;
+}
+.b3-ticker.boom {
+  color: #ff8a5c;
+  border-color: rgba(255, 90, 40, 0.9);
+  font-size: 17px;
+}
+.b3-ticker.dom {
+  color: #c9a8ff;
+  border-color: rgba(154, 106, 224, 0.8);
+  background: rgba(20, 10, 30, 0.85);
+}
+@keyframes b3-ticker-anim {
+  0% { opacity: 0; transform: scale(0.6); }
+  18% { opacity: 1; transform: scale(1.12); }
+  30% { transform: scale(1); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.02) translateY(-10px); }
+}
+.b3-seg {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 900;
+  color: #fff;
+  background: rgba(226, 61, 48, 0.85);
+  border-radius: 999px;
+  padding: 1px 7px;
+  letter-spacing: 1px;
+}
+/* 死亡/复活印章在 3D 覆盖层的容器形态（复用 2D keyframes） */
+.b3-stamp {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
+
+/* ── 3D 舞台上的控制条位置（battle-ctl 复用 2D 样式，这里只管摆放） ── */
+.bt3d-stage .battle-ctl { z-index: 8; }
+.bt3d-reveal-wrap {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(94%, 620px);
+  z-index: 5;
+  pointer-events: none;
+}
+.bt3d-reveal-wrap > * { pointer-events: auto; }
+.bt3d-corner {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 8;
+}
+
+/* 移动端：名牌缩小 */
+@media (max-width: 900px) {
+  .b3-plate { min-width: 84px; padding: 3px 6px 4px; }
+  .b3-av { width: 26px; height: 26px; font-size: 12px; }
+  .b3-nm { font-size: 11px; }
+  .b3-hpbar { width: 72px; height: 5px; }
+  .b3-roomlabel { font-size: 11px; padding: 2px 8px; }
+}
+/* 横屏矮视口：进一步压缩 */
+@media (orientation: landscape) and (max-height: 560px) {
+  .b3-plate { min-width: 78px; padding: 2px 5px 3px; gap: 1px; }
+  .b3-av { width: 22px; height: 22px; font-size: 11px; }
+  .b3-nm { font-size: 10px; }
+  .b3-hpbar { width: 64px; height: 4px; }
+  .b3-badges { max-width: 110px; }
+  .b3-bdg { font-size: 8px; padding: 0 4px; }
+  .b3-roomlabel { font-size: 10px; padding: 1px 7px; }
+}
+
+/* reduced-motion：覆盖层动画全面静止（3D 场景内部同步降级） */
+@media (prefers-reduced-motion: reduce) {
+  .b3-plate.is-targetable,
+  .b3-bdg.act,
+  .b3-roomlabel.is-acting,
+  .b3-roomlabel.is-pending,
+  .b3-ticker,
+  .b3-roomlabel.zone-alert {
+    animation: none !important;
+  }
+  .b3-hp-fill { transition: none; }
+}

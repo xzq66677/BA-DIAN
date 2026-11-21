@@ -166,9 +166,9 @@ describe('游戏页 UI（TCG战场·真实引擎快照渲染）', () => {
     );
     expect(document.querySelector('.zone-pending-ivan')).toBeTruthy();
     expect(document.querySelector('.ivan-pending')?.textContent).toContain('第 3 回合末爆炸');
-    // R2 若为空房间，空房提示改为「💣 待爆炸」
-    const r2Empty = Array.from(document.querySelectorAll('.zone')).find((z) => z.getAttribute('data-room') === 'R2');
-    expect(r2Empty?.getAttribute('data-room')).toBe('R2');
+    // R2 房间容器带 data-room（沉浸牌桌架构：.bt-room）
+    const r2Empty = Array.from(document.querySelectorAll('[data-room]')).find((z) => z.getAttribute('data-room') === 'R2');
+    expect(r2Empty).toBeTruthy();
   });
 
   it('终局战场：胜者卡获得 is-winner 光环且空房间轻量化', () => {
