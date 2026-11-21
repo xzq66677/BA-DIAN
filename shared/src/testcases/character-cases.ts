@@ -523,6 +523,21 @@ export const CHARACTER_CASES: TestCase[] = [
         `A alive=${isAlive(g, 'A')}, C alive=${isAlive(g, 'C')}, B alive=${isAlive(g, 'B')}, winner=${g.winner}`, g);
     }),
   },
+  {
+    id: 'TC-C066', name: '大伊万：同发爆炸连杀两人 → 平局（结算期间不定胜负）', category: 'character', charId: 'ivan-girl', seed: 289,
+    desc: '爆炸时两人都活着 → 依次淘汰 → 全场 0 存活判平局（不会错误产生幸存者）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ivan-girl' }, { id: 'B', char: 'default', room: 'R1' }], 289); // 两人同在 R1，血量均 2
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // 第1回合 A 胜
+      actQueue(g, { A: { type: 'throwIvan', room: 'R1' } }); // 扔进自己房间
+      playThrows(g, [{ A: 'scissors', B: 'rock' }]); // 第2回合 B 胜（引燃回合）
+      actQueue(g, { B: { type: 'attack', targetId: 'A' } }); // B 打 A 一刀：2→1 未死；行动阶段不提前终局
+      const boomR2 = g.logs.some((l) => l.text.includes('大伊万在 R1 爆炸'));
+      const ok = boomR2 && !isAlive(g, 'A') && !isAlive(g, 'B') && g.winner === null && g.phase === 'over';
+      return check(ok, '爆炸连杀两人 → 同归于尽平局（无幸存者）',
+        `A alive=${isAlive(g, 'A')}, B alive=${isAlive(g, 'B')}, winner=${g.winner}`, g);
+    }),
+  },
 
   // ═══════════════ 20.7 今日勇者（随机数代表） ═══════════════
   {

@@ -73,6 +73,8 @@ export class Game implements GameLike {
   roundSummary: string[] = [];
   private deferredSeq = 0;
   private deathChainDepth = 0;
+  /** 正在结算回合末延迟事件（endRound 循环期间置位）：期间淘汰不触发终局判定，结算完统一判 */
+  private settlingDeferred = false;
   /** 事件组计数（AOE/多段/延迟伤害的演出分组标识） */
   private eventGroupSeq = 0;
   /**
@@ -870,9 +872,11 @@ export class Game implements GameLike {
     if (this.phase === 'over') return true;
     // 炸弹先结算、后判胜（Issue #6）：存在已激活（explodeRound<=roundNo）、待本回合末引爆的大伊万时，
     // 延迟终局判定——让本回合完整走完，回合末延迟事件结算后再做最终胜负判断（最后一人在房内可被同归于尽）。
-    // endRound 的延迟事件结算会把 due 伊万移除，因此 endRound 末尾的最终 checkWin 到达此处时
-    // hasArmedIvan() 必为 false，不会被再次延迟。
-    if (this.hasArmedIvan()) return false;
+    // settlingDeferred：延迟事件结算循环期间不定胜负——同一发爆炸连杀两人时，第一人淘汰后剩余人数
+    // 可能为 1，若当场定胜负会错误产生「幸存者」（其随后也会被同一发炸死，应为平局）。
+    // endRound 的延迟事件结算会把 due 伊万移除并在循环结束后复位 settlingDeferred，
+    // 因此 endRound 末尾的最终 checkWin 到达此处时两项条件必为 false，最终判定正常执行。
+    if (this.settlingDeferred || this.hasArmedIvan()) return false;
     const alive = this.aliveIds();
     if (alive.length === 1) {
       this.phase = 'over';
@@ -923,8 +927,10 @@ export class Game implements GameLike {
     }
     if ((this.phase as GamePhase) === 'over') return;
 
-    // 延迟事件（大伊万爆炸 / 通用延迟伤害）：动态判定结算时状态
+    // 延迟事件（大伊万爆炸 / 通用延迟伤害）：动态判定结算时状态。
+    // settlingDeferred 期间淘汰不定胜负（同一发爆炸连杀两人时须统一判平局，见 checkWin）
     const due = this.deferred.filter((d) => d.explodeRound <= this.roundNo);
+    this.settlingDeferred = true;
     for (const ev of due) {
       // 大伊万只在「分出胜负」的回合末引爆：平局回合跳过（事件保留，顺延至下一个分出胜负回合）
       if (ev.kind === 'ivan' && !this.roundResolved) continue;
@@ -932,7 +938,6 @@ export class Game implements GameLike {
       if (ev.kind === 'damage' && ev.payload) {
         this.log('deferred', `延迟伤害结算：${String((ev.payload as { label?: string }).label || '')}`);
         this.applyDamage(ev.payload as DamageRequest & { label?: string });
-        if ((this.phase as GamePhase) === 'over') return;
       } else if (ev.kind === 'ivan') {
         const members = this.roomMembers(ev.room);
         // 结构化 data（V3 演出链）：爆炸房间 + 投掷来源，供落点/冲击波演出
@@ -953,9 +958,9 @@ export class Game implements GameLike {
             groupId: ivanGroup,
           });
         }
-        if ((this.phase as GamePhase) === 'over') return;
       }
     }
+    this.settlingDeferred = false;
 
     if (this.checkWin()) return;
 
