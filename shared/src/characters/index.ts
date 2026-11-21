@@ -373,6 +373,7 @@ const dajianke: CharDef = {
     game.log('trigger', `🧲 大贱客被动：${game.players[req.target].name} 承受的 ${fmtNum(req.amount)} 伤害（${req.tag || '普通'}）被吸引至大贱客（不转移附加效果）`, undefined, true);
     req.target = me;
     req.transferred = true;
+    req.ignoreHide = true; // 转移后视为直击大贱客——无视其自身躲藏/隐身（作者确认 2026-11-21）
     req.effects = undefined; // 仅转移伤害，不转移效果
   },
   onAttackAction: (ctx, targetId) => {

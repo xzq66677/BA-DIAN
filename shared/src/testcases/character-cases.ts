@@ -783,6 +783,21 @@ export const CHARACTER_CASES: TestCase[] = [
       return check(ok, '跨房间辱骂成功（计数1，B 存活）', `ok=${r.ok}, insults=${n}`, g);
     }),
   },
+  {
+    id: 'TC-C086', name: '大贱客：转移伤害视为直击，无视自身躲藏', category: 'character', charId: 'dajianke', seed: 291,
+    desc: '大贱客躲藏时，被吸引的伤害仍命中他（作者确认 2026-11-21：转移后无视其自身躲藏/隐身）',
+    run: () => run(() => {
+      const g = makeGame([
+        { id: 'D', char: 'dajianke', hidden: true, room: 'R1' },
+        { id: 'A', char: 'default', room: 'R1' },
+        { id: 'B', char: 'default', room: 'R1' },
+      ], 291); // 三人同在 R1，大贱客躲藏
+      playThrows(g, [{ A: 'rock', B: 'scissors', D: 'scissors' }]); // A 胜
+      actQueue(g, { A: { type: 'attack', targetId: 'B' } }); // A 打 B → 转移 → 命中躲藏中的 D
+      const ok = hpOf(g, 'D') === 2 && hpOf(g, 'B') === 2 && isAlive(g, 'D');
+      return check(ok, '躲藏的大贱客仍被转移伤害命中（3→2），B 无损', `D hp=${hpOf(g, 'D')}, B hp=${hpOf(g, 'B')}`, g);
+    }),
+  },
 
   // ═══════════════ 20.9 大屁孩 ═══════════════
   {
