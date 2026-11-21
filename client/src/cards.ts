@@ -76,7 +76,7 @@ export const CARD_META: Record<string, CardMeta> = {
   dajianke: {
     img: './cards/dajianke.webp', thumb: './cards/dajianke-thumb.webp', no: '08',
     skills: '【转嫁】·【嘴臭】',
-    mech: '精神攻击。被动只转移伤害，含范围与延迟伤害，不转状态与控制；精神伤害不转。辱骂累计三次致死。',
+    mech: '精神攻击。被动只转移伤害，含范围与延迟伤害，不转状态与控制；精神伤害不转。辱骂无视距离与躲藏，同一目标累计三次致死。',
     quote: '伤害你替我挨，附加状态你自己留着。',
   },
   dapihuai: {

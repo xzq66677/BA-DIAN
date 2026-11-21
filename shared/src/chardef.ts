@@ -122,6 +122,10 @@ export interface CharDef {
   dynamicDamage?(ctx: { game: GameLike; actor: PlayerId; ranged: boolean }): number | undefined;
   /** 该角色的攻击无视躲藏（如拔棍） */
   ignoreHide?: boolean;
+  /** 攻击无视距离：可选定任意房间的目标（如大贱客辱骂，作者确认 2026-11-21） */
+  attackAllRooms?: boolean;
+  /** 角色自定义攻击说明（客户端行动坞展示用；设置后覆盖默认文案） */
+  attackDesc?: string;
   /** 是否具备远程攻击能力（默认角色不具备，仅近战） */
   rangedCapable?: boolean;
   /** 远程攻击是否需要先瞄准 */

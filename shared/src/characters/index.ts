@@ -353,11 +353,14 @@ const jinriyongzhe: CharDef = {
 const dajianke: CharDef = {
   id: 'dajianke',
   name: '大贱客',
-  desc: '血量3。被动：在场时自动吸引全场非精神伤害（含AOE与延迟伤害）——伤害转移至大贱客，仅转移伤害数值，不转移附加效果。精神伤害不转移。攻击为辱骂（精神）：同一目标累计3次致死。',
+  desc: '血量3。被动：在场时自动吸引全场非精神伤害（含AOE与延迟伤害）——伤害转移至大贱客，仅转移伤害数值，不转移附加效果。精神伤害不转移。攻击为辱骂（精神）：无视距离与躲藏，同一目标累计3次致死。',
   hp: 3,
   attack: 1,
   attackType: 'both',
   attackDtype: 'mental',
+  ignoreHide: true, // 辱骂无视躲藏/隐身（作者确认 2026-11-21，A-06 定案）
+  attackAllRooms: true, // 辱骂无视距离：任意房间的目标均可选（作者确认 2026-11-21）
+  attackDesc: '辱骂（精神攻击）：无视距离与躲藏，同一目标累计3次直接精神致死',
   damageHookStage: 'transfer',
   init: () => ({ insults: {} as Record<string, number> }),
   onBeforeDamage: (ctx) => {
@@ -376,9 +379,7 @@ const dajianke: CharDef = {
     const game = ctx.game;
     const actor = ctx.actor;
     const tp = game.players[targetId];
-    if (!game.isSameRoom(actor, targetId)) {
-      return { ok: false, error: '辱骂需与目标同房间（规则假设，待确认）' };
-    }
+    // 辱骂无视距离（任意房间目标均可）与躲藏/隐身（作者确认 2026-11-21，A-06 定案）
     const st = game.charState(actor) as { insults: Record<string, number> };
     st.insults[targetId] = (st.insults[targetId] || 0) + 1;
     const n = st.insults[targetId];
