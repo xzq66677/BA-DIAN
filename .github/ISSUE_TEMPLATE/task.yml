@@ -1,0 +1,54 @@
+name: 任务（认领制）
+description: 创建一个需先认领再开发的任务
+title: "[TASK] "
+labels: ["status: ready"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 认领须知
+        动手前请先把 **Assignee 设为自己** 并将标签改为 `status: in-progress`。
+        未认领的任务其他 Agent / 成员不应重复开发。
+  - type: input
+    id: source
+    attributes:
+      label: TASKS.md 编号
+      description: 对应 TASKS.md 里的任务编号（如 T-XXX / B-XXX）
+      placeholder: "例如 T-420"
+    validations:
+      required: false
+  - type: textarea
+    id: goal
+    attributes:
+      label: 任务目标
+      description: 要完成什么，验收标准是什么
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 涉及范围
+      description: 涉及哪些文件 / 模块
+    validations:
+      required: false
+  - type: dropdown
+    id: type
+    attributes:
+      label: 任务类型
+      options:
+        - feature
+        - bug
+        - test
+        - 其他
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 优先级
+      options:
+        - p0
+        - p1
+        - p2
+    validations:
+      required: true
