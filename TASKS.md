@@ -3,6 +3,14 @@
 > 自动维护。状态：TODO / IN_PROGRESS / DONE / BLOCKED
 > 开发时间：2026-11-19 15:19 — 16:16（约 1 小时实际执行，远未到 10 小时窗口，全部任务提前完成）
 
+## V5.0-B · 五条悟 3D 与角色工作流
+
+| 范围 | 状态 | 证据 |
+|---|---|---|
+| 单角色资产、五动作、清理、3D/2D 连局 | DONE | [实战报告](docs/V5.0-B.md)：最终 `L8VS` 连续两局各六回合；五帧同一 PID；重开几何和纹理均未增长。双端类型检查、隔离构建、311/311 测试通过。 |
+| Character Development Pipeline V1.0 | DONE（五条悟专项交接） | [工作流入口（ZCode 插件）](plugins/character-pipeline/README.md)；两轮独立交接各 27/27，修订、差异与验证上限见[交接记录](plugins/character-pipeline/examples/first-character/handoff-validation.md)。 |
+| 正常镜头下的玩家辨识度与手机真机 | 待人工验收 | 390×844 样本中行动坞与角色投影框相交 100% → 0%；名牌及揭示栏仍局部相交。见[角色 QA](plugins/character-pipeline/examples/first-character/character-qa.md)。未开启 V5.0-C。 |
+
 ## 阶段0 · 检查与规划
 
 | 编号 | 任务 | 状态 | 说明 |

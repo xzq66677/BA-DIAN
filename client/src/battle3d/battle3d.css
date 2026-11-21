@@ -161,6 +161,29 @@
   .battlefield.bt3d-stage { min-height: 46vh; }
 }
 
+/* 竖屏把舞台和手牌分行，行动坞按内容占位，等待时空间归还给舞台。 */
+@media (orientation: portrait) and (max-width: 900px) {
+  .tcg-app.has-chat.s3d-mode .tcg-main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .s3d-mode .battlefield.bt3d-stage {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  .s3d-mode .action-dock.ddz-hand {
+    position: static;
+    transform: none;
+    align-self: center;
+    flex: 0 1 auto;
+    max-height: 40%;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+}
+
 /* 交互覆盖层 */
 .b3-overlay {
   position: absolute;

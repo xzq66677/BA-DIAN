@@ -1,0 +1,7 @@
+{
+  "name": "character-pipeline",
+  "version": "1.0.0",
+  "description": "BA-DIAN 3D battlefield character development pipeline: nine-step workflow, stage specs, agent collaboration protocol, templates and the gojo-v1 sample",
+  "author": { "name": "BA-DIAN" },
+  "skills": "./skills"
+}

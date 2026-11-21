@@ -1,0 +1,15 @@
+{
+  "name": "badian-plugins",
+  "plugins": [
+    {
+      "name": "character-pipeline",
+      "source": "./character-pipeline",
+      "version": "1.0.0",
+      "description": "BA-DIAN 3D battlefield character development pipeline (nine-step workflow, stage specs, agent protocol, templates, gojo-v1 sample)",
+      "displayName": "Character Pipeline",
+      "displayName_i18n": { "zh-CN": "角色开发流水线" },
+      "description_i18n": { "zh-CN": "BA-DIAN 3D 战场角色开发流程：九步工作流、阶段规范、Agent 协作协议、模板与五条悟实战样例" },
+      "category": "developer-tools"
+    }
+  ]
+}

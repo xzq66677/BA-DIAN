@@ -1,0 +1,554 @@
+{
+  "passed": false,
+  "failure": "TimeoutError: locator.waitFor: Timeout 12000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.b3-plate.is-targetable[data-pid=\"P1-jp1m\"]') to be visible\u001b[22m\n",
+  "step": "game 1, round 3: P3-fqz7 attack P1-jp1m",
+  "base": "http://127.0.0.1:3250",
+  "chromium": "159.0.8154.6",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "code": "UBKM",
+  "seed": 2889062104,
+  "errors": [],
+  "rounds": [
+    {
+      "gameNo": 1,
+      "round": 1,
+      "actor": "P1-jp1m",
+      "kind": "move",
+      "target": "R2",
+      "throws": {
+        "P1-jp1m": "rock",
+        "P2-h63t": "scissors",
+        "P3-fqz7": "scissors"
+      },
+      "logs": [
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "players": [
+        {
+          "id": "P1-jp1m",
+          "room": "R2",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-h63t",
+          "room": "R2",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P3-fqz7",
+          "room": "R3",
+          "alive": true,
+          "hp": 2,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 1,
+      "round": 2,
+      "actor": "P3-fqz7",
+      "kind": "move",
+      "target": "R2",
+      "throws": {
+        "P1-jp1m": "scissors",
+        "P2-h63t": "scissors",
+        "P3-fqz7": "rock"
+      },
+      "logs": [
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "players": [
+        {
+          "id": "P1-jp1m",
+          "room": "R2",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-h63t",
+          "room": "R2",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P3-fqz7",
+          "room": "R2",
+          "alive": true,
+          "hp": 2,
+          "lives": 1
+        }
+      ]
+    }
+  ],
+  "logs": [
+    {
+      "seq": 1,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "游戏开始：3 名玩家，随机种子 2889062104",
+      "important": true
+    },
+    {
+      "seq": 2,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "V50B1（五条悟）初始位置 R1，血量 3",
+      "important": false
+    },
+    {
+      "seq": 3,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "V50B2（五条悟）初始位置 R2，血量 3",
+      "important": false
+    },
+    {
+      "seq": 4,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "V50B3（无业游民）初始位置 R3，血量 2",
+      "important": false
+    },
+    {
+      "seq": 5,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 1 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 6,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:石头，V50B2:剪刀，V50B3:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 7,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B1 获得行动资格；V50B2、V50B3 无资格",
+      "important": true
+    },
+    {
+      "seq": 8,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B1 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 9,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B1（五条悟，位于 P1-jp1m）行动",
+      "important": false
+    },
+    {
+      "seq": 10,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "move",
+      "text": "V50B1 从 R1 移动到 R2",
+      "important": true,
+      "data": {
+        "pid": "P1-jp1m",
+        "from": "R1",
+        "to": "R2"
+      }
+    },
+    {
+      "seq": 11,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B1 执行行动：移动到 R2",
+      "important": true,
+      "data": {
+        "pid": "P1-jp1m",
+        "fx": "move",
+        "label": "移动到 R2",
+        "room": "R2"
+      }
+    },
+    {
+      "seq": 12,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 1 回合小结：V50B1 获得行动资格；V50B1 移动到 R2",
+      "important": true
+    },
+    {
+      "seq": 13,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 1 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 14,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 2 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 15,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:剪刀，V50B2:剪刀，V50B3:石头）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 16,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B3 获得行动资格；V50B1、V50B2 无资格",
+      "important": true
+    },
+    {
+      "seq": 17,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B3 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 18,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B3（无业游民，位于 P3-fqz7）行动",
+      "important": false
+    },
+    {
+      "seq": 19,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "move",
+      "text": "V50B3 从 R3 移动到 R2",
+      "important": true,
+      "data": {
+        "pid": "P3-fqz7",
+        "from": "R3",
+        "to": "R2"
+      }
+    },
+    {
+      "seq": 20,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B3 执行行动：移动到 R2",
+      "important": true,
+      "data": {
+        "pid": "P3-fqz7",
+        "fx": "move",
+        "label": "移动到 R2",
+        "room": "R2"
+      }
+    },
+    {
+      "seq": 21,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 2 回合小结：V50B3 获得行动资格；V50B3 移动到 R2",
+      "important": true
+    },
+    {
+      "seq": 22,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 2 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 23,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 3 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 24,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:剪刀，V50B2:剪刀，V50B3:石头）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 25,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B3 获得行动资格；V50B1、V50B2 无资格",
+      "important": true
+    },
+    {
+      "seq": 26,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B3 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 27,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B3（无业游民，位于 P3-fqz7）行动",
+      "important": false
+    }
+  ],
+  "evidence": {
+    "01-idle": {
+      "chars": [
+        {
+          "pid": "P1-jp1m",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 0.2443999999994412,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 255.7452660410079,
+          "y": 820.3452008947054,
+          "z": 5.952
+        },
+        {
+          "pid": "P2-h63t",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 0.2443999999994412,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 776.9091986323434,
+          "y": 69.67192939039415,
+          "z": -6.912
+        },
+        {
+          "pid": "P3-fqz7",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "idle",
+          "t": 0.2443999999994412,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 977.6030965222031,
+          "y": 81.05816702612147,
+          "z": -9.512
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 120,
+        "triangles": 15072,
+        "geometries": 98,
+        "textures": 1
+      },
+      "colors": 332,
+      "css": {
+        "width": 1440,
+        "height": 850
+      },
+      "at": 1605.7999999998137,
+      "pid": "P1-jp1m",
+      "pose": "idle",
+      "gameNo": 1
+    },
+    "game1-initial": {
+      "chars": [
+        {
+          "pid": "P1-jp1m",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 0.3089999999990687,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 425.6957521937164,
+          "y": 684.8699050154421,
+          "z": 5.952
+        },
+        {
+          "pid": "P2-h63t",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 0.3089999999990687,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 774.1494701093682,
+          "y": 91.48667594928914,
+          "z": -6.912
+        },
+        {
+          "pid": "P3-fqz7",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "idle",
+          "t": 0.3089999999990687,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 958.8720581073245,
+          "y": 98.9052954211699,
+          "z": -9.512
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 129,
+        "triangles": 16228,
+        "geometries": 104,
+        "textures": 1
+      },
+      "reused": true
+    },
+    "same-room": {
+      "chars": [
+        {
+          "pid": "P1-jp1m",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 0.06429999999981373,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 702.7947603106808,
+          "y": 458.83421628851886,
+          "z": 5.002
+        },
+        {
+          "pid": "P2-h63t",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 2.5331999999992516,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 620.6230494405147,
+          "y": 491.0572664258762,
+          "z": 5.952
+        },
+        {
+          "pid": "P3-fqz7",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "idle",
+          "t": 0.009299999999813735,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 680.4812679230965,
+          "y": 530.4526018825389,
+          "z": 5.902
+        }
+      ],
+      "stats": {
+        "fx": 1,
+        "tweens": 1,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 149,
+        "triangles": 17680,
+        "geometries": 114,
+        "textures": 1
+      },
+      "reused": true
+    }
+  }
+}
