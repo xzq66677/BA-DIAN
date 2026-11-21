@@ -255,6 +255,16 @@ export class Humanoid {
     this.headGrp.rotation.x = -0.15;
   }
 
+  /** 当前行动者的轻微举手示意 */
+  signalActor(t: number): void {
+    this.armR.pivot.rotation.x = -0.5 + Math.sin(t * 4) * 0.12;
+  }
+
+  dead(t: number): void {
+    this.hips.rotation.x = -t * Math.PI / 2 * 0.94;
+    this.hips.position.y = -t * 0.5;
+  }
+
   /** 复活起身（t: 0..1） */
   reviveRise(t: number): void {
     // 从倒地到站立

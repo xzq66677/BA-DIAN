@@ -9,9 +9,9 @@
 
 import * as THREE from 'three';
 import { TABLE, defaultPose, orbitPose, roomSlot, roomPosition } from './layout.js';
-import { charVisual, roomVisual, STATE_COLORS } from './palette.js';
+import { roomVisual, STATE_COLORS } from './palette.js';
 import { cardMeta } from '../cards.js';
-import { Humanoid, buildProp } from './rig.js';
+import { createCharacterAsset, releaseMeshes, type CharacterRig } from './characters/index.js';
 import {
   slashFx, ringBurst, beamFx, projectileFx, explosionFx, healFx, skillAuraFx,
   flashLightFx, dustFx, domainBurstFx, type FxInstance,
@@ -50,7 +50,7 @@ export interface SceneHooks {
 
 // ── 内部实体 ────────────────────────────────────────────────
 
-type PoseKind = 'idle' | 'walk' | 'attack' | 'flinch' | 'dead' | 'cast' | 'drink' | 'crouch' | 'cheer';
+type PoseKind = 'idle' | 'walk' | 'attack' | 'flinch' | 'dead' | 'revive' | 'cast' | 'drink' | 'crouch' | 'cheer';
 
 interface PoseTask {
   kind: PoseKind;
@@ -61,7 +61,10 @@ interface PoseTask {
 interface Entity {
   pid: string;
   group: THREE.Group;          // 根（位于房间 group 内）
-  rig: Humanoid;
+  charId: string;
+  asset: ReturnType<typeof createCharacterAsset>;
+  rig: CharacterRig;
+  appearance: { material: THREE.MeshStandardMaterial; color: THREE.Color; emissive: THREE.Color }[];
   ring: THREE.Mesh;            // 脚下状态环
   blob: THREE.Mesh;            // 接地阴影
   plate: HTMLDivElement;       // 名牌（覆盖层）
@@ -69,7 +72,6 @@ interface Entity {
   badges: HTMLDivElement;
   nameEl: HTMLDivElement;
   avatar: HTMLDivElement;
-  colors: { main: number; accent: number };
   stick: THREE.Object3D | null;
   bobPhase: number;
   pose: PoseTask;              // 当前动作
@@ -105,7 +107,12 @@ interface Room {
   bombMarker: THREE.Group | null;
 }
 
-interface Tween { el: number; dur: number; fn: (t: number) => void; done?: () => void; dead?: boolean }
+// Presentation commands can arrive after the authoritative life transition.
+function canAct(e: Entity): boolean {
+  return e.alive && !e.deadPose && e.pose.kind !== 'revive';
+}
+
+interface Tween { owner?: Entity; el: number; dur: number; fn: (t: number) => void; done?: () => void; dead?: boolean }
 
 const GOLD = 0xd8b04a;
 const BG = 0x0a0e14;
@@ -128,6 +135,7 @@ export class BattleScene3D {
   private clock = new THREE.Clock();
   private elapsed = 0;
   private disposed = false;
+  private sizeObserver?: ResizeObserver;
   private reduced = false;
 
   // 相机
@@ -566,13 +574,12 @@ export class BattleScene3D {
 
   private ensureEntity(p: SnapPlayerLite): Entity {
     let e = this.entities.get(p.id);
-    if (e) return e;
+    if (e?.charId === p.charId) return e;
+    if (e) this.removeEntity(e);
     const room = this.ensureRoom(p.room);
-    const vis = charVisual(p.charId);
-    const rig = new Humanoid({ main: vis.color, accent: vis.accent, skin: 0xe8c49a, dark: 0x2e2822 }, { scale: vis.scale });
-    for (const m of rig.materials()) {
-      m.emissive.copy(m.color).multiplyScalar(0.16);
-    }
+    const asset = createCharacterAsset(p.charId);
+    const { rig } = asset;
+    const appearance = rig.materials().map(material => ({ material, color: material.color.clone(), emissive: material.emissive.clone() }));
 
     const group = new THREE.Group();
     group.add(rig.root);
@@ -595,18 +602,12 @@ export class BattleScene3D {
     blob.position.y = PLATFORM_H + 0.125;
     group.add(blob);
 
-    // 道具
-    const prop = buildProp(vis.prop);
-    if (prop.hand) rig['handR'].add(prop.hand);
-    if (prop.headTop) rig.headTop.add(prop.headTop);
-    if (prop.back) rig.back.add(prop.back);
-
     room.group.add(group);
     const idx = this.slotIndexOf(p.id, p.room);
     const slot = roomSlot(idx, this.roomMemberCount(p.room));
     group.position.set(slot.x, 0, slot.z);
     // 面向桌心（与房间朝向一致）
-    group.rotation.y = room.yaw;
+    group.rotation.y = asset.id === 'humanoid' ? room.yaw : 0; // 角色 +Z 随房间朝向桌心
 
     // 名牌
     const plate = document.createElement('div');
@@ -635,13 +636,12 @@ export class BattleScene3D {
     }
 
     e = {
-      pid: p.id, group, rig, ring, blob, plate,
+      pid: p.id, charId: p.charId, asset, appearance, group, rig, ring, blob, plate,
       hpFill: plate.querySelector('.b3-hp-fill')!,
       badges: plate.querySelector('.b3-badges')!,
       nameEl: plate.querySelector('.b3-nm-text')!,
       avatar: plate.querySelector('.b3-av')!,
-      colors: { main: vis.color, accent: vis.accent },
-      stick: prop.stick ?? null,
+      stick: asset.stick,
       bobPhase: Math.random() * Math.PI * 2,
       pose: { kind: 'idle', t: 0, dur: Infinity },
       curRoom: p.room, deadPose: false, invisible: false, alive: p.alive, walk: null, lunge: null, squash: null,
@@ -650,6 +650,15 @@ export class BattleScene3D {
     };
     this.entities.set(p.id, e);
     return e;
+  }
+
+  private removeEntity(e: Entity): void {
+    this.tweens = this.tweens.filter(t => t.owner !== e);
+    e.asset.dispose();
+    releaseMeshes(e.group); // ring + contact shadow; rig is already detached
+    e.group.removeFromParent();
+    e.plate.remove();
+    this.entities.delete(e.pid);
   }
 
   private roomMemberIds(roomId: string): string[] {
@@ -686,9 +695,7 @@ export class BattleScene3D {
     for (const [pid, e] of this.entities) {
       const p = snap.players.find((x) => x.id === pid);
       if (!p) {
-        e.group.removeFromParent();
-        e.plate.remove();
-        this.entities.delete(pid);
+        this.removeEntity(e);
         continue;
       }
       this.syncEntity(e, p, snap);
@@ -768,7 +775,7 @@ export class BattleScene3D {
       // 胜者欢呼
       if (snap.winner) {
         const we = this.entities.get(snap.winner);
-        if (we) this.setPose(we, { kind: 'cheer', t: 0, dur: Infinity });
+        if (we && canAct(we)) this.setPose(we, { kind: 'cheer', t: 0, dur: Infinity });
       }
     }
     if (snap.phase !== 'over') this.finaleWinner = null;
@@ -843,57 +850,33 @@ export class BattleScene3D {
       e.deadPose = true;
       e.blob.visible = false;
       e.ring.scale.setScalar(0.001);
-      for (const m of e.rig.materials()) m.color.multiplyScalar(0.45);
-      this.addTween(0.55, (t) => {
-        e.rig['hips'].rotation.x = -t * Math.PI / 2 * 0.94;
-        e.rig['hips'].position.y = -t * 0.5;
-      });
+      for (const { material, color } of e.appearance) material.color.copy(color).multiplyScalar(0.45);
     }
   }
 
   private killPose(e: Entity): void {
     if (e.deadPose) return;
     this.setPose(e, { kind: 'dead', t: 0, dur: Infinity });
-    // 尸体回收：倒地演出停留约 2.6s 后淡出并隐藏网格（名牌保留「淘汰」徽标；
-    // 快照仍是权威——复活时 standUp 恢复可见与配色）
-    window.setTimeout(() => {
-      if (this.disposed || !e.deadPose || e.alive) return;
-      const mats = e.rig.materials();
-      this.addTween(0.8, (t) => {
-        const o = Math.max(0, 1 - t);
-        for (const m of mats) {
-          m.transparent = true;
-          m.opacity = o;
-        }
-        if (t >= 1) e.rig.root.visible = false;
-      });
-      if (e.squash) e.squash.dead = true;
-    }, 2600);
+
   }
 
   /** 起身（复活或快照纠错） */
   private standUp(e: Entity, fx: boolean): void {
     e.deadPose = false;
     e.rig.root.visible = true; // 尸体回收后可能已隐藏：复活（或快照纠错）恢复
-    const mats = e.rig.materials();
-    mats[0].color.setHex(e.colors.main);
-    mats[1].color.setHex(e.colors.accent);
-    mats[2].color.setHex(0xe8c49a);
-    mats[3].color.setHex(0x2e2822);
-    for (const m of mats) m.emissive.copy(m.color).multiplyScalar(0.16);
+    for (const { material, color, emissive } of e.appearance) {
+      material.color.copy(color);
+      material.emissive.copy(emissive);
+    }
     e.rig.setOpacity(1);
     e.blob.visible = true;
     e.ring.scale.setScalar(1);
-    if (fx) {
-      this.addTween(0.5, (t) => e.rig.reviveRise(t), () => { e.rig.resetPose(); e.pose = { kind: 'idle', t: 0, dur: Infinity }; });
-    } else {
-      e.rig.resetPose();
-      e.pose = { kind: 'idle', t: 0, dur: Infinity };
-    }
+    e.rig.resetPose();
+    e.pose = fx ? { kind: 'revive', t: 0, dur: 0.65 } : { kind: 'idle', t: 0, dur: Infinity };
   }
 
-  private addTween(dur: number, fn: (t: number) => void, done?: () => void): Tween {
-    const t: Tween = { el: 0, dur, fn, done };
+  private addTween(owner: Entity, dur: number, fn: (t: number) => void, done?: () => void): Tween {
+    const t: Tween = { owner, el: 0, dur, fn, done };
     this.tweens.push(t);
     return t;
   }
@@ -948,7 +931,7 @@ export class BattleScene3D {
   /** 行动姿态 */
   playAction(pid: string, kind: string, targetId?: string): void {
     const e = this.entities.get(pid);
-    if (!e || !e.alive) return;
+    if (!e || !canAct(e)) return;
     switch (kind) {
       case 'attack': {
         const targetPos = targetId ? this.worldOf(targetId) : null;
@@ -1012,7 +995,7 @@ export class BattleScene3D {
   playAttackDecl(sourceId: string, targetId: string): void {
     const e = this.entities.get(sourceId);
     const to = this.worldOf(targetId);
-    if (!e || !to || !e.alive) return;
+    if (!e || !to || !canAct(e)) return;
     this.faceTo(e, to);
     e.pose = { kind: 'attack', t: 0, dur: 0.4 };
     const from = this.worldOf(sourceId);
@@ -1033,9 +1016,9 @@ export class BattleScene3D {
       this.spawnFx(beamFx(src.clone().add(new THREE.Vector3(0, 0.8, 0)), w.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xff8060, 0.3, 0.05), new THREE.Vector3(0, 0, 0), 420);
     }
     this.spawnFx(slashFx(!!o.lethal), w.clone().setY(PLATFORM_H + 0.9), 620);
-    e.pose = { kind: 'flinch', t: 0, dur: 0.5 };
+    if (canAct(e)) e.pose = { kind: 'flinch', t: 0, dur: 0.5 };
     // 受击击退：沿攻击来源方向被推开一小段再回弹（谁打谁的空间关系更明确）
-    if (src && !e.deadPose) {
+    if (src && canAct(e)) {
       const knockDir = w.clone().sub(src).setY(0).normalize();
       const base = e.group.position.clone();
       const parent = e.group.parent;
@@ -1050,7 +1033,7 @@ export class BattleScene3D {
     }
     // 命中白闪→红闪两段：先全白一瞬（打击确认感）再转红（伤害语义）
     const mats = e.rig.materials();
-    this.addTween(0.42, (t) => {
+    this.addTween(e, 0.42, (t) => {
       const k = Math.sin(Math.PI * Math.min(1, t));
       if (t < 0.3) {
         const w2 = k / Math.max(0.001, Math.sin(Math.PI * 0.3));
@@ -1059,7 +1042,7 @@ export class BattleScene3D {
         for (const m of mats) m.emissive.setRGB(k * 0.5, 0, 0);
       }
     }, () => {
-      for (const m of mats) m.emissive.copy(m.color).multiplyScalar(0.16);
+      for (const { material, emissive } of e.appearance) material.emissive.copy(emissive);
     });
     if (!this.reduced) this.spawnFx(flashLightFx(w, STATE_COLORS.hit, o.lethal ? 4.5 : 2.6, 0.35), w.clone().setY(0), 520);
     this.spawnFloat(w, `<span class="dmg-float ${o.lethal ? 'lethal' : ''}">-${fmtN(o.amount)}</span>`);
@@ -1069,7 +1052,7 @@ export class BattleScene3D {
     if (!this.reduced) {
       if (e.squash) e.squash.dead = true;
       const base = e.baseScale;
-      e.squash = this.addTween(0.26, (t) => {
+      e.squash = this.addTween(e, 0.26, (t) => {
         const k = Math.sin(Math.PI * Math.min(1, t));
         e.rig.root.scale.set(base.x * (1 + 0.09 * k), base.y * (1 - 0.16 * k), base.z * (1 + 0.09 * k));
       }, () => {
@@ -1087,7 +1070,7 @@ export class BattleScene3D {
     const e = this.entities.get(pid);
     const w = this.worldOf(pid);
     if (!e || !w) return;
-    e.pose = { kind: 'cast', t: 0, dur: 1.0 };
+    if (canAct(e)) e.pose = { kind: 'cast', t: 0, dur: 1.0 };
     this.spawnFx(healFx(), w.clone().setY(PLATFORM_H), 1000);
     this.spawnFloat(w, `<span class="heal-float">+${fmtN(o.amount ?? 0)}</span>`);
   }
@@ -1095,10 +1078,10 @@ export class BattleScene3D {
   playMiss(pid: string): void {
     const e = this.entities.get(pid);
     const w = this.worldOf(pid);
-    if (!e || !w || !e.alive) return;
+    if (!e || !w || !canAct(e)) return;
     const base = e.group.position.clone();
     e.group.rotation.y += Math.PI / 5;
-    this.addTween(0.45, (t) => {
+    this.addTween(e, 0.45, (t) => {
       const k = Math.sin(Math.PI * t);
       e.group.position.x = base.x + k * 0.35;
     }, () => {
@@ -1125,6 +1108,7 @@ export class BattleScene3D {
     const e = this.entities.get(pid);
     const w = this.worldOf(pid);
     if (!e || !w) return;
+    if (!e.alive || e.pose.kind === 'revive') return;
     this.standUp(e, true);
     this.spawnFloat(w, `<span class="revive-burst b3-stamp">💫 ${livesLeft} 命复活</span>`);
     // S 级事件：关键复活值得镜头聚焦（此前缺失，复活演出无聚焦）
@@ -1148,14 +1132,14 @@ export class BattleScene3D {
     ctrl.multiplyScalar(0.72);
     ctrl.y = PLATFORM_H + 0.4;
     e.walk = { from: worldFrom.clone(), to: worldTo.clone(), ctrl, t: 0, dur };
-    e.pose = { kind: 'walk', t: 0, dur: Infinity };
+    if (canAct(e)) e.pose = { kind: 'walk', t: 0, dur: Infinity };
     return worldTo;
   }
 
   /** 移动：沿路径行走（经中央舞台侧翼）+ 落点尘土 + 聚焦 */
   playWalk(pid: string, fromRoom: string, toRoom: string): void {
     const e = this.entities.get(pid);
-    if (!e) return;
+    if (!e || !canAct(e)) return;
     const to = this.rooms.get(toRoom);
     if (!to) return;
     const worldFrom = new THREE.Vector3();
@@ -1192,7 +1176,7 @@ export class BattleScene3D {
     this.spawnFloat(from, '<span class="b3-ticker">💣 大伊万投掷！</span>');
     // 投掷姿态
     const e = this.entities.get(pid);
-    if (e) e.pose = { kind: 'attack', t: 0, dur: 0.5 };
+    if (e && canAct(e)) e.pose = { kind: 'attack', t: 0, dur: 0.5 };
     this.setFocus(to.pos, 0.5, 1200, 3);
   }
 
@@ -1293,7 +1277,12 @@ export class BattleScene3D {
     el.addEventListener('pointermove', this.onMove);
     el.addEventListener('pointerup', this.onUp);
     el.addEventListener('wheel', this.onWheel, { passive: false });
-    window.addEventListener('resize', this.resize);
+    if (typeof ResizeObserver !== 'undefined') {
+      this.sizeObserver = new ResizeObserver(this.resize);
+      this.sizeObserver.observe(this.container);
+    } else {
+      window.addEventListener('resize', this.resize);
+    }
     // 后台标签页暂停渲染（省电 / 移动端 GPU 压力），回前台恢复
     document.addEventListener('visibilitychange', this.onVisibility);
   }
@@ -1454,7 +1443,19 @@ export class BattleScene3D {
   }
 
   /** E2E/取证探针：当前演出活动量（不参与游戏逻辑） */
-  debugStats(): { fx: number; tweens: number; walks: number; entities: number; rooms: number; bodiesHidden: number } {
+  debugCharacters() {
+    return Array.from(this.entities.values(), e => {
+      const center = e.group.getWorldPosition(new THREE.Vector3());
+      center.y += PLATFORM_H + e.rig.headHeight() * 0.55;
+      const z = center.z;
+      center.project(this.camera);
+      return { pid: e.pid, charId: e.charId, asset: e.asset.id, pose: e.pose.kind,
+        t: e.pose.t, dur: e.pose.dur, room: e.curRoom, alive: e.alive, visible: e.rig.root.visible,
+        x: (center.x + 1) * this.container.clientWidth / 2, y: (1 - center.y) * this.container.clientHeight / 2, z };
+    });
+  }
+
+  debugStats() {
     let walks = 0;
     let bodiesHidden = 0;
     for (const e of this.entities.values()) {
@@ -1468,6 +1469,8 @@ export class BattleScene3D {
       entities: this.entities.size,
       rooms: this.rooms.size,
       bodiesHidden,
+      calls: this.renderer.info.render.calls, triangles: this.renderer.info.render.triangles,
+      geometries: this.renderer.info.memory.geometries, textures: this.renderer.info.memory.textures,
     };
   }
 
@@ -1566,12 +1569,26 @@ export class BattleScene3D {
       }
       // 姿态
       if (e.deadPose) {
-        // 倒地静态（tween 已处理倒地过程）
+        // One pose clock owns collapse, hold and fade. Removing/reviving the
+        // entity also cancels the fade, with no delayed callback holding the rig.
+        if (e.rig.root.visible) {
+          e.pose.t += dt;
+          if (e.pose.t - dt < 0.55) e.rig.dead(Math.min(1, e.pose.t / 0.55));
+          if (e.pose.t > 2.6) e.rig.setOpacity(Math.max(0, 1 - (e.pose.t - 2.6) / 0.8));
+          if (e.pose.t >= 3.4) e.rig.root.visible = false;
+        }
       } else if (e.walk && e.pose.kind === 'walk') {
         e.rig.walk(this.elapsed, 1);
       } else {
         e.pose.t += dt;
         switch (e.pose.kind) {
+          case 'revive':
+            e.rig.reviveRise(Math.min(1, e.pose.t / e.pose.dur));
+            if (e.pose.t >= e.pose.dur) {
+              const kind = this.finaleWinner === e.pid ? 'cheer' : e.walk ? 'walk' : 'idle';
+              this.setPose(e, { kind, t: 0, dur: Infinity });
+            }
+            break;
           case 'attack':
             e.rig.attackSwing(Math.min(1, e.pose.t / e.pose.dur));
             if (e.pose.t >= e.pose.dur) e.pose = { kind: 'idle', t: 0, dur: Infinity };
@@ -1598,7 +1615,7 @@ export class BattleScene3D {
             e.rig.idle(this.elapsed, e.bobPhase);
             // 行动者轻微举手示意
             if (snap?.currentActor === e.pid && !this.reduced) {
-              e.rig['armR'].pivot.rotation.x = -0.5 + Math.sin(this.elapsed * 4) * 0.12;
+              e.rig.signalActor?.(this.elapsed);
             }
           }
         }
@@ -1690,8 +1707,11 @@ export class BattleScene3D {
     this.renderer.domElement.removeEventListener('pointermove', this.onMove);
     this.renderer.domElement.removeEventListener('pointerup', this.onUp);
     this.renderer.domElement.removeEventListener('wheel', this.onWheel);
+    this.sizeObserver?.disconnect();
     window.removeEventListener('resize', this.resize);
     document.removeEventListener('visibilitychange', this.onVisibility);
+    for (const e of this.entities.values()) this.removeEntity(e);
+    this.tweens.length = 0;
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       if (m.geometry) m.geometry.dispose();

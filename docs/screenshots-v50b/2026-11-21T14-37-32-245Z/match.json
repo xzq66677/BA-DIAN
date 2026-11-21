@@ -1,0 +1,2982 @@
+{
+  "passed": true,
+  "step": "game 2, round 6: P1-797h attack P2-xc5k",
+  "base": "http://127.0.0.1:3250",
+  "chromium": "159.0.8154.6",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "code": "C7D8",
+  "seed": 2822783464,
+  "errors": [],
+  "rounds": [
+    {
+      "gameNo": 1,
+      "seed": 3484484790,
+      "round": 1,
+      "actor": "P2-xc5k",
+      "kind": "move",
+      "target": "R1",
+      "throws": {
+        "P1-797h": "scissors",
+        "P2-xc5k": "rock",
+        "P3-71md": "scissors"
+      },
+      "logs": [
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P3-71md",
+          "room": "R3",
+          "alive": true,
+          "hp": 2,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 1,
+      "seed": 3484484790,
+      "round": 2,
+      "actor": "P3-71md",
+      "kind": "move",
+      "target": "R1",
+      "throws": {
+        "P1-797h": "scissors",
+        "P2-xc5k": "scissors",
+        "P3-71md": "rock"
+      },
+      "logs": [
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P3-71md",
+          "room": "R1",
+          "alive": true,
+          "hp": 2,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 1,
+      "seed": 3484484790,
+      "round": 3,
+      "actor": "P3-71md",
+      "kind": "attack",
+      "target": "P2-xc5k",
+      "throws": {
+        "P1-797h": "scissors",
+        "P2-xc5k": "scissors",
+        "P3-71md": "rock"
+      },
+      "logs": [
+        28,
+        29,
+        30,
+        31,
+        32,
+        33
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": true,
+          "hp": 2,
+          "lives": 2
+        },
+        {
+          "id": "P3-71md",
+          "room": "R1",
+          "alive": true,
+          "hp": 2,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 1,
+      "seed": 3484484790,
+      "round": 4,
+      "actor": "P2-xc5k",
+      "kind": "attack",
+      "target": "P3-71md",
+      "throws": {
+        "P1-797h": "scissors",
+        "P2-xc5k": "rock",
+        "P3-71md": "scissors"
+      },
+      "logs": [
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": true,
+          "hp": 2,
+          "lives": 2
+        },
+        {
+          "id": "P3-71md",
+          "room": "R1",
+          "alive": false,
+          "hp": 0,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 1,
+      "seed": 3484484790,
+      "round": 5,
+      "actor": "P1-797h",
+      "kind": "attack",
+      "target": "P2-xc5k",
+      "throws": {
+        "P1-797h": "rock",
+        "P2-xc5k": "scissors"
+      },
+      "logs": [
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 1
+        },
+        {
+          "id": "P3-71md",
+          "room": "R1",
+          "alive": false,
+          "hp": 0,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 1,
+      "seed": 3484484790,
+      "round": 6,
+      "actor": "P1-797h",
+      "kind": "attack",
+      "target": "P2-xc5k",
+      "throws": {
+        "P1-797h": "rock",
+        "P2-xc5k": "scissors"
+      },
+      "logs": [
+        60,
+        61,
+        62,
+        63,
+        64
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": false,
+          "hp": 0,
+          "lives": 1
+        },
+        {
+          "id": "P3-71md",
+          "room": "R1",
+          "alive": false,
+          "hp": 0,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 2,
+      "seed": 2822783464,
+      "round": 1,
+      "actor": "P2-xc5k",
+      "kind": "move",
+      "target": "R1",
+      "throws": {
+        "P1-797h": "scissors",
+        "P2-xc5k": "rock",
+        "P3-71md": "scissors"
+      },
+      "logs": [
+        74,
+        75,
+        76,
+        77,
+        78
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P3-71md",
+          "room": "R3",
+          "alive": true,
+          "hp": 2,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 2,
+      "seed": 2822783464,
+      "round": 2,
+      "actor": "P3-71md",
+      "kind": "move",
+      "target": "R1",
+      "throws": {
+        "P1-797h": "scissors",
+        "P2-xc5k": "scissors",
+        "P3-71md": "rock"
+      },
+      "logs": [
+        83,
+        84,
+        85,
+        86,
+        87
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P3-71md",
+          "room": "R1",
+          "alive": true,
+          "hp": 2,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 2,
+      "seed": 2822783464,
+      "round": 3,
+      "actor": "P3-71md",
+      "kind": "attack",
+      "target": "P2-xc5k",
+      "throws": {
+        "P1-797h": "scissors",
+        "P2-xc5k": "scissors",
+        "P3-71md": "rock"
+      },
+      "logs": [
+        92,
+        93,
+        94,
+        95,
+        96,
+        97
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": true,
+          "hp": 2,
+          "lives": 2
+        },
+        {
+          "id": "P3-71md",
+          "room": "R1",
+          "alive": true,
+          "hp": 2,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 2,
+      "seed": 2822783464,
+      "round": 4,
+      "actor": "P2-xc5k",
+      "kind": "attack",
+      "target": "P3-71md",
+      "throws": {
+        "P1-797h": "scissors",
+        "P2-xc5k": "rock",
+        "P3-71md": "scissors"
+      },
+      "logs": [
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": true,
+          "hp": 2,
+          "lives": 2
+        },
+        {
+          "id": "P3-71md",
+          "room": "R1",
+          "alive": false,
+          "hp": 0,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 2,
+      "seed": 2822783464,
+      "round": 5,
+      "actor": "P1-797h",
+      "kind": "attack",
+      "target": "P2-xc5k",
+      "throws": {
+        "P1-797h": "rock",
+        "P2-xc5k": "scissors"
+      },
+      "logs": [
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 1
+        },
+        {
+          "id": "P3-71md",
+          "room": "R1",
+          "alive": false,
+          "hp": 0,
+          "lives": 1
+        }
+      ]
+    },
+    {
+      "gameNo": 2,
+      "seed": 2822783464,
+      "round": 6,
+      "actor": "P1-797h",
+      "kind": "attack",
+      "target": "P2-xc5k",
+      "throws": {
+        "P1-797h": "rock",
+        "P2-xc5k": "scissors"
+      },
+      "logs": [
+        124,
+        125,
+        126,
+        127,
+        128
+      ],
+      "players": [
+        {
+          "id": "P1-797h",
+          "room": "R1",
+          "alive": true,
+          "hp": 3,
+          "lives": 2
+        },
+        {
+          "id": "P2-xc5k",
+          "room": "R1",
+          "alive": false,
+          "hp": 0,
+          "lives": 1
+        },
+        {
+          "id": "P3-71md",
+          "room": "R1",
+          "alive": false,
+          "hp": 0,
+          "lives": 1
+        }
+      ]
+    }
+  ],
+  "logs": [
+    {
+      "seq": 1,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "游戏开始：3 名玩家，随机种子 3484484790",
+      "important": true
+    },
+    {
+      "seq": 2,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "V50B1（五条悟）初始位置 R1，血量 3",
+      "important": false
+    },
+    {
+      "seq": 3,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "V50B2（五条悟）初始位置 R2，血量 3",
+      "important": false
+    },
+    {
+      "seq": 4,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "V50B3（无业游民）初始位置 R3，血量 2",
+      "important": false
+    },
+    {
+      "seq": 5,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 1 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 6,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:剪刀，V50B2:石头，V50B3:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 7,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B2 获得行动资格；V50B1、V50B3 无资格",
+      "important": true
+    },
+    {
+      "seq": 8,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 9,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B2（五条悟，位于 P2-xc5k）行动",
+      "important": false
+    },
+    {
+      "seq": 10,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "move",
+      "text": "V50B2 从 R2 移动到 R1",
+      "important": true,
+      "data": {
+        "pid": "P2-xc5k",
+        "from": "R2",
+        "to": "R1"
+      }
+    },
+    {
+      "seq": 11,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B2 执行行动：移动到 R1",
+      "important": true,
+      "data": {
+        "pid": "P2-xc5k",
+        "fx": "move",
+        "label": "移动到 R1",
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 12,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 1 回合小结：V50B2 获得行动资格；V50B2 移动到 R1",
+      "important": true
+    },
+    {
+      "seq": 13,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 1 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 14,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 2 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 15,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:剪刀，V50B2:剪刀，V50B3:石头）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 16,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B3 获得行动资格；V50B1、V50B2 无资格",
+      "important": true
+    },
+    {
+      "seq": 17,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B3 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 18,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B3（无业游民，位于 P3-71md）行动",
+      "important": false
+    },
+    {
+      "seq": 19,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "move",
+      "text": "V50B3 从 R3 移动到 R1",
+      "important": true,
+      "data": {
+        "pid": "P3-71md",
+        "from": "R3",
+        "to": "R1"
+      }
+    },
+    {
+      "seq": 20,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B3 执行行动：移动到 R1",
+      "important": true,
+      "data": {
+        "pid": "P3-71md",
+        "fx": "move",
+        "label": "移动到 R1",
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 21,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 2 回合小结：V50B3 获得行动资格；V50B3 移动到 R1",
+      "important": true
+    },
+    {
+      "seq": 22,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 2 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 23,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 3 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 24,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:剪刀，V50B2:剪刀，V50B3:石头）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 25,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B3 获得行动资格；V50B1、V50B2 无资格",
+      "important": true
+    },
+    {
+      "seq": 26,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B3 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 27,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B3（无业游民，位于 P3-71md）行动",
+      "important": false
+    },
+    {
+      "seq": 28,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B3 近战攻击 V50B2（伤害 1）",
+      "important": true,
+      "data": {
+        "declared": true,
+        "source": "P3-71md",
+        "target": "P2-xc5k",
+        "amount": 1,
+        "ranged": false,
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 29,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B2 受到 1 伤害（物理）：3 → 2（来源 V50B3）",
+      "important": true,
+      "data": {
+        "target": "P2-xc5k",
+        "source": "P3-71md",
+        "amount": 1,
+        "hpBefore": 3,
+        "hpAfter": 2,
+        "lethal": false,
+        "dtype": "physical",
+        "room": "R1",
+        "reflected": false,
+        "transferred": false
+      }
+    },
+    {
+      "seq": 30,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B3 执行行动：攻击 V50B2",
+      "important": true,
+      "data": {
+        "pid": "P3-71md",
+        "fx": "attack",
+        "label": "攻击 V50B2",
+        "targetId": "P2-xc5k"
+      }
+    },
+    {
+      "seq": 31,
+      "round": 3,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 3 回合小结：V50B3 获得行动资格；V50B3 攻击 V50B2",
+      "important": true
+    },
+    {
+      "seq": 32,
+      "round": 3,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 3 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 33,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 4 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 34,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:剪刀，V50B2:石头，V50B3:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 35,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B2 获得行动资格；V50B1、V50B3 无资格",
+      "important": true
+    },
+    {
+      "seq": 36,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 37,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B2（五条悟，位于 P2-xc5k）行动",
+      "important": false
+    },
+    {
+      "seq": 38,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B2 近战攻击 V50B3（伤害 3）",
+      "important": true,
+      "data": {
+        "declared": true,
+        "source": "P2-xc5k",
+        "target": "P3-71md",
+        "amount": 3,
+        "ranged": false,
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 39,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B3 受到 3 伤害（物理）：2 → 0（来源 V50B2）",
+      "important": true,
+      "data": {
+        "target": "P3-71md",
+        "source": "P2-xc5k",
+        "amount": 3,
+        "hpBefore": 2,
+        "hpAfter": 0,
+        "lethal": true,
+        "dtype": "physical",
+        "room": "R1",
+        "reflected": false,
+        "transferred": false
+      }
+    },
+    {
+      "seq": 40,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "eliminate",
+      "text": "💀 V50B3（无业游民）被淘汰（原因：damage，击杀者 V50B2）",
+      "important": true,
+      "data": {
+        "pid": "P3-71md",
+        "cause": "damage",
+        "killer": "P2-xc5k"
+      }
+    },
+    {
+      "seq": 41,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B2 执行行动：攻击 V50B3",
+      "important": true,
+      "data": {
+        "pid": "P2-xc5k",
+        "fx": "attack",
+        "label": "攻击 V50B3",
+        "targetId": "P3-71md"
+      }
+    },
+    {
+      "seq": 42,
+      "round": 4,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 4 回合小结：V50B2 获得行动资格；V50B3 被淘汰（damage）；V50B2 攻击 V50B3",
+      "important": true
+    },
+    {
+      "seq": 43,
+      "round": 4,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 4 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 44,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 5 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 45,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:石头，V50B2:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 46,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B1 获得行动资格；V50B2 无资格",
+      "important": true
+    },
+    {
+      "seq": 47,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B1 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 48,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B1（五条悟，位于 P1-797h）行动",
+      "important": false
+    },
+    {
+      "seq": 49,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B1 近战攻击 V50B2（伤害 3）",
+      "important": true,
+      "data": {
+        "declared": true,
+        "source": "P1-797h",
+        "target": "P2-xc5k",
+        "amount": 3,
+        "ranged": false,
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 50,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B2 受到 3 伤害（物理）：2 → 0（来源 V50B1）",
+      "important": true,
+      "data": {
+        "target": "P2-xc5k",
+        "source": "P1-797h",
+        "amount": 3,
+        "hpBefore": 2,
+        "hpAfter": 0,
+        "lethal": true,
+        "dtype": "physical",
+        "room": "R1",
+        "reflected": false,
+        "transferred": false
+      }
+    },
+    {
+      "seq": 51,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "trigger",
+      "text": "💫 V50B2 消耗一条命（剩余 1 条），以 3 HP 复活！",
+      "important": true,
+      "data": {
+        "pid": "P2-xc5k",
+        "livesLeft": 1
+      }
+    },
+    {
+      "seq": 52,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B1 执行行动：攻击 V50B2",
+      "important": true,
+      "data": {
+        "pid": "P1-797h",
+        "fx": "attack",
+        "label": "攻击 V50B2",
+        "targetId": "P2-xc5k"
+      }
+    },
+    {
+      "seq": 53,
+      "round": 5,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 5 回合小结：V50B1 获得行动资格；V50B1 攻击 V50B2",
+      "important": true
+    },
+    {
+      "seq": 54,
+      "round": 5,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 5 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 55,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 6 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 56,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:石头，V50B2:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 57,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B1 获得行动资格；V50B2 无资格",
+      "important": true
+    },
+    {
+      "seq": 58,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B1 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 59,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B1（五条悟，位于 P1-797h）行动",
+      "important": false
+    },
+    {
+      "seq": 60,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B1 近战攻击 V50B2（伤害 3）",
+      "important": true,
+      "data": {
+        "declared": true,
+        "source": "P1-797h",
+        "target": "P2-xc5k",
+        "amount": 3,
+        "ranged": false,
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 61,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B2 受到 3 伤害（物理）：3 → 0（来源 V50B1）",
+      "important": true,
+      "data": {
+        "target": "P2-xc5k",
+        "source": "P1-797h",
+        "amount": 3,
+        "hpBefore": 3,
+        "hpAfter": 0,
+        "lethal": true,
+        "dtype": "physical",
+        "room": "R1",
+        "reflected": false,
+        "transferred": false
+      }
+    },
+    {
+      "seq": 62,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "eliminate",
+      "text": "💀 V50B2（五条悟）被淘汰（原因：damage，击杀者 V50B1）",
+      "important": true,
+      "data": {
+        "pid": "P2-xc5k",
+        "cause": "damage",
+        "killer": "P1-797h"
+      }
+    },
+    {
+      "seq": 63,
+      "round": 6,
+      "sub": 1,
+      "phase": "over",
+      "type": "result",
+      "text": "🏆 游戏结束：V50B1（五条悟）获得胜利！",
+      "important": true
+    },
+    {
+      "seq": 64,
+      "round": 6,
+      "sub": 1,
+      "phase": "over",
+      "type": "action",
+      "text": "V50B1 执行行动：攻击 V50B2",
+      "important": true,
+      "data": {
+        "pid": "P1-797h",
+        "fx": "attack",
+        "label": "攻击 V50B2",
+        "targetId": "P2-xc5k"
+      }
+    },
+    {
+      "seq": 65,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "游戏开始：3 名玩家，随机种子 2822783464",
+      "important": true
+    },
+    {
+      "seq": 66,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "V50B1（五条悟）初始位置 R1，血量 3",
+      "important": false
+    },
+    {
+      "seq": 67,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "V50B2（五条悟）初始位置 R2，血量 3",
+      "important": false
+    },
+    {
+      "seq": 68,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "V50B3（无业游民）初始位置 R3，血量 2",
+      "important": false
+    },
+    {
+      "seq": 69,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 1 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 70,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:剪刀，V50B2:石头，V50B3:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 71,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B2 获得行动资格；V50B1、V50B3 无资格",
+      "important": true
+    },
+    {
+      "seq": 72,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 73,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B2（五条悟，位于 P2-xc5k）行动",
+      "important": false
+    },
+    {
+      "seq": 74,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "move",
+      "text": "V50B2 从 R2 移动到 R1",
+      "important": true,
+      "data": {
+        "pid": "P2-xc5k",
+        "from": "R2",
+        "to": "R1"
+      }
+    },
+    {
+      "seq": 75,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B2 执行行动：移动到 R1",
+      "important": true,
+      "data": {
+        "pid": "P2-xc5k",
+        "fx": "move",
+        "label": "移动到 R1",
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 76,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 1 回合小结：V50B2 获得行动资格；V50B2 移动到 R1",
+      "important": true
+    },
+    {
+      "seq": 77,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 1 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 78,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 2 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 79,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:剪刀，V50B2:剪刀，V50B3:石头）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 80,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B3 获得行动资格；V50B1、V50B2 无资格",
+      "important": true
+    },
+    {
+      "seq": 81,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B3 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 82,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B3（无业游民，位于 P3-71md）行动",
+      "important": false
+    },
+    {
+      "seq": 83,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "move",
+      "text": "V50B3 从 R3 移动到 R1",
+      "important": true,
+      "data": {
+        "pid": "P3-71md",
+        "from": "R3",
+        "to": "R1"
+      }
+    },
+    {
+      "seq": 84,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B3 执行行动：移动到 R1",
+      "important": true,
+      "data": {
+        "pid": "P3-71md",
+        "fx": "move",
+        "label": "移动到 R1",
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 85,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 2 回合小结：V50B3 获得行动资格；V50B3 移动到 R1",
+      "important": true
+    },
+    {
+      "seq": 86,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 2 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 87,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 3 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 88,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:剪刀，V50B2:剪刀，V50B3:石头）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 89,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B3 获得行动资格；V50B1、V50B2 无资格",
+      "important": true
+    },
+    {
+      "seq": 90,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B3 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 91,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B3（无业游民，位于 P3-71md）行动",
+      "important": false
+    },
+    {
+      "seq": 92,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B3 近战攻击 V50B2（伤害 1）",
+      "important": true,
+      "data": {
+        "declared": true,
+        "source": "P3-71md",
+        "target": "P2-xc5k",
+        "amount": 1,
+        "ranged": false,
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 93,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B2 受到 1 伤害（物理）：3 → 2（来源 V50B3）",
+      "important": true,
+      "data": {
+        "target": "P2-xc5k",
+        "source": "P3-71md",
+        "amount": 1,
+        "hpBefore": 3,
+        "hpAfter": 2,
+        "lethal": false,
+        "dtype": "physical",
+        "room": "R1",
+        "reflected": false,
+        "transferred": false
+      }
+    },
+    {
+      "seq": 94,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B3 执行行动：攻击 V50B2",
+      "important": true,
+      "data": {
+        "pid": "P3-71md",
+        "fx": "attack",
+        "label": "攻击 V50B2",
+        "targetId": "P2-xc5k"
+      }
+    },
+    {
+      "seq": 95,
+      "round": 3,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 3 回合小结：V50B3 获得行动资格；V50B3 攻击 V50B2",
+      "important": true
+    },
+    {
+      "seq": 96,
+      "round": 3,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 3 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 97,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 4 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 98,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:剪刀，V50B2:石头，V50B3:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 99,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B2 获得行动资格；V50B1、V50B3 无资格",
+      "important": true
+    },
+    {
+      "seq": 100,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 101,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B2（五条悟，位于 P2-xc5k）行动",
+      "important": false
+    },
+    {
+      "seq": 102,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B2 近战攻击 V50B3（伤害 3）",
+      "important": true,
+      "data": {
+        "declared": true,
+        "source": "P2-xc5k",
+        "target": "P3-71md",
+        "amount": 3,
+        "ranged": false,
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 103,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B3 受到 3 伤害（物理）：2 → 0（来源 V50B2）",
+      "important": true,
+      "data": {
+        "target": "P3-71md",
+        "source": "P2-xc5k",
+        "amount": 3,
+        "hpBefore": 2,
+        "hpAfter": 0,
+        "lethal": true,
+        "dtype": "physical",
+        "room": "R1",
+        "reflected": false,
+        "transferred": false
+      }
+    },
+    {
+      "seq": 104,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "eliminate",
+      "text": "💀 V50B3（无业游民）被淘汰（原因：damage，击杀者 V50B2）",
+      "important": true,
+      "data": {
+        "pid": "P3-71md",
+        "cause": "damage",
+        "killer": "P2-xc5k"
+      }
+    },
+    {
+      "seq": 105,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B2 执行行动：攻击 V50B3",
+      "important": true,
+      "data": {
+        "pid": "P2-xc5k",
+        "fx": "attack",
+        "label": "攻击 V50B3",
+        "targetId": "P3-71md"
+      }
+    },
+    {
+      "seq": 106,
+      "round": 4,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 4 回合小结：V50B2 获得行动资格；V50B3 被淘汰（damage）；V50B2 攻击 V50B3",
+      "important": true
+    },
+    {
+      "seq": 107,
+      "round": 4,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 4 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 108,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 5 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 109,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:石头，V50B2:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 110,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B1 获得行动资格；V50B2 无资格",
+      "important": true
+    },
+    {
+      "seq": 111,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B1 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 112,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B1（五条悟，位于 P1-797h）行动",
+      "important": false
+    },
+    {
+      "seq": 113,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B1 近战攻击 V50B2（伤害 3）",
+      "important": true,
+      "data": {
+        "declared": true,
+        "source": "P1-797h",
+        "target": "P2-xc5k",
+        "amount": 3,
+        "ranged": false,
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 114,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B2 受到 3 伤害（物理）：2 → 0（来源 V50B1）",
+      "important": true,
+      "data": {
+        "target": "P2-xc5k",
+        "source": "P1-797h",
+        "amount": 3,
+        "hpBefore": 2,
+        "hpAfter": 0,
+        "lethal": true,
+        "dtype": "physical",
+        "room": "R1",
+        "reflected": false,
+        "transferred": false
+      }
+    },
+    {
+      "seq": 115,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "trigger",
+      "text": "💫 V50B2 消耗一条命（剩余 1 条），以 3 HP 复活！",
+      "important": true,
+      "data": {
+        "pid": "P2-xc5k",
+        "livesLeft": 1
+      }
+    },
+    {
+      "seq": 116,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "V50B1 执行行动：攻击 V50B2",
+      "important": true,
+      "data": {
+        "pid": "P1-797h",
+        "fx": "attack",
+        "label": "攻击 V50B2",
+        "targetId": "P2-xc5k"
+      }
+    },
+    {
+      "seq": 117,
+      "round": 5,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 5 回合小结：V50B1 获得行动资格；V50B1 攻击 V50B2",
+      "important": true
+    },
+    {
+      "seq": 118,
+      "round": 5,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 5 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 119,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 6 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 120,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（V50B1:石头，V50B2:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 121,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：V50B1 获得行动资格；V50B2 无资格",
+      "important": true
+    },
+    {
+      "seq": 122,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 V50B1 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 123,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 V50B1（五条悟，位于 P1-797h）行动",
+      "important": false
+    },
+    {
+      "seq": 124,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B1 近战攻击 V50B2（伤害 3）",
+      "important": true,
+      "data": {
+        "declared": true,
+        "source": "P1-797h",
+        "target": "P2-xc5k",
+        "amount": 3,
+        "ranged": false,
+        "room": "R1"
+      }
+    },
+    {
+      "seq": 125,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "V50B2 受到 3 伤害（物理）：3 → 0（来源 V50B1）",
+      "important": true,
+      "data": {
+        "target": "P2-xc5k",
+        "source": "P1-797h",
+        "amount": 3,
+        "hpBefore": 3,
+        "hpAfter": 0,
+        "lethal": true,
+        "dtype": "physical",
+        "room": "R1",
+        "reflected": false,
+        "transferred": false
+      }
+    },
+    {
+      "seq": 126,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "eliminate",
+      "text": "💀 V50B2（五条悟）被淘汰（原因：damage，击杀者 V50B1）",
+      "important": true,
+      "data": {
+        "pid": "P2-xc5k",
+        "cause": "damage",
+        "killer": "P1-797h"
+      }
+    },
+    {
+      "seq": 127,
+      "round": 6,
+      "sub": 1,
+      "phase": "over",
+      "type": "result",
+      "text": "🏆 游戏结束：V50B1（五条悟）获得胜利！",
+      "important": true
+    },
+    {
+      "seq": 128,
+      "round": 6,
+      "sub": 1,
+      "phase": "over",
+      "type": "action",
+      "text": "V50B1 执行行动：攻击 V50B2",
+      "important": true,
+      "data": {
+        "pid": "P1-797h",
+        "fx": "attack",
+        "label": "攻击 V50B2",
+        "targetId": "P2-xc5k"
+      }
+    }
+  ],
+  "evidence": {
+    "seats": [
+      {
+        "playerId": "P1-797h",
+        "name": "V50B1",
+        "type": "human",
+        "charId": "gojo"
+      },
+      {
+        "playerId": "P2-xc5k",
+        "name": "V50B2",
+        "type": "local",
+        "charId": "gojo"
+      },
+      {
+        "playerId": "P3-71md",
+        "name": "V50B3",
+        "type": "local",
+        "charId": "default"
+      }
+    ],
+    "subject": "P2-xc5k",
+    "01-idle": {
+      "chars": [
+        {
+          "pid": "P1-797h",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 2.062700000001118,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 616.1849127231164,
+          "y": 519.7066657880673,
+          "z": 5.952
+        },
+        {
+          "pid": "P2-xc5k",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 2.062700000001118,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 764.4104271865073,
+          "y": 166.52748072597024,
+          "z": -6.912
+        },
+        {
+          "pid": "P3-71md",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "idle",
+          "t": 2.062700000001118,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 900.8274686717969,
+          "y": 165.42555861382974,
+          "z": -9.512
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 141,
+        "triangles": 17040,
+        "geometries": 110,
+        "textures": 1
+      },
+      "colors": 175,
+      "css": {
+        "width": 1440,
+        "height": 851
+      },
+      "bitmap": {
+        "width": 1440,
+        "height": 719
+      },
+      "canvasRect": {
+        "x": 0,
+        "y": 48,
+        "width": 1440,
+        "height": 851,
+        "top": 48,
+        "right": 1440,
+        "bottom": 899,
+        "left": 0
+      },
+      "meshCss": {
+        "left": 746.4085193509374,
+        "top": 111.33873647082137,
+        "right": 781.5106219498557,
+        "bottom": 223.8310667510815
+      },
+      "meshBitmap": {
+        "left": 746.4085193509374,
+        "right": 781.5106219498557,
+        "top": 94.06880319920161,
+        "bottom": 189.1122643878115
+      },
+      "vertices": 11682,
+      "visibleFraction": 1,
+      "overlaps": [
+        {
+          "element": "b3-roomlabel",
+          "rect": {
+            "x": 721.3484497070312,
+            "y": 186.8000030517578,
+            "width": 97.703125,
+            "height": 25,
+            "top": 186.8000030517578,
+            "right": 819.0515747070312,
+            "bottom": 211.8000030517578,
+            "left": 721.3484497070312
+          },
+          "fraction": 0.22223737331883628
+        }
+      ],
+      "fraction": null,
+      "cameraMoving": false,
+      "at": 6424.200000000186,
+      "pid": "P2-xc5k",
+      "pose": "idle",
+      "gameNo": 1
+    },
+    "game1-initial": {
+      "chars": [
+        {
+          "pid": "P1-797h",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 2.1220000000009316,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 616.2276616457341,
+          "y": 519.6687706511768,
+          "z": 5.952
+        },
+        {
+          "pid": "P2-xc5k",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 2.1220000000009316,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 764.4027805959252,
+          "y": 166.5672073423049,
+          "z": -6.912
+        },
+        {
+          "pid": "P3-71md",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "idle",
+          "t": 2.1220000000009316,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 900.7976756091784,
+          "y": 165.4624050941481,
+          "z": -9.512
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 141,
+        "triangles": 17040,
+        "geometries": 110,
+        "textures": 1
+      },
+      "reused": true
+    },
+    "same-room": {
+      "chars": [
+        {
+          "pid": "P1-797h",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 5.875800000005397,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 620.9993802584762,
+          "y": 489.46259976668205,
+          "z": 5.952
+        },
+        {
+          "pid": "P2-xc5k",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 1.3761000000014902,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 596.8450806954964,
+          "y": 430.47615022528424,
+          "z": 5.002
+        },
+        {
+          "pid": "P3-71md",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "idle",
+          "t": 0.04,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 680.9389771119025,
+          "y": 528.9121622768095,
+          "z": 5.902
+        }
+      ],
+      "stats": {
+        "fx": 1,
+        "tweens": 2,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 149,
+        "triangles": 17680,
+        "geometries": 114,
+        "textures": 1
+      },
+      "reused": true
+    },
+    "03-mobile-idle": {
+      "chars": [
+        {
+          "pid": "P1-797h",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 15.720400000005963,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 169.94805772258127,
+          "y": 437.5706048522334,
+          "z": 5.952
+        },
+        {
+          "pid": "P2-xc5k",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 11.220700000002058,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 137.79853429249658,
+          "y": 407.5757782613565,
+          "z": 5.002
+        },
+        {
+          "pid": "P3-71md",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "idle",
+          "t": 9.884600000000562,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 211.39649565173704,
+          "y": 454.2586336760039,
+          "z": 5.902
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 141,
+        "triangles": 17040,
+        "geometries": 110,
+        "textures": 1
+      },
+      "colors": 212,
+      "css": {
+        "width": 390,
+        "height": 784
+      },
+      "bitmap": {
+        "width": 390,
+        "height": 784
+      },
+      "canvasRect": {
+        "x": 0,
+        "y": 59,
+        "width": 390,
+        "height": 784,
+        "top": 59,
+        "right": 390,
+        "bottom": 843,
+        "left": 0
+      },
+      "meshCss": {
+        "left": 114.54701483726964,
+        "top": 355.6464028332509,
+        "right": 159.66585895179705,
+        "bottom": 460.13837718759294
+      },
+      "meshBitmap": {
+        "left": 114.54701483726963,
+        "right": 159.66585895179705,
+        "top": 355.6464028332509,
+        "bottom": 460.13837718759294
+      },
+      "vertices": 11682,
+      "visibleFraction": 1,
+      "overlaps": [
+        {
+          "element": "b3-plate",
+          "pid": "P1-797h",
+          "rect": {
+            "x": 67.0999984741211,
+            "y": 349.79998779296875,
+            "width": 86.00000762939453,
+            "height": 77,
+            "top": 349.79998779296875,
+            "right": 153.10000610351562,
+            "bottom": 426.79998779296875,
+            "left": 67.0999984741211
+          },
+          "fraction": 0.0993851690958638
+        },
+        {
+          "element": "action-dock ddz-hand anim-in is-my-turn",
+          "rect": {
+            "x": 3.90625,
+            "y": 396,
+            "width": 382.1875,
+            "height": 440,
+            "top": 396,
+            "right": 386.09375,
+            "bottom": 836,
+            "left": 3.90625
+          },
+          "fraction": 1
+        }
+      ],
+      "fraction": null,
+      "cameraMoving": false,
+      "at": 23646.299999999814,
+      "pid": "P2-xc5k",
+      "pose": "idle",
+      "gameNo": 1
+    },
+    "mobile": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "document": {
+        "width": 390,
+        "height": 844
+      },
+      "gameNo": 1,
+      "roundNo": 3
+    },
+    "04-hit": {
+      "chars": [
+        {
+          "pid": "P1-797h",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 17.52670000000672,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 628.9413571636421,
+          "y": 409.4350831617004,
+          "z": 5.952
+        },
+        {
+          "pid": "P2-xc5k",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "flinch",
+          "t": 0.21100000000000002,
+          "dur": 0.5,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 587.2724189684783,
+          "y": 357.33389997537813,
+          "z": 4.8540649119263355
+        },
+        {
+          "pid": "P3-71md",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "attack",
+          "t": 0.311,
+          "dur": 0.52,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 732.2105992893746,
+          "y": 465.33340045427065,
+          "z": 6.173842765563894
+        }
+      ],
+      "stats": {
+        "fx": 4,
+        "tweens": 8,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 149,
+        "triangles": 17112,
+        "geometries": 114,
+        "textures": 1
+      },
+      "colors": 210,
+      "css": {
+        "width": 1440,
+        "height": 719
+      },
+      "bitmap": {
+        "width": 1440,
+        "height": 851
+      },
+      "canvasRect": {
+        "x": 0,
+        "y": 48,
+        "width": 1440,
+        "height": 719,
+        "top": 48,
+        "right": 1440,
+        "bottom": 767,
+        "left": 0
+      },
+      "meshCss": {
+        "left": 546.154767511052,
+        "top": 283.1160027514726,
+        "right": 633.7636484504407,
+        "bottom": 430.19010761948357
+      },
+      "meshBitmap": {
+        "left": 546.154767511052,
+        "right": 633.7636484504407,
+        "top": 335.0927932427026,
+        "bottom": 509.1679855134639
+      },
+      "vertices": 11682,
+      "visibleFraction": 1,
+      "overlaps": [
+        {
+          "element": "b3-plate",
+          "pid": "P1-797h",
+          "rect": {
+            "x": 508.79998779296875,
+            "y": 262.5,
+            "width": 106,
+            "height": 89,
+            "top": 262.5,
+            "right": 614.7999877929688,
+            "bottom": 351.5,
+            "left": 508.79998779296875
+          },
+          "fraction": 0.1085963699255958
+        },
+        {
+          "element": "action-dock ddz-hand anim-in is-my-turn",
+          "rect": {
+            "x": 250,
+            "y": 478,
+            "width": 940,
+            "height": 280,
+            "top": 478,
+            "right": 1190,
+            "bottom": 758,
+            "left": 250
+          },
+          "fraction": 0.001292597494672351
+        }
+      ],
+      "fraction": 0.42200000000000004,
+      "cameraMoving": true,
+      "at": 27853.299999999814,
+      "pid": "P2-xc5k",
+      "pose": "flinch",
+      "gameNo": 1
+    },
+    "05-attack": {
+      "chars": [
+        {
+          "pid": "P1-797h",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 18.873200000007664,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 622.1981996188866,
+          "y": 405.2987314548623,
+          "z": 5.952
+        },
+        {
+          "pid": "P2-xc5k",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "attack",
+          "t": 0.2,
+          "dur": 0.52,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 571.7408872782072,
+          "y": 341.7070663390389,
+          "z": 4.768056139790484
+        },
+        {
+          "pid": "P3-71md",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "dead",
+          "t": 0.2,
+          "dur": null,
+          "room": "R1",
+          "alive": false,
+          "visible": true,
+          "x": 707.2196063741283,
+          "y": 448.9215789830495,
+          "z": 6.026458133631898
+        }
+      ],
+      "stats": {
+        "fx": 1,
+        "tweens": 1,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 140,
+        "triangles": 17020,
+        "geometries": 110,
+        "textures": 1
+      },
+      "colors": 213,
+      "css": {
+        "width": 1440,
+        "height": 719
+      },
+      "bitmap": {
+        "width": 1440,
+        "height": 851
+      },
+      "canvasRect": {
+        "x": 0,
+        "y": 48,
+        "width": 1440,
+        "height": 719,
+        "top": 48,
+        "right": 1440,
+        "bottom": 767,
+        "left": 0
+      },
+      "meshCss": {
+        "left": 533.3094038537455,
+        "top": 272.2236761000113,
+        "right": 619.8241316224595,
+        "bottom": 421.7737561102943
+      },
+      "meshBitmap": {
+        "left": 533.3094038537455,
+        "right": 619.8241316224595,
+        "top": 322.2007626719188,
+        "bottom": 499.20649019452077
+      },
+      "vertices": 11682,
+      "visibleFraction": 1,
+      "overlaps": [
+        {
+          "element": "b3-plate",
+          "pid": "P1-797h",
+          "rect": {
+            "x": 529.4000244140625,
+            "y": 260.20001220703125,
+            "width": 106,
+            "height": 89,
+            "top": 260.20001220703125,
+            "right": 635.4000244140625,
+            "bottom": 349.20001220703125,
+            "left": 529.4000244140625
+          },
+          "fraction": 0.19375674091934658
+        }
+      ],
+      "fraction": 0.38461538461538464,
+      "cameraMoving": true,
+      "at": 30754.200000000186,
+      "pid": "P2-xc5k",
+      "pose": "attack",
+      "gameNo": 1
+    },
+    "06-revive": {
+      "chars": [
+        {
+          "pid": "P1-797h",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 0.05,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 658.9543355166451,
+          "y": 419.7269276413043,
+          "z": 6.290463763227139
+        },
+        {
+          "pid": "P2-xc5k",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "revive",
+          "t": 0.2622000000011176,
+          "dur": 0.65,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 619.1866501191034,
+          "y": 350.76759907252216,
+          "z": 5.002
+        },
+        {
+          "pid": "P3-71md",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "dead",
+          "t": 2.19860000000056,
+          "dur": null,
+          "room": "R1",
+          "alive": false,
+          "visible": true,
+          "x": 731.3474367241448,
+          "y": 443.99237598450753,
+          "z": 6.026458133631898
+        }
+      ],
+      "stats": {
+        "fx": 3,
+        "tweens": 8,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 146,
+        "triangles": 18628,
+        "geometries": 113,
+        "textures": 1
+      },
+      "colors": 206,
+      "css": {
+        "width": 1440,
+        "height": 719
+      },
+      "bitmap": {
+        "width": 1440,
+        "height": 851
+      },
+      "canvasRect": {
+        "x": 0,
+        "y": 48,
+        "width": 1440,
+        "height": 719,
+        "top": 48,
+        "right": 1440,
+        "bottom": 767,
+        "left": 0
+      },
+      "meshCss": {
+        "left": 550.2901036682747,
+        "top": 305.58409335345016,
+        "right": 675.1146637706814,
+        "bottom": 445.77457147136556
+      },
+      "meshBitmap": {
+        "left": 550.2901036682747,
+        "right": 675.1146637706814,
+        "top": 361.68576278690693,
+        "bottom": 527.6135748569292
+      },
+      "vertices": 11682,
+      "visibleFraction": 1,
+      "overlaps": [
+        {
+          "element": "b3-plate",
+          "pid": "P1-797h",
+          "rect": {
+            "x": 566.2000122070312,
+            "y": 273,
+            "width": 106,
+            "height": 89,
+            "top": 273,
+            "right": 672.2000122070312,
+            "bottom": 362,
+            "left": 566.2000122070312
+          },
+          "fraction": 0.05097863628093216
+        },
+        {
+          "element": "b3-plate is-dead",
+          "pid": "P3-71md",
+          "rect": {
+            "x": 653.719970703125,
+            "y": 329.4300231933594,
+            "width": 91.1600341796875,
+            "height": 76.54000854492188,
+            "top": 329.4300231933594,
+            "right": 744.8800048828125,
+            "bottom": 405.97003173828125,
+            "left": 653.719970703125
+          },
+          "fraction": 0.06404750659200184
+        },
+        {
+          "element": "action-dock ddz-hand anim-in is-my-turn",
+          "rect": {
+            "x": 250,
+            "y": 478,
+            "width": 940,
+            "height": 280,
+            "top": 478,
+            "right": 1190,
+            "bottom": 758,
+            "left": 250
+          },
+          "fraction": 0.11252241723647903
+        }
+      ],
+      "fraction": 0.40338461538633474,
+      "cameraMoving": true,
+      "at": 35934.89999999944,
+      "pid": "P2-xc5k",
+      "pose": "revive",
+      "gameNo": 1
+    },
+    "07-death": {
+      "chars": [
+        {
+          "pid": "P1-797h",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "attack",
+          "t": 0.05,
+          "dur": 0.52,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 638.8410629120895,
+          "y": 473.322226980241,
+          "z": 6.70742627814235
+        },
+        {
+          "pid": "P2-xc5k",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "dead",
+          "t": 0.2237999999988824,
+          "dur": null,
+          "room": "R1",
+          "alive": false,
+          "visible": true,
+          "x": 585.5076706671085,
+          "y": 374.9179092912969,
+          "z": 5.002
+        },
+        {
+          "pid": "P3-71md",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "dead",
+          "t": 3.3288000000007427,
+          "dur": null,
+          "room": "R1",
+          "alive": false,
+          "visible": true,
+          "x": 698.7454398072832,
+          "y": 469.90702824580086,
+          "z": 6.026458133631898
+        }
+      ],
+      "stats": {
+        "fx": 3,
+        "tweens": 3,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 141,
+        "triangles": 17032,
+        "geometries": 111,
+        "textures": 1
+      },
+      "colors": 211,
+      "css": {
+        "width": 1440,
+        "height": 718
+      },
+      "bitmap": {
+        "width": 1440,
+        "height": 851
+      },
+      "canvasRect": {
+        "x": 0,
+        "y": 49,
+        "width": 1440,
+        "height": 718,
+        "top": 49,
+        "right": 1440,
+        "bottom": 767,
+        "left": 0
+      },
+      "meshCss": {
+        "left": 528.7974593100255,
+        "top": 316.05447963736754,
+        "right": 632.3426196980935,
+        "bottom": 473.07947144130407
+      },
+      "meshBitmap": {
+        "left": 528.7974593100255,
+        "right": 632.3426196980935,
+        "top": 374.5993902108632,
+        "bottom": 560.7111841177573
+      },
+      "vertices": 11682,
+      "visibleFraction": 1,
+      "overlaps": [
+        {
+          "element": "b3-plate",
+          "pid": "P1-797h",
+          "rect": {
+            "x": 564.3156127929688,
+            "y": 324,
+            "width": 126.96875,
+            "height": 89,
+            "top": 324,
+            "right": 691.2843627929688,
+            "bottom": 413,
+            "left": 564.3156127929688
+          },
+          "fraction": 0.20059994746026502
+        }
+      ],
+      "fraction": 0.40690909090705885,
+      "cameraMoving": true,
+      "at": 38545.09999999963,
+      "pid": "P2-xc5k",
+      "pose": "dead",
+      "gameNo": 1
+    },
+    "game1-over": {
+      "chars": [
+        {
+          "pid": "P1-797h",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 2.702199999999254,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 605.6831802343091,
+          "y": 400.3230569730923,
+          "z": 6.6142711139517125
+        },
+        {
+          "pid": "P2-xc5k",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "dead",
+          "t": 3.4336299999985345,
+          "dur": null,
+          "room": "R1",
+          "alive": false,
+          "visible": false,
+          "x": 625.0474643649851,
+          "y": 315.738835466366,
+          "z": 5.002
+        },
+        {
+          "pid": "P3-71md",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "dead",
+          "t": 3.400600000001487,
+          "dur": null,
+          "room": "R1",
+          "alive": false,
+          "visible": false,
+          "x": 672.5220726035911,
+          "y": 417.924595324714,
+          "z": 6.026458133631898
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 2,
+        "calls": 112,
+        "triangles": 12306,
+        "geometries": 110,
+        "textures": 1
+      },
+      "reused": true
+    },
+    "game2-initial": {
+      "chars": [
+        {
+          "pid": "P1-797h",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 7.64659999999868,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 526.5964480820501,
+          "y": 358.9988762608604,
+          "z": 6.6142711139517125
+        },
+        {
+          "pid": "P2-xc5k",
+          "charId": "gojo",
+          "asset": "gojo-v1",
+          "pose": "idle",
+          "t": 0.8504000000003725,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 1196.841592079882,
+          "y": 186.0816467839191,
+          "z": -6.912
+        },
+        {
+          "pid": "P3-71md",
+          "charId": "default",
+          "asset": "humanoid",
+          "pose": "idle",
+          "t": 0.8504000000003725,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 1452.748216990239,
+          "y": 244.52159307053864,
+          "z": -9.512
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 123,
+        "triangles": 15896,
+        "geometries": 110,
+        "textures": 1
+      },
+      "reused": true
+    }
+  }
+}

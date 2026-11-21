@@ -100,4 +100,6 @@ test/<issue-number>-<short-desc>      # 测试
 任务总表在本地 `TASKS.md`，Issue 从其中的 TODO / IN_PROGRESS 项生成。
 新任务请先在 `TASKS.md` 登记，再创建 Issue，保持双向可追溯。
 
+战场角色 3D 开发请使用 `plugins/character-pipeline/`（ZCode 插件"角色开发流水线"）：先读其 README 与九步工作流，再按阶段规范和任务书执行；协助者边界见其中 AI Agent 指南。
+
 初始化标签和 Issue：在仓库 **Actions → Initialize Governance** 手动触发一次即可。
