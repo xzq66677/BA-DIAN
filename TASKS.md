@@ -27,7 +27,7 @@
 | T-100 | 类型系统 types.ts | DONE | 玩家/房间/伤害/日志/规则配置 |
 | T-101 | 随机数模块 rng.ts | DONE | mulberry32 种子可复现 |
 | T-102 | 初次判定 judge.ts（平局递归/三人循环/多名胜者） | DONE | 不随机决定胜者 |
-| T-103 | 二次判定行动排序（输者先，递归分组） | DONE | serverRoll 模式（假设A-02） |
+| T-103 | 二次判定行动排序（输者先，递归分组） | DONE | 2026-11-21 改为**玩家亲自出拳**（`player` 默认，rps2 交互阶段）；`serverRoll` 仅自动化用例使用 |
 | T-104 | 伤害管线 damage（转移/躲避/反弹/秒杀/多段钩子） | DONE | 两阶段钩子设计 |
 | T-105 | 游戏引擎 engine.ts（阶段机/队列/淘汰/胜利/回合末事件/日志） | DONE | |
 | T-106 | 引擎单元测试 TC-E001~E035 | DONE | 35 用例全过 |
@@ -544,6 +544,21 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | T-1733 | 保护用户修改 | 未提交、未推送、未部署、未动生产配置；工作区继承的上轮未提交内容（dist-dev 旧产物、screenshots-v3）原样保留 |
 | T-1734 | **B-034：e2e 断言不兼容 3D 模式** | 「单人开局→战场渲染」用例断言 `.ccard-art img`（2D 房间卡）——3D 模式下战场卡牌由场景与名牌头像（`.b3-av img`）取代，WebGL 环境必然 0 张失败（HEAD=eaec5f9 已引入；V4.1 记录的 247 通过为 3D 集成前的基线）。修复：断言扩为 `.ccard-art img, .b3-av img, .ms-art img`（双模式兼容，意图不变：卡面图至少 1 张真实加载） |
 | T-1806 | 测试分布核实 | 282 = 共享用例 108 + 领域 20 + 战斗演出事件 14 + 演出队列 23 + 广播游标 4 + 退出/占用 7 + AI 回归与难度 15 + 联机集成 11 + 超时兜底 6 + 隐藏出拳 4 + 战绩 4 + 互动 4 + 回放 3 + 多局日志 6 + 音效 3 + UI 组件 11 + 退出逃生口 1 + battle3d 27 + 终局延迟呈现 6 + E2E 5（逐文件实测核对） |
+
+### 十九轮 · 二次判定亲自出拳（交互层改造，2026-11-21）
+
+| 编号 | 任务 | 说明 |
+|---|---|---|
+| T-1900 | 引擎 `rps2` 交互阶段 | `GamePhase` 新增 `rps2`；新增 `orderQueue/orderGroup/orderOrder/orderPending/orderSubmittedIds/orderSub` 状态；公开 `submitOrderThrow` / `forceFillOrderThrows` / `currentOrderGroup()`；递归分组改为「待排序组队列」迭代实现，保留 10000 子轮安全上限 |
+| T-1901 | 领域不参与二次判定 | `resolveOrderSubRound` 不传 tieWin：排序子轮同拳即平局并重掷（此前会「平局算胜」）；`serverRoll` 分支同步移除 tieWin |
+| T-1902 | 大屁孩判定与二次判定解耦 | 不再向 `judgeHistory` 写 rps2 子轮：连续同拳不会触发「三同自爆」，暴走/自爆只受回合判定（rps1）影响 |
+| T-1903 | 服务端配套 | `game:throw` 按阶段路由；`kickAI` 处理 rps2；出拳超时（30s，仅 ≥2 真人布防）覆盖 rps2；AI 看门狗现场签名纳入排序提交数；房间默认规则 `secondJudgeMode: 'player'` |
+| T-1904 | 客户端交互 | 行动坞排序出拳面板（复用交设备遮罩 `ThrowPrivacy`，`stage='rps2'`）与等待态文案；揭示台按「初次判定 / 排序判定·子轮 N」呈现并给出排序结论；顶栏阶段文案 |
+| T-1905 | 测试 | 新增 `tests/order-rps2.test.ts` 12 例（递归/平局重掷/领域不参与/大屁孩历史/超时/房间集成）；既有用例显式 `serverRoll`；socket 集成驱动补 rps2 分支 |
+| T-1906 | 工程验收 | `npm test` **22 文件 / 294 用例全过**；`npm run build`（server tsc + client vite）通过；client / server `tsc --noEmit` 双 0 错误 |
+| T-1907 | **修复：单设备多人出拳遮罩概率性白屏**（用户实测） | `ThrowPrivacy` 用数组下标追踪出拳身份，提交后名单收缩导致 `myIds[idx]` 为 undefined → 渲染抛 TypeError → React 卸载整棵树（所有面板消失）；触发与否取决于「广播 vs ack」到达顺序。改按 `playerId` 追踪 + 身份消失回退遮罩 + 提交异常兜底 |
+| T-1908 | 全局错误边界 | 新增 `client/src/ErrorBoundary.tsx`，`main.tsx` 包裹 `<App/>`：渲染异常显示可读提示 + 重新载入，不再白屏 |
+| T-1909 | 回归与复核 | 新增 `tests/ui/throw-privacy.test.tsx` 4 例；`npm test` **23 文件 / 300 用例全过**（合并 main 的 V4.3/V4.4 后 +2）；Playwright 实跑本机 3 人局（点第 3 个身份）不白屏、无 console 报错 |
 
 
 
