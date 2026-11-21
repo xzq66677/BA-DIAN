@@ -798,6 +798,26 @@ export const CHARACTER_CASES: TestCase[] = [
       return check(ok, '躲藏的大贱客仍被转移伤害命中（3→2），B 无损', `D hp=${hpOf(g, 'D')}, B hp=${hpOf(g, 'B')}`, g);
     }),
   },
+  {
+    id: 'TC-C087', name: '大贱客：回合末瞬时爆发全部吸收（阵亡后同批伤害仍转移）', category: 'character', charId: 'dajianke', seed: 292,
+    desc: '大伊万炸两人：大贱客吸第一发致死，同批第二发仍由其（阵亡）吸收——被波及目标不受损（作者确认 2026-11-21）',
+    run: () => run(() => {
+      const g = makeGame([
+        { id: 'D', char: 'dajianke', room: 'R1' },
+        { id: 'A', char: 'ivan-girl', room: 'R2' },
+        { id: 'X', char: 'default', room: 'R2' },
+        { id: 'Y', char: 'default', room: 'R2' },
+      ], 292);
+      playThrows(g, [{ A: 'rock', D: 'scissors', X: 'scissors', Y: 'scissors' }]); // 第1回合 A 胜
+      actQueue(g, { A: { type: 'throwIvan', room: 'R2' } }); // 炸 R2（X、Y 在房内，D 在 R1）
+      playThrows(g, [{ A: 'rock', D: 'scissors', X: 'scissors', Y: 'scissors' }]); // 第2回合 A 再胜（引爆回合）
+      actQueue(g, { A: { type: 'skip' } }); // 第2回合末爆炸
+      const absorbed = g.logs.some((l) => l.text.includes('大贱客（已阵亡）仍吸收'));
+      const ok = !isAlive(g, 'D') && isAlive(g, 'X') && isAlive(g, 'Y')
+        && hpOf(g, 'X') === 2 && hpOf(g, 'Y') === 2 && absorbed;
+      return check(ok, 'D 阵亡吸收全部爆发：X、Y 满血无损', `D alive=${isAlive(g, 'D')}, X=${hpOf(g, 'X')}, Y=${hpOf(g, 'Y')}, absorbed=${absorbed}`, g);
+    }),
+  },
 
   // ═══════════════ 20.9 大屁孩 ═══════════════
   {

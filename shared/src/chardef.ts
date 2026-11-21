@@ -18,6 +18,9 @@ export interface GameLike {
   rules: import('./types.js').RuleConfig;
   logs: import('./types.js').LogEntry[];
 
+  /** 回合末延迟事件结算进行中（endRound 循环窗口） */
+  settlingDeferred?: boolean;
+
   log(type: import('./types.js').LogType, text: string, data?: Record<string, unknown>, important?: boolean): void;
   aliveIds(): PlayerId[];
   getPlayer(pid: PlayerId): import('./types.js').PlayerState;

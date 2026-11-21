@@ -365,12 +365,21 @@ const dajianke: CharDef = {
   init: () => ({ insults: {} as Record<string, number> }),
   onBeforeDamage: (ctx) => {
     const { game, req } = ctx;
-    const me = game.playerIds.find((pid) => game.charDef(pid).id === 'dajianke' && game.players[pid].alive);
+    const me = game.playerIds.find((pid) => game.charDef(pid).id === 'dajianke');
     if (!me) return;
+    const dAlive = game.players[me].alive;
+    // 阵亡后仅在回合末延迟事件结算窗口内继续吸收（瞬间溢出的回合末爆发，作者确认 2026-11-21）：
+    // 同批剩余伤害全部由其（遗体）承担，被波及目标不受损。
+    // 行动阶段的多段独立结算伤害（如伍六七三段）不在此列：大贱客死亡即停止吸收。
+    if (!dAlive && game.settlingDeferred !== true) return;
     if (req.target === me) return; // 已指向自己的伤害不转移
     if (req.dtype === 'mental') return; // 精神伤害不转移
     if (req.transferred) return; // 已转移伤害不再转移
-    game.log('trigger', `🧲 大贱客被动：${game.players[req.target].name} 承受的 ${fmtNum(req.amount)} 伤害（${req.tag || '普通'}）被吸引至大贱客（不转移附加效果）`, undefined, true);
+    if (dAlive) {
+      game.log('trigger', `🧲 大贱客被动：${game.players[req.target].name} 承受的 ${fmtNum(req.amount)} 伤害（${req.tag || '普通'}）被吸引至大贱客（不转移附加效果）`, undefined, true);
+    } else {
+      game.log('trigger', `🧲 大贱客（已阵亡）仍吸收本次回合末爆发的伤害：${game.players[req.target].name} 承受的 ${fmtNum(req.amount)} 伤害（${req.tag || '普通'}）由其承担，目标不受损`, undefined, true);
+    }
     req.target = me;
     req.transferred = true;
     req.ignoreHide = true; // 转移后视为直击大贱客——无视其自身躲藏/隐身（作者确认 2026-11-21）
