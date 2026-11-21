@@ -284,7 +284,9 @@ const xiaonuhai: CharDef = {
           kind: 'ivan', room, explodeRound,
           source: ctx.actor, createdAtRound: game.roundNo,
         });
-        game.log('deferred', `💣 ${game.getPlayer(ctx.actor).name} 向 ${room} 投掷大伊万！第 ${explodeRound} 回合所有人行动结束后爆炸`, undefined, true);
+        // 结构化 data（V3 演出链）：投掷者/目标房间/爆炸回合公开可见，不涉隐藏信息
+        game.log('deferred', `💣 ${game.getPlayer(ctx.actor).name} 向 ${room} 投掷大伊万！第 ${explodeRound} 回合所有人行动结束后爆炸`,
+          { pid: ctx.actor, room, explodeRound }, true);
       },
     },
   ],

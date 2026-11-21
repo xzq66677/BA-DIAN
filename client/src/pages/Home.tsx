@@ -50,7 +50,7 @@ export default function Home({ onEnter, onArena }: {
       await net.connect();
       const myName = name.trim() || '玩家1';
       const localNames = Array.from({ length: localCount }, (_, i) => (localCount === 1 ? myName : `${myName}${i + 1}`));
-      const r = await net.createRoom(myName, localNames, charId) as RoomOpResult;
+      const r = await net.createRoom(myName, localNames, charId) as unknown as RoomOpResult;
       if (!r.ok || !r.code || !r.seats) {
         setError(r.error || '创建失败');
         if (r.activeCode) setStuckCode(r.activeCode);
@@ -73,7 +73,7 @@ export default function Home({ onEnter, onArena }: {
       localStorage.setItem('badian-name', name.trim());
       await net.connect();
       const target = (code || joinCode).trim().toUpperCase();
-      const r = await net.joinRoom(target, name.trim() || '玩家', charId) as RoomOpResult;
+      const r = await net.joinRoom(target, name.trim() || '玩家', charId) as unknown as RoomOpResult;
       if (!r.ok || !r.code || !r.seats) {
         setError(r.error || '加入失败');
         if (r.activeCode) setStuckCode(r.activeCode);

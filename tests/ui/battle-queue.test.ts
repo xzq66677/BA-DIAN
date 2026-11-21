@@ -101,6 +101,23 @@ describe('日志 → 演出事件解析（结构化字段，旧数据兼容）',
     expect(parseBattleEvent(log(12, 'phase'))).toBeNull();
   });
 
+  it('大伊万：投掷/爆炸结构化事件解析；旧格式（无 data）不演出', () => {
+    // 投掷：pid + room → ivanThrow
+    const thr = parseBattleEvent(log(10, 'deferred', { pid: 'A', room: 'R2', explodeRound: 2 }, true))!;
+    expect(thr.kind).toBe('ivanThrow');
+    expect(thr.pid).toBe('A');
+    expect(thr.room).toBe('R2');
+    // 爆炸：room + source → ivanBoom
+    const boom = parseBattleEvent(log(11, 'deferred', { room: 'R2', source: 'A' }, true))!;
+    expect(boom.kind).toBe('ivanBoom');
+    expect(boom.room).toBe('R2');
+    expect(boom.sourceId).toBe('A');
+    // 旧格式（无 data）：跳过演出，日志面板照常显示
+    expect(parseBattleEvent(log(12, 'deferred'))).toBeNull();
+    // 通用延迟伤害（无 room）：跳过演出
+    expect(parseBattleEvent(log(13, 'deferred', { label: '延迟伤害' }))).toBeNull();
+  });
+
   it('攻击宣告与行动日志解析', () => {
     const d = parseBattleEvent(log(13, 'damage', { declared: true, source: 'A', target: 'B', amount: 1, room: 'R1' }))!;
     expect(d.kind).toBe('attackDecl');
@@ -171,6 +188,25 @@ describe('队列播放', () => {
     expect(started.map((e) => e.kind)).toEqual(['action', 'damage', 'action', 'move']);
     expect(started[0].seq).toBe(2);
     expect(started[1].seq).toBe(1);
+  });
+
+  it('大伊万链：爆炸先于逐目标结算演出（同簇顺序保留）', async () => {
+    const { q, started } = collect();
+    q.pushLogs([
+      log(1, 'deferred', { room: 'R2', source: 'A' }, true),
+      log(2, 'damage', { target: 'B', source: 'A', amount: 999999, hpBefore: 3, hpAfter: 0, instakill: true, tag: 'ivan', room: 'R2', groupId: 'GRP-1-1' }, true),
+      log(3, 'damage', { target: 'C', source: 'A', amount: 999999, hpBefore: 3, hpAfter: 0, instakill: true, tag: 'ivan', room: 'R2', groupId: 'GRP-1-1' }, true),
+    ]);
+    await drain(q);
+    expect(started.map((e) => e.kind)).toEqual(['ivanBoom', 'damage', 'damage']);
+    // 投掷→行动簇：投掷物飞行在行动者 fx 之后播（簇首=行动 fx）
+    const { q: q2, started: s2 } = collect();
+    q2.pushLogs([
+      log(10, 'deferred', { pid: 'A', room: 'R3', explodeRound: 2 }, true),
+      log(11, 'action', { pid: 'A', fx: 'skill', label: '投掷大伊万' }),
+    ]);
+    await drain(q2);
+    expect(s2.map((e) => e.kind)).toEqual(['action', 'ivanThrow']);
   });
 
   it('AOE 分组：事件按段序播放且全部演出', async () => {

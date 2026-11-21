@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BattleEventQueue, type QueueState, type Speed } from './queue.js';
 import type { BattleEvent, LogLike } from './events.js';
+import { sfx, type SfxKind } from '../audio/sfx.js';
 
 /** 行动者卡 fx（⚔️/💊/🚶/✨ 弹出动画） */
 export interface FxView { kind: string; key: number }
@@ -35,6 +36,10 @@ export interface DeathView { key: number; cause?: string }
 export interface ReviveView { key: number; livesLeft: number }
 export interface ZoneAlertView { key: number; groupId?: string; room: string; kind: 'aoe' | 'ivan' }
 export interface MoveBannerView { key: number; pid: string; from: string; to: string }
+/** 大伊万投掷（V3）：投掷者 → 目标房间的飞行演出 */
+export interface IvanThrowView { key: number; pid: string; room: string }
+/** 大伊万爆炸落点（V3）：房间冲击波 */
+export interface IvanBoomView { key: number; room: string }
 
 export interface PresentationState {
   fx: Record<string, FxView>;
@@ -45,10 +50,13 @@ export interface PresentationState {
   revives: Record<string, ReviveView>;
   zoneAlert: ZoneAlertView | null;
   moveBanner: MoveBannerView | null;
+  ivanThrow: IvanThrowView | null;
+  ivanBoom: IvanBoomView | null;
 }
 
 export const EMPTY_PRESENTATION: PresentationState = {
   fx: {}, hits: {}, heals: {}, misses: {}, deaths: {}, revives: {}, zoneAlert: null, moveBanner: null,
+  ivanThrow: null, ivanBoom: null,
 };
 
 /** 叠加层展示时长（ms，覆盖 CSS 动画全长）；reduced-motion 时缩短 */
@@ -60,6 +68,8 @@ const DEATH_MS = 1400;
 const REVIVE_MS = 1400;
 const ZONE_MS = 1000;
 const BANNER_MS = 1300;
+const IVAN_THROW_MS = 1150;
+const IVAN_BOOM_MS = 1250;
 
 export interface BattlePresentationApi {
   setSpeed: (s: Speed) => void;
@@ -90,6 +100,9 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
   /** 首次收到日志时只推进游标不演出（重连补发/页面恢复不回放历史特效） */
   const bootstrappedRef = useRef(false);
   const gameNoRef = useRef<number | undefined>(undefined);
+  /** 队列模式镜像（音效拥堵压缩判定用，避免闭包过期） */
+  const modeRef = useRef<'normal' | 'fast'>('normal');
+  const reducedRef = useRef(false);
 
   // 回调经由 ref 转发，保证队列持有的一直是最新闭包
   const applyEventRef = useRef<(e: BattleEvent) => void>(() => {});
@@ -101,17 +114,35 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
     queueRef.current = new BattleEventQueue({
       onEventStart: (e) => applyEventRef.current(e),
       onFlush: () => flushRef.current(),
-      onState: (s) => setQueueState(s),
+      onState: (s) => { modeRef.current = s.mode; setQueueState(s); },
     });
   }
   const queue = queueRef.current;
+
+  /** 演出事件 → 音效（拥堵时只保留重大事件；reduced-motion 只留关键反馈） */
+  function playSfx(e: BattleEvent): void {
+    const map: Partial<Record<BattleEvent['kind'], { kind: SfxKind; major?: boolean }>> = {
+      attackDecl: { kind: 'decl' },
+      damage: { kind: 'hit', major: true },
+      heal: { kind: 'heal' },
+      move: { kind: 'move' },
+      eliminate: { kind: 'eliminate', major: true },
+      revive: { kind: 'revive' },
+      miss: { kind: 'decl' },
+      ivanThrow: { kind: 'throw', major: true },
+      ivanBoom: { kind: 'boom', major: true },
+    };
+    const m = map[e.kind];
+    if (!m) return;
+    sfx.play(m.kind, { major: m.major, congestion: modeRef.current === 'fast', reduced: reducedRef.current });
+  }
 
   function clearAllTimers(): void {
     for (const t of timersRef.current) clearTimeout(t);
     timersRef.current.clear();
   }
 
-  function scheduleExpiry(key: 'fx' | 'hits' | 'heals' | 'misses' | 'deaths' | 'revives' | 'zoneAlert' | 'moveBanner', id: string, ms: number): void {
+  function scheduleExpiry(key: 'fx' | 'hits' | 'heals' | 'misses' | 'deaths' | 'revives' | 'zoneAlert' | 'moveBanner' | 'ivanThrow' | 'ivanBoom', id: string, ms: number): void {
     const t = setTimeout(() => {
       timersRef.current.delete(t);
       setPres((prev) => {
@@ -120,6 +151,12 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
         }
         if (key === 'moveBanner') {
           return prev.moveBanner && id === 'banner' ? { ...prev, moveBanner: null } : prev;
+        }
+        if (key === 'ivanThrow') {
+          return prev.ivanThrow && prev.ivanThrow.key === Number(id) ? { ...prev, ivanThrow: null } : prev;
+        }
+        if (key === 'ivanBoom') {
+          return prev.ivanBoom && prev.ivanBoom.key === Number(id) ? { ...prev, ivanBoom: null } : prev;
         }
         const bucket = prev[key] as Record<string, unknown>;
         if (!(id in bucket)) return prev;
@@ -133,6 +170,7 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
 
   /** 事件 → 演出叠加状态（key=seq，幂等；同类新事件覆盖旧事件并重播动画） */
   function applyEvent(e: BattleEvent): void {
+    playSfx(e);
     setPres((prev) => {
       const next = { ...prev };
       switch (e.kind) {
@@ -177,6 +215,21 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
           scheduleExpiry('moveBanner', 'banner', BANNER_MS);
           break;
         }
+        case 'ivanThrow': {
+          const pid = e.pid!;
+          const room = e.room;
+          if (!room) break;
+          next.ivanThrow = { key: e.seq, pid, room };
+          scheduleExpiry('ivanThrow', String(e.seq), IVAN_THROW_MS);
+          break;
+        }
+        case 'ivanBoom': {
+          const room = e.room;
+          if (!room) break;
+          next.ivanBoom = { key: e.seq, room };
+          scheduleExpiry('ivanBoom', String(e.seq), IVAN_BOOM_MS);
+          break;
+        }
         case 'eliminate': {
           const t = e.targetId!;
           next.deaths = { ...prev.deaths, [t]: { key: e.seq, cause: e.cause } };
@@ -216,10 +269,14 @@ export function useBattlePresentation(logs: LogLike[], gameNo?: number): BattleP
 
   // reduced-motion 跟随系统设置
   useEffect(() => {
-    queue.setReducedMotion(reducedMotionPreferred());
+    reducedRef.current = reducedMotionPreferred();
+    queue.setReducedMotion(reducedRef.current);
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const handler = () => queue.setReducedMotion(mq.matches);
+    const handler = () => {
+      reducedRef.current = mq.matches;
+      queue.setReducedMotion(mq.matches);
+    };
     mq.addEventListener?.('change', handler);
     return () => mq.removeEventListener?.('change', handler);
   }, [queue]);

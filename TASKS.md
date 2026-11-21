@@ -264,6 +264,7 @@
 | B-021 | `targetHint: 'none'`（自身技能）被前端当作"需要目标" → 确认条显示「点击战场高亮卡牌」且按钮置灰，领域/运势类技能无法直接发动 | FIXED |
 | B-022 | 单人 vs AI 也布防 30s/45s 超时 → 出拳被代掷、行动被自动跳过（AI 即时应答，无人等待） | FIXED |
 | B-023 | 同房间第二局战斗日志不再更新：引擎 `logSeq` 每局从 1 重算，与上一局 seq 撞号 → 服务端增量过滤与客户端去重把新日志全当旧日志丢弃。改为 `Room` 维护跨局游标 `logSeqCursor` 作为 `GameConfig.logSeqOffset`，并下发 `gameNo` 让客户端在新局清空日志 | FIXED |
+| B-030 | E2E 测试构建直接重建 `client/dist`，而本机 systemd 生产实例恰好静态服务该目录 → 跑一次 `npm test` = 无意间更新生产内容（本轮实测复现：3100 服务 hash 被替换）。修复：e2e 构建隔离到 `client/dist-e2e` 并以 `CLIENT_DIST` 指向，测试与生产彻底解耦；事故期间被覆盖的生产内容已通过 HEAD 重建完整恢复 | FIXED |
 
 ## 十二轮 · Arena 视觉升级与专项核查（2026-11-20，进行中）
 
@@ -330,6 +331,63 @@
 | T-1307 | 浏览器实测 | DONE | Playwright 复现用户场景：单设备 3 人开局 → 对局中退出 → 再次创建**直接成功**（修复前永久卡死）；`npm run deploy` 后线上 socket 验证结构化事件与退出语义 |
 
 实测：`npm test` **18 文件 / 233 用例全部通过**；双端 build 通过。
+
+## 十四轮 · Cinematic Battlefield V3.0（2026-11-21，已完成）
+
+> 实测汇总：`npm test` **19 文件 / 241 用例全部通过**；`tsc --noEmit` 双端 0 错误；三视口（1440×900 / 390×844 / 844×390）自动对局 0 JS 错误；前后截图证据 18 张见 `docs/screenshots-v3/`。开发实例 :3200（dist-dev），生产 :3100 全程保持 HEAD 构建未被部署（B-030 事故已恢复并修复根源）。
+
+### 阶段0 · 环境与基线审查（以当前仓库实际代码为准）
+
+| 编号 | 核查项 | 结论 | 证据 |
+|---|---|---|---|
+| V3-001 | 运行环境 | DONE | Node v24.21.0；3100=systemd 生产实例（不动），开发实例 3200（CLIENT_DIST=client/dist-dev）；`npm test` 基线 232/233（唯一失败 e2e「战斗演出」120s 超时，与并行 vite build 争 CPU 相关，需单独复跑确认） |
+| V3-002 | 基线截图 | DONE | scripts/baseline-shots.ts：桌面 1440×900 / 窄屏 390×844 / 横屏 844×390 三视口自动打完一局（3 AI），0 JS 错误，11 张基线截图存 /tmp/badian-shots/base-*.png |
+| V3-003 | 全屏星形粒子核查 | **当前代码不存在** | Game.tsx/tcg.css 无全屏粒子层；常驻动画仅 cbadge-acting/glow-green/seat-domain 脉冲（均有明确语义）。任务书截图中的粒子属旧版本，本轮保持无常驻粒子原则 |
+| V3-004 | BattleEventQueue/结构化事件 | 在位完好 | client/src/battle/{events,queue,useBattlePresentation}.ts + tests/ui/battle-queue.test.ts 21 例；本轮只增不改核心 |
+| V3-005 | 大伊万事件数据 | **演出链缺失** | 投掷日志 `deferred`（characters/index.ts:287）与爆炸日志（engine.ts:916）均无结构化 data（仅文本）；快照已含 `deferred` 数组（kind/room/explodeRound/source）可用于持续警示；伤害事件有 tag:'ivan'+groupId+room |
+
+### 阶段0 · 视觉诊断清单（基于基线截图逐张审稿）
+
+| 编号 | 问题 | 严重度 | 截图证据 | 处置 |
+|---|---|---|---|---|
+| D-01 | 终局弹层静态单薄：金框+卡面+按钮，无氛围聚焦/完成感；关闭后仅剩窄横幅 | P0 | base-win-overlay.png | 重设计终局舞台（见 T-1400） |
+| D-02 | act 阶段揭示台大空洞：仅一行判定结果却占战场 ~1/4 高度 | P0 | base-act-phase.png | act 阶段收缩为紧凑状态条 |
+| D-03 | 空房间等大虚线框视觉重量过大；终局 3/4 战场是空框 | P0 | base-over-table.png | 空房间轻量化+终局弱化 |
+| D-04 | 大伊万演出链缺失：无投掷物/飞行/爆炸落点演出，无待爆警示 | P0 | 代码核查 V3-005 | 结构化事件+完整演出链（见 T-1420） |
+| D-05 | 房间孤立矩形平铺，无空间关系/主题区分 | P1 | base-table-rps.png | 房间主题化+层级微调 |
+| D-06 | 顶栏座位条与战场卡信息重复，占据视觉权重 | P1 | base-table-rps.png | 弱化为辅助条 |
+| D-07 | BA DIAN 水印 alpha 0.035 几乎不可见（既不提供氛围也不可读） | P2 | 代码 | 微调或移除 |
+| D-08 | 终局后 battle-ctl（演出控制条）仍残留显示 | P2 | base-over-table.png | phase over 时隐藏 |
+| D-09 | 窄屏胜利弹层卡面占 ~55% 高度，按钮区拥挤 | P2 | base-narrow-win.png | 移动端弹层适配 |
+
+### 实施记录
+
+| 编号 | 任务 | 状态 | 说明 |
+|---|---|---|---|
+| T-1400 | 终局演出重新设计（P0） | DONE | `win-modal` v2：聚光光柱（一次性 conic-gradient 展开）+ 12 粒一次性金色光屑（1.8s 内全部结束，不循环）+ 卡面光柱入场 + 金渐层胜者名 + 结果摘要（回合/出局/存活）+ `.draw` 平局变体（冷灰、无金光、明确区分胜利）+ 关闭弹层后 `winner-banner` 升级（胜者名高亮+角色+回合）；战场终局态 `battlefield.is-over`（空房间弱化+胜者房间金辉）+ 胜者卡 `.is-winner` 金环+👑徽章 |
+| T-1401 | 战场主舞台升级（P0） | DONE | act 阶段揭示台收缩为单行状态条 `.reveal-board.compact`（判定结果+出牌顺序保留，空间让给战场，rps/重判阶段仍完整展开）；空房间轻量化（去大虚线框→斜纹底+小字，34px）；行动房间呼吸金边 `zone-acting-breath`；对手座位条弱化（44→36px 头像）；水印 alpha 0.035→0.05+字距放宽；终局后 battle-ctl 不再残留 |
+| T-1402 | 视觉噪声审稿收尾（P0） | DONE | 结论：当前无常驻粒子/全屏动效（任务书截图中的星形粒子属旧版本）；常驻动画仅 行动者徽章/目标绿光/领域脉冲/行动房间呼吸 四项，全部有明确语义且 reduced-motion 下静止；本轮新增的金屑/聚光/爆炸/飞行全部一次性 forwards 且可跳过 |
+| T-1410 | 大伊万结构化事件（P0 引擎侧） | DONE | 投掷日志补 `data {pid, room, explodeRound}`（characters/index.ts）；爆炸日志补 `data {room, source}`（engine.ts）；均为公开信息不泄漏隐藏状态；旧格式（无 data）客户端安全降级不演出 |
+| T-1411 | 大伊万完整演出链（P0 前端侧） | DONE | `events.ts` 新增 ivanThrow/ivanBoom 解析；`queue.ts` 时长（飞行 1000ms/爆炸 1100ms，非 fast 可丢弃项）；`useBattlePresentation` 叠加态+过期清理；`IvanProjectile` 投掷物 DOM 测量飞行（来源卡→目标房间，1.05s 弧线+旋转+橙色辉光）；`zone-pending-ivan` 待爆警示（快照 deferred 驱动：房间橙虚线+「💣 第 N 回合末爆炸」脉冲标签）；`ivan-boom-fx` 落点冲击波（1.1s 一次性）；爆炸→逐目标斩击→淘汰按簇顺序（battle-queue.test.ts 回归） |
+| T-1412 | 轻量原创音效系统（P1） | DONE | `client/src/audio/sfx.ts`：WebAudio 实时合成（振荡器+噪声缓冲），零素材/零网络/零许可风险；事件绑定 hit/heal/move/eliminate/revive/throw/boom/decl/victory；拥堵(fast)只保留重大事件音效；reduced-motion 只留 淘汰/爆炸/胜利；顶栏 🔊/🔇 开关（localStorage 持久化，默认开、音量 0.22）；无 AudioContext 环境全静默不抛错（tests/ui/sfx.test.ts 3 例） |
+| T-1413 | 横屏终局弹层适配（P0 移动端） | DONE | 844×390 下弹层整体压缩：art 26vh/名字 23px/按钮 6px gap——实测按钮完整可见（modalBottom 352 < vh 390，fit=true）；390×844 竖屏按钮区不溢出（bottom 685 < 844） |
+| T-1414 | 类型卫生（遗留 3 个 TS 错误清零） | DONE | LogLike.type 改可选（旧日志无 type 合法）；Home.tsx 两处 `as unknown as RoomOpResult`；`tsc --noEmit` 双端 0 错误（此前 HEAD 存在 3 个） |
+| T-1415 | **B-030：E2E 构建污染生产内容** | FIXED | 发现：本机 systemd 生产实例（:3100）静态服务 `client/dist`，而 e2e.test.ts beforeAll 直接 `vite build client` 重建该目录 → 跑一次标准测试 = 无意间更新生产内容（实测 3100 服务 hash 从 Bi6T5qus 变为 BEGrRTsY）。修复：e2e 构建改到独立 `client/dist-e2e` + `process.env.CLIENT_DIST` 指向之；`.gitignore` 补录。修复后跑 e2e/全量测试，3100 hash 恒为 Bi6T5qus（HEAD 构建）。事故期间生产内容已被新构建短暂覆盖 → 已通过 stash+HEAD 重建完整恢复并验证 |
+| T-1420 | 截图对比迭代（P0） | DONE | base → v3a → v3b 三轮截图（桌面/窄屏/横屏 × 出拳/行动/终局/伊万），发现并修复：横屏终局按钮裁切（T-1413）；炸弹起飞阶段偏小 → 42px+双辉光；过程截图见 /tmp/badian-shots/（base-*/v3a-*/v3b-*） |
+| T-1430 | 回归测试 + build | DONE | **npm test：19 文件 / 241 用例全部通过**（233 基线 + 组件 3 + 队列 2 + 音效 3）；e2e 单独复跑 5/5（早前超时确认为并行构建争 CPU）；`tsc --noEmit` 双端清零；vite build 通过；B-030 修复后复跑全量 241/241 且生产 3100 hash 恒为 HEAD 构建（Bi6T5qus） |
+| T-1440 | 移动端/Reduced Motion 验证 | DONE | Playwright `reducedMotion: 'reduce'` 实测：win-rays/particles/art animationName 全部为 none，静态画面信息完整（rm-win.png）；窄屏/横屏 0 JS 错误；窄屏揭示台 compact、待爆警示 jsdom 断言+实测 |
+
+### 大伊万演出链实测时间线（scripts/visual-ivan2.ts，100ms 采样）
+
+```
+t+316ms  投掷物出现（.ivan-bomb=1，从投掷者卡面起飞）
+t+1306ms 飞行结束（持续 ≈1.0s，弧线+旋转）
+t+1526ms 爆炸落点（.ivan-boom-fx=1，目标房间橙色冲击波）
+t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘字+淘汰印章（有目标时）
+```
+- 空房爆炸（AI 走出房间）→ 只播冲击波、无受击演出（引擎行为正确，演出与数据一致）
+- 同归爆炸 → 平局弹层（冷灰变体）正确出现，不误用胜利金色
+- 待爆警示：投掷为回合内最后行动时窗口≈0（AI 即时应答）；真人局/下一轮爆炸（nextRoundEnd 配置）时全程可见；jsdom 用例锁定渲染逻辑
 
 ## 遗留事项
 

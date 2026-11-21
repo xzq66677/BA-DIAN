@@ -114,7 +114,29 @@ describe('游戏页 UI（TCG战场·真实引擎快照渲染）', () => {
   });
 
   it('出拳揭示台：判定结算后全员可见彼此出拳（斗地主式牌桌）', () => {
+    // 三人循环子轮后回到 rps1 重判：完整揭示台（上一子轮拳种全员可见）
+    const g = makeGame([{ id: 'A', char: 'bagun' }, 'B', 'C'], 4242);
+    playThrows(g, [{ A: 'rock', B: 'scissors', C: 'paper' }]);
+    const snap = g.snapshot() as unknown as GameSnapshot;
+    render(
+      <GamePage
+        lobby={LOBBY}
+        game={snap}
+        session={{ code: 'TEST', identities: [{ playerId: 'A', name: 'A', token: 't' }] }}
+        logs={g.logs.map((l) => ({ seq: l.seq, text: `[R${l.round}] ${l.text}`, important: l.important }))}
+        onExit={() => {}}
+      />,
+    );
+    const text = document.body.textContent || '';
+    expect(text).toContain('出拳揭示'); // 中央揭示台
+    expect(text).toContain('石头'); // A 出的拳
+    expect(text).toContain('剪刀'); // B/C 出的拳
+    expect(document.querySelectorAll('.rb-card').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('行动阶段揭示台收缩为紧凑状态条（判定结果 + 出牌顺序，空间让给战场）', () => {
     const { snap, logs } = buildSnapshot();
+    expect(snap.phase).toBe('act');
     render(
       <GamePage
         lobby={LOBBY}
@@ -124,12 +146,50 @@ describe('游戏页 UI（TCG战场·真实引擎快照渲染）', () => {
         onExit={() => {}}
       />,
     );
+    expect(document.querySelector('.reveal-board.compact')).toBeTruthy();
     const text = document.body.textContent || '';
-    expect(text).toContain('出拳揭示'); // 中央揭示台
-    expect(text).toContain('石头'); // A 出的拳
-    expect(text).toContain('剪刀'); // B/C 出的拳
-    expect(text).toContain('获得行动资格'); // 判定结论
-    expect(document.querySelectorAll('.rb-card').length).toBeGreaterThanOrEqual(3);
+    expect(text).toContain('获得行动资格'); // 判定结论保留
+    expect(document.querySelectorAll('.rb-order-chip').length).toBeGreaterThanOrEqual(1); // 出牌顺序保留
+  });
+
+  it('大伊万待爆警示：快照 deferred 含 ivan 时目标房间显示待爆标记与空房提示', () => {
+    const { snap } = buildSnapshot();
+    const withIvan = { ...snap, deferred: [{ id: 'DEF-1', kind: 'ivan', room: 'R2', explodeRound: 3 }] };
+    render(
+      <GamePage
+        lobby={LOBBY}
+        game={withIvan}
+        session={{ code: 'TEST', identities: [{ playerId: 'A', name: 'A', token: 't' }] }}
+        logs={[]}
+        onExit={() => {}}
+      />,
+    );
+    expect(document.querySelector('.zone-pending-ivan')).toBeTruthy();
+    expect(document.querySelector('.ivan-pending')?.textContent).toContain('第 3 回合末爆炸');
+    // R2 若为空房间，空房提示改为「💣 待爆炸」
+    const r2Empty = Array.from(document.querySelectorAll('.zone')).find((z) => z.getAttribute('data-room') === 'R2');
+    expect(r2Empty?.getAttribute('data-room')).toBe('R2');
+  });
+
+  it('终局战场：胜者卡获得 is-winner 光环且空房间轻量化', () => {
+    const { snap } = buildSnapshot();
+    const over = { ...snap, phase: 'over' as const, winner: 'A', aliveCount: 1 };
+    render(
+      <GamePage
+        lobby={LOBBY}
+        game={over}
+        session={{ code: 'TEST', identities: [{ playerId: 'A', name: 'A', token: 't' }] }}
+        logs={[]}
+        onExit={() => {}}
+      />,
+    );
+    expect(document.querySelector('.ccard.is-winner')).toBeTruthy();
+    expect(document.querySelector('.cbadge-winner')?.textContent).toContain('胜者');
+    expect(document.querySelector('.battlefield.is-over')).toBeTruthy();
+    // 胜负弹层出现且包含结果摘要
+    const text = document.body.textContent || '';
+    expect(text).toContain('胜 负 判 定');
+    expect(text).toContain('回合终局');
   });
 });
 

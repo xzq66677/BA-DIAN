@@ -57,6 +57,9 @@ const BASE_MS: Record<string, number> = {
   revive: 700,
   miss: 340,
   trigger: 460,
+  // 重大事件（V3）：投掷飞行与爆炸落点需要可辨认的过程时间
+  ivanThrow: 1000,
+  ivanBoom: 1100,
 };
 
 /** fast 模式下的压缩时长（ms，与速度无关，保证跟上节奏；仍可辨识） */

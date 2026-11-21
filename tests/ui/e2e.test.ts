@@ -20,7 +20,10 @@ beforeAll(async () => {
   // B-014 教训：E2E 前强制重建客户端，防止 dist 陈旧（服务端走 vitest 实时转换，无需构建）
   // B-027：构建必须以 NODE_ENV=production 执行 —— vitest 进程内 NODE_ENV=test 会把
   // React 开发版打进 bundle（体积翻倍 + StrictMode 双调用 effect），E2E 就会测到非生产行为
-  execSync('npx vite build client', { cwd: path.resolve(import.meta.dirname, '../..'), stdio: 'pipe', env: { ...process.env, NODE_ENV: 'production' } });
+  // B-030：构建到独立 dist-e2e 目录 —— 此前直接重建 client/dist，而本机 systemd 生产实例
+  // 恰好静态服务该目录，导致「跑一次测试 = 无意间更新生产内容」。测试基建必须与生产隔离。
+  execSync('npx vite build client --outDir dist-e2e --emptyOutDir', { cwd: path.resolve(import.meta.dirname, '../..'), stdio: 'pipe', env: { ...process.env, NODE_ENV: 'production' } });
+  process.env.CLIENT_DIST = path.resolve(import.meta.dirname, '../../client/dist-e2e');
   const mod = await import('../../server/src/index.js');
   const httpServer = (mod as unknown as { httpServer: import('node:http').Server }).httpServer;
   (mod as unknown as { startServer: (port?: number) => void }).startServer(0);

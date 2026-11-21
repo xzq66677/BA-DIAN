@@ -11,6 +11,7 @@ import {
   useBattlePresentation,
   type FxView, type HitView, type HealView, type DeathView, type ReviveView,
 } from '../battle/useBattlePresentation.js';
+import { sfx } from '../audio/sfx.js';
 
 const THROW_LABEL: Record<string, string> = { rock: '石头', scissors: '剪刀', paper: '布' };
 const THROW_ICON: Record<string, string> = { rock: '✊', scissors: '✌️', paper: '✋' };
@@ -113,6 +114,14 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   // 胜负判定弹层（新对局自动复位）
   const [winDismissed, setWinDismissed] = useState(false);
   useEffect(() => { if (game.phase !== 'over') setWinDismissed(false); }, [game.phase]);
+  // 终局音效：胜利短琶音（平局不播；静音/无 WebAudio 环境自动静默）
+  const prevPhase = useRef(game.phase);
+  useEffect(() => {
+    if (game.phase === 'over' && prevPhase.current !== 'over' && game.winner) sfx.play('victory', { major: true });
+    prevPhase.current = game.phase;
+  }, [game.phase, game.winner]);
+  // 音效开关（localStorage 持久化）
+  const [sfxMuted, setSfxMuted] = useState(sfx.isMuted());
   // 局内发言（底部常驻面板，实时显示）
   const [chatText, setChatText] = useState('');
   const chat: { name: string; text: string; ts: number }[] = (lobby as unknown as { chat?: { name: string; text: string; ts: number }[] }).chat || [];
@@ -242,6 +251,16 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
         )}
         <span className="tcg-chip hide-sm">种子 {game.seed}</span>
         <span style={{ flex: 1 }} />
+        <button
+          className={`tcg-btn ghost tiny ${sfxMuted ? 'off' : ''}`}
+          title={sfxMuted ? '开启音效' : '关闭音效'}
+          onClick={() => {
+            const next = !sfxMuted;
+            setSfxMuted(next);
+            sfx.setMuted(next);
+            if (!next) sfx.play('heal', { major: true }); // 开启时给一个确认反馈音
+          }}
+        >{sfxMuted ? '🔇' : '🔊'}</button>
         <button className="tcg-btn ghost tiny" onClick={() => setStatsOpen(true)}>📊 战绩</button>
         <button className={`tcg-btn ghost tiny ${logOpen ? '' : 'off'}`} onClick={() => setLogOpen((v) => !v)}>
           📜 日志
@@ -260,9 +279,16 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
 
       {game.phase === 'over' && !winDismissed && (
         <div className="win-overlay" onClick={() => setWinDismissed(true)}>
-          <div className="win-modal anim-in" onClick={(e) => e.stopPropagation()}>
+          <div className={`win-modal anim-in ${game.winner ? '' : 'draw'}`} onClick={(e) => e.stopPropagation()}>
             {game.winner ? (
               <>
+                {/* 终局舞台：聚光 + 一次性金色光屑（不常驻、reduced-motion 降级为静态） */}
+                <span className="win-rays" aria-hidden />
+                <span className="win-particles" aria-hidden>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <i key={i} style={{ ['--i' as string]: String(i) } as React.CSSProperties} />
+                  ))}
+                </span>
                 <div className="win-title">🏆 胜 负 判 定</div>
                 {(() => {
                   const wp = game.players.find((p) => p.id === game.winner);
@@ -273,11 +299,15 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                 <div className="win-sub">
                   使用「{game.players.find((p) => p.id === game.winner)?.charName}」 · HP {fmtHp(game.players.find((p) => p.id === game.winner)?.hp ?? 0)}
                 </div>
+                <div className="win-summary">
+                  第 {game.roundNo} 回合终局 · {game.players.length - game.aliveCount}/{game.players.length} 人出局 · 最后存活 {game.aliveCount} 人
+                </div>
               </>
             ) : (
               <>
                 <div className="win-title">☠ 平 局</div>
                 <h1 className="win-name">全员同时淘汰</h1>
+                <div className="win-summary">第 {game.roundNo} 回合终局 · 无人幸存</div>
               </>
             )}
             <div className="win-btns">
@@ -294,17 +324,22 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
       )}
       {game.phase === 'over' && winDismissed && (
         <div className="winner-banner">
-          {game.winner ? `🏆 ${game.players.find((p) => p.id === game.winner)?.name} 获胜！` : '☠ 平局 · 全员同时淘汰'}
+          {game.winner
+            ? <>🏆 <b>{game.players.find((p) => p.id === game.winner)?.name}</b> 获胜 · 使用「{game.players.find((p) => p.id === game.winner)?.charName}」 · 第 {game.roundNo} 回合终局</>
+            : '☠ 平局 · 全员同时淘汰'}
         </div>
       )}
 
       <div className={`tcg-main ${logOpen ? '' : 'no-log'}`}>
         {/* ── 牌桌（斗地主式：上方对手座位 / 中央牌桌 / 下方我的手牌） ── */}
-        <section className="battlefield ddz-table anim-in">
+        <section className={`battlefield ddz-table anim-in ${game.phase === 'over' ? 'is-over' : ''}`}>
           <div className="bf-turn">第 <b>{game.roundNo}</b> 回合 · {phaseText()}</div>
 
-          {/* 演出控制：仅在演出进行中浮现（快进/跳过不锁输入） */}
-          {(queueState.playing || queueState.depth > 0) && (
+          {/* 大伊万投掷物飞行层 */}
+          <IvanProjectile throwView={pres.ivanThrow} game={game} />
+
+          {/* 演出控制：仅在演出进行中浮现；终局后不再显示（避免「对局结束了还在播演出」的错觉） */}
+          {game.phase !== 'over' && (queueState.playing || queueState.depth > 0) && (
             <div className="battle-ctl" data-testid="battle-ctl">
               <span className="bc-depth">🎬 {queueState.depth}</span>
               {[1, 2, 4].map((s) => (
@@ -354,14 +389,24 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                 const hasActor = members.some((m) => m.id === game.currentActor);
                 const alertHere = pres.zoneAlert?.room === rid;
                 const moveHere = pres.moveBanner?.to === rid;
+                const boomHere = pres.ivanBoom?.room === rid;
+                // 待爆警示（快照 deferred 驱动：真实游戏状态，非装饰）
+                const pendingIvan = game.deferred?.find((d) => d.kind === 'ivan' && d.room === rid);
+                const isWinnerRoom = game.phase === 'over' && game.winner && members.some((m) => m.id === game.winner);
                 return (
-                  <div key={rid} className={`zone ${hasActor ? 'zone-acting' : ''} ${alertHere ? `zone-alert zone-alert-${pres.zoneAlert?.kind}` : ''} ${moveHere ? 'zone-move' : ''}`}>
+                  <div
+                    key={rid}
+                    data-room={rid}
+                    className={`zone ${hasActor ? 'zone-acting' : ''} ${alertHere ? `zone-alert zone-alert-${pres.zoneAlert?.kind}` : ''} ${moveHere ? 'zone-move' : ''} ${boomHere ? 'zone-boom' : ''} ${pendingIvan ? 'zone-pending-ivan' : ''} ${isWinnerRoom ? 'zone-winner' : ''}`}
+                  >
                     <div className="zone-title">
                       <span>◈ {rid}</span>
-                      <span className="zone-n">{members.length} 人{hasActor ? ' · 行动中' : ''}</span>
+                      <span className="zone-n">
+                        {members.length > 0 ? `${members.length} 人${hasActor ? ' · 行动中' : ''}` : '空房间'}
+                      </span>
                     </div>
                     <div className="zone-cards">
-                      {members.length === 0 && <div className="zone-empty">空 房 间</div>}
+                      {members.length === 0 && <div className="zone-empty">{pendingIvan ? '💣 待爆炸' : '空房间'}</div>}
                       {members.map((p) => (
                         <CharCardView
                           key={p.id}
@@ -377,10 +422,17 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                           miss={pres.misses[p.id]}
                           death={pres.deaths[p.id]}
                           revive={pres.revives[p.id]}
+                          isWinner={game.phase === 'over' && game.winner === p.id}
                           onClick={() => pickTargetOrDetail(p.id)}
                         />
                       ))}
                     </div>
+                    {pendingIvan && (
+                      <span className="ivan-pending" title={`大伊万将在第 ${pendingIvan.explodeRound} 回合末爆炸`}>
+                        💣 第 {pendingIvan.explodeRound} 回合末爆炸
+                      </span>
+                    )}
+                    {boomHere && <span key={pres.ivanBoom?.key} className="ivan-boom-fx" aria-hidden />}
                   </div>
                 );
               })}
@@ -658,6 +710,8 @@ function RevealBoard({ game }: { game: GameSnapshot }) {
   const rps1History = game.judgeRecords.filter((r) => r.stage === 'rps1');
   const waiting = game.phase === 'rps1';
   const submittedCount = alive.filter((p) => submitted.includes(p.id)).length;
+  // 行动阶段：判定已完成，揭示台收缩为紧凑状态条（把空间还给战场），保留判定结果与出牌顺序
+  const compact = game.phase === 'act' && !waiting;
 
   // 按玩家座次稳定排序（只显示真正出了拳的人，含判定后已淘汰者）
   const threw: { p: SnapPlayer; t: string; result: ThrowView['result'] }[] = [];
@@ -666,6 +720,28 @@ function RevealBoard({ game }: { game: GameSnapshot }) {
       const v = throwViewOf(game, p.id);
       if (v) threw.push({ p, t: v.t, result: v.result });
     }
+  }
+
+  // ── 紧凑模式：单行状态条（判定结果 + 出牌顺序） ──
+  if (compact) {
+    return (
+      <div className={`reveal-board compact ${rv ? 'has-reveal' : ''}`}>
+        <div className="rb-compact-row">
+          <span className="rb-title">🎴 判定</span>
+          {rv && <span className="rb-compact-verdict">{verdictText(game, rv)}</span>}
+          {game.queue.length > 0 && (
+            <span className="rb-order inline">
+              {game.queue.map((pid, i) => {
+                const p = game.players.find((x) => x.id === pid);
+                if (!p) return null;
+                const cls = i < game.actIndex ? 'done' : i === game.actIndex ? 'now' : '';
+                return <span key={pid} className={`rb-order-chip ${cls}`}>{p.name}</span>;
+              })}
+            </span>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -724,18 +800,6 @@ function RevealBoard({ game }: { game: GameSnapshot }) {
               子轮{r.sub} · {r.outcome === 'cycle' ? '三人循环' : r.outcome === 'alltie' ? '同拳平局' : r.outcome === 'tieWin' ? '领域判胜' : '分出胜负'}
             </span>
           ))}
-        </div>
-      )}
-
-      {game.phase === 'act' && game.queue.length > 0 && (
-        <div className="rb-order">
-          <span className="rb-order-label">出牌顺序</span>
-          {game.queue.map((pid, i) => {
-            const p = game.players.find((x) => x.id === pid);
-            if (!p) return null;
-            const cls = i < game.actIndex ? 'done' : i === game.actIndex ? 'now' : '';
-            return <span key={pid} className={`rb-order-chip ${cls}`}>{p.name}</span>;
-          })}
         </div>
       )}
     </div>
@@ -842,7 +906,7 @@ const FX_ICON: Record<string, string> = {
   aim: '🎯', hide: '🙈', seek: '🔍', skip: '⏭️',
 };
 
-function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx, hit, heal, miss, death, revive, onClick }: {
+function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx, hit, heal, miss, death, revive, isWinner, onClick }: {
   p: SnapPlayer;
   game: GameSnapshot;
   isMine: boolean;
@@ -855,6 +919,8 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
   miss?: { key: number; sourceId?: string };
   death?: DeathView;
   revive?: ReviveView;
+  /** 终局胜者（金色光环 + 皇冠） */
+  isWinner?: boolean;
   onClick: () => void;
 }) {
   const meta = cardMeta(p.charId);
@@ -871,6 +937,7 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
     hit ? 'flash-dmg' : '',
     heal ? 'heal-glow' : '',
     throwView ? 'has-throw' : '',
+    isWinner ? 'is-winner' : '',
   ].filter(Boolean).join(' ');
   // HP 条（真实快照值；CSS 过渡延迟让斩击先落下、血条随后平滑变化）
   const hpPct = Math.max(0, Math.min(100, (p.hp / Math.max(1, p.maxHp)) * 100));
@@ -902,6 +969,7 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
       <div className="ccard-badges">
         {acting && !dead && <span className="cbadge cbadge-acting">行动中</span>}
         {isMine && <span className="cbadge cbadge-mine">我</span>}
+        {isWinner && <span className="cbadge cbadge-winner">👑 胜者</span>}
         {submitted && !dead && !throwView && <span className="cbadge cbadge-submitted">已出拳</span>}
         {!dead && typeof p.char.livesLeft === 'number' && (p.char.livesLeft as number) > 1 && (
           <span className="cbadge cbadge-lives">💫 {p.char.livesLeft} 命</span>
@@ -1094,6 +1162,44 @@ function LogPanel({ logs }: { logs: { seq: number; text: string; important?: boo
         ))}
       </div>
     </>
+  );
+}
+
+// ── 大伊万投掷物飞行（V3）：从投掷者卡面飞向目标房间 ────────
+
+function IvanProjectile({ throwView, game }: { throwView: { key: number; pid: string; room: string } | null; game: GameSnapshot }) {
+  const [flight, setFlight] = useState<{ key: number; x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const lastKey = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!throwView || throwView.key === lastKey.current) return;
+    lastKey.current = throwView.key;
+    const from = document.querySelector(`[data-pid="${throwView.pid}"] .ccard-frame, [data-pid="${throwView.pid}"]`) as HTMLElement | null;
+    const zone = document.querySelector(`.zone[data-room="${throwView.room}"]`) as HTMLElement | null;
+    const fr = from?.getBoundingClientRect();
+    const zr = zone?.getBoundingClientRect();
+    const x0 = fr && fr.width > 0 ? fr.left + fr.width / 2 : window.innerWidth / 2;
+    const y0 = fr && fr.width > 0 ? fr.top + fr.height / 2 : window.innerHeight / 2;
+    const x1 = zr && zr.width > 0 ? zr.left + zr.width / 2 : window.innerWidth / 2;
+    const y1 = zr && zr.height > 0 ? zr.top + zr.height / 2 : window.innerHeight / 2;
+    setFlight({ key: throwView.key, x0, y0, x1, y1 });
+    const t = setTimeout(() => setFlight(null), 1100);
+    return () => clearTimeout(t);
+  }, [throwView, game]);
+
+  if (!flight) return null;
+  return (
+    <div className="ivan-fly-layer" aria-hidden>
+      <span
+        key={flight.key}
+        className="ivan-bomb"
+        style={{
+          left: flight.x0, top: flight.y0,
+          ['--dx' as string]: `${flight.x1 - flight.x0}px`,
+          ['--dy' as string]: `${flight.y1 - flight.y0}px`,
+        } as React.CSSProperties}
+      >💣</span>
+    </div>
   );
 }
 

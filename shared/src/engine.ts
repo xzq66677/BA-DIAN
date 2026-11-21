@@ -913,7 +913,9 @@ export class Game implements GameLike {
         if ((this.phase as GamePhase) === 'over') return;
       } else if (ev.kind === 'ivan') {
         const members = this.roomMembers(ev.room);
-        this.log('deferred', `💥 大伊万在 ${ev.room} 爆炸！爆炸时房间内成员：${members.length ? members.map((pid) => this.players[pid].name).join('、') : '（无存活玩家）'}`, undefined, true);
+        // 结构化 data（V3 演出链）：爆炸房间 + 投掷来源，供落点/冲击波演出
+        this.log('deferred', `💥 大伊万在 ${ev.room} 爆炸！爆炸时房间内成员：${members.length ? members.map((pid) => this.players[pid].name).join('、') : '（无存活玩家）'}`,
+          { room: ev.room, source: ev.source ?? null }, true);
         const ivanGroup = this.nextGroupId();
         for (const pid of members) {
           this.applyDamage({

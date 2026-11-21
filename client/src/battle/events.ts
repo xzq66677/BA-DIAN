@@ -10,10 +10,10 @@
 
 import type { SnapLog } from '../net.js';
 
-/** 最小日志形状（net.ts 的 SnapLog 与测试构造的日志都满足） */
+/** 最小日志形状（net.ts 的 SnapLog 与测试构造的日志都满足；type 可缺省=旧数据） */
 export interface LogLike {
   seq: number;
-  type: string;
+  type?: string;
   text?: string;
   important?: boolean;
   data?: Record<string, unknown>;
@@ -28,6 +28,8 @@ export type BattleEventKind =
   | 'eliminate'   // 淘汰
   | 'revive'      // 命数复活
   | 'miss'        // 未命中 / 被抵消
+  | 'ivanThrow'   // 大伊万投掷：投掷物从来源飞向目标房间
+  | 'ivanBoom'    // 大伊万爆炸：目标房间落点冲击
   | 'trigger';    // 技能 / 被动触发
 
 export interface BattleEvent {
@@ -170,6 +172,20 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
         return { kind: 'revive', seq: log.seq, targetId: pid, livesLeft, important: true };
       }
       if (pid) return { kind: 'trigger', seq: log.seq, pid, important: log.important };
+      return null;
+    }
+    case 'deferred': {
+      // 大伊万演出链（V3）：投掷（pid+room+explodeRound）/ 爆炸（room+source）。
+      // 旧格式无 data → 跳过演出（日志面板照常显示），不猜测。
+      const room = str(d.room);
+      const pid = str(d.pid);
+      if (pid && room) {
+        return { kind: 'ivanThrow', seq: log.seq, pid, room, important: true };
+      }
+      if (room && d.pid === undefined) {
+        // 爆炸日志只有 room/source：旧数据若带 source 也只在有 room 时演出落点
+        return { kind: 'ivanBoom', seq: log.seq, room, sourceId: str(d.source), important: true };
+      }
       return null;
     }
     case 'state': {
