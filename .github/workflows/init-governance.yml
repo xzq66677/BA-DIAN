@@ -1,0 +1,129 @@
+name: Initialize Governance
+
+# 用 GitHub 自带的 GITHUB_TOKEN 自动创建标签和初始 Issue，无需个人 PAT。
+# 首次使用：push 后到 Actions → Initialize Governance → Run workflow 手动触发一次。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Create / sync labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request, urllib.error, urllib.parse, yaml
+
+          token = os.environ["GH_TOKEN"]
+          repo = os.environ["REPO"]
+          api = f"https://api.github.com/repos/{repo}/labels"
+
+          def req(url, method="GET", data=None):
+              body = json.dumps(data).encode() if data is not None else None
+              r = urllib.request.Request(url, data=body, method=method, headers={
+                  "Authorization": f"Bearer {token}",
+                  "Accept": "application/vnd.github+json",
+                  "User-Agent": "governance-bot",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "Content-Type": "application/json",
+              })
+              try:
+                  with urllib.request.urlopen(r, timeout=30) as resp:
+                      return resp.status, json.load(resp)
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode()
+
+          with open(".github/labels.yml", encoding="utf-8") as f:
+              labels = yaml.safe_load(f)
+
+          for lb in labels:
+              name = lb["name"]
+              status, existing = req(f"{api}/{urllib.parse.quote(name)}")
+              payload = {"name": name, "color": lb["color"].lstrip("#"),
+                         "description": lb["description"]}
+              if status == 200:
+                  req(f"{api}/{urllib.parse.quote(name)}", "PATCH", payload)
+                  print("updated", name)
+              else:
+                  req(api, "POST", payload)
+                  print("created", name)
+          PY
+
+      - name: Create starter issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request, urllib.error
+
+          token = os.environ["GH_TOKEN"]
+          repo = os.environ["REPO"]
+          api = f"https://api.github.com/repos/{repo}/issues"
+
+          def req(url, method="GET", data=None):
+              body = json.dumps(data).encode() if data is not None else None
+              r = urllib.request.Request(url, data=body, method=method, headers={
+                  "Authorization": f"Bearer {token}",
+                  "Accept": "application/vnd.github+json",
+                  "User-Agent": "governance-bot",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "Content-Type": "application/json",
+              })
+              try:
+                  with urllib.request.urlopen(r, timeout=30) as resp:
+                      return resp.status, json.load(resp)
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode()
+
+          # 防止重复创建：已存在同标题的 Issue 就跳过
+          status, existing = req(api + "?state=all&per_page=100")
+          titles = set()
+          if status == 200:
+              titles = {it["title"] for it in existing}
+
+          starters = [
+              {
+                  "title": "[META] 认领机制说明与标签初始化",
+                  "labels": ["status: done", "agent"],
+                  "body": "本 Issue 用于标记治理机制已初始化。\n\n"
+                          "规则见 CONTRIBUTING.md：先设 Assignee + 改标签为 `status: in-progress` 再开发。\n"
+                          "看板搭建步骤见 .github/PROJECT_SETUP.md。",
+              },
+              {
+                  "title": "[TASK] BA-DIAN V4.2 3D 战场：基于现有 battle3d/proto 继续开发",
+                  "labels": ["status: ready", "type: feature", "priority: p0", "agent"],
+                  "body": "## 背景\n"
+                          "3D 代码已存在于 `client/src/battle3d/`（scene.ts / rig.ts / fx.ts 等）与 "
+                          "`client/src/proto/`，并已提交到 git（commit eaec5f9）。\n\n"
+                          "**注意**：不要用 `git ls-files` 判断是否存在——这些文件在本次提交前是未跟踪状态，"
+                          "但现在已入库。请直接读文件系统。\n\n"
+                          "## 任务\n"
+                          "1. 阅读 TASKS.md 中 V4.1 / V4.2 阶段描述\n"
+                          "2. 阅读 client/src/battle3d/ 与 client/src/proto/ 现有实现\n"
+                          "3. 基于现有代码继续，不要从 V3.0 基线重做\n\n"
+                          "## 认领\n"
+                          "动手前设置 Assignee 并将标签改为 `status: in-progress`。",
+              },
+          ]
+
+          for s in starters:
+              if s["title"] in titles:
+                  print("skip existing", s["title"])
+                  continue
+              status, res = req(api, "POST", s)
+              print("created" if status == 201 else "failed", status, s["title"])
+          PY
