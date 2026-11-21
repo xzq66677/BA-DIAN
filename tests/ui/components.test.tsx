@@ -114,7 +114,7 @@ describe('游戏页 UI（TCG战场·真实引擎快照渲染）', () => {
   });
 
   it('出拳揭示台：判定结算后全员可见彼此出拳（斗地主式牌桌）', () => {
-    // 三人循环子轮后回到 rps1 重判：完整揭示台（上一子轮拳种全员可见）
+    // 三人循环平局回合翻页后：完整揭示台（上一轮拳种全员可见，跨回合保留）
     const g = makeGame([{ id: 'A', char: 'bagun' }, 'B', 'C'], 4242);
     playThrows(g, [{ A: 'rock', B: 'scissors', C: 'paper' }]);
     const snap = g.snapshot() as unknown as GameSnapshot;

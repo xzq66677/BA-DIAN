@@ -203,6 +203,8 @@ export interface DeferredEvent {
 export interface JudgeRoundRecord {
   stage: 'rps1' | 'rps2';
   sub: number;
+  /** 该判定所属回合号（rps2 排序判定与回合判定同回合；平局回合的记录随翻页保留在 lastReveal） */
+  round?: number;
   throws: Partial<Record<PlayerId, Throw>>;
   outcome: 'cycle' | 'alltie' | 'resolved' | 'tieWin';
   winners?: PlayerId[];
