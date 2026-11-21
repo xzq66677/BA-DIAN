@@ -79,6 +79,13 @@ interface Entity {
   alive: boolean;
   walk: { from: THREE.Vector3; to: THREE.Vector3; ctrl: THREE.Vector3; t: number; dur: number } | null;
   lunge: { dir: THREE.Vector3; t: number; dur: number; base: THREE.Vector3 } | null;
+  /** 进行中的受击挤压补间（连续受击时取消前一个） */
+  squash: Tween | null;
+  /** 创建时的基准缩放（squash 恢复基准；连续受击不累积体积漂移） */
+  baseScale: THREE.Vector3;
+  /** 名牌水平错开：房间内成员序号 / 总数（同房间多人名牌投影重叠时横向分散） */
+  plateSlot: number;
+  plateCount: number;
 }
 
 interface Room {
@@ -130,7 +137,15 @@ export class BattleScene3D {
   private lookCur = new THREE.Vector3(0, 1, 0);
   private focus = { x: 0, z: 0, w: 0 };
   private focusWTarget = 0;
+  /** 聚焦优先级（Phase D 演出分级）：1=B级普通 2=A级重要 3=S级重大 */
+  private focusPri = 0;
+  /** 当前聚焦的保持截止（elapsed 秒）；保持期内低优先级聚焦被忽略，避免镜头争抢 */
+  private focusUntil = 0;
+  /** 聚焦令牌：新聚焦使旧衰减定时器失效（防止旧定时器提前压低新聚焦） */
+  private focusSeq = 0;
   private shakeAmp = 0;
+  /** 打击感慢动作截止（elapsed 秒）：致命/重击瞬间全体演出短暂减速 */
+  private hitStopUntil = 0;
   private finaleWinner: string | null = null;
   private roomPickMode = false;
   private lastRender = 0;
@@ -193,6 +208,9 @@ export class BattleScene3D {
         restored = true;
         if (this.disposed) return;
         gllog.push('ctx-restored', { afterMs: Date.now() - lostAt }, true);
+        // three.js 在 restore 时自动重建 GL 资源；这里再强制一次 resize 重建绘制缓冲，
+        // 消除恢复后画布尺寸/缓冲不一致的隐患
+        this.resize();
         this.hooks.onContextRestored?.();
       };
       this.renderer.domElement.addEventListener('webglcontextrestored', onRestored, { once: true });
@@ -626,7 +644,9 @@ export class BattleScene3D {
       stick: prop.stick ?? null,
       bobPhase: Math.random() * Math.PI * 2,
       pose: { kind: 'idle', t: 0, dur: Infinity },
-      curRoom: p.room, deadPose: false, invisible: false, alive: p.alive, walk: null, lunge: null,
+      curRoom: p.room, deadPose: false, invisible: false, alive: p.alive, walk: null, lunge: null, squash: null,
+      baseScale: rig.root.scale.clone(),
+      plateSlot: 0, plateCount: 1,
     };
     this.entities.set(p.id, e);
     return e;
@@ -699,6 +719,13 @@ export class BattleScene3D {
       room.beaconMat.opacity = winnerHere || pending ? 1 : acting ? 0.95 : 0.5;
       room.edgeMat.color.setHex(bc);
       room.edgeMat.opacity = winnerHere || pending ? 0.85 : acting ? 0.7 : 0.3;
+      // 房间选择模式：全部房间石台绿光高亮（点击石台/标签即可选房，无需下方下拉框）
+      if (this.roomPickMode) {
+        room.edgeMat.color.setHex(STATE_COLORS.targetable);
+        room.edgeMat.opacity = 0.9;
+        room.beaconMat.color.setHex(STATE_COLORS.targetable);
+        room.beaconMat.opacity = 0.95;
+      }
       // 领域穹顶
       if (domainHere && !room.dome) {
         const dome = new THREE.Mesh(
@@ -737,7 +764,7 @@ export class BattleScene3D {
     // 终局
     if (snap.phase === 'over' && prevPhase !== 'over') {
       this.finaleWinner = snap.winner;
-      if (snap.winner) this.setFocus(snap.winner, 0.55);
+      if (snap.winner) this.setFocus(snap.winner, 0.55, 1400, 3);
       // 胜者欢呼
       if (snap.winner) {
         const we = this.entities.get(snap.winner);
@@ -748,18 +775,24 @@ export class BattleScene3D {
   }
 
   private syncEntity(e: Entity, p: SnapPlayerLite, snap: SnapLite): void {
-    // 房间迁移
+    // 房间迁移：快照权威（终态=新槽位）+ 视觉过渡（从当前位置平滑走到新房间，
+    // 不再瞬移——快照与演出日志同批到达时无论谁先处理都有行走动画）
     if (e.curRoom !== p.room) {
+      const worldFrom = new THREE.Vector3();
+      e.group.getWorldPosition(worldFrom);
       const fromRoom = this.rooms.get(e.curRoom);
       if (fromRoom) e.group.removeFromParent();
       const toRoom = this.ensureRoom(p.room);
       toRoom.group.add(e.group);
       const idx = this.slotIndexOf(p.id, p.room);
       const slot = roomSlot(idx, this.roomMemberCount(p.room));
-      if (!e.walk) e.group.position.set(slot.x, 0, slot.z);
-      else e.walk.to.set(slot.x, PLATFORM_H + 0.1, slot.z);
+      this.startWalkTo(e, toRoom, slot, worldFrom);
       e.curRoom = p.room;
     }
+    // 名牌错开参数（同房间成员序号/总数，updateOverlay 据此水平分散）
+    const memberIds = this.roomMemberIds(p.room);
+    e.plateSlot = Math.max(0, memberIds.indexOf(p.id));
+    e.plateCount = memberIds.length;
     // 名牌
     e.nameEl.textContent = p.name;
     const hpPct = Math.max(0, Math.min(100, (p.hp / Math.max(1, p.maxHp)) * 100));
@@ -821,11 +854,27 @@ export class BattleScene3D {
   private killPose(e: Entity): void {
     if (e.deadPose) return;
     this.setPose(e, { kind: 'dead', t: 0, dur: Infinity });
+    // 尸体回收：倒地演出停留约 2.6s 后淡出并隐藏网格（名牌保留「淘汰」徽标；
+    // 快照仍是权威——复活时 standUp 恢复可见与配色）
+    window.setTimeout(() => {
+      if (this.disposed || !e.deadPose || e.alive) return;
+      const mats = e.rig.materials();
+      this.addTween(0.8, (t) => {
+        const o = Math.max(0, 1 - t);
+        for (const m of mats) {
+          m.transparent = true;
+          m.opacity = o;
+        }
+        if (t >= 1) e.rig.root.visible = false;
+      });
+      if (e.squash) e.squash.dead = true;
+    }, 2600);
   }
 
   /** 起身（复活或快照纠错） */
   private standUp(e: Entity, fx: boolean): void {
     e.deadPose = false;
+    e.rig.root.visible = true; // 尸体回收后可能已隐藏：复活（或快照纠错）恢复
     const mats = e.rig.materials();
     mats[0].color.setHex(e.colors.main);
     mats[1].color.setHex(e.colors.accent);
@@ -843,8 +892,10 @@ export class BattleScene3D {
     }
   }
 
-  private addTween(dur: number, fn: (t: number) => void, done?: () => void): void {
-    this.tweens.push({ el: 0, dur, fn, done });
+  private addTween(dur: number, fn: (t: number) => void, done?: () => void): Tween {
+    const t: Tween = { el: 0, dur, fn, done };
+    this.tweens.push(t);
+    return t;
   }
 
   private worldOf(pid: string): THREE.Vector3 | null {
@@ -968,7 +1019,7 @@ export class BattleScene3D {
     if (from && !this.reduced) {
       this.spawnFx(beamFx(from.clone().add(new THREE.Vector3(0, 0.8, 0)), to.clone().add(new THREE.Vector3(0, 0.8, 0)), STATE_COLORS.beam, 0.42, 0.034), new THREE.Vector3(0, 0, 0), 560);
     }
-    this.setFocus(to, 0.42, 800);
+    this.setFocus(to, 0.34, 700, 1);
   }
 
   /** 实际扣血 */
@@ -983,11 +1034,30 @@ export class BattleScene3D {
     }
     this.spawnFx(slashFx(!!o.lethal), w.clone().setY(PLATFORM_H + 0.9), 620);
     e.pose = { kind: 'flinch', t: 0, dur: 0.5 };
-    // 红闪
+    // 受击击退：沿攻击来源方向被推开一小段再回弹（谁打谁的空间关系更明确）
+    if (src && !e.deadPose) {
+      const knockDir = w.clone().sub(src).setY(0).normalize();
+      const base = e.group.position.clone();
+      const parent = e.group.parent;
+      if (parent) {
+        // 世界方向 → 房间局部方向
+        const invQ = parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+        knockDir.applyQuaternion(invQ).setY(0).normalize();
+      }
+      if (!e.lunge) {
+        e.lunge = { dir: knockDir, t: 0, dur: 0.34, base };
+      }
+    }
+    // 命中白闪→红闪两段：先全白一瞬（打击确认感）再转红（伤害语义）
     const mats = e.rig.materials();
     this.addTween(0.42, (t) => {
       const k = Math.sin(Math.PI * Math.min(1, t));
-      for (const m of mats) m.emissive.setRGB(k * 0.5, 0, 0);
+      if (t < 0.3) {
+        const w2 = k / Math.max(0.001, Math.sin(Math.PI * 0.3));
+        for (const m of mats) m.emissive.setRGB(w2, w2, w2 * 0.92);
+      } else {
+        for (const m of mats) m.emissive.setRGB(k * 0.5, 0, 0);
+      }
     }, () => {
       for (const m of mats) m.emissive.copy(m.color).multiplyScalar(0.16);
     });
@@ -995,6 +1065,22 @@ export class BattleScene3D {
     this.spawnFloat(w, `<span class="dmg-float ${o.lethal ? 'lethal' : ''}">-${fmtN(o.amount)}</span>`);
     if (o.segment && o.segment.total > 1) this.spawnFloat(w, `<span class="b3-seg">${o.segment.index}/${o.segment.total} 段</span>`, 30);
     if (o.lethal) this.shake(0.18);
+    // 打击感：短促的体积挤压脉冲（squash & stretch），受击辨识度优先于姿态后仰
+    if (!this.reduced) {
+      if (e.squash) e.squash.dead = true;
+      const base = e.baseScale;
+      e.squash = this.addTween(0.26, (t) => {
+        const k = Math.sin(Math.PI * Math.min(1, t));
+        e.rig.root.scale.set(base.x * (1 + 0.09 * k), base.y * (1 - 0.16 * k), base.z * (1 + 0.09 * k));
+      }, () => {
+        e.rig.root.scale.copy(base);
+        e.squash = null;
+      });
+    }
+    // 打击感：致命/重击瞬间全体演出短暂减速（微慢动作，不影响结算时序）
+    if (!this.reduced && (o.lethal || o.amount >= 3)) {
+      this.hitStopUntil = this.elapsed + 0.09;
+    }
   }
 
   playHeal(pid: string, o: { amount?: number }): void {
@@ -1031,7 +1117,7 @@ export class BattleScene3D {
       this.spawnFx(flashLightFx(w, 0xff5545, 3.6, 0.4), w.clone().setY(0), 520);
     }
     this.shake(0.14);
-    this.setFocus(w, 0.55, 1000);
+    this.setFocus(w, 0.55, 1000, 2);
     this.killPose(e);
   }
 
@@ -1041,38 +1127,49 @@ export class BattleScene3D {
     if (!e || !w) return;
     this.standUp(e, true);
     this.spawnFloat(w, `<span class="revive-burst b3-stamp">💫 ${livesLeft} 命复活</span>`);
+    // S 级事件：关键复活值得镜头聚焦（此前缺失，复活演出无聚焦）
+    this.setFocus(w, 0.6, 1100, 3);
     if (!this.reduced) {
       this.spawnFx(ringBurst(0xffe082, 1.5, 0.85, { y: PLATFORM_H + 0.1 }), w.clone().setY(0), 950);
       this.spawnFx(flashLightFx(w, 0xffd68a, 3.4, 0.5), w.clone().setY(0), 620);
     }
   }
 
-  /** 移动：沿路径行走（经中央舞台侧翼） */
-  playWalk(pid: string, fromRoom: string, toRoom: string): void {
-    const e = this.entities.get(pid);
-    if (!e) return;
-    const from = this.rooms.get(fromRoom);
-    const to = this.rooms.get(toRoom);
-    if (!from || !to) return;
-    const worldFrom = new THREE.Vector3();
-    e.group.getWorldPosition(worldFrom);
-    const idx = this.slotIndexOf(pid, toRoom);
-    const slot = roomSlot(idx, Math.max(1, this.roomMemberIds(toRoom).length));
+  /**
+   * 让实体从 worldFrom 平滑走到目标房间的槽位（弧线绕行）。
+   * 快照房间迁移与演出 playWalk 共用：起终点的世界坐标都以房间当前布局为准，
+   * 终态与快照一致，仅过程是视觉过渡。
+   */
+  private startWalkTo(e: Entity, toRoom: Room, slot: { x: number; z: number }, worldFrom: THREE.Vector3, dur = 0.85): THREE.Vector3 {
     const worldTo = new THREE.Vector3(slot.x, PLATFORM_H + 0.1, slot.z);
-    to.group.localToWorld(worldTo);
+    toRoom.group.localToWorld(worldTo);
     // 控制点：起点→终点中点向桌心收，形成绕行弧线
     const ctrl = worldFrom.clone().add(worldTo).multiplyScalar(0.5);
     ctrl.multiplyScalar(0.72);
     ctrl.y = PLATFORM_H + 0.4;
-    e.walk = { from: worldFrom.clone(), to: worldTo.clone(), ctrl, t: 0, dur: 0.85 };
+    e.walk = { from: worldFrom.clone(), to: worldTo.clone(), ctrl, t: 0, dur };
     e.pose = { kind: 'walk', t: 0, dur: Infinity };
+    return worldTo;
+  }
+
+  /** 移动：沿路径行走（经中央舞台侧翼）+ 落点尘土 + 聚焦 */
+  playWalk(pid: string, fromRoom: string, toRoom: string): void {
+    const e = this.entities.get(pid);
+    if (!e) return;
+    const to = this.rooms.get(toRoom);
+    if (!to) return;
+    const worldFrom = new THREE.Vector3();
+    e.group.getWorldPosition(worldFrom);
+    const idx = this.slotIndexOf(pid, toRoom);
+    const slot = roomSlot(idx, Math.max(1, this.roomMemberIds(toRoom).length));
+    const worldTo = this.startWalkTo(e, to, slot, worldFrom);
     if (!this.reduced) {
       this.spawnFx(dustFx(), worldFrom.clone().setY(PLATFORM_H + 0.05), 600);
       window.setTimeout(() => {
-        if (!this.disposed) this.spawnFx(dustFx(), worldTo.clone().setY(PLATFORM_H + 0.05), 600);
+        if (!this.disposed) this.spawnFx(dustFx(), worldTo.clone(), 600);
       }, 780);
     }
-    this.setFocus(worldTo, 0.3, 900);
+    this.setFocus(worldTo, 0.24, 650, 1);
   }
 
   playIvanThrow(pid: string, room: string): void {
@@ -1096,7 +1193,7 @@ export class BattleScene3D {
     // 投掷姿态
     const e = this.entities.get(pid);
     if (e) e.pose = { kind: 'attack', t: 0, dur: 0.5 };
-    this.setFocus(to.pos, 0.5, 1200);
+    this.setFocus(to.pos, 0.5, 1200, 3);
   }
 
   playIvanBoom(room: string): void {
@@ -1107,7 +1204,7 @@ export class BattleScene3D {
     if (!this.reduced) this.spawnFx(flashLightFx(pos, 0xff9828, 7, 0.55), pos, 750);
     this.spawnFloat(to.pos.clone().setY(PLATFORM_H + 2.4), '<span class="b3-ticker boom">💥 大伊万爆炸！</span>');
     this.shake(this.reduced ? 0.05 : 0.34);
-    this.setFocus(to.pos, 0.85, 1400);
+    this.setFocus(to.pos, 0.85, 1400, 3);
   }
 
   playRoomAlert(room: string, kind: 'aoe' | 'ivan'): void {
@@ -1115,7 +1212,7 @@ export class BattleScene3D {
     if (!to) return;
     const color = kind === 'ivan' ? STATE_COLORS.alertIvan : STATE_COLORS.alertAoe;
     this.spawnFx(ringBurst(color, TABLE.roomRadius * 1.5, 0.9, { y: PLATFORM_H + 0.12, tube: 0.055 }), to.pos.clone().setY(0), 1050);
-    this.setFocus(to.pos, 0.4, 900);
+    this.setFocus(to.pos, 0.4, 900, 2);
     to.label.classList.add('zone-alert', `zone-alert-${kind}`);
     window.setTimeout(() => to.label.classList.remove('zone-alert', `zone-alert-${kind}`), 1150);
   }
@@ -1135,7 +1232,7 @@ export class BattleScene3D {
     this.spawnFx(domainBurstFx(), w.clone().setY(PLATFORM_H), 1100);
     if (!this.reduced) this.spawnFx(flashLightFx(w, 0x9a6ae0, 3, 0.5), w.clone().setY(0), 620);
     this.spawnFloat(w, '<span class="b3-ticker dom">✨ 领域展开！</span>');
-    this.setFocus(w, 0.5, 1000);
+    this.setFocus(w, 0.5, 1100, 3);
   }
 
   // ── 覆盖层 ────────────────────────────────────────────────
@@ -1159,7 +1256,9 @@ export class BattleScene3D {
       e.group.getWorldPosition(world);
       world.y += PLATFORM_H + e.rig.headHeight() + 0.55;
       const p = proj(world);
-      e.plate.style.transform = `translate(-50%,-100%) translate(${((p.x * 0.5 + 0.5) * w).toFixed(1)}px,${((-p.y * 0.5 + 0.5) * h).toFixed(1)}px) scale(var(--dead-scale, 1))`;
+      // 同房间多人名牌水平错开（一字排开，避免互相遮挡；行动者之外的同房间成员适用）
+      const spread = e.plateCount > 1 ? (e.plateSlot - (e.plateCount - 1) / 2) * 58 : 0;
+      e.plate.style.transform = `translate(-50%,-100%) translate(${((p.x * 0.5 + 0.5) * w + spread).toFixed(1)}px,${((-p.y * 0.5 + 0.5) * h).toFixed(1)}px) scale(var(--dead-scale, 1))`;
       e.plate.style.display = p.z > 1 ? 'none' : '';
       const t = this.targetablePids.has(e.pid) && e.alive;
       e.plate.classList.toggle('is-targetable', t);
@@ -1171,8 +1270,8 @@ export class BattleScene3D {
     for (const r of this.rooms.values()) {
       // 标签挂在台阶前方（世界坐标：房间位置朝桌心方向偏移）
       const dir = r.pos.clone().setY(0).normalize();
-      const lp = r.pos.clone().addScaledVector(dir, TABLE.roomRadius * 1.7);
-      lp.y = PLATFORM_H + 0.35;
+      const lp = r.pos.clone().addScaledVector(dir, TABLE.roomRadius * 2.0);
+      lp.y = PLATFORM_H + 0.12;
       const p = proj(lp);
       r.label.style.transform = `translate(-50%,-50%) translate(${((p.x * 0.5 + 0.5) * w).toFixed(1)}px,${((-p.y * 0.5 + 0.5) * h).toFixed(1)}px)`;
       r.label.style.display = p.z > 1 ? 'none' : '';
@@ -1315,11 +1414,18 @@ export class BattleScene3D {
     this.reduced = on;
   }
 
-  setFocus(target: THREE.Vector3 | string | null, weight = 0.4, ms = 900): void {
+  /**
+   * 镜头聚焦（Phase D 演出分级）。
+   * 优先级：1=B级（普通攻击/移动/行动者切换） 2=A级（淘汰/AOE） 3=S级（终局/大伊万/领域/复活）。
+   * 高优先级聚焦保持期内忽略低优先级请求（避免多事件争抢镜头、重复聚焦与抖动）；
+   * 新聚焦使旧的衰减定时器失效（令牌化，防止旧定时器提前压低新聚焦）。
+   */
+  setFocus(target: THREE.Vector3 | string | null, weight = 0.4, ms = 900, pri: 1 | 2 | 3 = 1): void {
     if (target === null) {
       this.focusWTarget = 0;
       return;
     }
+    if (pri < this.focusPri && this.elapsed < this.focusUntil) return;
     let v: THREE.Vector3 | null = null;
     if (typeof target === 'string') {
       const r = this.rooms.get(target);
@@ -1331,9 +1437,12 @@ export class BattleScene3D {
     this.focus.x = v.x;
     this.focus.z = v.z;
     this.focusWTarget = weight;
+    this.focusPri = pri;
+    this.focusUntil = this.elapsed + ms / 1000;
+    const myToken = ++this.focusSeq;
     if (ms > 0) {
       window.setTimeout(() => {
-        if (this.finaleWinner === null) this.focusWTarget = 0.08;
+        if (this.focusSeq === myToken && this.finaleWinner === null) this.focusWTarget = 0.08;
       }, ms);
     }
   }
@@ -1345,15 +1454,20 @@ export class BattleScene3D {
   }
 
   /** E2E/取证探针：当前演出活动量（不参与游戏逻辑） */
-  debugStats(): { fx: number; tweens: number; walks: number; entities: number; rooms: number } {
+  debugStats(): { fx: number; tweens: number; walks: number; entities: number; rooms: number; bodiesHidden: number } {
     let walks = 0;
-    for (const e of this.entities.values()) if (e.walk) walks++;
+    let bodiesHidden = 0;
+    for (const e of this.entities.values()) {
+      if (e.walk) walks++;
+      if (e.deadPose && !e.rig.root.visible) bodiesHidden++; // 尸体已回收（淡出后隐藏）
+    }
     return {
       fx: this.fxList.length,
       tweens: this.tweens.length,
       walks,
       entities: this.entities.size,
       rooms: this.rooms.size,
+      bodiesHidden,
     };
   }
 
@@ -1377,7 +1491,9 @@ export class BattleScene3D {
   private loop = (): void => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.05, this.clock.getDelta());
+    let dt = Math.min(0.05, this.clock.getDelta());
+    // 打击感微慢动作：致命/重击瞬间的一拍减速（0.09s，纯视觉；结算与演出队列时序不受影响）
+    if (this.elapsed < this.hitStopUntil) dt *= 0.15;
     this.elapsed += dt;
     const snap = this.lastSnapshot;
     // 补间

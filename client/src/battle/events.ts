@@ -31,6 +31,7 @@ export type BattleEventKind =
   | 'ivanThrow'   // 大伊万投掷：投掷物从来源飞向目标房间
   | 'ivanBoom'    // 大伊万爆炸：目标房间落点冲击
   | 'domain'      // 领域展开（重大事件：爆发 + 聚焦，引擎日志 data.domain=true 标记）
+  | 'fortune'     // 今日勇者抽取运势（全局播报；引擎日志 data.fortune=true + roll）
   | 'trigger';    // 技能 / 被动触发
 
 export interface BattleEvent {
@@ -59,6 +60,8 @@ export interface BattleEvent {
   toRoom?: string;
   cause?: string;
   livesLeft?: number;
+  /** 今日运势掷点（fortune 事件） */
+  roll?: number;
   important?: boolean;
 }
 
@@ -173,6 +176,10 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
       // 领域展开（引擎 data.domain=true 结构化标记；重大事件，独立于普通技能触发）
       if (pid && d.domain === true) {
         return { kind: 'domain', seq: log.seq, targetId: pid, important: true };
+      }
+      // 今日勇者抽取运势（引擎 data.fortune=true + roll；全局播报一次）
+      if (pid && d.fortune === true) {
+        return { kind: 'fortune', seq: log.seq, targetId: pid, roll: num(d.roll), important: true };
       }
       if (pid) return { kind: 'trigger', seq: log.seq, pid, important: log.important };
       return null;

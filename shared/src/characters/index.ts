@@ -335,7 +335,7 @@ const jinriyongzhe: CharDef = {
         ];
         const r = table[n];
         if (r.death) {
-          game.log('trigger', `🎰 今日勇者抽取运势：掷出 ${n} —— 运势极凶，当场暴毙！`, undefined, true);
+          game.log('trigger', `🎰 今日勇者抽取运势：掷出 ${n} —— 运势极凶，当场暴毙！`, { pid: ctx.actor, fortune: true, roll: n }, true);
           game.eliminate(ctx.actor, 'fortune-death');
           return;
         }
@@ -343,7 +343,7 @@ const jinriyongzhe: CharDef = {
         me.maxHp = r.hp!;
         me.hp = r.hp!;
         game.charState(ctx.actor).attackOverride = r.atk!;
-        game.log('trigger', `🎰 今日勇者抽取运势：掷出 ${n} —— 面板转换：血量 ${before}→${r.hp}，攻击→${r.atk}`, undefined, true);
+        game.log('trigger', `🎰 今日勇者抽取运势：掷出 ${n} —— 面板转换：血量 ${before}→${r.hp}，攻击→${r.atk}`, { pid: ctx.actor, fortune: true, roll: n }, true);
       },
     },
   ],

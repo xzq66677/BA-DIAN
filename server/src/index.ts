@@ -319,7 +319,8 @@ io.on('connection', (socket: Socket) => {
     const room = getRoom(data.code || '');
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     if (!room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可重开游戏' }); return; }
-    const r = room.restart();
+    // 「再来一局 / 重新开始」：重置后直接以原座位开局（不回大厅中间态）
+    const r = room.restart({ autoStart: true });
     ack?.(r);
     broadcastRoom(room);
     broadcastLobby();

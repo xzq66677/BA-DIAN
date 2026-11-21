@@ -54,7 +54,10 @@ const BASE_MS: Record<string, number> = {
   heal: 620,
   move: 600,
   eliminate: 850,
-  revive: 700,
+  // S 级演出（Phase D 分级）：关键复活给足金色爆发 + 起身的可读时长
+  revive: 820,
+  // 今日勇者运势（全局播报一次）：掷点结果需要可读
+  fortune: 900,
   miss: 340,
   trigger: 460,
   domain: 850,
@@ -67,7 +70,7 @@ const BASE_MS: Record<string, number> = {
 const FAST_MS = 260;
 
 function eventMs(e: BattleEvent, mode: QueueMode, speed: Speed, reduced: boolean): number {
-  if (mode === 'fast') return FAST_MS;
+  if (mode === 'fast') return isMajorEvent(e) ? 420 : FAST_MS;
   let base = BASE_MS[e.kind] ?? 300;
   // 多段伤害段间紧凑（总时长仍覆盖斩击动画）
   if (e.kind === 'damage' && e.segment && e.segment.total > 1) base = 430;
@@ -94,6 +97,22 @@ function estimateMs(clusters: EventCluster[]): number {
 /** fast 模式下丢弃的低重要度事件（日志面板仍有完整信息） */
 function droppableInFast(e: BattleEvent): boolean {
   return e.kind === 'attackDecl' || e.kind === 'trigger' || e.kind === 'miss';
+}
+
+/**
+ * 重大演出簇（Phase D 演出分级：S/A 级）。
+ * 拥堵丢弃与 fast 压缩时保留：大伊万链 / 淘汰 / 复活 / 领域 / 致命一击是
+ * 玩家理解「这局怎么赢的」的关键演出，快照只能呈现结果、无法呈现过程。
+ */
+function isMajorEvent(e: BattleEvent): boolean {
+  return e.kind === 'eliminate' || e.kind === 'revive' || e.kind === 'domain'
+    || e.kind === 'ivanThrow' || e.kind === 'ivanBoom' || e.kind === 'fortune'
+    || (e.kind === 'damage' && !!e.lethal);
+}
+
+function clusterHasMajor(c: EventCluster): boolean {
+  const list = c.lead ? [c.lead, ...c.events] : c.events;
+  return list.some(isMajorEvent);
 }
 
 export interface QueueCallbacks {
@@ -182,16 +201,21 @@ export class BattleEventQueue {
       // 严重积压（如整局快速打完、慢设备跟不上）：丢弃全部旧积压，
       // 只保留正在播放的簇，新批次以 fast 压缩入队 —— 最新事件仍然有演出，
       // 被丢弃的旧事件其结果已由快照呈现，无信息丢失。
-      this.clusters = [];
+      // Phase D：丢弃旧积压时保留重大簇（大伊万/淘汰/领域/复活/致命）——
+      // 被丢弃的普通事件其结果已由快照呈现，但重大事件的过程演出不可再现
+      this.clusters = this.clusters.filter(clusterHasMajor);
       mode = 'fast';
     } else if (backlog > FAST_BACKLOG_MS) {
       mode = 'fast';
     }
     for (const c of batch) c.mode = mode;
     this.clusters.push(...batch);
-    // 保留上限：入队后积压仍然过大（如一次性收到整局日志）→ 继续丢最旧，保证能追上
+    // 保留上限：入队后积压仍然过大（如一次性收到整局日志）→ 继续丢，保证能追上；
+    // 丢弃顺序：优先非重大簇，重大簇耗尽后才丢最旧（避免 S 级演出被积压挤掉）
     while (this.clusters.length > 1 && estimateMs(this.clusters) > TURBO_BACKLOG_MS * 0.5) {
-      this.clusters.shift();
+      const dropIdx = this.clusters.findIndex((c) => !clusterHasMajor(c));
+      if (dropIdx < 0) break;
+      this.clusters.splice(dropIdx, 1);
     }
     this.emitState();
     if (!this.current && this.timer === null) this.schedule(0);

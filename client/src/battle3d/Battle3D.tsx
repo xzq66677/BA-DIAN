@@ -18,7 +18,7 @@ import { gllog } from './gllog.js';
 import {
   recordContextLost, markSessionDegraded, isSessionDegraded, clearSessionDegraded,
 } from './gl-policy.js';
-import type { PresentationState } from '../battle/useBattlePresentation.js';
+import { EMPTY_PRESENTATION, type PresentationState } from '../battle/useBattlePresentation.js';
 import type { GameSnapshot } from '../net.js';
 
 // 会话降级标记的清除入口（Game.tsx 用户主动切 3D 时调用）
@@ -69,12 +69,15 @@ export interface Battle3DProps {
   targetablePids: string[];
   roomPickMode: boolean;
   reducedMotion: boolean;
+  /** 场景是否应处于挂载状态（3D 模式）。false → dispose 场景，释放 raf/WebGL 上下文 */
+  active?: boolean;
   onPickPlayer: (pid: string) => void;
   onPickRoom: (rid: string) => void;
 }
 
 export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed: boolean; resetView: () => void } {
   const { game, pres, myRoom, myIds, targetablePids, roomPickMode, reducedMotion, onPickPlayer, onPickRoom } = props;
+  const active = props.active ?? true;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<BattleScene3D | null>(null);
   // 懒初始化：detectWebGL 每次调用都会创建真实 WebGL 上下文。此前写法
@@ -87,11 +90,14 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
   gameRef.current = game;
   const hooksRef = useRef({ onPickPlayer, onPickRoom });
   hooksRef.current = { onPickPlayer, onPickRoom };
+  /** 场景创建代数：切换渲染器重建场景后，驱动快照/高亮/偏好等 effect 重新水合 */
+  const [epoch, setEpoch] = useState(0);
+  const epochRef = useRef(epoch);
 
-  // 挂载：创建场景（WebGL 初始化失败 → 通知回退）
+  // 挂载/卸载：active=true 且未失败 → 创建场景；false 或失败 → dispose（释放 raf 与 WebGL 上下文）
   useEffect(() => {
     const host = hostRef.current;
-    if (!host || failed) return;
+    if (!host || failed || !active) return;
     // 诊断日志上下文（回合/阶段/场景统计；只读，不参与游戏逻辑）
     gllog.setContext(() => ({
       round: gameRef.current?.roundNo ?? -1,
@@ -130,13 +136,16 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
     scene.setReducedMotion(reducedMotion);
     // E2E/取证探针（只读调试统计，不参与游戏逻辑）
     (window as unknown as { __b3scene?: BattleScene3D }).__b3scene = scene;
+    // 场景代数 +1：快照/演出/高亮/房间选择/reduced-motion 各 effect 立即水合当前状态
+    // （对局中途切换渲染器时，新场景不能等下一次广播才知道局面）
+    setEpoch((n) => n + 1);
     return () => {
       scene.dispose();
       sceneRef.current = null;
       delete (window as unknown as { __b3scene?: BattleScene3D }).__b3scene;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [failed]);
+  }, [failed, active]);
 
   // 快照同步
   useEffect(() => {
@@ -159,21 +168,23 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
     };
     scene.syncSnapshot(lite);
     scene.setMyRoom(myRoom);
-  }, [game, myRoom, myIds]);
+  }, [game, myRoom, myIds, epoch]);
 
-  // 演出命令（pres diff）
+  // 演出命令（pres diff；场景重建后首跑以空态为基准 → 全量回放当前叠加层）
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
-    const cmds = presToCommands(presRef.current, pres);
+    const prev = epochRef.current === epoch ? presRef.current : EMPTY_PRESENTATION;
+    epochRef.current = epoch;
+    const cmds = presToCommands(prev, pres);
     presRef.current = pres;
     applyCommands(scene, cmds);
-  }, [pres]);
+  }, [pres, epoch]);
 
   // 目标高亮 / 房间选择 / reduced-motion
-  useEffect(() => { sceneRef.current?.setTargetable(targetablePids); }, [targetablePids]);
-  useEffect(() => { sceneRef.current?.setRoomPickMode(roomPickMode); }, [roomPickMode]);
-  useEffect(() => { sceneRef.current?.setReducedMotion(reducedMotion); }, [reducedMotion]);
+  useEffect(() => { sceneRef.current?.setTargetable(targetablePids); }, [targetablePids, epoch]);
+  useEffect(() => { sceneRef.current?.setRoomPickMode(roomPickMode); }, [roomPickMode, epoch]);
+  useEffect(() => { sceneRef.current?.setReducedMotion(reducedMotion); }, [reducedMotion, epoch]);
 
   const resetView = () => sceneRef.current?.resetView();
 
