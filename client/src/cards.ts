@@ -64,7 +64,7 @@ export const CARD_META: Record<string, CardMeta> = {
   'ivan-girl': {
     img: './cards/ivan-girl.webp', thumb: './cards/ivan-girl-thumb.webp', no: '06',
     skills: '【延迟引爆】',
-    mech: '可向任意房间投掷大伊万，包括自己脚下。全员行动结束后才爆炸，按爆炸那一刻的房间成员动态判定。',
+    mech: '可向任意房间投掷大伊万，包括自己脚下。扔出当回合引信未开；投掷后第一个分出胜负的回合末爆炸，平局回合顺延不消耗。按爆炸那一刻的房间成员动态判定——躲藏也算，炸完才判胜负（可同归于尽）。',
     quote: '现在跑没用，我等大家散场了才拆礼物。',
   },
   'hero-today': {
