@@ -143,11 +143,27 @@ export interface RevealInfo {
   losers: string[];
 }
 
+/** 技能内判定（马保国系）：进行中的出拳面板数据 */
+export interface SkillJudgeView {
+  kind: string;
+  label: string;
+  owner: string;
+  opponent: string;
+  /** 当前第几局（1-based） */
+  round: number;
+  rounds: number;
+  /** 己方已胜局数 */
+  wins: number;
+  submittedIds: string[];
+  waitingIds: string[];
+  last: { round: number; ownerThrow: string; opponentThrow: string; result: string } | null;
+}
+
 export interface GameSnapshot {
   seed: number;
   roundNo: number;
   subRound: number;
-  phase: 'rps1' | 'rps2' | 'act' | 'roundEnd' | 'over';
+  phase: 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over';
   players: SnapPlayer[];
   roomIds: string[];
   submittedIds: string[];
@@ -162,6 +178,8 @@ export interface GameSnapshot {
   reveal?: RevealInfo | null;
   /** 本回合最近一次排序子轮的揭示（行动阶段用来说明行动顺序来源；无排序则 null） */
   orderReveal?: RevealInfo | null;
+  /** 技能内判定（马保国系）：进行中的出拳面板数据；非判定阶段为 null */
+  judge?: SkillJudgeView | null;
   /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
   orderGroup?: string[];
   orderSubmittedIds?: string[];

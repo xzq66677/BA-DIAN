@@ -253,6 +253,10 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
     switch (game.phase) {
       case 'rps1': return `隐藏出拳 · 已提交 ${game.submittedIds.length}`;
       case 'rps2': return `行动排序出拳 · 子轮 ${(game.orderSub ?? 0) + 1} · 已提交 ${(game.orderSubmittedIds ?? []).length}/${(game.orderGroup ?? []).length}`;
+      case 'judge': {
+        const j = game.judge;
+        return j ? `${j.label} · 第 ${j.round}/${j.rounds} 局 · 已出拳 ${j.submittedIds.length}/${j.submittedIds.length + j.waitingIds.length}` : '技能判定';
+      }
       case 'act': return '行动阶段';
       case 'roundEnd': return '回合末结算';
       case 'over': return '游戏结束';
@@ -266,6 +270,9 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   const orderPendingLocalIds = myIds.filter((i) => orderGroup.includes(i.playerId)
     && game.players.find((p) => p.id === i.playerId)?.alive
     && !orderSubmittedIds.includes(i.playerId));
+  // 技能内判定（马保国太极/五连鞭/不讲武德）：只有当前在等出拳的本机身份需要出拳
+  const judge = game.judge ?? null;
+  const judgePendingLocalIds = judge ? myIds.filter((i) => judge.waitingIds.includes(i.playerId)) : [];
   const livingCount = game.players.filter((p) => p.alive).length;
 
   // ── 沉浸牌桌派生值：弧形远端房间 / 我的房间成员 / 中央事件播报 ──
@@ -602,7 +609,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
         </aside>
 
         {/* ── 我的席位 + 手牌（3D 模式：底部悬浮操作坞） ── */}
-        <section className={`action-dock ddz-hand anim-in ${use3d ? ((myTurnId || game.phase === 'rps1' || (game.phase === 'rps2' && orderPendingLocalIds.length > 0)) ? 'is-my-turn' : 'is-waiting') : ''}`}>
+        <section className={`action-dock ddz-hand anim-in ${use3d ? ((myTurnId || game.phase === 'rps1' || (game.phase === 'rps2' && orderPendingLocalIds.length > 0) || (game.phase === 'judge' && judgePendingLocalIds.length > 0)) ? 'is-my-turn' : 'is-waiting') : ''}`}>
           <div className="hand-layout">
             <MySeat p={me} isHost={isHost} acting={game.currentActor === meId} throwView={me ? throwViewOf(game, me.id) : null} hit={pres.hits[meId]} />
             <div className="hand-main">
@@ -615,7 +622,26 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                 )}
                 {game.phase === 'rps1' && <span className="tcg-chip">存活 {livingCount} 人 · 全员出拳后统一揭示</span>}
                 {game.phase === 'rps2' && <span className="tcg-chip">行动排序 · 子轮 {(game.orderSub ?? 0) + 1} · 仅资格者出拳（不剥夺资格）</span>}
+                {game.phase === 'judge' && judge && <span className="tcg-chip">⚡ {judge.label} · 第 {judge.round}/{judge.rounds} 局 · 双方各自出拳</span>}
               </div>
+
+              {game.phase === 'judge' && judge && (
+                judgePendingLocalIds.length > 0
+                  ? <ThrowPrivacy
+                      myIds={judgePendingLocalIds}
+                      game={game}
+                      lobby={lobby}
+                      stage="judge"
+                      judgeLabel={judge.label}
+                      judgeRound={judge.round}
+                      judgeRounds={judge.rounds}
+                    />
+                  : <div className="privacy-veil">
+                      {judge.waitingIds.length > 0
+                        ? `⏳ 等待 ${namesOf(game, judge.waitingIds)} 出拳（${judge.label} · 第 ${judge.round}/${judge.rounds} 局，提交期间保密）…`
+                        : `✅ 本机身份已出拳，等待${judge.label}判定结果…`}
+                    </div>
+              )}
 
               {game.phase === 'rps2' && (
                 orderPendingLocalIds.length > 0
@@ -867,6 +893,9 @@ function throwViewOf(game: GameSnapshot, pid: string): ThrowView | null {
 function hasThrown(game: GameSnapshot, pid: string): boolean {
   if (game.phase === 'rps2') {
     return (game.orderGroup ?? []).includes(pid) && (game.orderSubmittedIds ?? []).includes(pid);
+  }
+  if (game.phase === 'judge') {
+    return (game.judge?.submittedIds ?? []).includes(pid);
   }
   return game.phase === 'rps1' && game.submittedIds.includes(pid);
 }
@@ -1323,12 +1352,15 @@ function CardDetail({ p, onClose, canKick, onKick, stats, onInteract, gotCount }
 
 // ── 隐藏出拳（交设备遮罩，卡背式选择） ────────────────────
 
-export function ThrowPrivacy({ myIds, game, lobby, stage = 'rps1' }: {
+export function ThrowPrivacy({ myIds, game, lobby, stage = 'rps1', judgeLabel, judgeRound, judgeRounds }: {
   myIds: { playerId: string; name: string; token: string }[];
   game: GameSnapshot;
   lobby: LobbyState;
-  /** rps1=回合判定；rps2=行动排序（二次判定） */
-  stage?: 'rps1' | 'rps2';
+  /** rps1=回合判定；rps2=行动排序（二次判定）；judge=技能内判定（太极/五连鞭/不讲武德） */
+  stage?: 'rps1' | 'rps2' | 'judge';
+  judgeLabel?: string;
+  judgeRound?: number;
+  judgeRounds?: number;
 }) {
   // 用 playerId 而不是数组下标追踪当前出拳身份：每次提交后该身份会从 myIds 中移除，
   // 数组会收缩。若用下标（旧实现），一旦「选中的下标 >= 新长度」，渲染里读 me.name 就会
@@ -1336,6 +1368,12 @@ export function ThrowPrivacy({ myIds, game, lobby, stage = 'rps1' }: {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const isOrder = stage === 'rps2';
+  const isSkill = stage === 'judge';
+  const veilTitle = isSkill
+    ? `⚡ ${judgeLabel ?? '技能判定'}（第 ${judgeRound ?? 1}/${judgeRounds ?? 1} 局）— 以下身份还未出拳`
+    : isOrder
+      ? '🔀 行动排序出拳（二次判定）— 以下身份还未出拳'
+      : '🎲 隐藏出拳阶段 — 以下身份还未出拳';
   const me = activeId ? myIds.find((i) => i.playerId === activeId) ?? null : null;
 
   // 选中的身份已不在待出拳名单里（自己已提交 / 阶段推进）→ 回到选择遮罩
@@ -1349,7 +1387,7 @@ export function ThrowPrivacy({ myIds, game, lobby, stage = 'rps1' }: {
   if (!me) {
     return (
       <div className="privacy-veil">
-        <p>{isOrder ? '🔀 行动排序出拳（二次判定）— 以下身份还未出拳' : '🎲 隐藏出拳阶段 — 以下身份还未出拳'}</p>
+        <p>{veilTitle}</p>
         <div className="pv-names" style={{ margin: '8px 0', display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
           {myIds.map((i) => <span key={i.playerId} className="pv-name" style={{ fontSize: 14 }}>{i.name}</span>)}
         </div>
@@ -1384,6 +1422,7 @@ export function ThrowPrivacy({ myIds, game, lobby, stage = 'rps1' }: {
     <div className="privacy-veil hand-throw-veil">
       <p>请 <span className="pv-name">{meName}</span> 出拳（{p?.charName} · 房间 {p?.room}）</p>
       {isOrder && <p className="pv-hint tcg-chip" style={{ display: 'inline-block' }}>本次出拳只决定行动先后，不会失去行动资格</p>}
+      {isSkill && <p className="pv-hint tcg-chip" style={{ display: 'inline-block' }}>双方各自出拳、逐局揭牌；判定结果会写进战斗日志</p>}
       <div className="throw-row">
         {(['rock', 'scissors', 'paper'] as const).map((t) => (
           <button key={t} className="throw-card" onClick={() => throwIt(t)}>
