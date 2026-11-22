@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-11-22 · 全局播报机制代替日志翻找（Issue #39 / TASKS.md T-6.0.1）
+
+### 新增
+- **全局播报（`shared/src/announce.ts`）**：把引擎日志统一派生为 `AnnounceItem`（`id / seq / ts / round / icon / text / tone / priority / ttlMs / rule`）。服务端一次计算、随 `room:update` 的 `announces` 字段发给所有座位——**同一房间所有人看到同一句话、同一个时间戳**，这是「所有人可见」的硬保证（不靠各客户端各自解析日志）。
+- **16 条内置规则 + 兜底**：`milk / fortune / domain / revive / eliminate / damage(宣告/未命中/扣血/致命) / heal / move / deferred(大伊万) / judge / order / result / trigger / action / phase / error / fallback`。兜底规则保证「引擎写了日志就一定有播报」——以后新增角色技能无需改播报代码。
+- **可复用接口** `registerAnnounceRule(rule, { before })`：默认插在规则表最前（优先于内置通用规则），返回撤销函数；`listAnnounceRules()` / `resetAnnounceRules()` 便于测试与热重载。
+- **战场横幅升级**：通用 `AnnounceItem` 横幅（图标 + 文本 + 服务端 `HH:MM:SS` + 右侧停留秒数），动画时长按 `ttlMs` 内联覆盖；色调 `tone-*` 与优先级 `prio-*` 各一档，淘汰/致命用 danger 配色。
+- **「📣 播报」抽屉**（`client/src/battle/announce-view.tsx`，独立于游戏页的纯展示组件）：按时间倒序、每行「时间 · 图标 · 文本 · 停留时长」，可切「⭐ 重点」过滤掉阶段提示类，空态给出「不用再翻日志」的引导；顶栏按钮带未读徽标。
+- **播报独立队列**：`useBattlePresentation` 内与战斗演出队列解耦——seq 去重、首帧（重连补发）只推游标不回放、局号变化清空、积压时 `condenseAnnounceQueue` 保留队首与 `high`（过时的中低价值条目直接丢弃）。
+- 纯函数工具：`buildAnnouncements` / `mergeAnnouncements` / `condenseAnnounceQueue` / `isBannerCandidate` / `fmtAnnounceClock` / `fmtAnnounceTtl` / `stripLogIcon` / `clampAnnounceText`。
+
+### 变更
+- `room:update` 新增 `announces?: AnnounceItem[]`：与 `newLogs` 同批、所有座位完全一致；断线重连在 `catchUp` 时补发最近 300 条日志对应的播报。旧客户端忽略该字段即可；旧服务端不发送时客户端按「无播报」安全降级。
+- 喝牛奶 / 今日运势的横幅从 `useBattlePresentation` 的硬编码分支（`kind: 'milk' | 'fortune'`）迁移到规则表；`PresentationState.announce` 改为 `globalAnnounce: AnnounceItem | null`。
+- 零规则侵入：播报只读日志的 `type / text / data / important`，不改数值、不改结算顺序、不影响隐藏出拳（提交阶段日志里没有拳种，因此不会提前泄露）。
+- 优先级语义：`high`（淘汰/致命/领域/复活/终局）必上横幅且拥堵时保留；`normal`（普通动作/伤害/移动/回复）依次播放；`low`（阶段提示/未命中）只进抽屉，不抢镜头。
+
+### 测试
+- `npm test` **32 文件 / 553 用例全过**（基线 30 / 520，+33）：`tests/announce.test.ts`（25 例：全动作覆盖、去重/幂等、有界历史、队列压缩、可插拔规则、时间格式化、房间层全员一致与补发）+ `tests/ui/announce-ui.test.tsx`（8 例：横幅时间戳与停留时长、抽屉倒序/重点过滤/空态/收起、游戏页「📣 播报」集成）。
+- 双端 `tsc --noEmit` 0 错误；`vite build` 通过；e2e 5 例真实 Chromium 全过（含无 JS 错误检查）。
+- 环境说明：Node 22.13 下 jsdom 依赖的 undici 会抛 `Cannot read properties of undefined (reading 'bind')`（与本次改动无关；仓库验证基线为 Node 24），本机以 Node v24.22.3 复跑全量。
+
+---
+
 ## 2026-11-22 · 全员低模发型增强层（V6.0 适配）
 
 ### 新增

@@ -11,6 +11,7 @@
 
 import { Game } from '../../shared/src/engine.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
+import { buildAnnouncements, type AnnounceItem } from '../../shared/src/announce.js';
 import type {
   PlayerId, ActionRequest, Throw, GamePlayerConfig, RuleConfig, AiDifficulty,
   InteractionEvent, InteractionKind, ReplayFrame, ReplayRecord, ReplaySummary, ReplayPlayer,
@@ -276,6 +277,32 @@ export class Room {
   catchUpLogs(limit: number = Room.RECONNECT_CATCHUP_LOGS): LogEntry[] {
     const logs = this.game?.logs ?? [];
     return logs.slice(-limit);
+  }
+
+  /** 当前局玩家名映射（pid → 显示名）；无对局时回退到座位名 */
+  playerNames(): Record<string, string> {
+    const names: Record<string, string> = {};
+    for (const s of this.seats) names[s.playerId] = s.name;
+    const g = this.game;
+    if (g) for (const pid of Object.keys(g.players)) names[pid] = g.players[pid].name;
+    return names;
+  }
+
+  /**
+   * 把一批增量日志转成**全局播报**（服务端权威）。
+   *
+   * 关键点：同一房间所有座位收到的是这一次调用的同一份结果——
+   * 内容、顺序、`ts` 完全一致，因此「所有人看到同一句播报、同一个时间」。
+   * 规则表可在 shared/src/announce.ts 扩展，服务端无需改动。
+   */
+  toAnnouncements(logs: readonly LogEntry[]): AnnounceItem[] {
+    if (logs.length === 0) return [];
+    return buildAnnouncements(logs, { names: this.playerNames(), now: Date.now() });
+  }
+
+  /** 断线重连补发：最近 N 条播报（与 catchUpLogs 同窗口，定向发送） */
+  catchUpAnnouncements(limit: number = Room.RECONNECT_CATCHUP_LOGS): AnnounceItem[] {
+    return this.toAnnouncements(this.catchUpLogs(limit));
   }
 
   /** AI 行动驱动（AI 与真人使用同一引擎接口，难度决定决策质量） */

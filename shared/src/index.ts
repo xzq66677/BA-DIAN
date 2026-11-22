@@ -4,6 +4,7 @@
  */
 
 export * from './types.js';
+export * from './announce.js';
 export * from './rng.js';
 export * from './judge.js';
 export * from './chardef.js';

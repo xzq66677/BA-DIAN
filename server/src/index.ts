@@ -80,12 +80,15 @@ function broadcastRoom(room: Room): void {
   const snap = room.game ? room.game.snapshot() : null;
   // 增量日志：房间级单游标，只发新条目（seq 去重由客户端处理；上限 Room.MAX_BROADCAST_LOGS）
   const newLogs = room.takeNewLogs();
+  // 全局播报：与 newLogs 同批派生，所有座位共用同一份（内容/顺序/ts 完全一致）
+  const announces = room.toAnnouncements(newLogs);
   for (const seat of room.seats) {
     if (!seat.socketId) continue;
     io.to(seat.socketId).emit('room:update', {
       lobby: room.lobbySnapshot(),
       game: snap,
       newLogs,
+      announces,
       you: seat.playerId,
     });
   }
@@ -113,6 +116,7 @@ function sendRoomStateTo(room: Room, socketId: string): void {
     lobby: room.lobbySnapshot(),
     game: room.game ? room.game.snapshot() : null,
     newLogs: room.catchUpLogs(),
+    announces: room.catchUpAnnouncements(),
     catchUp: true,
     you: room.seatBySocket(socketId)[0]?.playerId ?? null,
   });
