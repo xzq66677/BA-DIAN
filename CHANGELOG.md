@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-11-22 · 全员角色专属 3D 视觉 + 新角色无 3D 兜底接口
+
+### 新增
+- **11 名角色全部拥有专属程序化 3D 视觉**（`<charId>-v1`；五条悟 gojo-v1 已于 V5.0-B 验收，本批新增 10 名）：老大爷（斗笠白须+领域玉坠）、拔棍（短打发髻+木棍随快照 `stickDrawn` 收/拔）、吹箫哥（青竹宽袍+常驻唇边竹箫）、伍六七（暗银+挥剪开合的大剪刀）、马保国（朱红褂+头后自转太极光环）、卖大伊万的小女孩（矮个双马尾+怀抱炸弹+过顶投掷）、今日勇者（绿披风+头顶自转大骰子）、大贱客（紫衫瘦高+头顶悬浮磁环）、大屁孩（0.74 矮个大圆头+背带裤）、无业游民（灰蓝便服驼背）。全部几何拼装原创、无外部模型资产，走与 gojo-v1 相同的同步程序化路线。
+- **共享骨架套件 `client/src/battle3d/characters/kit.ts`**：Surface 顶点烘焙原语、参数化关节帧（pelvis/body/head/肩肘髋膝）、通用人形姿态库（idle/walk/attack/flinch/dead/revive 等 11 项）；`gojo.ts` 未改动。
+- **新角色无 3D 兜底接口**：只加 `shared/src/characters/` 的新角色（无调色板、无 rig）自动回退 legacy Humanoid（未收录调色板时用默认灰蓝），完整姿态接口可用、正常出现在对局中。后续 3D 化只需三步：调色板加条目 → 写 rig（复用 kit）→ `registerCharacterRig(charId, '<charId>-v1', factory)` 一行注册；`dedicatedCharIds()` 实时返回已注册清单。
+- **视觉取证工具**：`client/char-harness.html` + `scripts/char-shots.ts`（隔离渲染、真实 WebGL、逐姿态原帧 + gojo 同尺对比）；取证帧归档 `docs/screenshots-characters/`（每角色 39 帧 + 真实对局帧，`2026-11-21-realmatch/` 两局 AI 对局 8 种新资产正确挂载、无页面 JS 报错）。
+- 逐角色规格/QA/迭代记录 `docs/characters/*.md`（10 份），索引已加入 README。
+
+### 变更
+- 3D 战场角色工厂（`characters/index.ts`）改为注册制：`registerCharacterRig` 为接入唯一接口；专用 rig 可经返回对象暴露 `stick` 挂件（拔棍快照契约为 `char.stickDrawn` → `asset.stick.visible`，与旧版一致）。
+- 未知 charId 的回退路径不变（legacy Humanoid），`gojo-asset`/`gojo-lifecycle` 测试参数化扩展到全体专属角色。
+
+### 测试
+- 基线 300 → **471 用例 / 26 文件全绿**（character-assets 152 项含兜底契约 2 项）：新增 `tests/ui/character-assets.test.ts`（152 项：全员工厂 ID/缩放/脚底落地、11 姿态动网格+复位幂等、实例几何材质隔离、dispose 幂等、无 3D 新角色兜底契约 + 注册升级）；gojo 资产/生命周期专项参数化覆盖新角色（+17）。
+- `tsc --noEmit` 双端 0 错误；真实对局取证无 JS 错误。已知瞬态：倒地/复活中段腿部弧线最低约 -0.12（gojo-v1 同款公式，终帧正常），已在 `docs/characters/` 标注。
+
+### 文档
+- `README.md`（新增「角色 3D 视觉与新增角色指引」章节、文档索引表、目录结构、测试数字 471）。
+
+---
+
 ## 2026-11-21 · 二次判定改为玩家亲自出拳（交互层）
 
 ### 变更

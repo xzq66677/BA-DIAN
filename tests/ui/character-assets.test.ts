@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { createCharacterAsset, type CharacterRig, releaseMeshes, DEDICATED_CHAR_IDS } from '../../client/src/battle3d/characters/index.js';
+import { createCharacterAsset, type CharacterRig, releaseMeshes, dedicatedCharIds, registerCharacterRig } from '../../client/src/battle3d/characters/index.js';
 import { charVisual } from '../../client/src/battle3d/palette.js';
+import { Humanoid } from '../../client/src/battle3d/rig.js';
 
 // 专属 3D 视觉的通用资产契约（gojo-v1 另有 tests/ui/gojo-asset.test.ts）。
 // 每接入一个新角色，追加到 rigs 表：名称、期望视觉 ID、剪影断言。
@@ -19,7 +20,7 @@ const rigs: Record<string, { id: string; extra?: Extra }> = {
   default: { id: 'nobody-v1' },
 };
 
-const dedicated = DEDICATED_CHAR_IDS.filter(id => id !== 'gojo' && rigs[id]);
+const dedicated = dedicatedCharIds().filter(id => id !== 'gojo' && rigs[id]);
 
 // Inspect transforms of actual meshes, not just the existence of animation methods or joints.
 function meshPose(rig: CharacterRig) {
@@ -143,5 +144,61 @@ describe('dedicated character assets', () => {
     expect(asset.rig.root.parent).toBeNull();
     expect(disposals.length).toBe(probe.size);
     expect(disposals.length).toBeGreaterThan(0);
+  });
+});
+
+describe('fallback contract for characters without a dedicated rig yet', () => {
+  // 新角色只加进 shared/src/characters 时（无 palette、无 rig），必须仍能正常入局：
+  // 自动回退 legacy Humanoid（默认调色板 + 无道具），完整姿态接口可用。
+  const futureChar = 'future-hero';
+
+  it('unknown roster id falls back to a working legacy humanoid with default palette', () => {
+    const asset = createCharacterAsset(futureChar);
+    try {
+      expect(asset.id).toBe('humanoid');
+      expect(asset.rig).toBeInstanceOf(Humanoid);
+      const box = new THREE.Box3().setFromObject(asset.rig.root, true);
+      expect(box.min.y).toBeGreaterThanOrEqual(-0.02);
+      expect(box.max.y).toBeGreaterThan(1.0);
+      // 未收录进 CHAR_VISUALS → 使用 default 视觉（灰蓝、无专属道具）
+      expect(asset.rig.materials()[0].color.getHex()).toBe(charVisual(futureChar).color);
+      expect(charVisual(futureChar).prop).toBe('none');
+      expect(asset.stick).toBeNull();
+      // 姿态接口完整（场景驱动所需的方法全部存在且可用）
+      for (const m of ['idle', 'walk', 'attackSwing', 'flinch', 'cast', 'drink', 'crouch', 'cheer', 'dead', 'reviveRise', 'resetPose'] as const) {
+        expect(typeof asset.rig[m]).toBe('function');
+      }
+      asset.rig.idle(0.3, 0);
+      expect(new THREE.Box3().setFromObject(asset.rig.root, true).isEmpty()).toBe(false);
+    } finally {
+      asset.dispose();
+    }
+  });
+
+  it('registerCharacterRig upgrades the fallback to a dedicated rig without touching the legacy path', () => {
+    const legacy = createCharacterAsset(futureChar);
+    try {
+      expect(legacy.id).toBe('humanoid');
+    } finally {
+      legacy.dispose();
+    }
+    // 新角色 3D 化 = 一行注册（未来接入只需这一步）
+    registerCharacterRig(futureChar, 'future-hero-v1', (scale) =>
+      new Humanoid({ main: 0x2468ac, accent: 0x86b4dc, skin: 0xe8c49a, dark: 0x2e2822 }, { scale }));
+    const upgraded = createCharacterAsset(futureChar);
+    try {
+      expect(upgraded.id).toBe('future-hero-v1');
+      expect(dedicatedCharIds()).toContain(futureChar);
+      expect(upgraded.rig.materials()[0].color.getHex()).toBe(0x2468ac);
+    } finally {
+      upgraded.dispose();
+    }
+    // 其他未注册角色不受影响，仍走 legacy 回退
+    const other = createCharacterAsset('another-future-char');
+    try {
+      expect(other.id).toBe('humanoid');
+    } finally {
+      other.dispose();
+    }
   });
 });
