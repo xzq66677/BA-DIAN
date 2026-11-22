@@ -369,6 +369,9 @@
   border-radius: 999px;
   will-change: transform;
   user-select: none;
+  /* MAP-102：标签置顶（z8 高于全部名牌 z3-6）——与邻近房间名册擦过时
+     小胶囊始终浮在最上层可读；这也是名牌只做单步自身标签避让的兜底 */
+  z-index: 8;
 }
 .b3-rl-icon { font-size: 13px; }
 .b3-rl-count { color: var(--text-dim, #9aa0a8); font-size: 11px; font-weight: 600; }
@@ -694,4 +697,56 @@
   .s3d-mode .bt3d-reveal-wrap .rb-verdict { max-height: 1.45em; }
 }
 
-.b3-roomlabel.is-pending { z-index: 5; }
+.b3-roomlabel.is-pending { z-index: 8; }
+
+/* ═══════════════════════════════════════════════════════════
+   MAP-102 密集名牌与危险标识
+   名牌布局：≤4 人各自锚定头顶；5-10 人按房间列阵向上生长；
+   >6 人紧凑档。已淘汰成员只压缩不隐藏。
+   ═══════════════════════════════════════════════════════════ */
+
+/* 密集档名牌：保留全部信息（头像/名字/HP/徽标），压缩尺寸 */
+.b3-plate.is-dense {
+  min-width: 62px;
+  padding: 2px 4px;
+  gap: 1px;
+  border-radius: 7px;
+  border-width: 1px;
+}
+.b3-plate.is-dense .b3-av { width: 16px; height: 16px; font-size: 9px; border-radius: 4px; }
+.b3-plate.is-dense .b3-nm { font-size: 9px; letter-spacing: 0; max-width: 72px; }
+.b3-plate.is-dense .b3-hpbar { height: 4px; min-width: 40px; border-width: 0; }
+.b3-plate.is-dense .b3-badges { max-width: 72px; gap: 2px; }
+.b3-plate.is-dense .b3-bdg { font-size: 8px; padding: 0 3px; letter-spacing: 0; }
+/* 密集档中的重要名牌（行动者/可选目标/选中/本人）：恢复完整尺寸，信息层级优先 */
+.b3-plate.is-dense.is-priority {
+  min-width: 88px;
+  padding: 3px 6px;
+  gap: 2px;
+  border-radius: 10px;
+}
+.b3-plate.is-dense.is-priority .b3-av { width: 22px; height: 22px; font-size: 12px; }
+.b3-plate.is-dense.is-priority .b3-nm { font-size: 11px; letter-spacing: 1px; }
+.b3-plate.is-dense.is-priority .b3-hpbar { height: 6px; min-width: 52px; border-width: 1px; }
+/* 已淘汰成员：灰章压缩但仍完整可读（谁已出局一目了然） */
+.b3-plate.is-dense.is-dead { opacity: 0.72; }
+
+/* 危险房间（待爆）：标签内警示文本独立成行胶囊，实底橙强化辨识 */
+.b3-roomlabel.is-pending {
+  flex-wrap: wrap;
+  row-gap: 3px;
+  border-color: #ffb36a;
+  background: linear-gradient(180deg, rgba(64, 34, 8, 0.95), rgba(40, 20, 4, 0.92));
+  box-shadow: 0 0 0 2px rgba(255, 152, 40, 0.35), 0 0 16px rgba(255, 130, 30, 0.5);
+}
+.b3-roomlabel.is-pending .b3-rl-pending {
+  flex-basis: 100%;
+  text-align: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255, 152, 40, 0.24);
+  border: 1px solid rgba(255, 152, 40, 0.65);
+}
+@media (max-width: 600px) {
+  .b3-roomlabel.is-pending { max-width: 264px; }
+}
