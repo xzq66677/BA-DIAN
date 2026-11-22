@@ -137,7 +137,7 @@ const laodaye: CharDef = {
 const mabaoguo: CharDef = {
   id: 'mabaoguo',
   name: '马保国',
-  desc: '血量4攻击1。混元形意太极：除大伊万爆、肉山坐外，受到伤害时判定（种子代掷），赢则原伤反弹给来源（可选）。闪电五连鞭：5场判定按胜次扣敌20/40/60/80/100%血。不讲武德：被击杀后5局判定，赢3局带走对面（同时死亡）。',
+  desc: '血量4攻击1。混元形意太极：除大伊万爆、肉山坐外，受到伤害时与来源各出一拳判定，赢则原伤反弹（可选）。闪电五连鞭：对同房间敌人进行5局判定（双方各出5拳），按胜次造成其**当前血量** 20/40/60/80/100% 的伤害（单次总量）。不讲武德：被击杀后与击杀者进行5局判定，赢3局则以精神攻击带走对面（同时死亡）。',
   hp: 4,
   attack: 1,
   attackType: 'melee',
@@ -149,40 +149,87 @@ const mabaoguo: CharDef = {
     if (req.target !== self) return; // 仅对指向自己的伤害进行太极判定
     const st = game.charState(self);
     if (st.taijiAuto === false) return; // 可选：选择不触发
-    if (req.noReflect || req.reflected) return; // 大伊万爆/肉山坐/已反弹伤害不再判定
+    if (req.noReflect || req.reflected || req.judgeResolved) return; // 大伊万爆/肉山坐/已反弹/已判定过的伤害不再判定
     if (!req.source || req.source === self) return;
     if (!game.players[req.source] || !game.players[req.source].alive) return;
-    game.log('trigger', `⚡ 马保国混元形意太极：${game.players[req.source].name} 的伤害需进行判定`, undefined, true);
-    const result = game.rollJudge(self, req.source, '太极判定');
-    if (result === 'win') {
-      game.log('trigger', `⚡ 太极判定成功！原伤 ${fmtNum(req.amount)} 反弹给 ${game.players[req.source].name}`, undefined, true);
-      req.target = req.source;
-      req.reflected = true;
-      req.transferred = false;
+
+    const source = req.source;
+    const settle = (wins: number) => {
+      if (wins > 0) {
+        game.log('trigger', `⚡ 太极判定成功！原伤 ${fmtNum(req.amount)} 反弹给 ${game.players[source].name}`, undefined, true);
+        req.target = source;
+        req.reflected = true;
+        req.transferred = false;
+      } else {
+        game.log('trigger', `⚡ 太极判定未成功，${game.players[self].name} 正常承受 ${fmtNum(req.amount)} 伤害`, undefined, true);
+      }
+      game.applyDamage(req);
+    };
+
+    if (game.rules.skillJudgeMode === 'serverRoll') {
+      game.log('trigger', `⚡ 马保国混元形意太极：${game.players[source].name} 的伤害需进行判定`, undefined, true);
+      if (game.rollJudge(self, source, '太极判定') === 'win') {
+        game.log('trigger', `⚡ 太极判定成功！原伤 ${fmtNum(req.amount)} 反弹给 ${game.players[source].name}`, undefined, true);
+        req.target = source;
+        req.reflected = true;
+        req.transferred = false;
+      }
+      return;
     }
+
+    // player 模式：挂起伤害，等双方各出一拳后结算（补结算时不再进入本钩子）
+    req.judgeResolved = true;
+    game.log('trigger', `⚡ 马保国混元形意太极：${game.players[source].name} 的伤害进入判定（双方出拳）`, undefined, true);
+    game.deferDamageJudge(req, {
+      kind: 'taiji', owner: self, opponent: source, rounds: 1, label: '太极判定',
+      resolve: (wins) => settle(wins),
+    });
   },
   onDeath: (ctx) => {
     const { game, player, killer, cause } = ctx;
     if (!killer || !game.players[killer] || !game.players[killer].alive) return;
     if (cause === 'bujiangwude') return; // 不讲武德造成的死亡不再触发
-    game.log('trigger', `⚡ 不讲武德！${game.players[player].name} 被击杀，与 ${game.players[killer].name} 进行5局判定`, undefined, true);
-    let wins = 0;
-    for (let i = 1; i <= 5; i++) {
-      const r = game.rollJudge(player, killer, `不讲武德第${i}局`);
-      if (r === 'win') wins++;
+    const victim = player;
+    const settle = (wins: number) => {
+      if (wins >= 3) {
+        const kp = game.players[killer];
+        if (!kp || !kp.alive) return;
+        // 精神攻击：伤害 = 击杀者当前血量（等效即死），noReflect 避免被其自身太极反弹
+        game.log('trigger', `⚡ 不讲武德成功（${wins}/5局）！精神攻击带走 ${kp.name}`, undefined, true);
+        game.applyDamage({
+          target: killer,
+          amount: kp.hp,
+          source: victim,
+          dtype: 'mental',
+          tag: 'bujiangwude',
+          bypassHide: true,
+          noReflect: true,
+        });
+      } else {
+        game.log('trigger', `⚡ 不讲武德失败（${wins}/5局），${game.players[killer].name} 存活`, undefined, true);
+      }
+    };
+    game.log('trigger', `⚡ 不讲武德！${game.players[victim].name} 被击杀，与 ${game.players[killer].name} 进行 5 局判定`, undefined, true);
+
+    if (game.rules.skillJudgeMode === 'serverRoll') {
+      let wins = 0;
+      for (let i = 1; i <= 5; i++) {
+        const r = game.rollJudge(victim, killer, `不讲武德第${i}局`);
+        if (r === 'win') wins++;
+      }
+      settle(wins);
+      return;
     }
-    if (wins >= 3) {
-      game.log('trigger', `⚡ 不讲武德成功（${wins}/5局）！${game.players[killer].name} 同时死亡`, undefined, true);
-      game.eliminate(killer, 'bujiangwude', player);
-    } else {
-      game.log('trigger', `不讲武德失败（${wins}/5局），${game.players[killer].name} 存活`, undefined, true);
-    }
+    game.requestJudge({
+      kind: 'bujiangwude', owner: victim, opponent: killer, rounds: 5, label: '不讲武德',
+      resolve: (wins) => settle(wins),
+    });
   },
   actions: [
     {
       name: 'whip5',
       label: '闪电五连鞭',
-      desc: '对同房间一名敌人进行5场判定（种子代掷），按胜次造成其最大血量 20/40/60/80/100% 的伤害。',
+      desc: '对同房间一名敌人进行5局判定（双方各出5拳），按胜次造成其「当前血量」20/40/60/80/100% 的伤害（单次总量）。',
       targetHint: 'sameRoomPlayer',
       validate: (ctx) => {
         const t = ctx.params.targetId;
@@ -194,21 +241,35 @@ const mabaoguo: CharDef = {
       },
       execute: (ctx) => {
         const game = ctx.game;
+        const actor = ctx.actor;
         const t = ctx.params.targetId!;
         const tp = game.players[t];
-        game.log('trigger', `⚡ ${game.players[ctx.actor].name} 对 ${tp.name} 发动闪电五连鞭！`, undefined, true);
-        let wins = 0;
-        for (let i = 1; i <= 5; i++) {
-          const r = game.rollJudge(ctx.actor, t, `五连鞭第${i}鞭`);
-          if (r === 'win') wins++;
+        game.log('trigger', `⚡ ${game.players[actor].name} 对 ${tp.name} 发动闪电五连鞭！`, undefined, true);
+
+        const settle = (wins: number) => {
+          // 伤害 = 胜次 × 20% × 目标**当前血量**（结算时取当前值），保持单次总量
+          const target = game.players[t];
+          const dmg = target ? Math.round(wins * 0.2 * target.hp * 10000) / 10000 : 0;
+          if (dmg > 0 && target) {
+            game.log('damage', `⚡ 五连鞭命中 ${wins}/5，造成 ${fmtNum(dmg)} 伤害（${wins * 20}% 当前血量）`, undefined, true);
+            game.applyDamage({ target: t, amount: dmg, source: actor, dtype: 'physical', tag: 'whip' });
+          } else {
+            game.log('damage', `五连鞭 0/5 命中，未造成伤害`);
+          }
+        };
+
+        if (game.rules.skillJudgeMode === 'serverRoll') {
+          let wins = 0;
+          for (let i = 1; i <= 5; i++) {
+            if (game.rollJudge(actor, t, `五连鞭第${i}鞭`) === 'win') wins++;
+          }
+          settle(wins);
+          return;
         }
-        const dmg = Math.round(wins * 0.2 * tp.maxHp * 10000) / 10000;
-        if (dmg > 0) {
-          game.log('damage', `⚡ 五连鞭命中 ${wins}/5，造成 ${fmtNum(dmg)} 伤害（${wins*20}% 最大血量）`, undefined, true);
-          game.applyDamage({ target: t, amount: dmg, source: ctx.actor, dtype: 'physical', tag: 'whip' });
-        } else {
-          game.log('damage', `五连鞭 0/5 命中，未造成伤害`);
-        }
+        game.requestJudge({
+          kind: 'whip5', owner: actor, opponent: t, rounds: 5, label: '闪电五连鞭',
+          resolve: (wins) => settle(wins),
+        });
       },
     },
   ],

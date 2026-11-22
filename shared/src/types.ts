@@ -18,10 +18,11 @@ export type PlayerType = 'human' | 'ai' | 'local';
  * - `rps1`：初回合判定（全员隐藏出拳）
  * - `rps2`：二次判定 / 行动排序（**资格者亲自出拳**，多子轮递归；领域不参与）
  * - `act`：行动阶段（行动队列依次行动）
+ * - `judge`：技能内判定（马保国太极 / 五连鞭 / 不讲武德等）：**双方亲自出拳**，对局暂停等待
  * - `roundEnd`：回合末结算（延迟事件）
  * - `over`：终局
  */
-export type GamePhase = 'rps1' | 'rps2' | 'act' | 'roundEnd' | 'over';
+export type GamePhase = 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over';
 
 export interface CharRuntimeState {
   [key: string]: unknown;
@@ -47,6 +48,55 @@ export interface PlayerState {
   char: CharRuntimeState;
 }
 
+/** 技能内判定（马保国系能力）的类别 */
+export type SkillJudgeKind = 'taiji' | 'whip5' | 'bujiangwude';
+
+/** 一次技能内判定的请求（由角色钩子发起，引擎负责暂停对局收拳与逐局结算） */
+export interface SkillJudgeOptions {
+  kind: SkillJudgeKind;
+  /** 判定发起者（「己方」：太极/五连鞭/不讲武德都是马保国） */
+  owner: PlayerId;
+  /** 对手（伤害来源 / 五连鞭目标 / 击杀者） */
+  opponent: PlayerId;
+  /** 需要判定的局数：太极 1 局；五连鞭、不讲武德 5 局 */
+  rounds: number;
+  /** 日志与界面标题，如「太极判定」「五连鞭第 3 鞭」 */
+  label: string;
+  /** 全部局数结算后的回调（wins = 己方获胜局数） */
+  resolve: (wins: number, rounds: number) => void;
+}
+
+/** 进行中的判定（快照下发，供客户端渲染出拳面板） */
+export interface SkillJudgeView {
+  kind: SkillJudgeKind;
+  label: string;
+  owner: PlayerId;
+  opponent: PlayerId;
+  /** 当前第几局（1-based） */
+  round: number;
+  rounds: number;
+  /** 己方已胜局数 */
+  wins: number;
+  /** 本局已提交出拳的玩家（不含拳种） */
+  submittedIds: PlayerId[];
+  /** 本局还在等待出拳的玩家 */
+  waitingIds: PlayerId[];
+  /** 最近一局已揭示的结果（提交阶段之外展示） */
+  last: { round: number; ownerThrow: Throw; opponentThrow: Throw; result: 'win' | 'lose' | 'tie' } | null;
+}
+
+/** 技能内判定的一局记录（日志/展示用） */
+export interface SkillJudgeRoundRecord {
+  kind: SkillJudgeKind;
+  label: string;
+  round: number;
+  owner: PlayerId;
+  opponent: PlayerId;
+  ownerThrow: Throw;
+  opponentThrow: Throw;
+  result: 'win' | 'lose' | 'tie';
+}
+
 export interface DamageRequest {
   target: PlayerId;
   amount: number;
@@ -68,6 +118,8 @@ export interface DamageRequest {
   reflected?: boolean;
   /** 已被转移（大贱客吸引） */
   transferred?: boolean;
+  /** 已完成技能判定（太极）：补结算时不再重复触发判定 */
+  judgeResolved?: boolean;
   /** 伤害标签（ivan/insult/whip/berserk/selfdestruct...） */
   tag?: string;
   /** 原始效果附加（转移伤害时不随转移） */
@@ -93,6 +145,8 @@ export interface AppliedDamage {
   missed: boolean;
   reflected: boolean;
   transferred: boolean;
+  /** 结算被挂起（等待玩家出拳判定，如太极）：此刻尚未扣血，判定结束后再补结算 */
+  deferred?: boolean;
 }
 
 export type LogType =
@@ -372,8 +426,13 @@ export interface RuleConfig {
   defaultAttack: number;
   /** 大屁孩暴走精神攻击伤害（资料未给数值，可配置） */
   berserkDamage: number;
-  /** 技能内判定（五连鞭/不讲武德/太极等）出拳方式：serverRoll */
-  skillJudgeMode: 'serverRoll';
+  /**
+   * 技能内判定（马保国太极 / 闪电五连鞭 / 不讲武德等）的出拳方式：
+   * - `player`（默认，线上对局）：**双方玩家亲自出拳**，对局暂停进入 `judge` 阶段，
+   *   全部提交后逐局结算；AI 由服务端即刻代出，房间内 ≥2 名真人时按出拳超时代掷；
+   * - `serverRoll`：服务端种子代掷（保留给自动化用例 / 机制测试场等无人交互场景）。
+   */
+  skillJudgeMode: 'player' | 'serverRoll';
 }
 
 export const DEFAULT_RULES: RuleConfig = {
@@ -384,7 +443,7 @@ export const DEFAULT_RULES: RuleConfig = {
   defaultMaxHp: 3,
   defaultAttack: 1,
   berserkDamage: 1,
-  skillJudgeMode: 'serverRoll',
+  skillJudgeMode: 'player',
 };
 
 export function fmtNum(n: number): string {

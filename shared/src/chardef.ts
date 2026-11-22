@@ -39,6 +39,17 @@ export interface GameLike {
   rollJudge(a: PlayerId, b: PlayerId, label: string): 'win' | 'lose' | 'tie';
   /** 服务端种子代掷：a 与 b 各掷一拳比较 */
   rollJudgeThrows(a: PlayerId, b: PlayerId): { a: Throw; b: Throw; result: 'win' | 'lose' | 'tie' };
+  /**
+   * 发起一次「玩家亲自出拳」的技能内判定（player 模式）。
+   * 引擎会暂停对局进入 `judge` 阶段，双方逐局提交、AI 即刻代出；
+   * 全部局数结束后回调 `resolve(wins, rounds)`（wins 为己方获胜局数）。
+   */
+  requestJudge(opts: import('./types.js').SkillJudgeOptions): void;
+  /**
+   * 发起判定并**挂起当前这次伤害**（太极用）：判定结束前不扣血。
+   * `resolve` 里请自行决定是否改写目标（反弹）并调用 `applyDamage(req)` 完成结算。
+   */
+  deferDamageJudge(req: DamageRequest, opts: import('./types.js').SkillJudgeOptions): void;
   addDeferred(ev: Omit<import('./types.js').DeferredEvent, 'id'>): void;
   /** 生成新的事件组标识（AOE/多段演出分组用；同一次行动的全部伤害共享同一组） */
   nextGroupId(): string;

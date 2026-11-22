@@ -117,7 +117,7 @@ function reducedMotionPreferred(): boolean {
 export function useBattlePresentation(
   logs: LogLike[],
   gameNo?: number,
-  gamePhase?: 'rps1' | 'rps2' | 'act' | 'roundEnd' | 'over',
+  gamePhase?: 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over',
 ): BattlePresentation {
   const [pres, setPres] = useState<PresentationState>(EMPTY_PRESENTATION);
   const [queueState, setQueueState] = useState<QueueState>({ playing: false, depth: 0, mode: 'normal', speed: 1 });

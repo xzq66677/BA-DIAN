@@ -119,8 +119,8 @@ export class Room {
       turnTimeoutMs: 45000,
       submitTimeoutMs: 30000,
       ...config,
-      // 线上对局默认「二次判定由资格者亲自出拳」；显式传 serverRoll 时保留（自动化用例 / 回放复现）
-      rules: { secondJudgeMode: 'player', ...(config?.rules ?? {}) },
+      // 线上对局默认「二次判定 / 技能判定都由玩家亲自出拳」；显式传 serverRoll 时保留（自动化用例）
+      rules: { secondJudgeMode: 'player', skillJudgeMode: 'player', ...(config?.rules ?? {}) },
     };
     if (config?.aiDifficulty && AI_DIFFICULTIES.includes(config.aiDifficulty)) {
       this.aiDifficulty = config.aiDifficulty;
@@ -211,7 +211,9 @@ export class Room {
   submitThrow(playerId: PlayerId, t: Throw): { ok: boolean; error?: string } {
     if (!this.game) return { ok: false, error: '游戏未开始' };
     const g = this.game;
-    const r = g.phase === 'rps2' ? g.submitOrderThrow(playerId, t) : g.submitThrow(playerId, t);
+    const r = g.phase === 'rps2' ? g.submitOrderThrow(playerId, t)
+      : g.phase === 'judge' ? g.submitJudgeThrow(playerId, t)
+        : g.submitThrow(playerId, t);
     if (!r.ok) return r;
     this.disarmSubmitTimeout();
     this.afterGameMutation();
@@ -241,7 +243,7 @@ export class Room {
       this.onGameOver(this);
       return;
     }
-    if (this.game.phase === 'rps1' || this.game.phase === 'rps2') this.armSubmitTimeout();
+    if (this.game.phase === 'rps1' || this.game.phase === 'rps2' || this.game.phase === 'judge') this.armSubmitTimeout();
     if (this.game.phase === 'act') this.armActTimeout();
     this.onBroadcast(this);
   }
@@ -306,6 +308,18 @@ export class Room {
         }
         continue;
       }
+      if (g.phase === 'judge') {
+        // 技能内判定（太极/五连鞭/不讲武德）：只补 AI 那一份，绝不替真人出拳
+        const view = g.skillJudgeView();
+        if (!view) break;
+        const pending = view.waitingIds.filter((pid) => this.seatOf(pid)?.type === 'ai');
+        if (pending.length === 0) break;
+        for (const pid of pending) {
+          g.submitJudgeThrow(pid, aiThrow(g, pid, this.aiDifficulty));
+          this.captureFrame();
+        }
+        continue;
+      }
       if (g.phase === 'act') {
         const cur = g.currentActor();
         if (!cur) break;
@@ -342,11 +356,13 @@ export class Room {
           ? this.seats.some((s) => s.type === 'ai' && g.players[s.playerId]?.alive && !g.submittedIds.includes(s.playerId))
           : g.phase === 'rps2'
             ? g.currentOrderGroup().some((pid) => this.seatOf(pid)?.type === 'ai' && !g.orderSubmittedIds.includes(pid))
-            : false;
+            : g.phase === 'judge'
+              ? (g.skillJudgeView()?.waitingIds ?? []).some((pid) => this.seatOf(pid)?.type === 'ai')
+              : false;
         const cur = g.currentActor();
         const aiTurn = g.phase === 'act' && !!cur && this.seatOf(cur)?.type === 'ai';
         // 现场签名：同一现场连续 3 次驱动都推不动就不再重试，避免刷广播
-        const sig = `${g.phase}|${g.roundNo}|${g.subRound}|${g.submittedIds.length}|${g.orderSubmittedIds.length}|${g.actIndex}|${g.queue.length}`;
+        const sig = `${g.phase}|${g.roundNo}|${g.subRound}|${g.submittedIds.length}|${g.orderSubmittedIds.length}|${g.skillJudgeView()?.submittedIds.length ?? 0}|${g.actIndex}|${g.queue.length}`;
         if (!pendingAIThrow && !aiTurn) {
           this.aiWatchdogSig = sig;
           this.aiWatchdogTries = 0;
@@ -397,6 +413,9 @@ export class Room {
         this.afterGameMutation();
       } else if (g.phase === 'rps2') {
         g.forceFillOrderThrows();
+        this.afterGameMutation();
+      } else if (g.phase === 'judge') {
+        g.forceFillJudgeThrows();
         this.afterGameMutation();
       }
     }, this.config.submitTimeoutMs);

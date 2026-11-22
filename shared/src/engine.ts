@@ -12,17 +12,33 @@ import {
   type LogType, type DeferredEvent, type JudgeRoundRecord, type ActionRequest,
   type ActionResult, type GamePlayerConfig, type RuleConfig, type CharRuntimeState,
   type RevealInfo, type PlayerStats, emptyStats,
+  type SkillJudgeOptions, type SkillJudgeView, type SkillJudgeRoundRecord,
   type BattleFxKind, type AttackDeclEventData, type DamageEventData,
   type HealEventData, type MoveEventData, type EliminateEventData, type ReviveEventData,
   type ActionEventData,
   DEFAULT_RULES, fmtNum,
 } from './types.js';
 import { RNG, randomThrow } from './rng.js';
-import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows } from './judge.js';
+import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats } from './judge.js';
 import type { CharDef, GameLike, CharActionContext } from './chardef.js';
 
-export interface GameConfig {
-  players: GamePlayerConfig[];
+/** 引擎内部的「进行中判定」状态（带逐局进度） */
+interface ActiveJudge extends SkillJudgeOptions {
+  /** 当前第几局（1-based） */
+  round: number;
+  /** 己方已胜局数 */
+  wins: number;
+  /** 本局已提交的出拳（结算前不外泄） */
+  pending: Partial<Record<PlayerId, Throw>>;
+  /** 本局已提交的玩家 */
+  submitted: PlayerId[];
+  /** 最近一局结果（供快照展示） */
+  last: SkillJudgeView['last'];
+  /** 全部局次的判定记录 */
+  records: SkillJudgeRoundRecord[];
+}
+
+export interface GameConfig {  players: GamePlayerConfig[];
   seed?: number;
   rules?: Partial<RuleConfig>;
   /** 角色注册表（id → CharDef） */
@@ -67,6 +83,17 @@ export class Game implements GameLike {
   orderSubmittedIds: PlayerId[] = [];
   /** 二次判定子轮计数（每回合重置，写入 JudgeRoundRecord.sub） */
   orderSub = 0;
+  // ─── 技能内判定（player 模式：马保国太极 / 五连鞭 / 不讲武德） ───
+  /** 待处理的技能判定队列（按触发顺序结算） */
+  private judgeQueue: SkillJudgeOptions[] = [];
+  /** 正在进行的判定（含逐局进度） */
+  private activeJudge: ActiveJudge | null = null;
+  /** 判定结束后从哪里继续（行动后 / 回合末） */
+  private judgeResume: 'afterAction' | 'endRound' | null = null;
+  /** 被判定挂起的伤害请求（太极：判定结束前不结算） */
+  private deferredDamage = new WeakSet<DamageRequest>();
+  /** 判定计数（仅用于日志/标识） */
+  private judgeSeq = 0;
   histories: Record<PlayerId, JudgeStep[]> = {};
   /** 已结算出拳的历史记录（跨回合，供硬核 AI 反制；只记录已揭示的拳种） */
   throwHistory: Record<PlayerId, Throw[]> = {};
@@ -635,6 +662,154 @@ export class Game implements GameLike {
     this.advanceQueue(true);
   }
 
+  // ─── 技能内判定：双方亲自出拳（马保国太极 / 五连鞭 / 不讲武德） ───
+  //
+  // 设计：角色钩子只负责「发起判定」，引擎负责暂停对局收拳、逐局结算、结束后再回调结算效果。
+  // 太极是反应型（在别人的行动里触发），所以它的伤害会被挂起（deferredDamage），
+  // 等判定结束再补结算——这样不需要把伤害管线改成异步。
+
+  /** 发起一次技能内判定（player 模式）：引擎在安全点暂停对局收拳 */
+  requestJudge(opts: SkillJudgeOptions): void {
+    this.judgeQueue.push(opts);
+  }
+
+  /** 发起判定并挂起这次伤害（太极）：判定结束前不扣血 */
+  deferDamageJudge(req: DamageRequest, opts: SkillJudgeOptions): void {
+    this.deferredDamage.add(req);
+    this.judgeQueue.push(opts);
+  }
+
+  /** 判定参与者（己方 + 对手，去重、只保留存在的玩家） */
+  private judgeParticipants(j: ActiveJudge): PlayerId[] {
+    const out: PlayerId[] = [];
+    for (const pid of [j.owner, j.opponent]) {
+      if (pid && this.players[pid] && !out.includes(pid)) out.push(pid);
+    }
+    return out;
+  }
+
+  private judgeWaiters(j: ActiveJudge): PlayerId[] {
+    return this.judgeParticipants(j).filter((pid) => !j.submitted.includes(pid));
+  }
+
+  /** 有排队判定时进入 judge 阶段；返回是否已进入 */
+  private enterJudgeIfPending(resume: 'afterAction' | 'endRound'): boolean {
+    if (this.judgeQueue.length === 0) return false;
+    this.judgeResume = resume;
+    return this.startNextJudge();
+  }
+
+  private startNextJudge(): boolean {
+    if (this.activeJudge) return true;
+    const opts = this.judgeQueue.shift();
+    if (!opts) return false;
+    const j: ActiveJudge = { ...opts, round: 1, wins: 0, pending: {}, submitted: [], last: null, records: [] };
+    this.activeJudge = j;
+    this.phase = 'judge';
+    this.judgeSeq++;
+    const names = this.judgeParticipants(j).map((pid) => this.players[pid].name).join('、');
+    this.log('phase', `⚡ ${j.label}（第 1/${j.rounds} 局）：等待 ${names} 出拳`, undefined, true);
+    return true;
+  }
+
+  /** 判定出拳（隐藏提交，与 rps1 同语义） */
+  submitJudgeThrow(pid: PlayerId, t: Throw): ActionResult {
+    if (this.phase !== 'judge' || !this.activeJudge) return { ok: false, error: '当前不是技能判定阶段' };
+    const j = this.activeJudge;
+    if (!this.judgeParticipants(j).includes(pid)) return { ok: false, error: '你不在本次判定的出拳名单内' };
+    if (j.submitted.includes(pid)) return { ok: false, error: '本局已出拳，不能重复提交' };
+    if (!['rock', 'scissors', 'paper'].includes(t)) return { ok: false, error: '非法出拳' };
+    j.pending[pid] = t;
+    j.submitted.push(pid);
+    if (this.judgeWaiters(j).length === 0) this.resolveJudgeRound();
+    return { ok: true };
+  }
+
+  /** 超时兜底：为该局未出拳者代掷（服务端调用，不泄露给客户端） */
+  forceFillJudgeThrows(): void {
+    if (this.phase !== 'judge' || !this.activeJudge) return;
+    for (const pid of this.judgeWaiters(this.activeJudge)) {
+      if (this.phase !== 'judge' || !this.activeJudge) return;
+      const name = this.players[pid].name;
+      this.submitJudgeThrow(pid, randomThrow(this.rng));
+      if (!this.activeJudge) return; // 已结算完
+      this.log('info', `${name} 超时，系统代掷判定出拳`);
+    }
+  }
+
+  /** 结算当前一局；全部局数结束后回调角色并继续对局 */
+  private resolveJudgeRound(): void {
+    const j = this.activeJudge;
+    if (!j) return;
+    const ot = j.pending[j.owner];
+    const pt = j.pending[j.opponent];
+    const result: 'win' | 'lose' | 'tie' = !ot || !pt ? 'tie' : beats(ot, pt) ? 'win' : beats(pt, ot) ? 'lose' : 'tie';
+    if (result === 'win') j.wins++;
+    j.last = { round: j.round, ownerThrow: ot as Throw, opponentThrow: pt as Throw, result };
+    j.records.push({
+      kind: j.kind, label: j.label, round: j.round, owner: j.owner, opponent: j.opponent,
+      ownerThrow: ot as Throw, opponentThrow: pt as Throw, result,
+    });
+    const on = this.players[j.owner].name;
+    const pn = this.players[j.opponent]?.name ?? '?';
+    const verdict = result === 'win' ? `${on} 胜` : result === 'lose' ? `${pn} 胜` : '平局';
+    this.log('judge', `⚡ ${j.label}（第 ${j.round}/${j.rounds} 局）：${on}[${this.throwName(ot as Throw)}] vs ${pn}[${this.throwName(pt as Throw)}] → ${verdict}`,
+      { kind: j.kind, round: j.round, rounds: j.rounds, owner: j.owner, opponent: j.opponent, ownerThrow: ot, opponentThrow: pt, result }, true);
+    j.pending = {};
+    j.submitted = [];
+
+    if (j.round < j.rounds) {
+      j.round++;
+      const names = this.judgeParticipants(j).map((pid) => this.players[pid].name).join('、');
+      this.log('phase', `⚡ ${j.label}（第 ${j.round}/${j.rounds} 局）：等待 ${names} 出拳`, undefined, true);
+      return;
+    }
+
+    // 全部局数结束 → 回调角色结算（wins 为己方胜局数）
+    const wins = j.wins;
+    const rounds = j.rounds;
+    this.activeJudge = null;
+    try {
+      j.resolve(wins, rounds);
+    } catch (e) {
+      this.log('error', `判定结算异常：${(e as Error)?.message ?? String(e)}`);
+    }
+    if (this.phase === 'over') return;
+    // 结算可能又触发新的判定（例：五连鞭打在马保国身上 → 太极）
+    if (this.startNextJudge()) return;
+    this.resumeAfterJudges();
+  }
+
+  /** 判定全部结束后继续对局 */
+  private resumeAfterJudges(): void {
+    const resume = this.judgeResume;
+    this.judgeResume = null;
+    if (this.phase === 'over') return;
+    if (resume === 'endRound') {
+      this.phase = 'roundEnd';
+      this.finishEndRound();
+      return;
+    }
+    // afterAction（默认）：本回合行动已消耗，推进队列
+    this.phase = 'act';
+    this.actIndex++;
+    this.advanceQueue();
+  }
+
+  /** 当前判定视图（快照下发；非判定阶段为 null） */
+  skillJudgeView(): SkillJudgeView | null {
+    const j = this.activeJudge;
+    if (!j || this.phase !== 'judge') return null;
+    const parts = this.judgeParticipants(j);
+    return {
+      kind: j.kind, label: j.label, owner: j.owner, opponent: j.opponent,
+      round: j.round, rounds: j.rounds, wins: j.wins,
+      submittedIds: [...j.submitted],
+      waitingIds: parts.filter((pid) => !j.submitted.includes(pid)),
+      last: j.last ? { ...j.last } : null,
+    };
+  }
+
   /** 推进行动队列（跳过死亡者） */
   private advanceQueue(initial = false): void {
     if (this.phase !== 'act') return;
@@ -694,6 +869,8 @@ export class Game implements GameLike {
     this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, actionData as unknown as Record<string, unknown>, true);
     this.roundSummary.push(`${p.name} ${this.actionLabel(req)}`);
     if ((this.phase as GamePhase) === 'over') return { ok: true };
+    // 技能内判定（马保国五连鞭等）：先暂停收拳，等判定结算完再消耗行动/推进队列
+    if (this.enterJudgeIfPending('afterAction')) return { ok: true };
     this.actIndex++;
     this.advanceQueue();
     return { ok: true };
@@ -941,6 +1118,15 @@ export class Game implements GameLike {
         return applied;
       }
     }
+    // 判定挂起（太极）：本次伤害暂不结算，等双方出拳后由角色回调补结算
+    if (this.deferredDamage.has(req)) {
+      this.deferredDamage.delete(req);
+      applied.deferred = true;
+      applied.finalTarget = req.target;
+      this.log('state', `${this.players[req.target]?.name ?? req.target} 的伤害结算挂起，等待判定出拳`,
+        { pendingJudge: true, target: req.target, source: req.source ?? null }, true);
+      return applied;
+    }
     applied.reflected = !!req.reflected;
     applied.finalTarget = req.target;
 
@@ -1042,6 +1228,9 @@ export class Game implements GameLike {
     // 因此 endRound 末尾的最终 checkWin 到达此处时两项条件必为 false，最终判定正常执行。
     if (this.settlingDeferred || this.hasArmedIvan()) return false;
     const alive = this.aliveIds();
+    // 待判定的「不讲武德」可能带走最后一名幸存者（如击杀马保国者）：先让判定结算完再定胜负，
+    // 否则会先判胜、判定被 phase==='over' 短路（守旧行为：双方同时死亡 → 平局）。
+    if (alive.length === 1 && this.hasPendingBujiangwude(alive[0])) return false;
     if (alive.length === 1) {
       this.phase = 'over';
       this.winner = alive[0];
@@ -1058,6 +1247,12 @@ export class Game implements GameLike {
       return true;
     }
     return false;
+  }
+
+  /** 是否存在待结算的「不讲武德」判定（对手为 survivor） */
+  private hasPendingBujiangwude(survivor: PlayerId): boolean {
+    const hit = (j?: SkillJudgeOptions | null) => !!j && j.kind === 'bujiangwude' && j.opponent === survivor;
+    return this.judgeQueue.some((j) => hit(j)) || hit(this.activeJudge);
   }
 
   private cancelDeferredOnGameOver(): void {
@@ -1126,6 +1321,14 @@ export class Game implements GameLike {
     }
     this.settlingDeferred = false;
 
+    // 回合末触发的技能判定（例：大伊万炸死马保国 → 不讲武德）：先暂停收拳，结算完再收尾
+    if (this.enterJudgeIfPending('endRound')) return;
+    this.finishEndRound();
+  }
+
+  /** 回合末收尾：判定队列清空后继续（胜负判定 → 翻页 → 新回合） */
+  private finishEndRound(): void {
+    if (this.phase === 'over') return;
     if (this.checkWin()) return;
 
     this.roundNo++;
@@ -1146,6 +1349,10 @@ export class Game implements GameLike {
     this.orderPending = {};
     this.orderSubmittedIds = [];
     this.orderSub = 0;
+    // 技能判定（太极/五连鞭/不讲武德）状态：新回合不应残留
+    this.judgeQueue = [];
+    this.activeJudge = null;
+    this.judgeResume = null;
     this.judgeRecords = [];
     this.entrantOrder = this.aliveIds();
     this.roundSummary = [];
@@ -1254,6 +1461,8 @@ export class Game implements GameLike {
       reveal: this.revealInfo(),
       /** 本回合最近一次排序子轮的揭示（行动阶段用来解释行动顺序来源） */
       orderReveal: this.orderRevealInfo(),
+      /** 技能内判定（马保国系）：进行中的出拳面板数据；非判定阶段为 null */
+      judge: this.skillJudgeView(),
       /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
       orderGroup: this.phase === 'rps2' ? [...this.orderGroup] : [],
       orderSubmittedIds: [...this.orderSubmittedIds],
