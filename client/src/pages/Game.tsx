@@ -165,7 +165,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
     if (!me) return [];
     const cd = CHARACTERS[me.charId] || CHARACTERS['default'];
     const list: ActionOption[] = [
-      { key: 'attack', label: '攻击', desc: `近战攻击同房间目标（伤害 ${atkOf(me)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? ((cd.aimExemptWhenDomain && me.char.domain === true) ? '（领域生效免瞄准）' : '（远程需先瞄准）') : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', targetHint: 'attack' },
+      { key: 'attack', label: '攻击', desc: cd.attackDesc ?? `近战攻击同房间目标（伤害 ${atkOf(me)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? ((cd.aimExemptWhenDomain && me.char.domain === true) ? '（领域生效免瞄准）' : '（远程需先瞄准）') : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', targetHint: 'attack' },
       { key: 'move', label: '移动', desc: '移动到任意玩家的初始房间（移动后现身）', typeLabel: '基础', roomHint: true },
       { key: 'heal', label: '回复', desc: '回复至满血', typeLabel: '基础' },
       { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础' },
@@ -204,6 +204,10 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
         const at = cd.attackType || 'both';
         const meleeOk = at !== 'ranged' && at !== 'none';
         const rangedOk = !!cd.rangedCapable && at !== 'none';
+        // 无视距离（如大贱客辱骂）：任意房间的目标均可选，躲藏按 ignoreHide 口径放行
+        if (cd.attackAllRooms) {
+          return meleeOk ? others.filter((p) => !p.hidden || cd.ignoreHide) : [];
+        }
         const sameRoom = meleeOk ? others.filter((p) => p.room === me.room && (!p.hidden || cd.ignoreHide)) : [];
         const otherRoom = rangedOk ? others.filter((p) => p.room !== me.room && !p.hidden) : [];
         return [...sameRoom, ...otherRoom];

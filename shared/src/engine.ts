@@ -87,8 +87,9 @@ export class Game implements GameLike {
   roundSummary: string[] = [];
   private deferredSeq = 0;
   private deathChainDepth = 0;
-  /** 正在结算回合末延迟事件（endRound 循环期间置位）：期间淘汰不触发终局判定，结算完统一判 */
-  private settlingDeferred = false;
+  /** 正在结算回合末延迟事件（endRound 循环期间置位）：期间淘汰不触发终局判定，结算完统一判；
+   *  对角色钩子可见（GameLike）——大贱客阵亡后在窗口内继续吸收同批爆发伤害（作者确认 2026-11-21） */
+  settlingDeferred = false;
   /** 事件组计数（AOE/多段/延迟伤害的演出分组标识） */
   private eventGroupSeq = 0;
   /**
@@ -879,7 +880,9 @@ export class Game implements GameLike {
     };
 
     // 1. 转移阶段钩子（大贱客吸引全场伤害）
-    const transferHooks = this.aliveIds()
+    // 转移阶段钩子不按存活预过滤（如大贱客阵亡后在回合末结算窗口内继续吸收同批爆发伤害），
+    // 阵亡语义由钩子自行处理；防御阶段钩子仍仅分发存活角色
+    const transferHooks = this.playerIds
       .map((pid) => ({ pid, cd: this.charDef(pid) }))
       .filter(({ cd }) => cd.onBeforeDamage && cd.damageHookStage === 'transfer');
     for (const { pid, cd } of transferHooks) {
