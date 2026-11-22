@@ -1209,12 +1209,15 @@ export class BattleScene3D {
       const p = proj(world);
       // 同房间多人名牌水平错开（一字排开，避免互相遮挡；行动者之外的同房间成员适用）
       const columns = Math.min(3, Math.max(1, e.plateCount));
-      const spacing = w < 600 ? 79 : 110;
+      const spacing = w < 600 ? 90 : 106;
       const ranked = e.plateSlot % columns - (columns - 1) * 0.5;
       const row = Math.floor(e.plateSlot / columns);
       const worldX = (p.x * 0.5 + 0.5) * w;
       const worldY = (-p.y * 0.5 + 0.5) * h;
-      const x = Math.max(46, Math.min(w - 46, worldX + ranked * spacing * 0.83));
+      const room = this.rooms.get(e.curRoom);
+      const center = room && e.plateCount > 1 && !e.walk ? proj(room.pos).x : undefined;
+      const plateX = center === undefined ? worldX : (center * 0.5 + 0.5) * w;
+      const x = Math.max(46, Math.min(w - 46, plateX + ranked * spacing));
       const y = worldY - row * 41;
       e.plate.style.transform = `translate(-50%,-100%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px) scale(var(--dead-scale, 1))`;
       e.plate.style.display = p.z > 1 || p.z < -1 || (e.deadPose && !e.rig.root.visible && e.plateCount > 4) ? 'none' : '';
@@ -1235,7 +1238,7 @@ export class BattleScene3D {
       const x = (p.x * 0.5 + 0.5) * w;
       const y = (-p.y * 0.5 + 0.5) * h;
       const nearEdge = r.pos.z > this.lookCur.z + 2 && Math.abs(r.pos.x) < 3;
-      const labelX = nearEdge ? x + (w < 600 ? 54 : 76) : x;
+      const labelX = nearEdge ? x + (w < 600 ? 83 : 76) : x;
       const half = r.pendingIvan ? Math.min(114, w * 0.28) : 40;
       r.label.style.transform = `translate(-50%,-50%) translate(${Math.max(half, Math.min(w - half, labelX)).toFixed(1)}px,${y.toFixed(1)}px)`;
       r.label.style.display = p.z > 1 || p.z < -1 ? 'none' : '';

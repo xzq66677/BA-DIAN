@@ -17,6 +17,8 @@
 
 ## 后续待领
 
+下表中的 `battle3d/` 指 `client/src/battle3d/`。
+
 | 任务 | 负责人 / 状态 | 前置条件 | 可改范围及禁改范围 |
 | --- | --- | --- | --- |
 | MAP-101 石材与遗迹细化 | 后续 Agent · 待领 | MAP-003 | 可改 `battle3d/ruins.ts`、`battle3d/palette.ts`。锁定布局锚点、场景选取和事件文件 |
@@ -28,9 +30,9 @@
 
 ### 验收与回滚
 
-- **MAP-101** 提升石面辨识度和遗迹轮廓，角色轮廓优先。运行 `npm run build`、`node scripts/map-sample.mjs`，提交同构图前后截图和绘制次数；用独立主题美术补丁回滚。
-- **MAP-102** 在 390 × 844、844 × 390 和 1440 × 900 记录 6 人及 20 人同房的交互情况。运行 `npx vitest run tests/ui/battle3d.test.ts` 和 `npx tsx scripts/map-match.ts`，提交覆盖层截图及键盘选取录像或事件记录；回退覆盖层补丁。
-- **MAP-103** 在实测目标设备跑至少两局，比较标准与精简模式的帧耗时、上下文峰值和多局资源计数。运行 `node scripts/map-sample.mjs` 和 `npx tsx scripts/map-match.ts`，附 JSON、硬件和浏览器信息；回退采样或环境表现补丁。
-- **MAP-104** 在手机上完成拖拽和双指缩放，并验证弹层、行动坞与可选房间触控。运行 `npm run build` 和 `npx tsx scripts/map-match.ts`，附两种朝向截图和手势录屏；回退触控和 CSS 补丁。
-- **MAP-105** 增补实际未命中、同归于尽平局、恢复 WebGL 上下文及 2×/4× 播报的浏览器覆盖。运行 `npx vitest run tests/ui/map-playback.test.ts` 和 `npx tsx scripts/map-match.ts`，附权威日志和展示顺序；撤销新增用例。
-- **MAP-106** 在专用演示入口验证同一套 ID、泊位和锚点接口可加载另一主题。运行 `npm run build` 和地图单测，附双主题同机位截图、资源来源和许可；删除本任务的独立主题与演示入口。
+- **MAP-101** 提升石面辨识度和遗迹轮廓，角色轮廓优先。运行 `npm run build`、`node scripts/map-sample.mjs`，提交同构图前后截图和绘制次数。用独立主题美术补丁回滚。
+- **MAP-102** 在 390 × 844、844 × 390 和 1440 × 900 记录 6 人及 20 人同房的交互情况。运行 `npx vitest run tests/ui/battle3d.test.ts` 和 `npx tsx scripts/map-match.ts`，提交覆盖层截图及键盘选取录像或事件记录。回退覆盖层补丁。
+- **MAP-103** 在实测目标设备跑至少两局，比较标准与精简模式的帧耗时、上下文峰值和多局资源计数。运行 `node scripts/map-sample.mjs` 和 `npx tsx scripts/map-match.ts`，附 JSON、硬件和浏览器信息。回退采样或环境表现补丁。
+- **MAP-104** 在手机上完成拖拽和双指缩放，并验证弹层、行动坞与可选房间触控。运行 `npm run build` 和 `npx tsx scripts/map-match.ts`，附两种朝向截图和手势录屏。回退触控和 CSS 补丁。
+- **MAP-105** 增补实际未命中、同归于尽平局、恢复 WebGL 上下文及 2×/4× 播报的浏览器覆盖。运行 `npx vitest run tests/ui/map-playback.test.ts` 和 `npx tsx scripts/map-match.ts`，附权威日志和展示顺序。撤销新增用例。
+- **MAP-106** 在专用演示入口验证同一套 ID、泊位和锚点接口可加载另一主题。运行 `npm run build` 和地图单测，附双主题同机位截图、资源来源和许可。删除本任务的独立主题与演示入口。

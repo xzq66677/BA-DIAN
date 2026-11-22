@@ -1,0 +1,38 @@
+{
+  "tag": "baseline-main",
+  "stats": {
+    "fx": 0,
+    "tweens": 0,
+    "walks": 0,
+    "entities": 4,
+    "rooms": 4,
+    "bodiesHidden": 0,
+    "calls": 181,
+    "triangles": 14768,
+    "geometries": 140,
+    "textures": 1,
+    "canvas": [
+      1440,
+      851
+    ],
+    "gl": {
+      "created": 4,
+      "lost": 3
+    },
+    "drawCalls": 181,
+    "rate": 11.157946937762164,
+    "rates": [
+      11.157946937762164,
+      10.531532647753032,
+      11.214254563577942
+    ],
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "characters": [
+      "ivan-girl",
+      "wuliuqi",
+      "default",
+      "default"
+    ]
+  },
+  "errors": []
+}

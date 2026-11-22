@@ -693,3 +693,5 @@
   .s3d-mode .bt3d-reveal-wrap .rb-tag { font-size: 8px; line-height: 1.1; padding: 0; }
   .s3d-mode .bt3d-reveal-wrap .rb-verdict { max-height: 1.45em; }
 }
+
+.b3-roomlabel.is-pending { z-index: 5; }
