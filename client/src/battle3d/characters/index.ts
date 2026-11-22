@@ -2,6 +2,16 @@ import * as THREE from 'three';
 import { charVisual } from '../palette.js';
 import { Humanoid, buildProp } from '../rig.js';
 import { createGojoRig } from './gojo.js';
+import { createLaodayeRig } from './laodaye.js';
+import { createBagunRig } from './bagun.js';
+import { createChuixiaoRig } from './chuixiao.js';
+import { createWuliuqiRig } from './wuliuqi.js';
+import { createMabaoguoRig } from './mabaoguo.js';
+import { createIvanGirlRig } from './ivan-girl.js';
+import { createHeroTodayRig } from './hero-today.js';
+import { createDajiankeRig } from './dajianke.js';
+import { createDapihuaiRig } from './dapihuai.js';
+import { createNobodyRig } from './nobody.js';
 
 /** The stage owns placement, timing and feedback. Rigs only pose their local joints. */
 export type CharacterRig = Pick<Humanoid,
@@ -13,7 +23,20 @@ export type CharacterRig = Pick<Humanoid,
 
 const models = new Map<string, { id: string; create: (scale: number) => CharacterRig }>([
   ['gojo', { id: 'gojo-v1', create: createGojoRig }],
+  ['laodaye', { id: 'laodaye-v1', create: createLaodayeRig }],
+  ['bagun', { id: 'bagun-v1', create: createBagunRig }],
+  ['chuixiao', { id: 'chuixiao-v1', create: createChuixiaoRig }],
+  ['wuliuqi', { id: 'wuliuqi-v1', create: createWuliuqiRig }],
+  ['mabaoguo', { id: 'mabaoguo-v1', create: createMabaoguoRig }],
+  ['ivan-girl', { id: 'ivan-girl-v1', create: createIvanGirlRig }],
+  ['hero-today', { id: 'hero-today-v1', create: createHeroTodayRig }],
+  ['dajianke', { id: 'dajianke-v1', create: createDajiankeRig }],
+  ['dapihuai', { id: 'dapihuai-v1', create: createDapihuaiRig }],
+  ['default', { id: 'nobody-v1', create: createNobodyRig }],
 ]);
+
+/** 已有专属 3D 视觉的角色（测试与文档按此清单收窄 legacy 断言） */
+export const DEDICATED_CHAR_IDS: readonly string[] = [...models.keys()];
 
 /** All geometries and materials in this subtree belong to this instance. */
 export function releaseMeshes(root: THREE.Object3D): void {
@@ -47,6 +70,10 @@ export function createCharacterAsset(charId: string) {
     rig = legacy;
   }
   let disposed = false;
+  if (model) {
+    // 专用 rig 可通过同名属性暴露场景要驱动的挂件（如拔棍的 stick）
+    stick = (rig as { stick?: THREE.Object3D | null }).stick ?? null;
+  }
   return { id: model?.id ?? 'humanoid', rig, stick, dispose() {
     if (disposed) return;
     disposed = true;
