@@ -126,6 +126,27 @@ npm run deploy
 
 角色原始数据来自附件《拔典1/2_角色速查表》（OCR 整理版），存疑处已在 `docs/GAME_RULES.md` 标注规则假设。完整原始数据见 `docs/角色速查表-原始数据.md`。
 
+## 角色 3D 视觉（全员专属）与新增角色指引
+
+全部 11 名角色都有专属程序化 3D 视觉（`<charId>-v1`，几何拼装原创、无外部模型资产）。逐角色规格/QA/取证帧：
+
+| 角色 | 记录 | 角色 | 记录 |
+|---|---|---|---|
+| 老大爷 | [docs/characters/laodaye.md](docs/characters/laodaye.md) | 卖大伊万的小女孩 | [docs/characters/ivan-girl.md](docs/characters/ivan-girl.md) |
+| 拔棍 | [docs/characters/bagun.md](docs/characters/bagun.md) | 今日勇者 | [docs/characters/hero-today.md](docs/characters/hero-today.md) |
+| 吹箫哥 | [docs/characters/chuixiao.md](docs/characters/chuixiao.md) | 大贱客 | [docs/characters/dajianke.md](docs/characters/dajianke.md) |
+| 伍六七 | [docs/characters/wuliuqi.md](docs/characters/wuliuqi.md) | 大屁孩 | [docs/characters/dapihuai.md](docs/characters/dapihuai.md) |
+| 马保国 | [docs/characters/mabaoguo.md](docs/characters/mabaoguo.md) | 无业游民 | [docs/characters/nobody.md](docs/characters/nobody.md) |
+| 五条悟 | 交接样例见 `plugins/character-pipeline/examples/first-character/`（已验收 V5.0-B） | | |
+
+**新增角色时不需要等 3D**：把角色加进 `shared/src/characters/` 即可正常入局——客户端自动回退 legacy Humanoid（调色板未收录时用默认灰蓝、无道具）。后续要 3D 化时三步接入（见 `client/src/battle3d/characters/index.ts` 的 `registerCharacterRig`）：
+
+1. `client/src/battle3d/palette.ts` → `CHAR_VISUALS` 加主色/辅色/道具/相对身高；
+2. `client/src/battle3d/characters/<charId>.ts` 写专属 rig（复用 `kit.ts` 骨架套件）；
+3. `characters/index.ts` 一行注册：`registerCharacterRig(charId, '<charId>-v1', createXxxRig)`。
+
+视觉验收用 `npx tsx scripts/char-shots.ts <charId>`（配合 `client/char-harness.html` 隔离渲染）出全姿态原帧。
+
 ## 目录结构
 
 ```
@@ -137,15 +158,18 @@ server/src/          Socket.IO 服务端（房间/隐藏提交/断线重连/AI/�
 client/src/          React 前端（首页/大厅/游戏页/回放播放器/机制测试场）
   battle/            结构化事件解析 + BattleEventQueue 演出队列 + 音效
   battle3d/          3D 战场（scene 场景/rig 人形/layout 布局数学/fx 特效/pres-adapter 演出适配）
+    characters/      角色专属 3D 视觉（kit 骨架套件 + 逐角色 rig + 注册工厂）
   proto/             3D 架构原型（浏览器内直跑真实引擎的 A/B/C 构图对比运行时）
 tests/               自动化测试（共享用例/socket集成/AI回归/战绩/互动/回放/UI组件/battle3d 布局与适配层）
 docs/                规则/架构/测试报告/已知问题/角色原始数据/截图取证
+  characters/        逐角色 3D 视觉规格与 QA 记录（10 份）
+  screenshots-characters/  角色视觉取证原帧（隔离渲染 + 真实对局）
 ```
 
 ## 测试
 
 ```bash
-npm test   # 300 用例：共享规则/角色/复杂交互 108 + 领域 20 + 战斗演出事件 14 + 演出队列 25 + 广播游标 4 + 退出/占用规则 7 + AI 回归与难度 15 + 联机集成 11 + 超时与 AI 兜底 6 + 隐藏出拳 4 + 战绩 4 + 互动 4 + 回放 3 + 多局日志 6 + 音效安全 3 + UI 组件 11 + 退出逃生口 1 + battle3d 布局/视觉元数据/适配层/GL 会话降级/诊断日志 27 + 终局延迟呈现 6 + 二次判定亲自出拳 12 + 交设备遮罩/错误边界 4 + 真实浏览器 E2E 5
+npm test   # 471 用例：共享规则/角色/复杂交互 108 + 领域 20 + 战斗演出事件 14 + 演出队列 25 + 广播游标 4 + 退出/占用规则 7 + AI 回归与难度 15 + 联机集成 11 + 超时与 AI 兜底 6 + 隐藏出拳 4 + 战绩 4 + 互动 4 + 回放 3 + 多局日志 6 + 音效安全 3 + UI 组件 11 + 退出逃生口 1 + battle3d 布局/视觉元数据/适配层/GL 会话降级/诊断日志 27 + 终局延迟呈现 6 + 二次判定亲自出拳 12 + 交设备遮罩/错误边界 4 + 真实浏览器 E2E 5 + 五条悟交接专项（资产/生命周期）17 + 角色专属 3D 资产 152（全员 rig 契约/姿态复位/实例隔离/无 3D 新角色兜底）
 ```
 
 详见 `docs/TEST_REPORT.md`。历史版本变更见 [CHANGELOG.md](CHANGELOG.md)。

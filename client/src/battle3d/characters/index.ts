@@ -21,22 +21,34 @@ export type CharacterRig = Pick<Humanoid,
   signalActor?(time: number): void;
 };
 
-const models = new Map<string, { id: string; create: (scale: number) => CharacterRig }>([
-  ['gojo', { id: 'gojo-v1', create: createGojoRig }],
-  ['laodaye', { id: 'laodaye-v1', create: createLaodayeRig }],
-  ['bagun', { id: 'bagun-v1', create: createBagunRig }],
-  ['chuixiao', { id: 'chuixiao-v1', create: createChuixiaoRig }],
-  ['wuliuqi', { id: 'wuliuqi-v1', create: createWuliuqiRig }],
-  ['mabaoguo', { id: 'mabaoguo-v1', create: createMabaoguoRig }],
-  ['ivan-girl', { id: 'ivan-girl-v1', create: createIvanGirlRig }],
-  ['hero-today', { id: 'hero-today-v1', create: createHeroTodayRig }],
-  ['dajianke', { id: 'dajianke-v1', create: createDajiankeRig }],
-  ['dapihuai', { id: 'dapihuai-v1', create: createDapihuaiRig }],
-  ['default', { id: 'nobody-v1', create: createNobodyRig }],
-]);
+const models = new Map<string, { id: string; create: (scale: number) => CharacterRig }>();
 
-/** 已有专属 3D 视觉的角色（测试与文档按此清单收窄 legacy 断言） */
-export const DEDICATED_CHAR_IDS: readonly string[] = [...models.keys()];
+/**
+ * 注册（或替换）一名角色的专属 3D 视觉——新角色接入 3D 的唯一接口。
+ * 未注册的角色（含未来新增到 shared/src/characters 的角色）自动回退 legacy Humanoid：
+ * 取 `charVisual(charId)` 的调色板与道具（未收录时用默认灰蓝），正常出现在对局中。
+ * 专用 rig 可通过返回对象上的 `stick` 属性暴露场景要驱动的挂件（见 bagun）。
+ */
+export function registerCharacterRig(charId: string, visualId: string, create: (scale: number) => CharacterRig): void {
+  models.set(charId, { id: visualId, create });
+}
+
+/** 当前已注册专属 3D 视觉的角色清单（随注册实时变化） */
+export function dedicatedCharIds(): readonly string[] {
+  return [...models.keys()];
+}
+
+registerCharacterRig('gojo', 'gojo-v1', createGojoRig);
+registerCharacterRig('laodaye', 'laodaye-v1', createLaodayeRig);
+registerCharacterRig('bagun', 'bagun-v1', createBagunRig);
+registerCharacterRig('chuixiao', 'chuixiao-v1', createChuixiaoRig);
+registerCharacterRig('wuliuqi', 'wuliuqi-v1', createWuliuqiRig);
+registerCharacterRig('mabaoguo', 'mabaoguo-v1', createMabaoguoRig);
+registerCharacterRig('ivan-girl', 'ivan-girl-v1', createIvanGirlRig);
+registerCharacterRig('hero-today', 'hero-today-v1', createHeroTodayRig);
+registerCharacterRig('dajianke', 'dajianke-v1', createDajiankeRig);
+registerCharacterRig('dapihuai', 'dapihuai-v1', createDapihuaiRig);
+registerCharacterRig('default', 'nobody-v1', createNobodyRig);
 
 /** All geometries and materials in this subtree belong to this instance. */
 export function releaseMeshes(root: THREE.Object3D): void {
