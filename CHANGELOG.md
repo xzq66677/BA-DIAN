@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-11-22 · 全员低模发型增强层（V6.0 适配）
+
+### 新增
+- **全员 11 名角色的低模发型增强层**（`client/src/battle3d/characters/hair-style.ts`）：在既有 rig 的 `head` / `headTop` 挂点上追加顶点色平面着色低模几何，补足束发、鬓角、后脑发量、短发发际线与刘海体积。三名样板先定锚点再推广全员：吹箫哥（束发髻 + 鬓角 + 后脑，绿袍/竹箫/抬箫保持）、拔棍（短发发际线 + 后脑轮廓，收棍态只看头部站姿可辨）、大伊万（刘海 + 两侧体积，脸与橙衣轮廓拉开，怀里炸弹保留）；其余按束发/短发/强发量/配件优先/大头比例推广。
+- 几何原语复用 `kit.ts` 的 `Surface`，与角色 rig 同源；沿用原发色、无新增贴图或外部模型资产，随材质一起淡入淡出与释放。造型标准见 [CHARACTER_HAIR_STYLE.md](docs/CHARACTER_HAIR_STYLE.md)。
+
+### 变更
+- 专用 rig 工厂路径（`characters/index.ts` 的 `createCharacterAsset`）统一挂接发型层，幂等；无 3D 兜底的 legacy Humanoid 挂点未命名，行为不变。
+- 新增整体显隐开关 `setCharacterHairStyle(rig, on)`，供新旧对照与回退。
+- `Surface` 增加只读 `isEmpty` 判据，避免生成零顶点空网格（老大爷/大贱客/五条悟头顶无新增件时跳过）。
+- 顺手修复取证 harness 的既有导入 bug：`char-harness.html` 引用的 `DEDICATED_CHAR_IDS` 原先未导出，现补只读常量快照。
+
+### 测试
+- `npm test` 全量 **520 用例 / 30 文件全绿**（V6.0 基线 504/29 + 发型专项 `tests/ui/hair-style.test.ts` 16/1：全员挂接非空几何、发际线/后脑件、材质复用、整体开关、姿态不破坏与脚底落地、实例几何隔离）。
+- 真实 WebGL 取证：三名样板全姿态原帧 108 张，正面/侧面/3-4 视角目视复核无破面穿模，拔棍收棍态与拔棍态均正确；关键帧归档 `docs/screenshots-hair-style/`。
+- `npx esbuild` 打包角色工厂通过；客户端 `vite build` 在本机受系统临时目录权限限制（环境问题，非代码错误），改用工作区内临时目录后编译通过。
+
+---
+
 ## 2026-11-22 · V6.0「悬浮遗迹」大版本（MAP 链落地 main）
 
 ### 版本摘要

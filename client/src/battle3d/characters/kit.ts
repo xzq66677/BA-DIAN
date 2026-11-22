@@ -25,6 +25,9 @@ export class Surface {
   private colors: number[] = [];
   private color = new THREE.Color();
 
+  /** 是否尚未写入任何三角形（用于跳过空网格，避免生成零顶点几何） */
+  get isEmpty(): boolean { return this.vertices.length === 0; }
+
   tri(a: Point, b: Point, c: Point, tint: number) {
     this.vertices.push(...a, ...b, ...c);
     const { r, g, b: blue } = this.color.setHex(tint);

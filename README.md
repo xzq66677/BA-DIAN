@@ -147,6 +147,14 @@ npm run deploy
 
 视觉验收用 `npx tsx scripts/char-shots.ts <charId>`（配合 `client/char-harness.html` 隔离渲染）出全姿态原帧。
 
+### 低模发型增强层
+
+全员 rig 在 `head` / `headTop` 挂点上统一叠加一层程序化低模发型几何（`client/src/battle3d/characters/hair-style.ts`），补足束发、鬓角、后脑发量、短发发际线与刘海体积，让正面/侧面/背面与战场俯视下都更容易辨认。脸、服装、道具、动作与脚底锁定一概不动，几何随头/头顶关节同步；沿用原发色与顶点色平面着色，无新增贴图或外部模型，随材质一起淡入淡出与释放。
+
+- 三名样板：吹箫哥（束发髻 + 鬓角 + 后脑，绿袍/竹箫/抬箫保持）、拔棍（短发发际线 + 后脑轮廓，收棍态只看头部站姿可辨）、大伊万（刘海 + 两侧体积，脸与橙衣轮廓拉开，怀里炸弹保留）；其余角色按束发/短发/强发量/配件优先/大头比例推广，详见 [造型标准](docs/CHARACTER_HAIR_STYLE.md)。
+- 工厂统一挂接（`characters/index.ts` 的 `createCharacterAsset`），幂等；无 3D 兜底的 legacy Humanoid 不受影响。
+- 需要新旧对照时可整体开关：`setCharacterHairStyle(rig, false)` 关闭、`true` 恢复。
+
 ## V6.0 · 地图（悬浮遗迹）/ MAP 任务进展
 
 V5 悬浮遗迹地图的任务分工与验收边界见 [MAP_TASKS.md](MAP_TASKS.md)、设计见 [MAP_DESIGN.md](docs/MAP_DESIGN.md)、架构见 [MAP_ARCHITECTURE.md](docs/MAP_ARCHITECTURE.md)、端到端验收见 [MAP_ACCEPTANCE.md](docs/MAP_ACCEPTANCE.md)。核心 Phase 0–5（MAP-000~005）已完成；后续独立任务截至本分支状态如下：
@@ -181,12 +189,14 @@ server/src/          Socket.IO 服务端（房间/隐藏提交/断线重连/AI/�
 client/src/          React 前端（首页/大厅/游戏页/回放播放器/机制测试场）
   battle/            结构化事件解析 + BattleEventQueue 演出队列 + 音效
   battle3d/          3D 战场（scene 场景/rig 人形/layout 布局数学/fx 特效/map-playback 演出投影/camera-director 取景）
-    characters/      角色专属 3D 视觉（kit 骨架套件 + 逐角色 rig + 注册工厂）
+    characters/      角色专属 3D 视觉（kit 骨架套件 + hair-style 发型增强层 + 逐角色 rig + 注册工厂）
   proto/             3D 架构原型（浏览器内直跑真实引擎的 A/B/C 构图对比运行时）
 tests/               自动化测试（共享用例/socket集成/AI回归/战绩/互动/回放/UI组件/battle3d 布局与适配层）
 docs/                规则/架构/测试报告/已知问题/角色原始数据/截图取证
   characters/        逐角色 3D 视觉规格与 QA 记录（10 份）
+  CHARACTER_HAIR_STYLE.md  低模发型增强标准（样板/推广/挂点/验收）
   screenshots-characters/  角色视觉取证原帧（隔离渲染 + 真实对局）
+  screenshots-hair-style/  三名样板发型增强取证（正/侧/3-4 视角 + 拔棍两态）
   MAP_TASKS.md / MAP_DESIGN.md / MAP_ARCHITECTURE.md / MAP_ACCEPTANCE.md
   screenshots-v5-map/  悬浮遗迹主任务取证
   screenshots-map101/ ~ screenshots-map105/  各后续 MAP 任务取证
