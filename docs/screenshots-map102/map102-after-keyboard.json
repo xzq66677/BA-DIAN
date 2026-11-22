@@ -1,0 +1,80 @@
+{
+  "keyboardLog": {
+    "1440x900": {
+      "roomLog": {
+        "label": "room-label-Enter",
+        "ok": true,
+        "tag": "R1",
+        "focus": true
+      },
+      "plateLog": {
+        "label": "plate-Enter",
+        "ok": true,
+        "tag": "P0",
+        "focus": true
+      },
+      "picks": [
+        {
+          "kind": "pickRoom",
+          "rid": "R1"
+        },
+        {
+          "kind": "pickPlayer",
+          "pid": "P0"
+        }
+      ],
+      "tabbable": 15
+    },
+    "390x844": {
+      "roomLog": {
+        "label": "room-label-Enter",
+        "ok": true,
+        "tag": "R1",
+        "focus": true
+      },
+      "plateLog": {
+        "label": "plate-Enter",
+        "ok": true,
+        "tag": "P0",
+        "focus": true
+      },
+      "picks": [
+        {
+          "kind": "pickRoom",
+          "rid": "R1"
+        },
+        {
+          "kind": "pickPlayer",
+          "pid": "P0"
+        }
+      ],
+      "tabbable": 15
+    },
+    "844x390": {
+      "roomLog": {
+        "label": "room-label-Enter",
+        "ok": true,
+        "tag": "R1",
+        "focus": true
+      },
+      "plateLog": {
+        "label": "plate-Enter",
+        "ok": true,
+        "tag": "P0",
+        "focus": true
+      },
+      "picks": [
+        {
+          "kind": "pickRoom",
+          "rid": "R1"
+        },
+        {
+          "kind": "pickPlayer",
+          "pid": "P0"
+        }
+      ],
+      "tabbable": 15
+    }
+  },
+  "errors": []
+}

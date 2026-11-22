@@ -5,7 +5,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect } from 'vitest';
-import { TABLE, roomPosition, roomSlot, defaultPose, orbitPose, stableMembers } from '../../client/src/battle3d/layout.js';
+import { TABLE, createRuinsMap, roomSlot, defaultPose, orbitPose, stableMembers } from '../../client/src/battle3d/layout.js';
 import { CHAR_VISUALS, charVisual, ROOM_VISUALS, roomVisual } from '../../client/src/battle3d/palette.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
 import { presToCommands, applyCommands, type SceneLike } from '../../client/src/battle3d/pres-adapter.js';
@@ -19,39 +19,32 @@ import { gllog } from '../../client/src/battle3d/gllog.js';
 // ── 布局 ─────────────────────────────────────────────────────
 
 describe('battle3d 布局数学', () => {
-  it('我的房间位于正前方，其余房间沿远端弧线（z<0）', () => {
-    const rooms = ['R1', 'R2', 'R3', 'R4'];
-    const mine = roomPosition('R1', 'R1', rooms);
-    expect(mine.z).toBeGreaterThan(0);
-    expect(mine.x).toBe(0);
-    for (const rid of ['R2', 'R3', 'R4']) {
-      const p = roomPosition(rid, 'R1', rooms);
-      expect(p.z).toBeLessThan(0);
-    }
+  it('房间锚点只取决于服务器房间 ID 集合', () => {
+    const ids = ['R10', 'R2', 'R1', 'R3'];
+    const first = createRuinsMap(ids);
+    const shuffled = createRuinsMap(['R3', 'R2', 'R1', 'R10', 'R2']);
+    expect(first).toEqual(shuffled);
+    expect([...first.rooms.keys()]).toEqual(['R1', 'R2', 'R3', 'R10']);
+    expect(first.rooms.get('R1')?.center).toEqual({ x: 0, z: 6.35 });
   });
 
-  it('弧线房间两两不重叠（4~10 间房）', () => {
-    for (let n = 4; n <= 10; n++) {
-      const rooms = Array.from({ length: n }, (_, i) => `R${i + 1}`);
-      const pts = rooms.slice(1).map((r) => roomPosition(r, 'R1', rooms));
-      for (let i = 0; i < pts.length; i++) {
-        for (let j = i + 1; j < pts.length; j++) {
-          const d = Math.hypot(pts[i].x - pts[j].x, pts[i].z - pts[j].z);
-          expect(d).toBeGreaterThan(TABLE.roomRadius * 1.3);
+  it('2 至 20 个房间的石台不相交', () => {
+    for (let n = 2; n <= 20; n++) {
+      const ids = Array.from({ length: n }, (_, i) => `R${i + 1}`);
+      const anchors = Array.from(createRuinsMap(ids).rooms.values());
+      for (const [i, a] of anchors.entries()) {
+        for (const b of anchors.slice(i + 1)) {
+          expect(Math.hypot(a.center.x - b.center.x, a.center.z - b.center.z)).toBeGreaterThan(a.radius + b.radius);
         }
       }
     }
   });
 
-  it('观战视角（myRoom=null）时全部房间走弧线且不重叠', () => {
-    const rooms = ['R1', 'R2', 'R3', 'R4'];
-    const pts = rooms.map((r) => roomPosition(r, null, rooms));
-    for (let i = 0; i < pts.length; i++) {
-      for (let j = i + 1; j < pts.length; j++) {
-        const d = Math.hypot(pts[i].x - pts[j].x, pts[i].z - pts[j].z);
-        expect(d).toBeGreaterThan(TABLE.roomRadius * 1.3);
-      }
-    }
+  it('20 人同房各有泊位', () => {
+    const map = createRuinsMap(Array.from({ length: 20 }, (_, i) => `zone-${i}`));
+    const spawns = map.rooms.get('zone-0')!.spawns;
+    expect(new Set(spawns.map(({ x, z }) => `${x},${z}`)).size).toBe(20);
+    expect(spawns.every(p => Math.hypot(p.x, p.z) < TABLE.roomRadius)).toBe(true);
   });
 
   it('泊位不越出石台', () => {

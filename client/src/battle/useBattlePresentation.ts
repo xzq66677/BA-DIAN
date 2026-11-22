@@ -9,7 +9,7 @@
  *  - StrictMode 兼容：effect 双调用（setup→cleanup→setup）不会让队列失效。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BattleEventQueue, type QueueState, type Speed } from './queue.js';
 import type { BattleEvent, LogLike } from './events.js';
 import { sfx, type SfxKind } from '../audio/sfx.js';
@@ -81,7 +81,12 @@ const IVAN_BOOM_MS = 1250;
 const DOMAIN_MS = 1100;
 const ANNOUNCE_MS = 1800;
 
+export type PresentationSignal = { event: BattleEvent; durationMs: number } | { reset: true };
+
 export interface BattlePresentationApi {
+  subscribe: (listener: (signal: PresentationSignal) => void) => () => void;
+  remaining: () => BattleEvent[];
+  busy: () => boolean;
   setSpeed: (s: Speed) => void;
   skipCurrent: () => void;
   skipAll: () => void;
@@ -98,7 +103,7 @@ export interface BattlePresentation {
 }
 
 /** 终局等待兜底上限（ms）：即使演出链异常未清空，也保证终局 UI 最终登场（不死锁） */
-export const FINALE_WAIT_MAX_MS = 6500;
+export const FINALE_WAIT_MAX_MS = 19000;
 /** 队列播完后的短暂驻留（ms）：让最后一击的伤害数字/血条落定再进入终局舞台 */
 const FINALE_GRACE_MS = 620;
 
@@ -118,11 +123,15 @@ export function useBattlePresentation(
   logs: LogLike[],
   gameNo?: number,
   gamePhase?: 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over',
+  resync?: { cursor: number },
 ): BattlePresentation {
   const [pres, setPres] = useState<PresentationState>(EMPTY_PRESENTATION);
   const [queueState, setQueueState] = useState<QueueState>({ playing: false, depth: 0, mode: 'normal', speed: 1 });
   const queueRef = useRef<BattleEventQueue | null>(null);
-  const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const listenersRef = useRef(new Set<(signal: PresentationSignal) => void>());
+  const presRef = useRef(EMPTY_PRESENTATION);
+  const resyncRef = useRef(resync);
   /** 首次收到日志时只推进游标不演出（重连补发/页面恢复不回放历史特效） */
   const bootstrappedRef = useRef(false);
   const gameNoRef = useRef<number | undefined>(undefined);
@@ -139,14 +148,14 @@ export function useBattlePresentation(
   queueStateRef.current = queueState;
 
   // 回调经由 ref 转发，保证队列持有的一直是最新闭包
-  const applyEventRef = useRef<(e: BattleEvent) => void>(() => {});
+  const applyEventRef = useRef<(e: BattleEvent, durationMs: number) => void>(() => {});
   const flushRef = useRef<() => void>(() => {});
 
   // 每个组件实例恰好一个队列（懒初始化；不用 useMemo 工厂 —— 其在并发渲染下可能被
   // 重复调用并丢弃结果，会让 effect 的 cleanup dispose 掉仍在使用的实例）
   if (!queueRef.current) {
     queueRef.current = new BattleEventQueue({
-      onEventStart: (e) => applyEventRef.current(e),
+      onEventStart: (e, durationMs) => applyEventRef.current(e, durationMs),
       onFlush: () => flushRef.current(),
       onState: (s) => { modeRef.current = s.mode; setQueueState(s); },
     });
@@ -173,146 +182,145 @@ export function useBattlePresentation(
   }
 
   function clearAllTimers(): void {
-    for (const t of timersRef.current) clearTimeout(t);
+    for (const t of timersRef.current.values()) clearTimeout(t);
     timersRef.current.clear();
   }
 
-  function scheduleExpiry(key: 'fx' | 'decls' | 'hits' | 'heals' | 'misses' | 'deaths' | 'revives' | 'zoneAlert' | 'moveBanner' | 'ivanThrow' | 'ivanBoom' | 'domainDecl' | 'announce', id: string, ms: number): void {
+  function publish(next: PresentationState): void {
+    presRef.current = next;
+    setPres(next);
+  }
+
+  function scheduleExpiry(key: keyof PresentationState, id: string, ms: number): void {
+    const singleton = key === 'zoneAlert' || key === 'moveBanner' || key === 'ivanThrow'
+      || key === 'ivanBoom' || key === 'domainDecl' || key === 'announce';
+    const clockKey = singleton ? key : `${key}:${id}`;
+    clearTimeout(timersRef.current.get(clockKey));
     const t = setTimeout(() => {
-      timersRef.current.delete(t);
-      setPres((prev) => {
-        if (key === 'zoneAlert') {
-          return prev.zoneAlert && id === 'zone' ? { ...prev, zoneAlert: null } : prev;
-        }
-        if (key === 'moveBanner') {
-          return prev.moveBanner && id === 'banner' ? { ...prev, moveBanner: null } : prev;
-        }
-        if (key === 'ivanThrow') {
-          return prev.ivanThrow && prev.ivanThrow.key === Number(id) ? { ...prev, ivanThrow: null } : prev;
-        }
-        if (key === 'ivanBoom') {
-          return prev.ivanBoom && prev.ivanBoom.key === Number(id) ? { ...prev, ivanBoom: null } : prev;
-        }
-        if (key === 'announce') {
-          return prev.announce && prev.announce.key === Number(id) ? { ...prev, announce: null } : prev;
-        }
-        const bucket = prev[key] as Record<string, unknown>;
-        if (!(id in bucket)) return prev;
-        const next = { ...bucket };
-        delete next[id];
-        return { ...prev, [key]: next };
-      });
+      timersRef.current.delete(clockKey);
+      const prev = presRef.current;
+      if (singleton) {
+        publish({ ...prev, [key]: null });
+      } else {
+        const bucket = { ...prev[key] };
+        delete bucket[id];
+        publish({ ...prev, [key]: bucket });
+      }
     }, ms);
-    timersRef.current.add(t);
+    timersRef.current.set(clockKey, t);
   }
 
   /** 事件 → 演出叠加状态（key=seq，幂等；同类新事件覆盖旧事件并重播动画） */
-  function applyEvent(e: BattleEvent): void {
+  function applyEvent(e: BattleEvent, durationMs: number): void {
     playSfx(e);
-    setPres((prev) => {
-      const next = { ...prev };
-      switch (e.kind) {
-        case 'action':
-        case 'attackDecl': {
-          const pid = e.pid ?? e.sourceId;
-          if (!pid) break;
-          next.fx = { ...prev.fx, [pid]: { kind: e.fx ?? (e.kind === 'attackDecl' ? 'attack' : 'skill'), key: e.seq, targetId: e.targetId } };
-          scheduleExpiry('fx', pid, e.kind === 'attackDecl' ? 420 : FX_MS);
-          // 喝牛奶：全局播报一次（嘲讽是全场事件，不只演在个人卡上）
-          if (e.fx === 'milk') {
-            next.announce = { key: e.seq, kind: 'milk', pid };
-            scheduleExpiry('announce', String(e.seq), ANNOUNCE_MS);
-          }
-          if (e.kind === 'attackDecl' && e.targetId) {
-            next.decls = { ...prev.decls, [pid]: { key: e.seq, targetId: e.targetId, amount: e.amount, room: e.room } };
-            scheduleExpiry('decls', pid, 520);
-          }
-          break;
+    const prev = presRef.current;
+    const next = { ...prev };
+    switch (e.kind) {
+      case 'action':
+      case 'attackDecl': {
+        const pid = e.pid ?? e.sourceId;
+        if (!pid) break;
+        next.fx = { ...prev.fx, [pid]: { kind: e.fx ?? (e.kind === 'attackDecl' ? 'attack' : 'skill'), key: e.seq, targetId: e.targetId } };
+        scheduleExpiry('fx', pid, e.kind === 'attackDecl' ? 420 : FX_MS);
+        // 喝牛奶：全局播报一次（嘲讽是全场事件，不只演在个人卡上）
+        if (e.fx === 'milk') {
+          next.announce = { key: e.seq, kind: 'milk', pid };
+          scheduleExpiry('announce', String(e.seq), ANNOUNCE_MS);
         }
-        case 'damage': {
-          const t = e.targetId!;
-          next.hits = { ...prev.hits, [t]: {
-            key: e.seq, amount: e.amount ?? 0, hpBefore: e.hpBefore, hpAfter: e.hpAfter,
-            lethal: e.lethal, dtype: e.dtype, tag: e.tag,
-            segment: e.segment, sourceId: e.sourceId,
-          } };
-          scheduleExpiry('hits', t, e.lethal ? HIT_MS + 400 : HIT_MS);
-          // AOE/延迟事件组：同组只在首个事件时触发房间告警（不逐目标重播）
-          if (e.groupId && e.room && prev.zoneAlert?.groupId !== e.groupId) {
-            next.zoneAlert = { key: e.seq, groupId: e.groupId, room: e.room, kind: e.tag === 'ivan' ? 'ivan' : 'aoe' };
-            scheduleExpiry('zoneAlert', 'zone', ZONE_MS);
-          }
-          break;
+        if (e.kind === 'attackDecl' && e.targetId) {
+          next.decls = { ...prev.decls, [pid]: { key: e.seq, targetId: e.targetId, amount: e.amount, room: e.room } };
+          scheduleExpiry('decls', pid, 520);
         }
-        case 'heal': {
-          const t = e.targetId!;
-          next.heals = { ...prev.heals, [t]: { key: e.seq, amount: e.amount, hpBefore: e.hpBefore, hpAfter: e.hpAfter } };
-          scheduleExpiry('heals', t, HEAL_MS);
-          break;
-        }
-        case 'miss': {
-          const t = e.targetId!;
-          next.misses = { ...prev.misses, [t]: { key: e.seq, sourceId: e.sourceId } };
-          scheduleExpiry('misses', t, MISS_MS);
-          break;
-        }
-        case 'move': {
-          const pid = e.pid!;
-          next.moveBanner = { key: e.seq, pid, from: e.fromRoom!, to: e.toRoom! };
-          scheduleExpiry('moveBanner', 'banner', BANNER_MS);
-          break;
-        }
-        case 'ivanThrow': {
-          const pid = e.pid!;
-          const room = e.room;
-          if (!room) break;
-          next.ivanThrow = { key: e.seq, pid, room };
-          scheduleExpiry('ivanThrow', String(e.seq), IVAN_THROW_MS);
-          break;
-        }
-        case 'ivanBoom': {
-          const room = e.room;
-          if (!room) break;
-          next.ivanBoom = { key: e.seq, room };
-          scheduleExpiry('ivanBoom', String(e.seq), IVAN_BOOM_MS);
-          break;
-        }
-        case 'eliminate': {
-          const t = e.targetId!;
-          next.deaths = { ...prev.deaths, [t]: { key: e.seq, cause: e.cause } };
-          scheduleExpiry('deaths', t, DEATH_MS);
-          break;
-        }
-        case 'revive': {
-          const t = e.targetId!;
-          next.revives = { ...prev.revives, [t]: { key: e.seq, livesLeft: e.livesLeft ?? 1 } };
-          scheduleExpiry('revives', t, REVIVE_MS);
-          break;
-        }
-        case 'domain': {
-          const t = e.targetId!;
-          next.domainDecl = { key: e.seq, pid: t };
-          scheduleExpiry('domainDecl', 'decl', DOMAIN_MS);
-          break;
-        }
-        case 'fortune': {
-          const t = e.targetId!;
-          next.announce = { key: e.seq, kind: 'fortune', pid: t, roll: e.roll };
-          scheduleExpiry('announce', String(e.seq), ANNOUNCE_MS + 600);
-          break;
-        }
-        case 'trigger':
-          // 触发：日志面板有完整信息，战场层不额外阻挡
-          break;
+        break;
       }
-      return next;
-    });
+      case 'damage': {
+        const t = e.targetId!;
+        next.hits = { ...prev.hits, [t]: {
+          key: e.seq, amount: e.amount ?? 0, hpBefore: e.hpBefore, hpAfter: e.hpAfter,
+          lethal: e.lethal, dtype: e.dtype, tag: e.tag,
+          segment: e.segment, sourceId: e.sourceId,
+        } };
+        scheduleExpiry('hits', t, e.lethal ? HIT_MS + 400 : HIT_MS);
+        break;
+      }
+      case 'area': {
+        const room = e.areaRooms?.[0];
+        if (room) {
+          next.zoneAlert = { key: e.seq, room, kind: 'aoe' };
+          scheduleExpiry('zoneAlert', 'zone', ZONE_MS);
+        }
+        break;
+      }
+      case 'heal': {
+        const t = e.targetId!;
+        next.heals = { ...prev.heals, [t]: { key: e.seq, amount: e.amount, hpBefore: e.hpBefore, hpAfter: e.hpAfter } };
+        scheduleExpiry('heals', t, HEAL_MS);
+        break;
+      }
+      case 'miss': {
+        const t = e.targetId!;
+        next.misses = { ...prev.misses, [t]: { key: e.seq, sourceId: e.sourceId } };
+        scheduleExpiry('misses', t, MISS_MS);
+        break;
+      }
+      case 'move': {
+        const pid = e.pid!;
+        next.moveBanner = { key: e.seq, pid, from: e.fromRoom!, to: e.toRoom! };
+        scheduleExpiry('moveBanner', 'banner', BANNER_MS);
+        break;
+      }
+      case 'ivanThrow': {
+        const pid = e.pid!;
+        const room = e.room;
+        if (!room) break;
+        next.ivanThrow = { key: e.seq, pid, room };
+        scheduleExpiry('ivanThrow', String(e.seq), IVAN_THROW_MS);
+        break;
+      }
+      case 'ivanBoom': {
+        const room = e.room;
+        if (!room) break;
+        next.ivanBoom = { key: e.seq, room };
+        scheduleExpiry('ivanBoom', String(e.seq), IVAN_BOOM_MS);
+        break;
+      }
+      case 'eliminate': {
+        const t = e.targetId!;
+        next.deaths = { ...prev.deaths, [t]: { key: e.seq, cause: e.cause } };
+        scheduleExpiry('deaths', t, DEATH_MS);
+        break;
+      }
+      case 'revive': {
+        const t = e.targetId!;
+        next.revives = { ...prev.revives, [t]: { key: e.seq, livesLeft: e.livesLeft ?? 1 } };
+        scheduleExpiry('revives', t, REVIVE_MS);
+        break;
+      }
+      case 'domain': {
+        const t = e.targetId!;
+        next.domainDecl = { key: e.seq, pid: t };
+        scheduleExpiry('domainDecl', 'decl', DOMAIN_MS);
+        break;
+      }
+      case 'fortune': {
+        const t = e.targetId!;
+        next.announce = { key: e.seq, kind: 'fortune', pid: t, roll: e.roll };
+        scheduleExpiry('announce', String(e.seq), ANNOUNCE_MS + 600);
+        break;
+      }
+      case 'trigger':
+        // 触发：日志面板有完整信息，战场层不额外阻挡
+        break;
+    }
+    publish(next);
+    for (const listen of listenersRef.current) listen({ event: e, durationMs });
   }
 
   applyEventRef.current = applyEvent;
   flushRef.current = () => {
     clearAllTimers();
-    setPres({ ...EMPTY_PRESENTATION });
+    publish(EMPTY_PRESENTATION);
+    for (const listen of listenersRef.current) listen({ reset: true });
   };
 
   // 挂载/StrictMode 双调用兼容：每次 setup 先确保队列可用
@@ -322,6 +330,8 @@ export function useBattlePresentation(
     return () => {
       q.dispose();
       clearAllTimers();
+      if (finaleFallbackRef.current !== null) clearTimeout(finaleFallbackRef.current);
+      finaleFallbackRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -341,11 +351,9 @@ export function useBattlePresentation(
   }, [queue]);
 
   // 局号变化（重开新局）：清空队列与全部叠加层
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (gameNoRef.current !== undefined && gameNo !== undefined && gameNo !== gameNoRef.current) {
       queue.clear();
-      clearAllTimers();
-      setPres({ ...EMPTY_PRESENTATION });
       bootstrappedRef.current = false;
       // 终局等待一并复位（新对局不继承旧局等待状态）
       overSeenRef.current = false;
@@ -356,12 +364,37 @@ export function useBattlePresentation(
     if (gameNo !== undefined) gameNoRef.current = gameNo;
   }, [gameNo, queue]);
 
+  // Advance the cursor by sequence, including when App's capped log array stays the same length.
+  useLayoutEffect(() => {
+    if (resync !== resyncRef.current) {
+      resyncRef.current = resync;
+      if (resync) {
+        queue.skipAll();
+        queue.initFromLogs([{ seq: resync.cursor }]);
+        bootstrappedRef.current = true;
+        fallbackArmedRef.current = false;
+      }
+    }
+    if (!bootstrappedRef.current || document.hidden) {
+      queue.initFromLogs(logs);
+      bootstrappedRef.current = logs.length > 0;
+    } else {
+      queue.pushLogs(logs);
+    }
+  }, [logs, queue, resync, gameNo]);
+
+  useEffect(() => {
+    const syncHidden = () => { if (document.hidden) queue.skipAll(); };
+    document.addEventListener('visibilitychange', syncHidden);
+    return () => document.removeEventListener('visibilitychange', syncHidden);
+  }, [queue]);
+
   // ── 终局延迟呈现：规则立即结算（快照权威），终局 UI 等最后关键演出播完 ──
   // 统一协调器（依赖 [gamePhase, queueState]）：必须覆盖「over 快照与尾随日志同批到达」——
   // 该场景下 phase effect 先于日志入队运行（effect 顺序），仅靠 phase 变化判定会漏判。
   // 兜底：从 over 起最长 FINALE_WAIT_MAX_MS；skipFinaleWait/兜底放行后 fallbackArmedRef
   // 置位，防止「放行 → 队列仍有残段 → 重新锁定」的死循环。
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (gamePhase !== 'over') {
       if (overSeenRef.current) {
         overSeenRef.current = false;
@@ -372,44 +405,41 @@ export function useBattlePresentation(
       return;
     }
     overSeenRef.current = true;
-    const busy = queueStateRef.current.playing || queueStateRef.current.depth > 0;
+    const busy = queue.isBusy();
     if (busy && !fallbackArmedRef.current) {
       if (!finaleWaiting) setFinaleWaiting(true);
       if (finaleFallbackRef.current === null) {
         finaleFallbackRef.current = setTimeout(() => {
           fallbackArmedRef.current = true; // 兜底已用：本局不再重入等待（不死锁）
+          finaleFallbackRef.current = null;
+          queue.skipAll();
           setFinaleWaiting(false);
         }, FINALE_WAIT_MAX_MS);
       }
     }
-  }, [gamePhase, queueState, finaleWaiting]);
+  }, [gamePhase, queueState, finaleWaiting, queue]);
 
   // 等待中：队列播完 → 短驻留（最后一击落定）→ 放行
   useEffect(() => {
     if (!finaleWaiting) return;
     const q = queueStateRef.current;
     if (!q.playing && q.depth === 0) {
-      const t = setTimeout(() => setFinaleWaiting(false), FINALE_GRACE_MS);
+      const t = setTimeout(() => {
+        if (finaleFallbackRef.current !== null) clearTimeout(finaleFallbackRef.current);
+        finaleFallbackRef.current = null;
+        setFinaleWaiting(false);
+      }, FINALE_GRACE_MS);
       return () => clearTimeout(t);
     }
   }, [finaleWaiting, queueState]);
 
-  // 日志增量 → 队列（首包仅推进游标，不回放历史）
-  const lastLenRef = useRef(0);
-  useEffect(() => {
-    if (!bootstrappedRef.current && logs.length > 0) {
-      queue.initFromLogs(logs);
-      bootstrappedRef.current = true;
-      lastLenRef.current = logs.length;
-      return;
-    }
-    if (logs.length > lastLenRef.current) {
-      queue.pushLogs(logs.slice(lastLenRef.current));
-      lastLenRef.current = logs.length;
-    }
-  }, [logs, queue]);
-
   const api: BattlePresentationApi = useMemo(() => ({
+    subscribe: (listen) => {
+      listenersRef.current.add(listen);
+      return () => { listenersRef.current.delete(listen); };
+    },
+    remaining: () => queue.remainingEvents(),
+    busy: () => queue.isBusy(),
     setSpeed: (s) => queue.setSpeed(s),
     skipCurrent: () => queue.skipCurrent(),
     skipAll: () => queue.skipAll(),

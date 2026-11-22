@@ -198,6 +198,7 @@ export interface RoomUpdate {
   lobby: LobbyState;
   game: GameSnapshot | null;
   newLogs: SnapLog[];
+  catchUp?: boolean;
   you: string;
 }
 
@@ -219,8 +220,10 @@ class Net {
     const socketPath = (inSubPath ? '/badian' : '') + '/socket.io';
     return new Promise((resolve, reject) => {
       this.socket = io({ transports: ['websocket', 'polling'], path: socketPath });
+      let connectedBefore = false;
       this.socket.on('connect', () => {
-        const first = !this.connected;
+        const first = !connectedBefore;
+        connectedBefore = true;
         this.connected = true;
         resolve();
         // 断线自动重连后：重新绑定座位（服务器 disconnect 时清除了 socketId）
