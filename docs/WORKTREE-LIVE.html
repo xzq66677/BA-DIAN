@@ -3,189 +3,306 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BA-DIAN · 分支与认领实时地图</title>
+<title>BA-DIAN · 分支与认领实时树图</title>
 <style>
   :root{
-    --bg:#0d1117; --panel:#161b22; --panel2:#1c2128; --border:#30363d;
-    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff;
-    --ready:#0e8a16; --progress:#d29922; --review:#1d76db; --done:#6f42c1;
-    --p0:#da3633; --p1:#d29922; --agent:#39c5cf;
+    --bg:#0b0f17; --canvas:#0e1420; --node:#161d2b; --node2:#1b2436;
+    --border:#2d3a52; --text:#e6edf3; --muted:#7d8aa0; --accent:#58a6ff;
+    --green:#3fb950; --teal:#2ea3a3; --purple:#a371f7; --orange:#d29922; --blue:#58a6ff; --rose:#f85149;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-    line-height:1.5;padding:24px;max-width:1280px;margin:0 auto}
-  h1{font-size:22px;margin:0 0 4px}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
-  .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
-  button{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:8px 14px;
-    font-size:13px;cursor:pointer;font-weight:600}
-  button:hover{opacity:.85}
-  .status{color:var(--muted);font-size:12px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
-  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
-  .panel h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
-  .badge{background:var(--panel2);border:1px solid var(--border);border-radius:20px;
-    padding:1px 9px;font-size:12px;color:var(--muted)}
-  .item{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;
-    background:var(--panel2)}
-  .item:last-child{margin-bottom:0}
-  .title{font-size:13px;font-weight:600;word-break:break-word}
-  .title a{color:var(--accent);text-decoration:none}
-  .title a:hover{text-decoration:underline}
-  .meta{font-size:11px;color:var(--muted);margin-top:5px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .tag{font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid var(--border);white-space:nowrap}
-  .t-ready{color:#7ee787;border-color:#238636}
-  .t-progress{color:#e3b341;border-color:#9e6a03}
-  .t-review{color:#79c0ff;border-color:#1f6feb}
-  .t-done{color:#d2a8ff;border-color:#8957e5}
-  .t-p0{color:#ff7b72;border-color:#da3633}
-  .t-p1{color:#e3b341;border-color:#9e6a03}
-  .t-agent{color:#56d4dd;border-color:#1b7c83}
-  .assignee{color:#a5d6ff}
-  .branch{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
-  .note{color:var(--muted);font-size:12px;background:var(--panel2);border:1px dashed var(--border);
-    border-radius:8px;padding:10px 12px;margin-bottom:16px}
-  .empty{color:var(--muted);font-size:13px;font-style:italic}
+    line-height:1.5;padding:26px}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:.5px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px;max-width:640px}
+
+  /* top toolbar like archify viewer */
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  .bar button{background:var(--node);color:var(--text);border:1px solid var(--border);
+    border-radius:7px;padding:7px 13px;font-size:12px;cursor:pointer}
+  .bar button:hover{border-color:var(--accent)}
+  .bar button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  .status{color:var(--muted);font-size:12px;margin-left:6px}
+  .pill{background:var(--node);border:1px solid var(--border);border-radius:16px;padding:3px 12px;font-size:11px;color:var(--muted)}
+
+  /* dotted canvas */
+  #canvas{position:relative;overflow:auto;width:100%;
+    border:1px solid var(--border);border-radius:12px;
+    background-color:var(--canvas);
+    background-image:radial-gradient(circle, #26324a 1px, transparent 1.2px);
+    background-size:22px 22px; padding:8px}
+  #edges{position:absolute;top:0;left:0;pointer-events:none;z-index:0}
+  #nodes{position:relative;z-index:1}
+
+  /* node cards */
+  .node{position:absolute;width:228px;background:var(--node);border:1px solid var(--border);
+    border-radius:9px;padding:9px 12px;text-align:center;font-size:12px;cursor:default;
+    box-shadow:0 3px 10px rgba(0,0,0,.35)}
+  .node .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .node .s{color:var(--muted);font-size:10px;margin-top:3px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .node .s a{color:var(--accent);text-decoration:none}
+  .node.group{cursor:pointer}
+  .node.group:hover{filter:brightness(1.15)}
+  .node.root{background:#f0f4fa;color:#0b1220;border-color:#f0f4fa;width:170px;font-weight:700}
+  .node.root .s{color:#4a5b73}
+  .node.tone-remote{border-color:#7a5a1e;background:#2a2313}
+  .node.tone-pr{border-color:#1f5a8a;background:#132233}
+  .node.tone-issue{border-color:#1f7a4d;background:#12291e}
+  .node.tone-local{border-color:#2f8a6a;background:#122a24}
+  .node.tone-sub{border-color:#5b3f96;background:#20182f}
+  .node.leaf .t a{color:#cfe3ff;text-decoration:none}
+  .node.leaf .t a:hover{text-decoration:underline}
+  .port{position:absolute;width:11px;height:11px;border-radius:50%;
+    background:var(--canvas);border:2px solid var(--muted);top:50%;transform:translateY(-50%)}
+  .port.l{left:-6px} .port.r{right:-6px}
+  .node.group .port{border-color:var(--accent)}
+  .cnt{position:absolute;right:8px;top:6px;font-size:10px;color:var(--muted);
+    background:rgba(255,255,255,.07);border-radius:9px;padding:0 6px}
+
+  .tag{font-size:9px;padding:0 5px;border-radius:8px;border:1px solid;margin-right:2px;white-space:nowrap}
+  .t-ready{color:var(--green);border-color:var(--green)}
+  .t-progress{color:var(--orange);border-color:var(--orange)}
+  .t-review{color:var(--blue);border-color:var(--blue)}
+  .t-done{color:var(--purple);border-color:var(--purple)}
+  .t-p0{color:var(--rose);border-color:var(--rose)}
+  .t-p1{color:var(--orange);border-color:var(--orange)}
+  .t-agent{color:var(--teal);border-color:var(--teal)}
+
+  .note{color:var(--muted);font-size:12px;background:var(--node);border:1px dashed var(--border);
+    border-radius:9px;padding:10px 13px;margin-bottom:14px}
+  .note a{color:var(--accent)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:14px}
+  .legend i{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
+
+  /* bottom cards like archify */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-top:18px}
+  .card{background:var(--node);border:1px solid var(--border);border-radius:11px;padding:15px 18px}
+  .card h3{font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .card h3 i{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .card ul{margin:0;padding-left:18px;color:var(--muted);font-size:12px;line-height:1.9}
+
+  .empty{color:var(--muted);font-size:13px;padding:24px}
   .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--border);
     border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
   @keyframes sp{to{transform:rotate(360deg)}}
-  .err{color:#ff7b72;font-size:13px}
+  .err{color:var(--rose);font-size:13px}
 </style>
 </head>
 <body>
-  <h1>BA-DIAN · 分支与认领实时地图</h1>
-  <div class="sub">每次打开自动从 GitHub API 实时拉取 · 仓库 xzq66677/BA-DIAN</div>
+  <h1>BA-DIAN · 分支与认领实时树图</h1>
+  <div class="sub">枝干向右侧散开 · 每次打开自动从 GitHub API 实时拉取 · 点击带端口的分组节点折叠/展开</div>
 
-  <div class="toolbar">
-    <button id="refresh">🔄 刷新</button>
+  <div class="bar">
+    <button class="primary" id="refresh">↻ 刷新数据</button>
+    <button id="expand">全部展开</button>
+    <button id="collapse">全部折叠</button>
+    <span class="pill">深度 4 · 横向树</span>
     <span class="status" id="status"><span class="spin"></span> 正在拉取…</span>
   </div>
 
-  <div class="note" id="note">
-    ⚠️ 本页只追踪 <b>GitHub 上的远程分支 / PR / Issue 认领</b>（API 可实时获取）。
-    <code>git worktree</code> 是本地概念，GitHub 看不到——本地 worktree 的静态快照见
-    <a href="WORKTREE-MAP.html" style="color:var(--accent)">WORKTREE-MAP.html</a>。
+  <div class="note">
+    ⚠️ 追踪 GitHub 上的 <b>远程分支 / PR / Issue 认领</b>（API 实时获取）。
+    <code>git worktree</code> 是本地概念，GitHub 看不到——本地快照见树中「本地 Worktree」枝干，或
+    <a href="WORKTREE-MAP.html">WORKTREE-MAP.html</a>。
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--green)"></i>ready</span>
+    <span><i style="background:var(--orange)"></i>in-progress / p1</span>
+    <span><i style="background:var(--blue)"></i>review</span>
+    <span><i style="background:var(--purple)"></i>done</span>
+    <span><i style="background:var(--rose)"></i>p0</span>
+    <span><i style="background:var(--teal)"></i>agent</span>
   </div>
 
-  <div class="grid">
-    <div class="panel">
-      <h2>🌿 远程分支 <span class="badge" id="bc">0</span></h2>
-      <div id="branches"><div class="empty">加载中…</div></div>
+  <div id="canvas">
+    <svg id="edges" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="nodes"><div class="empty">加载中…</div></div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <h3><i style="background:var(--green)"></i>认领规则（防重复）</h3>
+      <ul>
+        <li>动手前：设 Assignee + 改标签 <code>status: in-progress</code></li>
+        <li>看板卡片拖到「进行中」列（Projects v2 的 Status 字段）</li>
+        <li>已有 Assignee 的 Issue 不要重复开发</li>
+        <li>PR 写 <code>Closes #N</code>；合并前 <code>npm test</code> 通过</li>
+      </ul>
     </div>
-    <div class="panel">
-      <h2>🔀 开放 PR <span class="badge" id="pc">0</span></h2>
-      <div id="prs"><div class="empty">加载中…</div></div>
-    </div>
-    <div class="panel">
-      <h2>📋 Issue 认领状态 <span class="badge" id="ic">0</span></h2>
-      <div id="issues"><div class="empty">加载中…</div></div>
-    </div>
-    <div class="panel">
-      <h2>🖥️ 本地 Worktree（静态快照）</h2>
-      <div style="font-size:12px;color:var(--muted);line-height:1.9">
-        <div class="branch">D:\AI工作区\badian-game</div>
-        <div>→ <code>feat/v6-hair-style</code> · V6 发型层</div>
-        <div class="branch" style="margin-top:8px">…\worktrees\75a3</div>
-        <div>→ <code>release/v6-map</code> · V6 地图</div>
-        <div class="branch" style="margin-top:8px">…\worktrees\a926</div>
-        <div>→ detached @ 89360e2 · V3.0 基线</div>
-        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
-          以 <code>git worktree list</code> 实测为准；此处为 2026-11-22 快照。
-        </div>
-      </div>
+    <div class="card">
+      <h3><i style="background:var(--orange)"></i>看图须知</h3>
+      <ul>
+        <li>本树实时拉取，打开或点「刷新数据」即更新</li>
+        <li>远程分支按前缀（feat/、fix/…）自动分组</li>
+        <li>本地 worktree 是静态快照，以 <code>git worktree list</code> 为准</li>
+        <li>规则详见 <code>CONTRIBUTING.md</code> / <code>AGENTS.md</code></li>
+      </ul>
     </div>
   </div>
 
 <script>
-const API = 'https://api.github.com/repos/xzq66677/BA-DIAN';
-const H = { 'User-Agent': 'BA-DIAN-worktree-map', 'Accept': 'application/vnd.github+json' };
+const API='https://api.github.com/repos/xzq66677/BA-DIAN';
+const H={'User-Agent':'BA-DIAN-worktree-map','Accept':'application/vnd.github+json'};
+const COL_W=300, ROW_H=56, NODE_W=228, NODE_H=44;
 
-function tagClass(name){
-  if (/status:\s*ready/i.test(name)) return 't-ready';
-  if (/status:\s*in-progress/i.test(name)) return 't-progress';
-  if (/status:\s*review/i.test(name)) return 't-review';
-  if (/status:\s*done/i.test(name)) return 't-done';
-  if (/p0/i.test(name)) return 't-p0';
-  if (/p1/i.test(name)) return 't-p1';
-  if (/agent/i.test(name)) return 't-agent';
+function tagClass(n){
+  if(/status:\s*ready/i.test(n))return 't-ready';
+  if(/status:\s*in-progress/i.test(n))return 't-progress';
+  if(/status:\s*review/i.test(n))return 't-review';
+  if(/status:\s*done/i.test(n))return 't-done';
+  if(/p0/i.test(n))return 't-p0';
+  if(/p1/i.test(n))return 't-p1';
+  if(/agent/i.test(n))return 't-agent';
   return '';
 }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function shortSha(s){ return (s||'').slice(0,7); }
-function fmtDate(s){ try{ return new Date(s).toLocaleDateString('zh-CN'); }catch(e){ return ''; } }
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function sha(s){return (s||'').slice(0,7);}
 
-async function getJSON(path){
-  const r = await fetch(API + path, { headers: H });
-  if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + path);
-  return r.json();
+async function getJSON(p){const r=await fetch(API+p,{headers:H});if(!r.ok)throw new Error('HTTP '+r.status+' '+p);return r.json();}
+
+let uid=0;
+function N(title,sub,kind,tone,children,collapsed){
+  return {id:'n'+(++uid),title:title||'',sub:sub||'',kind:kind||'leaf',tone:tone||'',children:children||[],collapsed:!!collapsed,labels:[],url:''};
 }
 
-function renderBranches(list){
-  const el = document.getElementById('branches');
-  document.getElementById('bc').textContent = list.length;
-  if (!list.length){ el.innerHTML = '<div class="empty">无分支</div>'; return; }
-  el.innerHTML = list.map(b => `
-    <div class="item">
-      <div class="title branch">🌿 ${esc(b.name)}</div>
-      <div class="meta"><span>${shortSha(b.commit && b.commit.sha)}</span>
-        <span>protected: ${b.protected ? 'yes' : 'no'}</span></div>
-    </div>`).join('');
+function buildModel(branches,prs,issues){
+  const issuesOnly=issues.filter(i=>!i.pull_request);
+  const root=N('📦 BA-DIAN 仓库','实时 · GitHub API','root','',[],false);
+
+  const g={};
+  branches.forEach(b=>{const p=b.name.split('/');const k=p.length>1?p[0]+'/':'(根)';(g[k]=g[k]||[]).push(b);});
+  const bGroups=Object.keys(g).sort().map(k=>{
+    const kids=g[k].map(b=>N('🌿 '+b.name,sha(b.commit&&b.commit.sha)+(b.protected?' · protected':''),'leaf','',[],false));
+    return N('📁 '+k,g[k].length+' 个分支','group','sub',kids,false);
+  });
+  root.children.push(N('🌿 远程分支','','group','remote',bGroups,false));
+
+  const prKids=prs.map(p=>{
+    const n=N('#'+p.number+' '+p.title,'','issue','',[],false);
+    n.url=p.html_url;n.labels=[];n.__meta=(p.head&&p.head.ref)+' → '+(p.base&&p.base.ref)+' · by '+(p.user&&p.user.login);
+    return n;
+  });
+  root.children.push(N('🔀 开放 PR','','group','pr',prKids,false));
+
+  const issueKids=issuesOnly.map(i=>{
+    const n=N('#'+i.number+' '+i.title,'','issue','',[],false);
+    n.url=i.html_url;n.labels=(i.labels||[]).map(l=>l.name);
+    n.__meta=(i.assignee?'👤 '+i.assignee.login:'未认领');
+    return n;
+  });
+  root.children.push(N('📋 Issue 认领状态','','group','issue',issueKids,false));
+
+  const localKids=[
+    N('D:\\AI工作区\\badian-game','→ feat/v6-hair-style','leaf','',[],false),
+    N('…\\worktrees\\75a3','→ release/v6-map','leaf','',[],false),
+    N('…\\worktrees\\a926','→ detached @ 89360e2','leaf','',[],false)
+  ];
+  root.children.push(N('🖥️ 本地 Worktree','静态快照','group','local',localKids,true));
+
+  return root;
 }
 
-function renderPRs(list){
-  const el = document.getElementById('prs');
-  document.getElementById('pc').textContent = list.length;
-  if (!list.length){ el.innerHTML = '<div class="empty">无开放 PR</div>'; return; }
-  el.innerHTML = list.map(p => `
-    <div class="item">
-      <div class="title"><a href="${esc(p.html_url)}" target="_blank" rel="noopener">#${p.number} ${esc(p.title)}</a></div>
-      <div class="meta">
-        <span class="branch">${esc(p.head && p.head.ref)} → ${esc(p.base && p.base.ref)}</span>
-        <span>by ${esc(p.user && p.user.login)}</span>
-        ${p.draft ? '<span class="tag">draft</span>' : ''}
-        <span>${fmtDate(p.updated_at)}</span>
-      </div>
-    </div>`).join('');
+function layout(node,depth,cursor){
+  node.x=24+depth*COL_W;node.depth=depth;
+  const kids=node.collapsed?[]:node.children;
+  if(!kids.length){node.y=cursor.y;cursor.y+=ROW_H;return;}
+  const ys=[];
+  kids.forEach(k=>{layout(k,depth+1,cursor);ys.push(k.y);});
+  node.y=(ys[0]+ys[ys.length-1])/2;
+}
+function flatten(n,out){out.push(n);if(!n.collapsed)n.children.forEach(c=>flatten(c,out));}
+
+function nodeHTML(n){
+  const hasKids=n.children.length>0;
+  const cls='node '+n.kind+(n.tone?' tone-'+n.tone:'');
+  let title=esc(n.title);
+  let sub='';
+  if(n.kind==='issue'){
+    title=`<a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>`;
+    const tags=n.labels.map(l=>`<span class="tag ${tagClass(l)}">${esc(l)}</span>`).join('');
+    sub=tags+esc(n.__meta||'');
+  } else {
+    sub=esc(n.sub);
+  }
+  const ports=hasKids?`<span class="port l"></span><span class="port r"></span>`:'<span class="port l"></span>';
+  const cnt=hasKids?`<span class="cnt">${n.children.length}</span>`:'';
+  return `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px">
+    ${ports}${cnt}<div class="t">${title}</div>${sub?`<div class="s">${sub}</div>`:''}
+  </div>`;
 }
 
-function renderIssues(list){
-  const el = document.getElementById('issues');
-  const issues = list.filter(i => !i.pull_request); // 排除 PR（GitHub issues API 会带 PR）
-  document.getElementById('ic').textContent = issues.length;
-  if (!issues.length){ el.innerHTML = '<div class="empty">无开放 Issue</div>'; return; }
-  el.innerHTML = issues.map(i => {
-    const asg = i.assignee ? `<span class="assignee">👤 ${esc(i.assignee.login)}</span>`
-                           : '<span style="color:var(--muted)">未认领</span>';
-    const labels = (i.labels||[]).map(l =>
-      `<span class="tag ${tagClass(l.name)}">${esc(l.name)}</span>`).join(' ');
-    return `
-    <div class="item">
-      <div class="title"><a href="${esc(i.html_url)}" target="_blank" rel="noopener">#${i.number} ${esc(i.title)}</a></div>
-      <div class="meta">${asg} ${labels}</div>
-    </div>`;
-  }).join('');
+let currentRoot=null;
+function draw(root){
+  currentRoot=root;
+  const cursor={y:30};
+  layout(root,0,cursor);
+  const vis=[];flatten(root,vis);
+  const maxD=vis.reduce((m,n)=>Math.max(m,n.depth||0),0);
+  const W=24+(maxD+1)*COL_W+40,H=cursor.y+40;
+  const canvas=document.getElementById('canvas'),edges=document.getElementById('edges'),nodesEl=document.getElementById('nodes');
+  edges.setAttribute('width',W);edges.setAttribute('height',H);
+  edges.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  edges.style.width=W+'px';edges.style.height=H+'px';
+  nodesEl.style.width=W+'px';nodesEl.style.height=H+'px';
+
+  // orthogonal elbow connectors (bus style) with rounded corners
+  let paths='';
+  vis.forEach(n=>{
+    if(n.collapsed||!n.children.length)return;
+    const kids=n.children;
+    const px=n.x+NODE_W, py=n.y+NODE_H/2;
+    const busX=px+26;
+    const y1=kids[0].y+NODE_H/2, y2=kids[kids.length-1].y+NODE_H/2;
+    if(Math.abs(y2-y1)<1){
+      paths+=`<path d="M${px},${py} H${kids[0].x}" fill="none" stroke="#3a4a66" stroke-width="1.5"/>`;
+    } else {
+      const r=6;
+      paths+=`<path d="M${px},${py} H${busX-r} Q${busX},${py} ${busX},${py+r} V${y2-r} Q${busX},${y2} ${busX+r},${y2}"
+        fill="none" stroke="#3a4a66" stroke-width="1.5"/>`;
+    }
+    kids.forEach(c=>{
+      const cy=c.y+NODE_H/2;
+      paths+=`<path d="M${busX},${cy} H${c.x}" fill="none" stroke="#3a4a66" stroke-width="1.5"/>`;
+    });
+  });
+  edges.innerHTML=paths;
+  nodesEl.innerHTML=vis.map(nodeHTML).join('');
+  // 自动缩放以适应容器宽度（整棵树默认完整可见）
+  const avail = canvas.clientWidth - 20;
+  const scale = W > avail ? avail / W : 1;
+  nodesEl.style.transformOrigin = 'top left';
+  edges.style.transformOrigin = 'top left';
+  nodesEl.style.transform = `scale(${scale})`;
+  edges.style.transform = `scale(${scale})`;
+  nodesEl.style.height = (H*scale)+'px';
+  edges.style.height = (H*scale)+'px';
+  vis.forEach(n=>{
+    if(!n.children.length)return;
+    const el=nodesEl.querySelector(`[data-id="${n.id}"]`);
+    if(el)el.onclick=()=>{n.collapsed=!n.collapsed;draw(root);};
+  });
 }
+function setAll(root,c){(function w(n){if(n.children.length)n.collapsed=c;n.children.forEach(w);})(root);draw(root);}
 
 async function load(){
-  const status = document.getElementById('status');
-  status.innerHTML = '<span class="spin"></span> 正在拉取…';
-  try {
-    const [branches, prs, issues] = await Promise.all([
+  const st=document.getElementById('status');
+  st.innerHTML='<span class="spin"></span> 正在拉取…';
+  try{
+    uid=0;
+    const [branches,prs,issues]=await Promise.all([
       getJSON('/branches?per_page=100'),
       getJSON('/pulls?state=open&per_page=100'),
       getJSON('/issues?state=open&per_page=100')
     ]);
-    renderBranches(branches);
-    renderPRs(prs);
-    renderIssues(issues);
-    status.textContent = '✅ 更新于 ' + new Date().toLocaleTimeString('zh-CN');
-  } catch (e) {
-    status.innerHTML = '<span class="err">❌ 拉取失败：' + esc(e.message) + '</span>';
-  }
+    draw(buildModel(branches,prs,issues));
+    st.textContent='✅ 更新于 '+new Date().toLocaleTimeString('zh-CN');
+  }catch(e){st.innerHTML='<span class="err">❌ 拉取失败：'+esc(e.message)+'</span>';}
 }
-
-document.getElementById('refresh').addEventListener('click', load);
+document.getElementById('refresh').addEventListener('click',load);
+document.getElementById('expand').addEventListener('click',()=>currentRoot&&setAll(currentRoot,false));
+document.getElementById('collapse').addEventListener('click',()=>currentRoot&&setAll(currentRoot,true));
 load();
 </script>
 </body>
