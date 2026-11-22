@@ -1,0 +1,3896 @@
+{
+  "passed": true,
+  "step": "solo AI full match",
+  "browser": "159.0.8154.6",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "evidence": {
+    "01-overview": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P4-acof",
+                0
+              ]
+            ]
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 0.3085,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 546.6977379624985,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 0.3085,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 956.3074640249731,
+          "y": 346.60797037255793,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.3085,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 203.45148410442687,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.3085,
+          "dur": null,
+          "room": "R4",
+          "alive": true,
+          "visible": true,
+          "x": 484.2270046743105,
+          "y": 348.1637516694692,
+          "z": -1.1664760761878538e-15
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 189,
+        "triangles": 14424,
+        "geometries": 189,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 1,
+        "lost": 0,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": true,
+      "finale": false
+    },
+    "02-pending": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "major",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": true,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P4-acof",
+                0
+              ]
+            ]
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "attack",
+          "t": 0.2817000000011176,
+          "dur": 0.5,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 557.5308367950701,
+          "y": 600.5176572752197,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 38.49500000000742,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 842.5451901392388,
+          "y": 372.15790280283653,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 38.49500000000742,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 602.2685777823706,
+          "y": 213.1304391673197,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 38.49500000000742,
+          "dur": null,
+          "room": "R4",
+          "alive": true,
+          "visible": true,
+          "x": 323.83389178366605,
+          "y": 373.8047619020556,
+          "z": -1.1664760761878538e-15
+        }
+      ],
+      "stats": {
+        "fx": 2,
+        "tweens": 2,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 196,
+        "triangles": 15376,
+        "geometries": 194,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 1,
+        "lost": 0,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": true,
+      "finale": false
+    },
+    "03-same-room": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": []
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ],
+              [
+                "P2-i9kx",
+                1
+              ],
+              [
+                "P4-acof",
+                2
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": []
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 66.67490000000579,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 719.9836097060479,
+          "y": 546.8441753034971,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 27.43620000000296,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 719.9874416886927,
+          "y": 225.87496345929677,
+          "z": -5.17
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 105.39780000001181,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 719.9877683540881,
+          "y": 203.51236877857124,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 1.402,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 750.9518359557237,
+          "y": 215.36355053560484,
+          "z": -5.76
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 189,
+        "triangles": 14424,
+        "geometries": 189,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 1,
+        "lost": 0,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": true,
+      "finale": false
+    },
+    "04-portrait": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": []
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ],
+              [
+                "P2-i9kx",
+                1
+              ],
+              [
+                "P4-acof",
+                2
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": []
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 82.20380000000247,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 195,
+          "y": 311.5559074219471,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 42.965099999999566,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 195,
+          "y": 150.97003629532952,
+          "z": -5.17
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 120.9267000000085,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 195,
+          "y": 138.5954826454147,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 16.93089999999665,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 209.61731759099618,
+          "y": 145.05869318356685,
+          "z": -5.76
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 189,
+        "triangles": 14424,
+        "geometries": 189,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 1,
+        "lost": 0,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": true,
+      "finale": false
+    },
+    "05-aoe": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "target",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": []
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "effect": "aoe",
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ],
+              [
+                "P2-i9kx",
+                1
+              ],
+              [
+                "P4-acof",
+                2
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": []
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 142.68110000000675,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 833.4001458049408,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 0.22,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 321.0523468630702,
+          "z": -5.17
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 1,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "flinch",
+          "t": 0.22,
+          "dur": 0.5,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 282.3085981917121,
+          "z": -6.644117647058823
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 77.40820000000093,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 760.7066521547912,
+          "y": 305.4618106387122,
+          "z": -5.76
+        }
+      ],
+      "stats": {
+        "fx": 4,
+        "tweens": 6,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 189,
+        "triangles": 15752,
+        "geometries": 193,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 1,
+        "lost": 0,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": true,
+      "finale": false
+    },
+    "06-blast": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "major",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "effect": "blast",
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ],
+              [
+                "P4-acof",
+                2
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": []
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 18.841599999992173,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 518.9098834000167,
+          "y": 613.2634789974505,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 0,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "flinch",
+          "t": 0.22,
+          "dur": 0.5,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 823.2123894859327,
+          "y": 373.4507557790298,
+          "z": -0.19982589161714814
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 0,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "dead",
+          "t": 3.4340999999977657,
+          "dur": null,
+          "room": "R3",
+          "alive": false,
+          "visible": false,
+          "x": 574.7099882675967,
+          "y": 214.99774021689458,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 0,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "dead",
+          "t": 3.517099999997766,
+          "dur": null,
+          "room": "R3",
+          "alive": false,
+          "visible": false,
+          "x": 607.041070887293,
+          "y": 228.24345810077187,
+          "z": -5.76
+        }
+      ],
+      "stats": {
+        "fx": 5,
+        "tweens": 7,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 2,
+        "calls": 203,
+        "triangles": 15768,
+        "geometries": 208,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 1,
+        "lost": 0,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": true,
+      "finale": false
+    },
+    "07-result": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "winner",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ],
+              [
+                "P4-acof",
+                2
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": []
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "cheer",
+          "t": 24.15680000001005,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 425.62869563368514,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 0,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "dead",
+          "t": 3.4528000000007464,
+          "dur": null,
+          "room": "R2",
+          "alive": false,
+          "visible": false,
+          "x": 1022.3156079238212,
+          "y": 191.37438951423948,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 0,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "dead",
+          "t": 3.4340999999977657,
+          "dur": null,
+          "room": "R3",
+          "alive": false,
+          "visible": false,
+          "x": 720,
+          "y": 39.86203077205901,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 0,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "dead",
+          "t": 3.517099999997766,
+          "dur": null,
+          "room": "R3",
+          "alive": false,
+          "visible": false,
+          "x": 758.3086141622225,
+          "y": 52.06138867238981,
+          "z": -5.76
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 3,
+        "calls": 152,
+        "triangles": 11360,
+        "geometries": 189,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 1,
+        "lost": 0,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": true,
+      "finale": true
+    },
+    "08-winner": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "winner",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ],
+              [
+                "P4-acof",
+                2
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": []
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "cheer",
+          "t": 90.83730000000799,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 394.08209819260026,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 0,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "dead",
+          "t": 3.4528000000007464,
+          "dur": null,
+          "room": "R2",
+          "alive": false,
+          "visible": false,
+          "x": 999.9086863953498,
+          "y": 177.19017005612525,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 0,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "dead",
+          "t": 3.4340999999977657,
+          "dur": null,
+          "room": "R3",
+          "alive": false,
+          "visible": false,
+          "x": 720,
+          "y": 36.907550844247574,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 0,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "dead",
+          "t": 3.517099999997766,
+          "dur": null,
+          "room": "R3",
+          "alive": false,
+          "visible": false,
+          "x": 755.4692698184343,
+          "y": 48.20272104137739,
+          "z": -5.76
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 3,
+        "calls": 152,
+        "triangles": 11360,
+        "geometries": 189,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 1,
+        "lost": 0,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": true,
+      "finale": false
+    },
+    "09-rematch": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P4-acof",
+                0
+              ]
+            ]
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 0.9835,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 546.4957527048017,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 0.9835,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 956.4239984394962,
+          "y": 346.3357765767561,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.9835,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 203.15373173615717,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.9835,
+          "dur": null,
+          "room": "R4",
+          "alive": true,
+          "visible": true,
+          "x": 484.1109969367584,
+          "y": 347.892939304619,
+          "z": -1.1664760761878538e-15
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 189,
+        "triangles": 14424,
+        "geometries": 189,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 1,
+        "lost": 0,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": true,
+      "finale": false
+    },
+    "actionSorting": {
+      "phase": "act",
+      "queue": [
+        "P2-i9kx",
+        "P1-zfnh"
+      ],
+      "canvas": 1
+    },
+    "toggle-1": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P4-acof",
+                0
+              ]
+            ]
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 0.048599999999627476,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 546.6977379624985,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 0.048599999999627476,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 956.3074640249731,
+          "y": 346.60797037255793,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.048599999999627476,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 203.45148410442687,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.048599999999627476,
+          "dur": null,
+          "room": "R4",
+          "alive": true,
+          "visible": true,
+          "x": 484.2270046743105,
+          "y": 348.1637516694692,
+          "z": -1.1664760761878538e-15
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 0,
+        "triangles": 0,
+        "geometries": 0,
+        "textures": 0
+      },
+      "contexts": {
+        "created": 2,
+        "lost": 1,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": false,
+      "finale": false
+    },
+    "toggle-2": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P4-acof",
+                0
+              ]
+            ]
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 0.034399999998509886,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 546.6977379624985,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 0.034399999998509886,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 956.3074640249731,
+          "y": 346.60797037255793,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.034399999998509886,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 203.45148410442687,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.034399999998509886,
+          "dur": null,
+          "room": "R4",
+          "alive": true,
+          "visible": true,
+          "x": 484.2270046743105,
+          "y": 348.1637516694692,
+          "z": -1.1664760761878538e-15
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 0,
+        "triangles": 0,
+        "geometries": 0,
+        "textures": 0
+      },
+      "contexts": {
+        "created": 3,
+        "lost": 2,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": false,
+      "finale": false
+    },
+    "toggle-3": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P4-acof",
+                0
+              ]
+            ]
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 0.015599999999627471,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 546.6977379624985,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 0.015599999999627471,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 956.3074640249731,
+          "y": 346.60797037255793,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.015599999999627471,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 203.45148410442687,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.015599999999627471,
+          "dur": null,
+          "room": "R4",
+          "alive": true,
+          "visible": true,
+          "x": 484.2270046743105,
+          "y": 348.1637516694692,
+          "z": -1.1664760761878538e-15
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 0,
+        "triangles": 0,
+        "geometries": 0,
+        "textures": 0
+      },
+      "contexts": {
+        "created": 4,
+        "lost": 3,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": false,
+      "finale": false
+    },
+    "toggle-4": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P4-acof",
+                0
+              ]
+            ]
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 0.017,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 546.6977379624985,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 0.017,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 956.3074640249731,
+          "y": 346.60797037255793,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.017,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 203.45148410442687,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 0.017,
+          "dur": null,
+          "room": "R4",
+          "alive": true,
+          "visible": true,
+          "x": 484.2270046743105,
+          "y": 348.1637516694692,
+          "z": -1.1664760761878538e-15
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 0,
+        "triangles": 0,
+        "geometries": 0,
+        "textures": 0
+      },
+      "contexts": {
+        "created": 5,
+        "lost": 4,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": false,
+      "finale": false
+    },
+    "12-webgl-restored": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P4-acof",
+                0
+              ]
+            ]
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 5.989800000000747,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 546.6977379624985,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 5.989800000000747,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 956.3074640249731,
+          "y": 346.60797037255793,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 5.989800000000747,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 203.45148410442687,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 5.989800000000747,
+          "dur": null,
+          "room": "R4",
+          "alive": true,
+          "visible": true,
+          "x": 484.2270046743105,
+          "y": 348.1637516694692,
+          "z": -1.1664760761878538e-15
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 189,
+        "triangles": 14424,
+        "geometries": 189,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 5,
+        "lost": 5,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": false,
+      "finale": false
+    },
+    "12-webgl-restored-render": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P4-acof",
+                0
+              ]
+            ]
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 8.921000000000001,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 546.6977379624985,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 8.921000000000001,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 956.3074640249731,
+          "y": 346.60797037255793,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 8.921000000000001,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 203.45148410442687,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 8.921000000000001,
+          "dur": null,
+          "room": "R4",
+          "alive": true,
+          "visible": true,
+          "x": 484.2270046743105,
+          "y": 348.1637516694692,
+          "z": -1.1664760761878538e-15
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 189,
+        "triangles": 14424,
+        "geometries": 189,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 5,
+        "lost": 5,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": false,
+      "finale": false
+    },
+    "webglRestore": {
+      "path": "3d-restored",
+      "before": {
+        "created": 5,
+        "lost": 4,
+        "active": 1,
+        "peak": 1
+      },
+      "after": {
+        "created": 5,
+        "lost": 5,
+        "active": 1,
+        "peak": 1
+      },
+      "geoBefore": 189,
+      "geoAfter": 189
+    },
+    "10-skip": {
+      "map": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P1-zfnh",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R2",
+            "center": [
+              6.858,
+              0,
+              3.888253587292846e-16
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-i9kx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R3",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": true,
+            "slots": [
+              [
+                "P3-ezhx",
+                0
+              ]
+            ]
+          },
+          {
+            "id": "R4",
+            "center": [
+              -6.858,
+              0,
+              -1.1664760761878538e-15
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P4-acof",
+                0
+              ]
+            ]
+          }
+        ]
+      },
+      "players": [
+        {
+          "pid": "P1-zfnh",
+          "hp": 2,
+          "charId": "ivan-girl",
+          "asset": "ivan-girl-v1",
+          "pose": "idle",
+          "t": 8.047000000005584,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 546.6977379624985,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-i9kx",
+          "hp": 3,
+          "charId": "wuliuqi",
+          "asset": "wuliuqi-v1",
+          "pose": "idle",
+          "t": 60.739600000010654,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 956.3074640249731,
+          "y": 346.60797037255793,
+          "z": 3.888253587292846e-16
+        },
+        {
+          "pid": "P3-ezhx",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 60.739600000010654,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 720,
+          "y": 203.45148410442687,
+          "z": -6.35
+        },
+        {
+          "pid": "P4-acof",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 60.739600000010654,
+          "dur": null,
+          "room": "R4",
+          "alive": true,
+          "visible": true,
+          "x": 484.2270046743105,
+          "y": 348.1637516694692,
+          "z": -1.1664760761878538e-15
+        }
+      ],
+      "stats": {
+        "fx": 0,
+        "tweens": 0,
+        "walks": 0,
+        "entities": 4,
+        "rooms": 4,
+        "bodiesHidden": 0,
+        "calls": 190,
+        "triangles": 14664,
+        "geometries": 191,
+        "textures": 1
+      },
+      "contexts": {
+        "created": 5,
+        "lost": 5,
+        "active": 1,
+        "peak": 1
+      },
+      "reuse": false,
+      "finale": false
+    },
+    "11-webgl-fallback": {
+      "contexts": {
+        "created": 5,
+        "lost": 6,
+        "active": 0,
+        "peak": 1
+      },
+      "reuse": true,
+      "finale": false
+    },
+    "missEscape": {
+      "boomRoom": "R3",
+      "escaped": "P3-10b8",
+      "escapedTo": "R1",
+      "ivanDamageTargets": [],
+      "boomText": "💥 大伊万在 R3 爆炸！爆炸时房间内成员：（无存活玩家）",
+      "hpAfter": [
+        [
+          "未命中验收1",
+          2,
+          true,
+          "R1"
+        ],
+        [
+          "未命中验收2",
+          3,
+          true,
+          "R2"
+        ],
+        [
+          "未命中验收3",
+          2,
+          true,
+          "R1"
+        ],
+        [
+          "未命中验收4",
+          2,
+          true,
+          "R4"
+        ]
+      ]
+    },
+    "draw": {
+      "winner": null,
+      "phase": "over",
+      "ivanTargets": [
+        "P1-84my",
+        "P2-93jb"
+      ],
+      "resultText": "游戏结束：所有玩家同时淘汰，平局",
+      "characters": [
+        [
+          "P1-84my",
+          "dead",
+          false
+        ],
+        [
+          "P2-93jb",
+          "dead",
+          false
+        ],
+        [
+          "P3-kxbt",
+          "dead",
+          false
+        ],
+        [
+          "P4-al5h",
+          "dead",
+          false
+        ]
+      ],
+      "shot": "draw"
+    },
+    "multiplayer": {
+      "catchUpLastSeq": 13,
+      "room": "PLZD",
+      "players": [
+        [
+          "在线甲",
+          "R2"
+        ],
+        [
+          "在线乙",
+          "R2"
+        ]
+      ],
+      "resumedRound": 2,
+      "acceptedNewThrow": true,
+      "guestScene": {
+        "map": "floating-ruins",
+        "shot": "overview",
+        "rooms": [
+          {
+            "id": "R1",
+            "center": [
+              0,
+              0,
+              6.35
+            ],
+            "pending": false,
+            "slots": []
+          },
+          {
+            "id": "R2",
+            "center": [
+              8.398627748552548e-16,
+              0,
+              -6.35
+            ],
+            "pending": false,
+            "slots": [
+              [
+                "P2-2zay",
+                0
+              ],
+              [
+                "P1-h5l5",
+                1
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    "ai": {
+      "rounds": 4,
+      "winner": "单人验收",
+      "canvas": 1,
+      "inputs": 6,
+      "reducedMotion": true
+    }
+  },
+  "errors": [],
+  "logs": [
+    {
+      "seq": 1,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "游戏开始：4 名玩家，随机种子 3001110508",
+      "important": true
+    },
+    {
+      "seq": 2,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "遗迹验收1（卖大伊万的小女孩）初始位置 R1，血量 2",
+      "important": false
+    },
+    {
+      "seq": 3,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "遗迹验收2（伍六七）初始位置 R2，血量 3",
+      "important": false
+    },
+    {
+      "seq": 4,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "遗迹验收3（无业游民）初始位置 R3，血量 2",
+      "important": false
+    },
+    {
+      "seq": 5,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "遗迹验收4（无业游民）初始位置 R4，血量 2",
+      "important": false
+    },
+    {
+      "seq": 6,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 1 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 7,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:石头，遗迹验收2:剪刀，遗迹验收3:剪刀，遗迹验收4:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 8,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：遗迹验收1 获得行动资格；遗迹验收2、遗迹验收3、遗迹验收4 无资格",
+      "important": true
+    },
+    {
+      "seq": 9,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 遗迹验收1 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 10,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收1（卖大伊万的小女孩，位于 P1-zfnh）行动",
+      "important": false
+    },
+    {
+      "seq": 11,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "deferred",
+      "text": "💣 遗迹验收1 向 R2 投掷大伊万！预计第 2 回合末爆炸（若中间出现平局回合则顺延）",
+      "important": true,
+      "data": {
+        "pid": "P1-zfnh",
+        "room": "R2",
+        "explodeRound": 2
+      }
+    },
+    {
+      "seq": 12,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收1 执行行动：投掷大伊万",
+      "important": true,
+      "data": {
+        "pid": "P1-zfnh",
+        "fx": "skill",
+        "label": "投掷大伊万",
+        "room": "R2"
+      }
+    },
+    {
+      "seq": 13,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 1 回合小结：遗迹验收1 获得行动资格；遗迹验收1 投掷大伊万",
+      "important": true
+    },
+    {
+      "seq": 14,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 1 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 15,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 2 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 16,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:石头，遗迹验收2:石头，遗迹验收3:石头，遗迹验收4:石头）：同拳平局——本回合无人获得行动资格，回合结束",
+      "important": false
+    },
+    {
+      "seq": 17,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 2 回合小结：回合判定平局（同拳平局）",
+      "important": true
+    },
+    {
+      "seq": 18,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 2 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 19,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 3 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 20,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:剪刀，遗迹验收2:石头，遗迹验收3:剪刀，遗迹验收4:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 21,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：遗迹验收2 获得行动资格；遗迹验收1、遗迹验收3、遗迹验收4 无资格",
+      "important": true
+    },
+    {
+      "seq": 22,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 遗迹验收2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 23,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收2（伍六七，位于 P2-i9kx）行动",
+      "important": false
+    },
+    {
+      "seq": 24,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "move",
+      "text": "遗迹验收2 从 R2 移动到 R3",
+      "important": true,
+      "data": {
+        "pid": "P2-i9kx",
+        "from": "R2",
+        "to": "R3"
+      }
+    },
+    {
+      "seq": 25,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收2 执行行动：移动到 R3",
+      "important": true,
+      "data": {
+        "pid": "P2-i9kx",
+        "fx": "move",
+        "label": "移动到 R3",
+        "room": "R3"
+      }
+    },
+    {
+      "seq": 26,
+      "round": 3,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 3 回合小结：遗迹验收2 获得行动资格；遗迹验收2 移动到 R3",
+      "important": true
+    },
+    {
+      "seq": 27,
+      "round": 3,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 3 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 28,
+      "round": 3,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "deferred",
+      "text": "💥 大伊万在 R2 爆炸！爆炸时房间内成员：（无存活玩家）",
+      "important": true,
+      "data": {
+        "room": "R2",
+        "source": "P1-zfnh"
+      }
+    },
+    {
+      "seq": 29,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 4 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 30,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:剪刀，遗迹验收2:剪刀，遗迹验收3:剪刀，遗迹验收4:石头）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 31,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：遗迹验收4 获得行动资格；遗迹验收1、遗迹验收2、遗迹验收3 无资格",
+      "important": true
+    },
+    {
+      "seq": 32,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 遗迹验收4 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 33,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收4（无业游民，位于 P4-acof）行动",
+      "important": false
+    },
+    {
+      "seq": 34,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "move",
+      "text": "遗迹验收4 从 R4 移动到 R3",
+      "important": true,
+      "data": {
+        "pid": "P4-acof",
+        "from": "R4",
+        "to": "R3"
+      }
+    },
+    {
+      "seq": 35,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收4 执行行动：移动到 R3",
+      "important": true,
+      "data": {
+        "pid": "P4-acof",
+        "fx": "move",
+        "label": "移动到 R3",
+        "room": "R3"
+      }
+    },
+    {
+      "seq": 36,
+      "round": 4,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 4 回合小结：遗迹验收4 获得行动资格；遗迹验收4 移动到 R3",
+      "important": true
+    },
+    {
+      "seq": 37,
+      "round": 4,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 4 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 38,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 5 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 39,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:剪刀，遗迹验收2:剪刀，遗迹验收3:石头，遗迹验收4:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 40,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：遗迹验收3 获得行动资格；遗迹验收1、遗迹验收2、遗迹验收4 无资格",
+      "important": true
+    },
+    {
+      "seq": 41,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 遗迹验收3 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 42,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收3（无业游民，位于 P3-ezhx）行动",
+      "important": false
+    },
+    {
+      "seq": 43,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "遗迹验收3 近战攻击 遗迹验收2（伤害 1）",
+      "important": true,
+      "data": {
+        "declared": true,
+        "source": "P3-ezhx",
+        "target": "P2-i9kx",
+        "amount": 1,
+        "ranged": false,
+        "room": "R3"
+      }
+    },
+    {
+      "seq": 44,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "遗迹验收2 受到 1 伤害（物理）：3 → 2（来源 遗迹验收3）",
+      "important": true,
+      "data": {
+        "target": "P2-i9kx",
+        "source": "P3-ezhx",
+        "amount": 1,
+        "hpBefore": 3,
+        "hpAfter": 2,
+        "lethal": false,
+        "dtype": "physical",
+        "room": "R3",
+        "reflected": false,
+        "transferred": false
+      }
+    },
+    {
+      "seq": 45,
+      "round": 5,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收3 执行行动：攻击 遗迹验收2",
+      "important": true,
+      "data": {
+        "pid": "P3-ezhx",
+        "fx": "attack",
+        "label": "攻击 遗迹验收2",
+        "targetId": "P2-i9kx"
+      }
+    },
+    {
+      "seq": 46,
+      "round": 5,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 5 回合小结：遗迹验收3 获得行动资格；遗迹验收3 攻击 遗迹验收2",
+      "important": true
+    },
+    {
+      "seq": 47,
+      "round": 5,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 5 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 48,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 6 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 49,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:剪刀，遗迹验收2:石头，遗迹验收3:剪刀，遗迹验收4:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 50,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：遗迹验收2 获得行动资格；遗迹验收1、遗迹验收3、遗迹验收4 无资格",
+      "important": true
+    },
+    {
+      "seq": 51,
+      "round": 6,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 遗迹验收2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 52,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收2（伍六七，位于 P2-i9kx）行动",
+      "important": false
+    },
+    {
+      "seq": 53,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "heal",
+      "text": "遗迹验收2 回复：2 → 3（满血）",
+      "important": true,
+      "data": {
+        "target": "P2-i9kx",
+        "amount": 1,
+        "hpBefore": 2,
+        "hpAfter": 3
+      }
+    },
+    {
+      "seq": 54,
+      "round": 6,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收2 执行行动：回复",
+      "important": true,
+      "data": {
+        "pid": "P2-i9kx",
+        "fx": "heal",
+        "label": "回复"
+      }
+    },
+    {
+      "seq": 55,
+      "round": 6,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 6 回合小结：遗迹验收2 获得行动资格；遗迹验收2 回复",
+      "important": true
+    },
+    {
+      "seq": 56,
+      "round": 6,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 6 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 57,
+      "round": 7,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 7 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 58,
+      "round": 7,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:剪刀，遗迹验收2:石头，遗迹验收3:剪刀，遗迹验收4:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 59,
+      "round": 7,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：遗迹验收2 获得行动资格；遗迹验收1、遗迹验收3、遗迹验收4 无资格",
+      "important": true
+    },
+    {
+      "seq": 60,
+      "round": 7,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 遗迹验收2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 61,
+      "round": 7,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收2（伍六七，位于 P2-i9kx）行动",
+      "important": false
+    },
+    {
+      "seq": 62,
+      "round": 7,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "⚔️ 伍六七释放三段AOE！释放房间 R3（攻击时固定），目标：遗迹验收3、遗迹验收4",
+      "important": true
+    },
+    {
+      "seq": 63,
+      "round": 7,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "遗迹验收3 受到 1 伤害（物理·wuliuqi-aoe·第1/3段）：2 → 1（来源 遗迹验收2）",
+      "important": true,
+      "data": {
+        "target": "P3-ezhx",
+        "source": "P2-i9kx",
+        "amount": 1,
+        "hpBefore": 2,
+        "hpAfter": 1,
+        "lethal": false,
+        "dtype": "physical",
+        "tag": "wuliuqi-aoe",
+        "segment": {
+          "index": 1,
+          "total": 3
+        },
+        "aoe": true,
+        "room": "R3",
+        "reflected": false,
+        "transferred": false,
+        "groupId": "GRP-7-2"
+      }
+    },
+    {
+      "seq": 64,
+      "round": 7,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "遗迹验收4 受到 1 伤害（物理·wuliuqi-aoe·第1/3段）：2 → 1（来源 遗迹验收2）",
+      "important": true,
+      "data": {
+        "target": "P4-acof",
+        "source": "P2-i9kx",
+        "amount": 1,
+        "hpBefore": 2,
+        "hpAfter": 1,
+        "lethal": false,
+        "dtype": "physical",
+        "tag": "wuliuqi-aoe",
+        "segment": {
+          "index": 1,
+          "total": 3
+        },
+        "aoe": true,
+        "room": "R3",
+        "reflected": false,
+        "transferred": false,
+        "groupId": "GRP-7-2"
+      }
+    },
+    {
+      "seq": 65,
+      "round": 7,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "遗迹验收3 受到 1 伤害（物理·wuliuqi-aoe·第2/3段）：1 → 0（来源 遗迹验收2）",
+      "important": true,
+      "data": {
+        "target": "P3-ezhx",
+        "source": "P2-i9kx",
+        "amount": 1,
+        "hpBefore": 1,
+        "hpAfter": 0,
+        "lethal": true,
+        "dtype": "physical",
+        "tag": "wuliuqi-aoe",
+        "segment": {
+          "index": 2,
+          "total": 3
+        },
+        "aoe": true,
+        "room": "R3",
+        "reflected": false,
+        "transferred": false,
+        "groupId": "GRP-7-2"
+      }
+    },
+    {
+      "seq": 66,
+      "round": 7,
+      "sub": 1,
+      "phase": "act",
+      "type": "eliminate",
+      "text": "💀 遗迹验收3（无业游民）被淘汰（原因：wuliuqi-aoe，击杀者 遗迹验收2）",
+      "important": true,
+      "data": {
+        "pid": "P3-ezhx",
+        "cause": "wuliuqi-aoe",
+        "killer": "P2-i9kx"
+      }
+    },
+    {
+      "seq": 67,
+      "round": 7,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "遗迹验收4 受到 1 伤害（物理·wuliuqi-aoe·第2/3段）：1 → 0（来源 遗迹验收2）",
+      "important": true,
+      "data": {
+        "target": "P4-acof",
+        "source": "P2-i9kx",
+        "amount": 1,
+        "hpBefore": 1,
+        "hpAfter": 0,
+        "lethal": true,
+        "dtype": "physical",
+        "tag": "wuliuqi-aoe",
+        "segment": {
+          "index": 2,
+          "total": 3
+        },
+        "aoe": true,
+        "room": "R3",
+        "reflected": false,
+        "transferred": false,
+        "groupId": "GRP-7-2"
+      }
+    },
+    {
+      "seq": 68,
+      "round": 7,
+      "sub": 1,
+      "phase": "act",
+      "type": "eliminate",
+      "text": "💀 遗迹验收4（无业游民）被淘汰（原因：wuliuqi-aoe，击杀者 遗迹验收2）",
+      "important": true,
+      "data": {
+        "pid": "P4-acof",
+        "cause": "wuliuqi-aoe",
+        "killer": "P2-i9kx"
+      }
+    },
+    {
+      "seq": 69,
+      "round": 7,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收2 执行行动：攻击 遗迹验收3",
+      "important": true,
+      "data": {
+        "pid": "P2-i9kx",
+        "fx": "attack",
+        "label": "攻击 遗迹验收3",
+        "targetId": "P3-ezhx"
+      }
+    },
+    {
+      "seq": 70,
+      "round": 7,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 7 回合小结：遗迹验收2 获得行动资格；遗迹验收3 被淘汰（wuliuqi-aoe）；遗迹验收4 被淘汰（wuliuqi-aoe）；遗迹验收2 攻击 遗迹验收3",
+      "important": true
+    },
+    {
+      "seq": 71,
+      "round": 7,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 7 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 72,
+      "round": 8,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 8 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 73,
+      "round": 8,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:石头，遗迹验收2:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 74,
+      "round": 8,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：遗迹验收1 获得行动资格；遗迹验收2 无资格",
+      "important": true
+    },
+    {
+      "seq": 75,
+      "round": 8,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 遗迹验收1 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 76,
+      "round": 8,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收1（卖大伊万的小女孩，位于 P1-zfnh）行动",
+      "important": false
+    },
+    {
+      "seq": 77,
+      "round": 8,
+      "sub": 1,
+      "phase": "act",
+      "type": "deferred",
+      "text": "💣 遗迹验收1 向 R2 投掷大伊万！预计第 9 回合末爆炸（若中间出现平局回合则顺延）",
+      "important": true,
+      "data": {
+        "pid": "P1-zfnh",
+        "room": "R2",
+        "explodeRound": 9
+      }
+    },
+    {
+      "seq": 78,
+      "round": 8,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收1 执行行动：投掷大伊万",
+      "important": true,
+      "data": {
+        "pid": "P1-zfnh",
+        "fx": "skill",
+        "label": "投掷大伊万",
+        "room": "R2"
+      }
+    },
+    {
+      "seq": 79,
+      "round": 8,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 8 回合小结：遗迹验收1 获得行动资格；遗迹验收1 投掷大伊万",
+      "important": true
+    },
+    {
+      "seq": 80,
+      "round": 8,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 8 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 81,
+      "round": 9,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 9 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 82,
+      "round": 9,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:剪刀，遗迹验收2:石头）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 83,
+      "round": 9,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：遗迹验收2 获得行动资格；遗迹验收1 无资格",
+      "important": true
+    },
+    {
+      "seq": 84,
+      "round": 9,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 遗迹验收2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 85,
+      "round": 9,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收2（伍六七，位于 P2-i9kx）行动",
+      "important": false
+    },
+    {
+      "seq": 86,
+      "round": 9,
+      "sub": 1,
+      "phase": "act",
+      "type": "move",
+      "text": "遗迹验收2 从 R3 移动到 R2",
+      "important": true,
+      "data": {
+        "pid": "P2-i9kx",
+        "from": "R3",
+        "to": "R2"
+      }
+    },
+    {
+      "seq": 87,
+      "round": 9,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收2 执行行动：移动到 R2",
+      "important": true,
+      "data": {
+        "pid": "P2-i9kx",
+        "fx": "move",
+        "label": "移动到 R2",
+        "room": "R2"
+      }
+    },
+    {
+      "seq": 88,
+      "round": 9,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 9 回合小结：遗迹验收2 获得行动资格；遗迹验收2 移动到 R2",
+      "important": true
+    },
+    {
+      "seq": 89,
+      "round": 9,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 9 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 90,
+      "round": 9,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "deferred",
+      "text": "💥 大伊万在 R2 爆炸！爆炸时房间内成员：遗迹验收2",
+      "important": true,
+      "data": {
+        "room": "R2",
+        "source": "P1-zfnh"
+      }
+    },
+    {
+      "seq": 91,
+      "round": 9,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "damage",
+      "text": "遗迹验收2 受到 999999 伤害（特殊·ivan）：3 → 0（来源 遗迹验收1）",
+      "important": true,
+      "data": {
+        "target": "P2-i9kx",
+        "source": "P1-zfnh",
+        "amount": 999999,
+        "hpBefore": 3,
+        "hpAfter": 0,
+        "lethal": true,
+        "dtype": "special",
+        "tag": "ivan",
+        "aoe": true,
+        "room": "R2",
+        "reflected": false,
+        "transferred": false,
+        "groupId": "GRP-9-3"
+      }
+    },
+    {
+      "seq": 92,
+      "round": 9,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "eliminate",
+      "text": "💀 遗迹验收2（伍六七）被淘汰（原因：ivan，击杀者 遗迹验收1）",
+      "important": true,
+      "data": {
+        "pid": "P2-i9kx",
+        "cause": "ivan",
+        "killer": "P1-zfnh"
+      }
+    },
+    {
+      "seq": 93,
+      "round": 9,
+      "sub": 1,
+      "phase": "over",
+      "type": "result",
+      "text": "🏆 游戏结束：遗迹验收1（卖大伊万的小女孩）获得胜利！",
+      "important": true
+    },
+    {
+      "seq": 94,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "游戏开始：4 名玩家，随机种子 611645717",
+      "important": true
+    },
+    {
+      "seq": 95,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "遗迹验收1（卖大伊万的小女孩）初始位置 R1，血量 2",
+      "important": false
+    },
+    {
+      "seq": 96,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "遗迹验收2（伍六七）初始位置 R2，血量 3",
+      "important": false
+    },
+    {
+      "seq": 97,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "遗迹验收3（无业游民）初始位置 R3，血量 2",
+      "important": false
+    },
+    {
+      "seq": 98,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "遗迹验收4（无业游民）初始位置 R4，血量 2",
+      "important": false
+    },
+    {
+      "seq": 99,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 1 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 100,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:石头，遗迹验收2:石头，遗迹验收3:剪刀，遗迹验收4:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 101,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：遗迹验收1、遗迹验收2 获得行动资格；遗迹验收3、遗迹验收4 无资格",
+      "important": true
+    },
+    {
+      "seq": 102,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps2",
+      "type": "phase",
+      "text": "—— 第 1 回合 · 行动排序判定（二次判定：资格者亲自出拳）——",
+      "important": true
+    },
+    {
+      "seq": 103,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps2",
+      "type": "info",
+      "text": "二次判定只决定行动先后、不剥夺行动资格；输者整组先动、赢者整组靠后，同侧继续判定",
+      "important": false
+    },
+    {
+      "seq": 104,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps2",
+      "type": "phase",
+      "text": "行动排序出拳（子轮 1）：等待 遗迹验收1、遗迹验收2 出拳",
+      "important": true
+    },
+    {
+      "seq": 105,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps2",
+      "type": "judge",
+      "text": "行动排序（子轮 1，遗迹验收1:石头，遗迹验收2:剪刀）：遗迹验收1 胜出 → 遗迹验收2 优先行动",
+      "important": false
+    },
+    {
+      "seq": 106,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps2",
+      "type": "order",
+      "text": "⭐ 行动顺序（二次判定胜负决定，输者先动）：遗迹验收2 → 遗迹验收1",
+      "important": true
+    },
+    {
+      "seq": 107,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收2（伍六七，位于 P2-i9kx）行动",
+      "important": false
+    },
+    {
+      "seq": 108,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收2 执行行动：跳过",
+      "important": true,
+      "data": {
+        "pid": "P2-i9kx",
+        "fx": "skip",
+        "label": "跳过"
+      }
+    },
+    {
+      "seq": 109,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收1（卖大伊万的小女孩，位于 P1-zfnh）行动",
+      "important": false
+    },
+    {
+      "seq": 110,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收1 执行行动：跳过",
+      "important": true,
+      "data": {
+        "pid": "P1-zfnh",
+        "fx": "skip",
+        "label": "跳过"
+      }
+    },
+    {
+      "seq": 111,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 1 回合小结：遗迹验收1、遗迹验收2 获得行动资格；遗迹验收2 跳过；遗迹验收1 跳过",
+      "important": true
+    },
+    {
+      "seq": 112,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 1 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 113,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 2 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 114,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（遗迹验收1:石头，遗迹验收2:剪刀，遗迹验收3:剪刀，遗迹验收4:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 115,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：遗迹验收1 获得行动资格；遗迹验收2、遗迹验收3、遗迹验收4 无资格",
+      "important": true
+    },
+    {
+      "seq": 116,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 遗迹验收1 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 117,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 遗迹验收1（卖大伊万的小女孩，位于 P1-zfnh）行动",
+      "important": false
+    },
+    {
+      "seq": 118,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "deferred",
+      "text": "💣 遗迹验收1 向 R3 投掷大伊万！预计第 3 回合末爆炸（若中间出现平局回合则顺延）",
+      "important": true,
+      "data": {
+        "pid": "P1-zfnh",
+        "room": "R3",
+        "explodeRound": 3
+      }
+    },
+    {
+      "seq": 119,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "遗迹验收1 执行行动：投掷大伊万",
+      "important": true,
+      "data": {
+        "pid": "P1-zfnh",
+        "fx": "skill",
+        "label": "投掷大伊万",
+        "room": "R3"
+      }
+    },
+    {
+      "seq": 120,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 2 回合小结：遗迹验收1 获得行动资格；遗迹验收1 投掷大伊万",
+      "important": true
+    },
+    {
+      "seq": 121,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 2 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 122,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 3 回合 · 隐藏出拳 ——",
+      "important": true
+    }
+  ]
+}
