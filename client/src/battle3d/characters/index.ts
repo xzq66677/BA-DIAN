@@ -12,6 +12,7 @@ import { createHeroTodayRig } from './hero-today.js';
 import { createDajiankeRig } from './dajianke.js';
 import { createDapihuaiRig } from './dapihuai.js';
 import { createNobodyRig } from './nobody.js';
+import { applyHairStyle, setHairStyle } from './hair-style.js';
 
 /** The stage owns placement, timing and feedback. Rigs only pose their local joints. */
 export type CharacterRig = Pick<Humanoid,
@@ -38,6 +39,13 @@ export function dedicatedCharIds(): readonly string[] {
   return [...models.keys()];
 }
 
+/** 整体显隐某角色实例的发型增强层（新旧对照 / 回退开关） */
+export function setCharacterHairStyle(rig: CharacterRig, on: boolean): void {
+  setHairStyle(rig, on);
+}
+
+export { applyHairStyle, setHairStyle, HAIR_STYLES } from './hair-style.js';
+
 registerCharacterRig('gojo', 'gojo-v1', createGojoRig);
 registerCharacterRig('laodaye', 'laodaye-v1', createLaodayeRig);
 registerCharacterRig('bagun', 'bagun-v1', createBagunRig);
@@ -49,6 +57,9 @@ registerCharacterRig('hero-today', 'hero-today-v1', createHeroTodayRig);
 registerCharacterRig('dajianke', 'dajianke-v1', createDajiankeRig);
 registerCharacterRig('dapihuai', 'dapihuai-v1', createDapihuaiRig);
 registerCharacterRig('default', 'nobody-v1', createNobodyRig);
+
+/** 注册完成后的专属角色 ID 快照（供取证 harness 等静态枚举使用），随注册表自动同步 */
+export const DEDICATED_CHAR_IDS: readonly string[] = dedicatedCharIds();
 
 /** All geometries and materials in this subtree belong to this instance. */
 export function releaseMeshes(root: THREE.Object3D): void {
@@ -71,6 +82,9 @@ export function createCharacterAsset(charId: string) {
   let stick: THREE.Object3D | null = null;
   if (model) {
     rig = model.create(spec.scale);
+    // 专用 rig 统一挂发型增强层（幂等；复用 rig 材质，随淡入淡出/dispose 生效）。
+    // 无 3D 兜底的 legacy Humanoid 挂点未命名，保持原样不动。
+    applyHairStyle(rig, charId);
   } else {
     const legacy = new Humanoid({ main: spec.color, accent: spec.accent, skin: 0xe8c49a, dark: 0x2e2822 }, { scale: spec.scale });
     for (const m of legacy.materials()) m.emissive.copy(m.color).multiplyScalar(0.16);
