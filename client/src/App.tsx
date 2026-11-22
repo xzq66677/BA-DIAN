@@ -22,6 +22,7 @@ export default function App() {
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [game, setGame] = useState<GameSnapshot | null>(null);
   const [logs, setLogs] = useState<{ seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[]>([]);
+  const [resync, setResync] = useState<{ cursor: number }>();
   const [err, setErr] = useState('');
   /** 已渲染的局号（新开一局要清空上一局的战斗日志） */
   const gameNoRef = useRef<number | null>(null);
@@ -30,6 +31,7 @@ export default function App() {
     let off: (() => void) | undefined;
     net.connect().then(() => {
       off = net.onUpdate((u) => {
+        if (u.catchUp) setResync({ cursor: Math.max(0, ...u.newLogs.map(l => l.seq)) });
         setLobby(u.lobby);
         if (u.game) setGame(u.game);
         // 局号变化 = 同一房间开新一局：丢弃上一局日志（服务端 seq 已跨局续接，
@@ -72,6 +74,7 @@ export default function App() {
             if (r.ok) {
               setSession(s);
               net.identities = s.identities;
+              net.currentCode = s.code;
             } else {
               localStorage.removeItem('badian-session');
             }
@@ -93,6 +96,7 @@ export default function App() {
 
   const enterSession = (code: string, identities: { playerId: string; name: string; token: string }[]) => {
     const s: SessionInfo = { code, identities };
+    setResync(undefined);
     setSession(s);
     net.identities = identities;
     net.currentCode = code;
@@ -157,6 +161,7 @@ export default function App() {
       )}
       {(page === 'game' || lobby.state !== 'lobby') && lobby.state !== 'lobby' && (
         <GamePage
+          resync={resync}
           lobby={lobby}
           game={game}
           session={session}

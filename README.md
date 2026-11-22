@@ -17,7 +17,7 @@
 # 1. 安装依赖
 npm install
 
-# 2. 全量自动化测试（488 用例）
+# 2. 全量自动化测试（504 用例）
 npm test
 
 # 3. 构建（服务端 tsc + 客户端 vite）
@@ -44,7 +44,7 @@ npm run dev:client    # vite dev 客户端 :5173（代理到 :3100）
 - **大厅**：房间列表实时刷新、点击加入；角色卡池展示墙（点击看卡面与台词；无立绘角色显示占位卡）
 - **AI 选角**：房主添加 AI 时可指定角色或随机（默认随机）；房主可随时更改已加入 AI 的角色
 - **AI 难度**：房主在卡位区切换「休闲 / 普通 / 硬核」，本局所有 AI 统一生效（详见下文）；非房主看到当前难度的只读标签
-- **3D 战场（默认）**：WebGL 可用时对局以 3D 战场为主舞台——椭圆牌桌上「我的房间」固定前缘、其余房间沿远端弧线展开（六棱石台 + 台阶 + 界柱 + 全尺寸主题图腾 + 石径 + 中央事件核心），角色为程序化低模人形（待机/行走/攻击/受击/施法/倒地/欢呼姿态 + 朝向，肩部/发型/鞋部剪影细节），名牌悬浮头像 + HP 条 + 状态徽标（同房间多人自动横向错开不遮挡）；移动房间播放弧线行走动画（快照与演出同批到达也不断动画）；镜头支持拖拽轨道 / 滚轮缩放 / 三级优先级事件聚焦（S 级大伊万/领域/复活不被普通事件抢镜头）/ ⛶ 一键复位，空闲时段自动降帧省电，后台标签页暂停渲染；选房类行动直接**点击战场中绿光高亮的房间**完成选择；淘汰演出播完后尸体自动淡出回收（名牌保留「淘汰」徽标）；右上角「2D」按钮可随时切回经典牌桌（2D 模式对称提供「3D」切回）
+- **3D 战场（默认）**：悬浮遗迹竞技场由六棱石台、程序化图腾、石桥和中央仪式台组成。房间按服务器 ID 固定，角色移动、攻击、回复、范围预警与延迟爆炸同步播放。可以拖动视角、滚轮缩放、恢复全局，或在「画面」切换自动镜头和精简特效。战场保留点击选房、目标高亮和 2D 切换。详见 [地图设计](docs/MAP_DESIGN.md)、[地图架构](docs/MAP_ARCHITECTURE.md)、[验收记录](docs/MAP_ACCEPTANCE.md) 和下方 [V6.0 地图任务进展](#v60--地图悬浮遗迹--map-任务进展)。
 - **二次判定（行动排序）**：初次判定分出胜负后，若资格者 ≥2 人则进入排序判定——**资格者亲自出拳**（隐藏提交、逐子轮），每轮输者整组先动、赢者整组靠后，同侧继续递归；平局（同拳/三人循环）同组重出拳、不消耗回合；**领域不参与排序**、**不写角色判定历史**（大屁孩的暴走/自爆与排序无关）；AI 即时代出，房间内 ≥2 名真人时 30s 超时代掷；仅 1 名资格者时跳过排序直接行动
 - **对局内（2D 牌桌 / 3D 不可用回退）**：斗地主式牌桌布局（上方对手座位条 / 中央牌桌与出拳揭示台 / 底部我的席位与手牌 / 右侧战斗日志）；WebGL 上下文丢失时自动无感回退 2D，对局不中断；**出拳揭示**——每轮判定结算后所有人可见彼此的石头剪刀布（提交期间保密封锁，公平不破坏）；**战斗演出**——受击斩击（弹出+斜向斩击+冲击闪光+伤害飘字+HP条平滑下降）、回复柔光、移动飞行动画（卡片跨房间 FLIP）、淘汰印章/复活爆发、AOE 房间告警、**大伊万完整演出链**（投掷物从投掷者卡面飞向目标房间 → 落点冲击波 → 房间内成员逐个结算；爆炸前目标房间持续显示「💣 预计第 N 回合末爆炸（平局顺延）」待爆警示），全部由服务端结构化事件经演出队列驱动（不快照差分猜测）；演出可 1×/2×/4× 倍速、跳过本段、全部跳过；局内发言（底部常驻面板，实时同步，可收起）、房主可踢人（点卡牌详情里的踢出按钮，对局中被踢=淘汰）
 - **终局演出**：胜负判定弹层——胜者聚光+一次性金色光屑+结果摘要（终局回合/出局人数）；平局使用独立冷灰构图；关闭弹层后战场进入终局态（胜者卡金色光环+👑、空房间弱化），横幅显示完整结果；可随时「查看战场」跳过；房主点「🔄 再来一局」**直接以原座位开新局**（无需回大厅再点开始）
@@ -147,6 +147,29 @@ npm run deploy
 
 视觉验收用 `npx tsx scripts/char-shots.ts <charId>`（配合 `client/char-harness.html` 隔离渲染）出全姿态原帧。
 
+## V6.0 · 地图（悬浮遗迹）/ MAP 任务进展
+
+V5 悬浮遗迹地图的任务分工与验收边界见 [MAP_TASKS.md](MAP_TASKS.md)、设计见 [MAP_DESIGN.md](docs/MAP_DESIGN.md)、架构见 [MAP_ARCHITECTURE.md](docs/MAP_ARCHITECTURE.md)、端到端验收见 [MAP_ACCEPTANCE.md](docs/MAP_ACCEPTANCE.md)。核心 Phase 0–5（MAP-000~005）已完成；后续独立任务截至本分支状态如下：
+
+| 任务 | 状态 | 交付要点 | 取证 / 记录 |
+|---|---|---|---|
+| MAP-101 石材与遗迹细化 | ✅ 完成 | 五层浮岛岩层 + 顶点色凿刻纹理、断柱环阵、渐变天穹；绘制调用 169→189、三角形 11,664→14,424 | [screenshots-map101](docs/screenshots-map101/)（before/after 同机位） |
+| MAP-102 密集名牌与危险标识 | ✅ 完成 | 名牌按房间分批布局（≤4 逐个 / 5–10 三列 / >6 紧凑）、淘汰名牌保留灰章、待爆警示增强；三种分辨率键盘选取记录 | [screenshots-map102](docs/screenshots-map102/) |
+| MAP-103 精简模式性能采样 | ✅ 完成 | 双模式×两局帧耗时/上下文/资源对账、功能保留检查；**硬件验收未完成**（本机 SwiftShader 软渲染，pixelRatio 锁 1） | [MAP103_REPORT.md](docs/screenshots-map103/MAP103_REPORT.md) · [map103-samples.json](docs/screenshots-map103/map103-samples.json) · [对照截图](docs/screenshots-map103/) |
+| MAP-104 触屏安全区域和缩放 | ⏳ 待领 | 前置 MAP-002、串行于 MAP-102 | — |
+| MAP-105 自动化边角案例 | ✅ 完成 | 未命中 / 同归于尽平局 / 重复播报 2×·4× / WebGL 上下文恢复；仅测试与脚本改动 | [screenshots-map105](docs/screenshots-map105/) |
+| MAP-106 第二主题配置样例 | ⏳ 待领 | 前置硬件与人工验收，串行于 MAP-101、MAP-103 | — |
+
+复现命令（在仓库根目录）：
+
+```bash
+node scripts/map-sample.mjs map103   # MAP-103 双模式采样，输出 docs/screenshots-map103/
+npx tsx scripts/map-match.ts         # 地图对局端到端验收（含边角场景）
+npx vitest run tests/ui/battle3d.test.ts tests/ui/map-playback.test.ts
+```
+
+> **版本说明**：以上 MAP 系列提交（`V5-MAP` → `MAP-101` → `MAP-102` → `MAP-105` → `MAP-103`）已随 **V6.0** 合并进 `main`，与马保国「亲自出拳」判定链共存；线上部署跟随 `main`，因此已包含悬浮遗迹地图。历史开发分支 `feat/map105-edge-tests` 保留作追溯，不再作为集成基线。
+
 ## 目录结构
 
 ```
@@ -157,19 +180,32 @@ shared/src/          核心规则引擎（独立于前端与网络层）
 server/src/          Socket.IO 服务端（房间/隐藏提交/断线重连/AI/互动/回放录制）
 client/src/          React 前端（首页/大厅/游戏页/回放播放器/机制测试场）
   battle/            结构化事件解析 + BattleEventQueue 演出队列 + 音效
-  battle3d/          3D 战场（scene 场景/rig 人形/layout 布局数学/fx 特效/pres-adapter 演出适配）
+  battle3d/          3D 战场（scene 场景/rig 人形/layout 布局数学/fx 特效/map-playback 演出投影/camera-director 取景）
     characters/      角色专属 3D 视觉（kit 骨架套件 + 逐角色 rig + 注册工厂）
   proto/             3D 架构原型（浏览器内直跑真实引擎的 A/B/C 构图对比运行时）
 tests/               自动化测试（共享用例/socket集成/AI回归/战绩/互动/回放/UI组件/battle3d 布局与适配层）
 docs/                规则/架构/测试报告/已知问题/角色原始数据/截图取证
   characters/        逐角色 3D 视觉规格与 QA 记录（10 份）
   screenshots-characters/  角色视觉取证原帧（隔离渲染 + 真实对局）
+  MAP_TASKS.md / MAP_DESIGN.md / MAP_ARCHITECTURE.md / MAP_ACCEPTANCE.md
+  screenshots-v5-map/  悬浮遗迹主任务取证
+  screenshots-map101/ ~ screenshots-map105/  各后续 MAP 任务取证
+scripts/
+  map-sample.mjs     MAP-103 双模式性能采样器
+  map-match.ts       地图对局端到端验收（含边角场景）
 ```
 
 ## 测试
 
 ```bash
-npm test   # 488 用例：共享规则/角色/复杂交互 108 + 领域 20 + 战斗演出事件 14 + 演出队列 25 + 广播游标 4 + 退出/占用规则 7 + AI 回归与难度 15 + 联机集成 11 + 超时与 AI 兜底 6 + 隐藏出拳 4 + 战绩 4 + 互动 4 + 回放 3 + 多局日志 6 + 音效安全 3 + UI 组件 11 + 退出逃生口 1 + battle3d 布局/视觉元数据/适配层/GL 会话降级/诊断日志 27 + 终局延迟呈现 6 + 二次判定亲自出拳 12 + 交设备遮罩/错误边界 4 + 马保国技能判定（亲自出拳/精神攻击/出拳 UI）14 + 真实浏览器 E2E 5 + 五条悟交接专项（资产/生命周期）17 + 角色专属 3D 资产 152（全员 rig 契约/姿态复位/实例隔离/无 3D 新角色兜底）
+npm test
+# 29 个测试文件 / 504 用例全绿（V6.0 实测）。按文件：
+#   character-assets 152 · shared-cases 111 · battle3d 27 · battle-queue 25 · domain 20
+#   map-playback 16 · battle-events 14 · order-rps2 12 · skill-judge 12 · gojo-asset 11
+#   socket 11 · components 11 · ai-difficulty 10 · gojo-lifecycle 8 · room-exit 7
+#   room-logseq 6 · finale-gate 6 · timeout 6 · ai-sim 5 · e2e 5
+#   stats 4 · reveal 4 · interaction 4 · broadcast-cursor 4 · throw-privacy 4
+#   replay 3 · sfx 3 · skill-judge-ui 2 · exit-guard 1
 ```
 
 详见 `docs/TEST_REPORT.md`。历史版本变更见 [CHANGELOG.md](CHANGELOG.md)。

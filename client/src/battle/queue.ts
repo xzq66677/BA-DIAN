@@ -49,6 +49,7 @@ const TURBO_BACKLOG_MS = 22000;
 /** normal 模式下的基础演出时长（ms），实际按 speed 缩放 */
 const BASE_MS: Record<string, number> = {
   action: 340,
+  area: 380,
   attackDecl: 200,
   damage: 640,
   heal: 620,
@@ -70,7 +71,7 @@ const BASE_MS: Record<string, number> = {
 const FAST_MS = 260;
 
 function eventMs(e: BattleEvent, mode: QueueMode, speed: Speed, reduced: boolean): number {
-  if (mode === 'fast') return isMajorEvent(e) ? 420 : FAST_MS;
+  if (mode === 'fast') return reduced ? 155 : isMajorEvent(e) ? 320 : FAST_MS;
   let base = BASE_MS[e.kind] ?? 300;
   // 多段伤害段间紧凑（总时长仍覆盖斩击动画）
   if (e.kind === 'damage' && e.segment && e.segment.total > 1) base = 430;
@@ -117,7 +118,7 @@ function clusterHasMajor(c: EventCluster): boolean {
 
 export interface QueueCallbacks {
   /** 事件演出开始（UI 据此挂载视觉状态；幂等键 = 事件 seq） */
-  onEventStart?: (e: BattleEvent) => void;
+  onEventStart?: (e: BattleEvent, durationMs: number) => void;
   /** 队列被整体清空（跳过全部/局切换）：UI 应清掉全部演出叠加层，直接呈现快照状态 */
   onFlush?: () => void;
   /** 队列状态变化（playing/depth/mode/speed） */
@@ -128,6 +129,7 @@ export class BattleEventQueue {
   private clusters: EventCluster[] = [];
   /** 正在播放中的簇（playNext 时移出队列；skipCurrent 据此丢弃其剩余事件） */
   private current: EventCluster | null = null;
+  private nextIndex = 0;
   /** 已消费的最大日志 seq（幂等游标） */
   private seqCursor = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -182,18 +184,23 @@ export class BattleEventQueue {
    */
   pushLogs(logs: LogLike[]): void {
     if (this.disposed) return;
-    const fresh = logs
-      .filter((l) => l.seq > this.seqCursor)
+    const fresh = Array.from(new Map(logs.filter(l => l.seq > this.seqCursor).map(l => [l.seq, l])).values())
       .sort((a, b) => a.seq - b.seq);
     if (fresh.length === 0) return;
     this.seqCursor = fresh[fresh.length - 1].seq;
 
-    const events: BattleEvent[] = [];
+    const batch: EventCluster[] = [];
+    let events: BattleEvent[] = [];
     for (const l of fresh) {
+      if (l.type === 'phase' && events.length) {
+        batch.push(...assembleClusters(events));
+        events = [];
+      }
       const e = parseBattleEvent(l);
       if (e) events.push(e);
     }
-    const batch = assembleClusters(events);
+    batch.push(...assembleClusters(events));
+    if (!batch.length) return;
     // 积压时长（按 1× 正常节奏估算，含正在播放的簇剩余部分）
     const backlog = estimateMs(this.current ? [this.current, ...this.clusters] : this.clusters) + estimateMs(batch);
     let mode: QueueMode = 'normal';
@@ -208,14 +215,27 @@ export class BattleEventQueue {
     } else if (backlog > FAST_BACKLOG_MS) {
       mode = 'fast';
     }
-    for (const c of batch) c.mode = mode;
+    for (const c of batch) {
+      c.mode = mode;
+      if (c.events.length > 160) {
+        const opener = c.events.find(event => event.kind === 'area' || event.kind === 'ivanBoom');
+        const recent = c.events.slice(-159);
+        c.events = opener && !recent.includes(opener) ? [opener, ...recent] : recent;
+      }
+    }
     this.clusters.push(...batch);
     // 保留上限：入队后积压仍然过大（如一次性收到整局日志）→ 继续丢，保证能追上；
     // 丢弃顺序：优先非重大簇，重大簇耗尽后才丢最旧（避免 S 级演出被积压挤掉）
     while (this.clusters.length > 1 && estimateMs(this.clusters) > TURBO_BACKLOG_MS * 0.5) {
       const dropIdx = this.clusters.findIndex((c) => !clusterHasMajor(c));
-      if (dropIdx < 0) break;
-      this.clusters.splice(dropIdx, 1);
+      if (dropIdx >= 0) {
+        this.clusters.splice(dropIdx, 1);
+      } else {
+        // Keep major chains compressed and retain a hard ceiling under sustained bursts.
+        for (const cluster of this.clusters) cluster.mode = 'fast';
+        if (this.remainingEvents().length <= 160) break;
+        this.clusters.shift();
+      }
     }
     this.emitState();
     if (!this.current && this.timer === null) this.schedule(0);
@@ -230,17 +250,17 @@ export class BattleEventQueue {
       this.clusters.shift();
     }
     this.emitState();
+    this.cb.onFlush?.();
     this.schedule(0);
   }
 
   /** 跳过/清空全部剩余演出，立即回到真实状态 */
   skipAll(): void {
     this.stopTimer();
-    const had = this.clusters.length > 0 || this.current !== null;
     this.clusters = [];
     this.current = null;
     this.emitState();
-    if (had) this.cb.onFlush?.();
+    this.cb.onFlush?.();
   }
 
   /** 局切换/退出时清空（含游标）：不把旧事件演到新局 */
@@ -277,6 +297,14 @@ export class BattleEventQueue {
     return inFlight + this.clusters.reduce((n, c) => n + c.events.length + (c.lead ? 1 : 0), 0);
   }
 
+  /** Ordered events still waiting to be revealed, excluding the beat that already started. */
+  remainingEvents(): BattleEvent[] {
+    const list = (c: EventCluster) => c.lead ? [c.lead, ...c.events] : c.events;
+    const pending = this.current ? list(this.current).slice(this.nextIndex) : [];
+    for (const cluster of this.clusters) pending.push(...list(cluster));
+    return pending;
+  }
+
   private emitState(): void {
     const mode = this.current ? this.current.mode : this.clusters[0]?.mode ?? 'normal';
     this.state = {
@@ -311,6 +339,7 @@ export class BattleEventQueue {
     }
     const cluster = this.clusters.shift()!;
     this.current = cluster;
+    this.nextIndex = 0;
     this.emitState();
     this.playCluster(cluster, cluster.mode, 0);
   }
@@ -333,12 +362,13 @@ export class BattleEventQueue {
       }
       return;
     }
+    this.nextIndex = index + 1;
     if (mode === 'fast' && droppableInFast(e)) {
       this.playCluster(cluster, mode, index + 1);
       return;
     }
-    this.cb.onEventStart?.(e);
     const wait = eventMs(e, mode, this.speed, this.reduced);
+    this.cb.onEventStart?.(e, wait);
     this.stopTimer();
     this.timer = setTimeout(() => {
       this.timer = null; // 触发后清句柄
@@ -367,5 +397,20 @@ export function assembleClusters(events: BattleEvent[]): EventCluster[] {
     cur.events.push(e);
   }
   if (cur) clusters.push(cur);
+  for (const cluster of clusters) {
+    const groups = new Map<string, Set<string>>();
+    for (const event of cluster.events) {
+      if (!event.aoe || !event.room || !event.groupId || event.tag === 'ivan') continue;
+      const rooms = groups.get(event.groupId) ?? new Set<string>();
+      rooms.add(event.room);
+      groups.set(event.groupId, rooms);
+    }
+    cluster.events = cluster.events.flatMap(event => {
+      const rooms = event.groupId && groups.get(event.groupId);
+      if (!rooms) return [event];
+      groups.delete(event.groupId!);
+      return [{ kind: 'area', seq: event.seq, areaRooms: Array.from(rooms) }, event];
+    });
+  }
   return clusters;
 }
