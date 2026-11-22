@@ -35,8 +35,9 @@ interface ActionOption {
   used?: boolean;
 }
 
-export default function GamePage({ lobby, game, session, logs, onExit, onBackToLobby }: {
+export default function GamePage({ lobby, game, session, logs, resync, onExit, onBackToLobby }: {
   lobby: LobbyState;
+  resync?: { cursor: number };
   game: GameSnapshot | null;
   session: SessionInfo;
   logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[];
@@ -45,7 +46,7 @@ export default function GamePage({ lobby, game, session, logs, onExit, onBackToL
   onBackToLobby?: () => void;
 }) {
   if (!game) return <div className="tcg-app"><div className="tcg-panel" style={{ margin: 20 }}>等待游戏状态…</div></div>;
-  return <GameInner lobby={lobby} game={game} session={session} logs={logs} onExit={onExit} onBackToLobby={onBackToLobby} />;
+  return <GameInner lobby={lobby} game={game} session={session} logs={logs} resync={resync} onExit={onExit} onBackToLobby={onBackToLobby} />;
 }
 
 function fmtHp(n: number): string {
@@ -60,9 +61,10 @@ function atkOf(p: SnapPlayer): string {
   return fmtHp(v);
 }
 
-function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
+function GameInner({ lobby, game, session, logs, resync, onExit, onBackToLobby }: {
   lobby: LobbyState;
   game: GameSnapshot;
+  resync?: { cursor: number };
   session: SessionInfo;
   logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[];
   onExit: () => void;
@@ -123,7 +125,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   // ── 战斗演出（BattleEventQueue）：全部由服务端结构化事件驱动，
   //    不再用快照 HP 差分猜测伤害；快照仍是显示权威，叠加层只做视觉。
   //    终局延迟呈现：规则立即结算（快照 over），终局弹层等最后关键演出播完再登场。 ──
-  const { pres, queue: queueState, api: presApi, finaleWaiting } = useBattlePresentation(logs, lobby.gameNo, game.phase);
+  const { pres, queue: queueState, api: presApi, finaleWaiting } = useBattlePresentation(logs, lobby.gameNo, game.phase, resync);
   const reducedMotion = useReducedMotion();
   // 移动演出的 FLIP 卡片飞行动画（跟随快照房间变化，不依赖队列时序）
   useCardRoomFlip(game.players, reducedMotion, '.bt-room-cards .ccard[data-pid], .bt-mine-cards .ccard[data-pid]', 'flip-flying');
@@ -134,12 +136,6 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   // 胜负判定弹层（新对局自动复位）
   const [winDismissed, setWinDismissed] = useState(false);
   useEffect(() => { if (game.phase !== 'over') setWinDismissed(false); }, [game.phase]);
-  // 终局音效：胜利短琶音（平局不播；静音/无 WebAudio 环境自动静默）
-  const prevPhase = useRef(game.phase);
-  useEffect(() => {
-    if (game.phase === 'over' && prevPhase.current !== 'over' && game.winner) sfx.play('victory', { major: true });
-    prevPhase.current = game.phase;
-  }, [game.phase, game.winner]);
   // 音效开关（localStorage 持久化）
   const [sfxMuted, setSfxMuted] = useState(sfx.isMuted());
   // 局内发言（底部常驻面板，实时显示）
@@ -160,26 +156,28 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   // 当前行动者是否为我方身份
   const myTurnId = myIds.find((i) => i.playerId === game.currentActor);
 
+  const actor = game.players.find(p => p.id === myTurnId?.playerId) ?? me;
+
   // 可选行动列表（基础 + 角色）
   const options: ActionOption[] = useMemo(() => {
-    if (!me) return [];
-    const cd = CHARACTERS[me.charId] || CHARACTERS['default'];
+    if (!actor) return [];
+    const cd = CHARACTERS[actor.charId] || CHARACTERS['default'];
     const list: ActionOption[] = [
-      { key: 'attack', label: '攻击', desc: cd.attackDesc ?? `近战攻击同房间目标（伤害 ${atkOf(me)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? ((cd.aimExemptWhenDomain && me.char.domain === true) ? '（领域生效免瞄准）' : '（远程需先瞄准）') : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', targetHint: 'attack' },
+      { key: 'attack', label: '攻击', desc: cd.attackDesc ?? `近战攻击同房间目标（伤害 ${atkOf(actor)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? ((cd.aimExemptWhenDomain && actor.char.domain === true) ? '（领域生效免瞄准）' : '（远程需先瞄准）') : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', targetHint: 'attack' },
       { key: 'move', label: '移动', desc: '移动到任意玩家的初始房间（移动后现身）', typeLabel: '基础', roomHint: true },
       { key: 'heal', label: '回复', desc: '回复至满血', typeLabel: '基础' },
       { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础' },
       { key: 'hide', label: '躲藏', desc: '指向性攻击无法锁定；AOE与无视躲避攻击仍可命中', typeLabel: '基础' },
     ];
-    if (me.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标（伤害1），无需瞄准；无法近战';
-    if (hiddenSameRoomCount(game, me.id) > 0) list.push({ key: 'seek', label: '找出来', desc: '找出同房间躲藏的玩家', typeLabel: '基础', targetHint: 'seek' });
-    if (cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && me.char.domain === true)) {
+    if (actor.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标（伤害1），无需瞄准；无法近战';
+    if (hiddenSameRoomCount(game, actor.id) > 0) list.push({ key: 'seek', label: '找出来', desc: '找出同房间躲藏的玩家', typeLabel: '基础', targetHint: 'seek' });
+    if (cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && actor.char.domain === true)) {
       list.push({ key: 'aim', label: '瞄准', desc: '锁定一名玩家（远程攻击前必须瞄准）', typeLabel: '基础', targetHint: 'aim' });
     }
     list.push({ key: 'skip', label: '跳过', desc: '不做任何事', typeLabel: '基础' });
     for (const a of cd.actions || []) {
       // 今日勇者「抽取今日运势」全局仅一次：已用则卡面灰化（快照 char.fortuneUsed 为权威状态）
-      const used = a.name === 'rollFortune' && me.char.fortuneUsed === true;
+      const used = a.name === 'rollFortune' && actor.char.fortuneUsed === true;
       list.push({
         key: a.name, label: a.label,
         desc: used ? `${a.desc}（本局已使用）` : a.desc,
@@ -191,14 +189,14 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
       });
     }
     return list;
-  }, [game, me]);
+  }, [game, actor]);
 
   // 选中行动的合法目标（客户端提示；服务器重新校验）
   const validTargets: SnapPlayer[] = useMemo(() => {
-    if (!me || !selAction?.targetHint) return [];
-    const others = game.players.filter((p) => p.alive && p.id !== me.id);
-    const cd = CHARACTERS[me.charId] || CHARACTERS['default'];
-    const hiddenOthers = others.filter((p) => p.room === me.room && (p.hidden || p.invisible));
+    if (!actor || !selAction?.targetHint) return [];
+    const others = game.players.filter((p) => p.alive && p.id !== actor.id);
+    const cd = CHARACTERS[actor.charId] || CHARACTERS['default'];
+    const hiddenOthers = others.filter((p) => p.room === actor.room && (p.hidden || p.invisible));
     switch (selAction.targetHint) {
       case 'attack': {
         const at = cd.attackType || 'both';
@@ -208,18 +206,18 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
         if (cd.attackAllRooms) {
           return meleeOk ? others.filter((p) => !p.hidden || cd.ignoreHide) : [];
         }
-        const sameRoom = meleeOk ? others.filter((p) => p.room === me.room && (!p.hidden || cd.ignoreHide)) : [];
-        const otherRoom = rangedOk ? others.filter((p) => p.room !== me.room && !p.hidden) : [];
+        const sameRoom = meleeOk ? others.filter((p) => p.room === actor.room && (!p.hidden || cd.ignoreHide)) : [];
+        const otherRoom = rangedOk ? others.filter((p) => p.room !== actor.room && !p.hidden) : [];
         return [...sameRoom, ...otherRoom];
       }
       case 'aim': return others.filter((p) => !p.hidden && !p.invisible);
       case 'seek': return hiddenOthers;
-      case 'sameRoomPlayer': return others.filter((p) => p.room === me.room);
+      case 'sameRoomPlayer': return others.filter((p) => p.room === actor.room);
       case 'anyPlayer': return others;
-      case 'otherRoomPlayer': return others.filter((p) => p.room !== me.room);
+      case 'otherRoomPlayer': return others.filter((p) => p.room !== actor.room);
       default: return [];
     }
-  }, [game, me, selAction]);
+  }, [game, actor, selAction]);
 
   useEffect(() => { if (!selAction?.targetHint) setSelTarget(''); }, [selAction]);
 
@@ -243,7 +241,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
       if (!selRoom) { setActMsg('请先点击战场中发绿光的房间'); return; }
       action.room = selRoom;
     }
-    if (selAction.key === 'attack' && validTargets.find((t) => t.id === selTarget)?.room !== me?.room) action.ranged = true;
+    if (selAction.key === 'attack' && validTargets.find((t) => t.id === selTarget)?.room !== actor?.room) action.ranged = true;
     const r = await net.submitAction(lobby.code, myTurnId.playerId, myTurnId.token, action) as { ok: boolean; error?: string };
     if (!r.ok) { setActMsg(r.error || '行动失败'); return; }
     resetSelection();
@@ -267,6 +265,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
     && game.players.find((p) => p.id === i.playerId)?.alive
     && !orderSubmittedIds.includes(i.playerId));
   const livingCount = game.players.filter((p) => p.alive).length;
+  const crowdedArena = game.roomIds.length > 10 || game.players.filter(p => p.alive && p.room === actor?.room).length > 6;
 
   // ── 沉浸牌桌派生值：弧形远端房间 / 我的房间成员 / 中央事件播报 ──
   const myRoom = me?.room ?? null;
@@ -297,8 +296,8 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
       if (validTargets.some((t) => t.id === pid)) { setSelTarget(pid); return; }
       // 点击了不可选目标：明确说明原因（而非默默打开详情让玩家困惑）
       const p = game.players.find((x) => x.id === pid);
-      const m = me;
-      if (p && p.alive && p.id !== meId && m) {
+      const m = actor;
+      if (p && p.alive && p.id !== m?.id && m) {
         const cd = CHARACTERS[m.charId] || CHARACTERS['default'];
         if (p.invisible) { setActMsg(`👻 ${p.name} 处于隐身状态，无法被选中`); return; }
         if (p.hidden) { setActMsg(`🙈 ${p.name} 正在躲藏：指向性攻击无法锁定（范围效果与无视躲藏的攻击仍可命中）`); return; }
@@ -318,21 +317,30 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
   // 挂载在 pickTargetOrDetail/validTargets 之后（依赖二者）。
   const [rendererMode, setRendererModeState] = useState<'3d' | '2d'>(() => preferredRenderer());
   const webglOk = useMemo(() => detectWebGL(), []);
-  const reducedMotion3d = useReducedMotion();
+  const [automaticCamera, setAutomaticCamera] = useState(true);
+  const [lowEffects, setLowEffects] = useState(false);
+  const [finaleCanvasDone, setFinaleCanvasDone] = useState(false);
+  const finaleReady = game.phase === 'over' && !finaleWaiting;
   const targetablePids = useMemo(
     () => (selAction?.targetHint && myTurnId ? validTargets.map((t) => t.id) : []),
     [selAction, validTargets, myTurnId],
   );
   const roomPickMode = !!myTurnId && (!!selAction?.roomHint || selAction?.key === 'move');
-  const myRoom3d = me?.room ?? null;
+  const sceneIds = useMemo(() => myIds.map(i => i.playerId), [myIds]);
   const battle3d = Battle3D({
     game,
-    pres,
-    myIds: myIds.map((i) => i.playerId),
-    myRoom: myRoom3d,
+    gameNo: lobby.gameNo,
+    resync,
+    playback: presApi,
+    finaleReady,
+    myIds: sceneIds,
     targetablePids,
     roomPickMode,
-    reducedMotion: reducedMotion3d,
+    selectedRoom: selRoom,
+    selectedPlayer: selTarget,
+    reducedMotion,
+    automaticCamera,
+    lowEffects,
     // active 与 failed 分离：active 由渲染器偏好决定（2D 模式 → dispose 场景释放
     // raf/WebGL 上下文）；failed 是 WebGL 层面的失败（上下文丢失未恢复等）
     active: rendererMode === '3d' && webglOk,
@@ -340,6 +348,23 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
     onPickRoom: (rid) => setSelRoom(rid),
   });
   const use3d = rendererMode === '3d' && webglOk && !battle3d.failed;
+  useEffect(() => {
+    if (!finaleReady || !use3d || reducedMotion || !automaticCamera) return;
+    const t = window.setTimeout(() => setFinaleCanvasDone(true), 760);
+    return () => window.clearTimeout(t);
+  }, [finaleReady, use3d, reducedMotion, automaticCamera, lobby.gameNo]);
+  useEffect(() => { setFinaleCanvasDone(false); }, [lobby.gameNo]);
+  const finaleCameraPending = finaleReady && use3d && !reducedMotion && automaticCamera && !finaleCanvasDone;
+  const soundedFinale = useRef<number>();
+  useEffect(() => {
+    if (!finaleReady || !game.winner || soundedFinale.current === (lobby.gameNo ?? 0)) return;
+    soundedFinale.current = lobby.gameNo ?? 0;
+    sfx.play('victory', { major: true });
+  }, [finaleReady, game.winner, lobby.gameNo]);
+  const skipFinale = () => {
+    presApi.skipFinaleWait();
+    setFinaleCanvasDone(true);
+  };
   // 房间预选：2D 牌桌无战场点击 → 保留下拉与默认预选；3D 模式走「点击战场房间」，
   // 不预填（防误确认移动到默认房间），确认按钮在选择前禁用
   useEffect(() => {
@@ -405,7 +430,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
         <button className="tcg-btn ghost" onClick={onExit}>退出房间</button>
       </header>
 
-      {game.phase === 'over' && !winDismissed && !finaleWaiting && (
+      {finaleReady && !finaleCameraPending && !winDismissed && (
         <div className="win-overlay" onClick={() => setWinDismissed(true)}>
           <div className={`win-modal anim-in ${game.winner ? '' : 'draw'}`} onClick={(e) => e.stopPropagation()}>
             {game.winner ? (
@@ -469,20 +494,7 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
               : `🎰 ${who} 抽取今日运势：掷出 ${pres.announce.roll ?? '?'}`;
             return <div className="global-announce" key={pres.announce.key}>{text}</div>;
           })()}
-          {!use3d && (
-            <>
-          {/* 切回 3D 入口（WebGL 可用且未失败时；3D 侧按钮对称提供「2D」） */}
-          {webglOk && !battle3d.failed && (
-            <div className="bt3d-corner">
-              <button className="tcg-btn ghost tiny" title="切换到 3D 战场" onClick={toggleRenderer}>3D</button>
-            </div>
-          )}
-          {/* 大伊万投掷物飞行层 */}
-          <IvanProjectile throwView={pres.ivanThrow} game={game} />
-
-          {/* 演出控制：演出进行中浮现；终局等待期间保持可见并追加「直接结算」，
-              玩家可随时跳过剩余演出让终局弹层立即登场（规则已结算，仅视觉放行） */}
-          {(queueState.playing || queueState.depth > 0 || finaleWaiting) && (
+          {(queueState.playing || queueState.depth > 0 || finaleWaiting || finaleCameraPending) && (
             <div className="battle-ctl" data-testid="battle-ctl" data-queue-depth={String(queueState.depth)} data-queue-playing={queueState.playing ? '1' : '0'}>
               <span className="bc-depth">🎬 {queueState.depth}</span>
               {[1, 2, 4].map((s) => (
@@ -494,10 +506,21 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
               ))}
               <button className="bc-btn" onClick={presApi.skipCurrent}>⏭ 跳过本段</button>
               <button className="bc-btn" onClick={presApi.skipAll}>⏹ 全部跳过</button>
-              {finaleWaiting && <button className="bc-btn bc-finish" onClick={presApi.skipFinaleWait}>⏩ 直接结算</button>}
+              {(finaleWaiting || finaleCameraPending) && <button className="bc-btn bc-finish" onClick={skipFinale}>⏩ 直接结算</button>}
             </div>
           )}
-          {finaleWaiting && <div className="finale-wait-chip">⚔ 终局演出呈现中…</div>}
+          {(finaleWaiting || finaleCameraPending) && <div className="finale-wait-chip">⚔ 终局演出呈现中…</div>}
+
+          {!use3d && (
+            <>
+          {/* 切回 3D 入口（WebGL 可用且未失败时；3D 侧按钮对称提供「2D」） */}
+          {webglOk && !battle3d.failed && (
+            <div className="bt3d-corner">
+              <button className="tcg-btn ghost tiny" title="切换到 3D 战场" onClick={toggleRenderer}>3D</button>
+            </div>
+          )}
+          {/* 大伊万投掷物飞行层 */}
+          <IvanProjectile throwView={pres.ivanThrow} game={game} />
 
           {/* 弧形远端房间（我的房间在桌沿区） */}
           <div className="bt-arc">
@@ -590,6 +613,15 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
               {battle3d.view}
               <div className="bt3d-corner">
                 <button className="tcg-btn ghost tiny" title="恢复默认视角（也可拖动旋转 / 滚轮缩放）" onClick={battle3d.resetView}>⛶ 视角</button>
+                <details className="bt3d-settings">
+                  <summary className="tcg-btn ghost tiny">画面</summary>
+                  <div className="bt3d-settings-menu">
+                    <button className="tcg-btn ghost tiny" aria-pressed={automaticCamera}
+                      onClick={() => setAutomaticCamera(v => !v)}>自动镜头 {automaticCamera ? '开' : '关'}</button>
+                    <button className="tcg-btn ghost tiny" aria-pressed={lowEffects}
+                      onClick={() => setLowEffects(v => !v)}>精简特效 {lowEffects ? '开' : '关'}</button>
+                  </div>
+                </details>
                 <button className="tcg-btn ghost tiny" title="切换到 2D 牌桌" onClick={toggleRenderer}>2D</button>
               </div>
               <div className="bt3d-reveal-wrap"><RevealBoard game={game} /></div>
@@ -686,7 +718,13 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                           </b>
                         </span>
                       )}
-                      {(selAction.roomHint || selAction.key === 'move') && (use3d ? (
+                      {use3d && crowdedArena && selAction.targetHint && validTargets.length > 0 && (
+                        <select aria-label="目标玩家" value={selTarget} onChange={e => setSelTarget(e.target.value)}>
+                          <option value="">选择目标玩家</option>
+                          {validTargets.map(p => <option key={p.id} value={p.id}>{p.name} · {p.room}</option>)}
+                        </select>
+                      )}
+                      {(selAction.roomHint || selAction.key === 'move') && (use3d && !crowdedArena ? (
                         // 3D：直接点击战场中发绿光的房间（石台绿光高亮），不再依赖下拉框
                         <span className="room-pick-hint">
                           {selRoom
@@ -694,7 +732,8 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                             : '🗺️ 点击战场中发绿光的房间'}
                         </span>
                       ) : (
-                        <select value={selRoom} onChange={(e) => setSelRoom(e.target.value)}>
+                        <select aria-label="目标房间" value={selRoom} onChange={(e) => setSelRoom(e.target.value)}>
+                          {use3d && <option value="">选择目标房间</option>}
                           {game.roomIds.map((r) => (
                             <option key={r} value={r}>
                               {r}（{game.players.filter((p) => p.alive && p.room === r).map((p) => p.name).join('、') || '空'}）
@@ -703,12 +742,12 @@ function GameInner({ lobby, game, session, logs, onExit, onBackToLobby }: {
                         </select>
                       ))}
                       {(() => {
-                        if (selAction.key !== 'attack' || !selTarget || !me) return null;
-                        const cd = CHARACTERS[me.charId] || CHARACTERS['default'];
+                        if (selAction.key !== 'attack' || !selTarget || !actor) return null;
+                        const cd = CHARACTERS[actor.charId] || CHARACTERS['default'];
                         const tgt = game.players.find((x) => x.id === selTarget);
-                        if (!tgt || !cd.rangedNeedsAim || tgt.room === me.room) return null;
-                        if (cd.aimExemptWhenDomain && me.char.domain === true) return null;
-                        if (me.char.aim === selTarget) return null;
+                        if (!tgt || !cd.rangedNeedsAim || tgt.room === actor.room) return null;
+                        if (cd.aimExemptWhenDomain && actor.char.domain === true) return null;
+                        if (actor.char.aim === selTarget) return null;
                         return (
                           <span className="aim-warn">⚠ 远程攻击需先瞄准
                             <button className="tcg-btn" style={{ padding: '3px 10px', fontSize: 12, marginLeft: 6 }}

@@ -113,6 +113,7 @@ function sendRoomStateTo(room: Room, socketId: string): void {
     lobby: room.lobbySnapshot(),
     game: room.game ? room.game.snapshot() : null,
     newLogs: room.catchUpLogs(),
+    catchUp: true,
     you: room.seatBySocket(socketId)[0]?.playerId ?? null,
   });
 }

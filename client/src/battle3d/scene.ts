@@ -1,14 +1,9 @@
-/**
- * 拔典 · 3D 战场场景（BattleScene3D）V2
- *
- * 空间结构：中央事件舞台（演出的空间锚点）+ 六棱石台房间（有高度/厚度/台阶/界柱/
- * 全尺寸主题图腾）+ 石径连接（明确空间关系）。
- * 角色实体：程序化低多边形人形（rig.ts），带朝向与程序化动作。
- * 快照权威 + 演出命令只做视觉，与 React 解耦；文本信息走 HTML 覆盖层。
- */
+/** Three.js arena, DOM overlays and character presentation. Rules live in the engine. */
 
 import * as THREE from 'three';
-import { TABLE, defaultPose, orbitPose, roomSlot, roomPosition } from './layout.js';
+import { TABLE, createRuinsMap, defaultPose, stableMembers, type RoomAnchor } from './layout.js';
+import { CameraDirector, type Shot } from './camera-director.js';
+import { RUINS_COLORS, buildBridge, createRuinsEnvironment, island } from './ruins.js';
 import { roomVisual, STATE_COLORS } from './palette.js';
 import { cardMeta } from '../cards.js';
 import { createCharacterAsset, releaseMeshes, type CharacterRig } from './characters/index.js';
@@ -76,6 +71,7 @@ interface Entity {
   bobPhase: number;
   pose: PoseTask;              // 当前动作
   curRoom: string;
+  shownHp: number;
   deadPose: boolean;
   invisible: boolean;
   alive: boolean;
@@ -92,6 +88,10 @@ interface Entity {
 
 interface Room {
   rid: string;
+  anchor: RoomAnchor;
+  slots: Map<string, number>;
+  bridge: THREE.Group | null;
+  pulse: { kind: 'aoe' | 'blast' | 'hit' | 'heal'; until: number } | null;
   group: THREE.Group;
   beacon: THREE.Mesh;            // 状态灯球（远处可读）
   beaconMat: THREE.MeshBasicMaterial;
@@ -115,8 +115,9 @@ function canAct(e: Entity): boolean {
 interface Tween { owner?: Entity; el: number; dur: number; fn: (t: number) => void; done?: () => void; dead?: boolean }
 
 const GOLD = 0xd8b04a;
-const BG = 0x0a0e14;
-const PLATFORM_H = 1.12;
+const BG = RUINS_COLORS.sky;
+const PLATFORM_H = TABLE.roomHeight;
+const ROOM_EFFECTS = { aoe: 0xff5478, blast: 0xff943c, hit: 0xff5159, heal: 0x70d7b0 };
 
 export class BattleScene3D {
   private renderer: THREE.WebGLRenderer;
@@ -132,25 +133,27 @@ export class BattleScene3D {
   private fxList: { fx: FxInstance; start: number }[] = [];
   private tweens: Tween[] = [];
   private raf = 0;
-  private clock = new THREE.Clock();
+  private frameAt = 0;
   private elapsed = 0;
+  private realElapsed = 0;
   private disposed = false;
   private sizeObserver?: ResizeObserver;
   private reduced = false;
+  private lowEffects = false;
+  private pixelRatio = 1;
+  private readonly environment = createRuinsEnvironment();
+  private map = createRuinsMap([]);
+  private topologyKey = '';
+  private contextTimer: number | undefined;
+  private readonly floatEnds = new Map<HTMLDivElement, number>();
 
   // 相机
   private aspect = 1.5;
   private camPose = defaultPose(1.5, 4);
-  private orbit = { az: 0, polar: 0, zoom: 1 };
-  private lookCur = new THREE.Vector3(0, 1, 0);
-  private focus = { x: 0, z: 0, w: 0 };
-  private focusWTarget = 0;
-  /** 聚焦优先级（Phase D 演出分级）：1=B级普通 2=A级重要 3=S级重大 */
-  private focusPri = 0;
-  /** 当前聚焦的保持截止（elapsed 秒）；保持期内低优先级聚焦被忽略，避免镜头争抢 */
-  private focusUntil = 0;
-  /** 聚焦令牌：新聚焦使旧衰减定时器失效（防止旧定时器提前压低新聚焦） */
-  private focusSeq = 0;
+  private readonly director = new CameraDirector();
+  private lookCur = new THREE.Vector3(0, 1.1, 0);
+  private camTarget = new THREE.Vector3();
+  private shot: Shot = 'overview';
   private shakeAmp = 0;
   /** 打击感慢动作截止（elapsed 秒）：致命/重击瞬间全体演出短暂减速 */
   private hitStopUntil = 0;
@@ -160,39 +163,31 @@ export class BattleScene3D {
   private camMoving = true;
   private targetablePids = new Set<string>();
   private lastSnapshot: SnapLite | null = null;
-  private myRoom: string | null = null;
+  private selectedRoom = '';
+  private selectedPlayer = '';
+  private hoveredRoom = '';
+  private finaleKey: string | null = null;
   private myIds: string[] = [];
 
   private pickedPoint = new THREE.Vector2();
-  private downPos: { x: number; y: number; t: number } | null = null;
+  private downPos: { id: number; x: number; y: number; lastX: number; lastY: number; t: number } | null = null;
   private dragging = false;
   private raycaster = new THREE.Raycaster();
 
   constructor(container: HTMLElement, hooks: SceneHooks) {
     this.container = container;
     this.hooks = hooks;
-    // 软件渲染器（SwiftShader / llvmpipe，低端设备/无 GPU 环境）降级：关抗锯齿 + 锁 1× 像素比，
-    // 显著降低 GPU 负载（此类环境 MSAA 极贵且易导致上下文丢失）；硬件 GPU 保持全质量
-    const probeCanvas = document.createElement('canvas');
-    const probeGl = probeCanvas.getContext('webgl2') as WebGL2RenderingContext | null
-      || probeCanvas.getContext('webgl') as WebGLRenderingContext | null;
-    let software = false;
+    // The renderer's own context provides capability and adapter information.
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
     let rendererLabel = '';
     try {
-      const ext = probeGl?.getExtension('WEBGL_debug_renderer_info') as { UNMASKED_RENDERER_WEBGL: number } | null;
-      const r = ext && probeGl ? String(probeGl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
-      rendererLabel = r;
-      software = /swiftshader|llvmpipe|softpipe|basic render/i.test(r);
-    } catch { /* 探测失败按硬件处理 */ }
-    // 探测上下文用完即释放：残留上下文累计会触发 Chromium「最旧上下文驱逐」（B-031 实证根因）
-    const lose = (probeGl as { getExtension?: (n: string) => unknown } | null)
-      ?.getExtension?.('WEBGL_lose_context') as { loseContext(): void } | null | undefined;
-    lose?.loseContext();
-    // 不设 powerPreference:'high-performance'：混合 GPU / 部分驱动环境下 Chromium
-    // 会因适配器/功耗状态重评估中途丢弃 GL 上下文（实测本环境稳定复现）。
-    // 默认策略下浏览器自行选择适配器，稳定性优先。
-    this.renderer = new THREE.WebGLRenderer({ antialias: !software, alpha: false });
-    this.renderer.setPixelRatio(software ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+      const gl = this.renderer.getContext();
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      if (ext) rendererLabel = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL));
+    } catch { /* diagnostics are optional */ }
+    const software = /swiftshader|llvmpipe|softpipe|basic render/i.test(rendererLabel);
+    this.pixelRatio = software ? 1 : Math.min(window.devicePixelRatio || 1, 1.55);
+    this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.setClearColor(BG);
@@ -203,33 +198,8 @@ export class BattleScene3D {
       pixelRatio: this.renderer.getPixelRatio(),
     }, true);
 
-    // WebGL 上下文丢失：preventDefault 阻止默认处置，在恢复窗口（B3D_RESTORE_WAIT_MS）
-    // 内等待驱动/GPU 进程恢复（three.js 在 webglcontextrestored 时自动重建 GL 资源）；
-    // 超时未恢复 → 通知上层回退 2D。恢复与超时都经 gllog 留痕。
-    this.renderer.domElement.addEventListener('webglcontextlost', (e) => {
-      e.preventDefault();
-      if (this.disposed) return;
-      const lostAt = Date.now();
-      gllog.push('ctx-lost', { renderer: rendererLabel }, true);
-      let restored = false;
-      const onRestored = () => {
-        restored = true;
-        if (this.disposed) return;
-        gllog.push('ctx-restored', { afterMs: Date.now() - lostAt }, true);
-        // three.js 在 restore 时自动重建 GL 资源；这里再强制一次 resize 重建绘制缓冲，
-        // 消除恢复后画布尺寸/缓冲不一致的隐患
-        this.resize();
-        this.hooks.onContextRestored?.();
-      };
-      this.renderer.domElement.addEventListener('webglcontextrestored', onRestored, { once: true });
-      window.setTimeout(() => {
-        this.renderer.domElement.removeEventListener('webglcontextrestored', onRestored);
-        if (!restored && !this.disposed) {
-          gllog.push('ctx-lost-timeout', { waitMs: B3D_RESTORE_WAIT_MS }, true);
-          this.hooks.onContextLost?.();
-        }
-      }, B3D_RESTORE_WAIT_MS);
-    });
+    this.renderer.domElement.addEventListener('webglcontextlost', this.onContextLost);
+    this.renderer.domElement.addEventListener('webglcontextrestored', this.onContextRestored);
 
     this.overlay = document.createElement('div');
     this.overlay.className = 'b3-overlay';
@@ -239,119 +209,116 @@ export class BattleScene3D {
     container.appendChild(this.floats);
 
     this.scene.background = new THREE.Color(BG);
-    this.scene.fog = new THREE.Fog(BG, 26, 52);
-    this.camera = new THREE.PerspectiveCamera(48, 1.5, 0.1, 90);
+    this.scene.fog = new THREE.Fog(BG, 30, 76);
+    this.camera = new THREE.PerspectiveCamera(48, 1.5, 0.1, 180);
 
-    this.buildEnvironment();
+    this.scene.add(this.environment.root);
     this.bindEvents();
     this.resize();
-    this.clock.start();
+    this.frameAt = performance.now();
     this.loop();
   }
 
-  // ── 环境：地面 + 中央事件舞台 ──────────────────────────────
+  private onContextLost = (event: Event): void => {
+    event.preventDefault();
+    if (this.disposed) return;
+    gllog.push('ctx-lost', {}, true);
+    window.clearTimeout(this.contextTimer);
+    this.contextTimer = window.setTimeout(() => {
+      this.contextTimer = undefined;
+      gllog.push('ctx-lost-timeout', { waitMs: B3D_RESTORE_WAIT_MS }, true);
+      this.hooks.onContextLost?.();
+    }, B3D_RESTORE_WAIT_MS);
+  };
 
-  private buildEnvironment(): void {
-    const hemi = new THREE.HemisphereLight(0x7488a2, 0x2a2118, 1.15);
-    this.scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffe2b0, 2.0);
-    dir.position.set(8, 14, 6);
-    this.scene.add(dir);
-    const rim = new THREE.DirectionalLight(0x8fb0ff, 0.5);
-    rim.position.set(-9, 8, -7);
-    this.scene.add(rim);
-    const centerLight = new THREE.PointLight(0xffd9a0, 40, 0, 1.8);
-    centerLight.position.set(0, 8.5, 0);
-    this.scene.add(centerLight);
+  private onContextRestored = (): void => {
+    window.clearTimeout(this.contextTimer);
+    this.contextTimer = undefined;
+    gllog.push('ctx-restored', {}, true);
+    this.resize();
+    this.hooks.onContextRestored?.();
+  };
 
-    // 大地（暗场）
-    const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(42, 48),
-      new THREE.MeshStandardMaterial({ color: 0x141b26, roughness: 0.95 }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.05;
-    this.scene.add(ground);
-    // 地面金环（场地边界语义）
-    const groundRing = new THREE.Mesh(
-      new THREE.TorusGeometry(TABLE.rx * 1.16, 0.03, 6, 80),
-      new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: 0.22 }),
-    );
-    groundRing.rotation.x = Math.PI / 2;
-    groundRing.position.y = 0.01;
-    this.scene.add(groundRing);
-
-    // 中央事件舞台：圆形高台 + 金环 + 悬浮徽记（演出的空间锚点）
-    const dais = new THREE.Mesh(
-      new THREE.CylinderGeometry(TABLE.coreRadius, TABLE.coreRadius * 1.14, 0.5, 36),
-      new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.7, metalness: 0.25 }),
-    );
-    dais.position.y = 0.25;
-    this.scene.add(dais);
-    const daisTop = new THREE.Mesh(
-      new THREE.CylinderGeometry(TABLE.coreRadius * 0.94, TABLE.coreRadius * 0.94, 0.08, 36),
-      new THREE.MeshStandardMaterial({ color: 0x32405a, roughness: 0.55, metalness: 0.3 }),
-    );
-    daisTop.position.y = 0.54;
-    this.scene.add(daisTop);
-    const coreRing = new THREE.Mesh(
-      new THREE.TorusGeometry(TABLE.coreRadius * 0.8, 0.028, 8, 56),
-      new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: 0.75 }),
-    );
-    coreRing.rotation.x = Math.PI / 2;
-    coreRing.position.y = 0.6;
-    this.scene.add(coreRing);
-    // 悬浮徽记（缓慢旋转的八面体，全场可见的"事件核心"）
-    const emblem = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.68),
-      new THREE.MeshStandardMaterial({ color: 0xf0d68a, emissive: 0xa08030, emissiveIntensity: 0.85, roughness: 0.3, metalness: 0.6 }),
-    );
-    emblem.position.y = 2.7;
-    emblem.name = 'core-emblem';
-    this.scene.add(emblem);
-    const emblemLight = new THREE.PointLight(0xffe2a0, 10, 13, 1.8);
-    emblemLight.position.set(0, 2.7, 0);
-    this.scene.add(emblemLight);
-    // 光柱（极淡的加色圆柱，让中央空场在待机阶段也有"事件核心"的存在感）
-    const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.16, 0.34, 5.2, 16, 1, true),
-      new THREE.MeshBasicMaterial({
-        color: 0xffe2a0, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending,
-        depthWrite: false, side: THREE.DoubleSide,
-      }),
-    );
-    beam.position.y = 3.1;
-    beam.name = 'core-beam';
-    this.scene.add(beam);
+  private updateTopology(roomIds: string[]): void {
+    const key = JSON.stringify([...new Set(roomIds)].sort());
+    if (key === this.topologyKey) return;
+    this.topologyKey = key;
+    this.map = createRuinsMap(roomIds);
+    const core = { x: 0, z: 0 };
+    const anchors = Array.from(this.map.rooms.values());
+    for (const anchor of anchors) {
+      const room = this.ensureRoom(anchor);
+      room.anchor = anchor;
+      room.pos.set(anchor.center.x, 0, anchor.center.z);
+      room.group.position.copy(room.pos);
+      room.group.rotation.y = anchor.yaw;
+      room.yaw = anchor.yaw;
+      if (room.bridge) {
+        this.releaseRoomObject(room.bridge);
+      }
+      const radius = Math.hypot(anchor.center.x, anchor.center.z);
+      let destination = core;
+      let destinationRadius: number = TABLE.coreRadius;
+      if (radius > 12 && anchors.length > 10) {
+        const inner = anchors.filter(other => Math.hypot(other.center.x, other.center.z) < radius - 3);
+        const nearest = inner.sort((a, b) =>
+          Math.hypot(a.center.x - anchor.center.x, a.center.z - anchor.center.z) -
+          Math.hypot(b.center.x - anchor.center.x, b.center.z - anchor.center.z))[0];
+        if (nearest) {
+          destination = nearest.center;
+          destinationRadius = nearest.radius;
+          room.yaw = Math.atan2(destination.x - anchor.center.x, destination.z - anchor.center.z);
+          room.group.rotation.y = room.yaw;
+        }
+      }
+      room.bridge = buildBridge(anchor, destination, destinationRadius);
+      this.scene.add(room.bridge);
+    }
+    const fog = this.scene.fog as THREE.Fog;
+    fog.near = Math.max(27, this.map.radius * 2.7);
+    fog.far = fog.near + 42;
+    this.resize();
   }
 
-  // ── 房间：六棱石台 + 全尺寸图腾 ────────────────────────────
+  private releaseRoomObject(object: THREE.Object3D): void {
+    object.traverse(node => { if (node instanceof THREE.InstancedMesh) node.dispose(); });
+    releaseMeshes(object);
+    object.removeFromParent();
+  }
 
-  private ensureRoom(rid: string): Room {
-    let r = this.rooms.get(rid);
-    if (r) return r;
+  private ensureRoom(anchor: RoomAnchor): Room {
+    const rid = anchor.id;
+    const existing = this.rooms.get(rid);
+    if (existing) return existing;
     const vis = roomVisual(rid);
     const group = new THREE.Group();
-    const pos0 = roomPosition(rid, this.myRoom, this.lastSnapshot?.roomIds ?? [rid]);
-    // 朝向桌心：台阶与入口面向中央
-    const yaw = Math.atan2(-pos0.x, -pos0.z);
+    group.userData.room = rid;
+    const { center: pos0, yaw } = anchor;
     group.position.set(pos0.x, 0, pos0.z);
     group.rotation.y = yaw;
+    group.add(island(anchor.radius, pos0.x + pos0.z, 2.55));
 
     // 石台主体（六棱柱，有厚度）
-    const baseMat = new THREE.MeshStandardMaterial({ color: vis.base, roughness: 0.82, metalness: 0.12, flatShading: true });
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(TABLE.roomRadius, TABLE.roomRadius * 1.16, PLATFORM_H, 6), baseMat);
+    const baseMat = new THREE.MeshStandardMaterial({ color: RUINS_COLORS.ashlar, roughness: 0.9, flatShading: true });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(TABLE.roomRadius, TABLE.roomRadius * 1.02, PLATFORM_H, 6), baseMat);
     base.position.y = PLATFORM_H / 2;
     base.rotation.y = Math.PI / 6;
     base.userData = { room: rid };
     group.add(base);
     // 台面（主题地面色）
-    const topMat = new THREE.MeshStandardMaterial({ color: vis.prop, roughness: 0.9, flatShading: true });
-    topMat.color.multiplyScalar(0.5);
+    const topMat = new THREE.MeshStandardMaterial({ color: 0x666a75, roughness: 0.9, flatShading: true });
+    topMat.color.lerp(new THREE.Color(vis.base), 0.44);
     const top = new THREE.Mesh(new THREE.CylinderGeometry(TABLE.roomRadius * 0.94, TABLE.roomRadius * 0.94, 0.14, 6), topMat);
     top.position.y = PLATFORM_H + 0.02;
     top.rotation.y = Math.PI / 6;
     group.add(top);
+    const inlay = new THREE.Mesh(
+      new THREE.TorusGeometry(anchor.radius * 0.64, 0.018, 3, 6),
+      new THREE.MeshBasicMaterial({ color: RUINS_COLORS.bronze, transparent: true, opacity: 0.45 }),
+    );
+    inlay.rotation.set(-Math.PI / 2, 0, Math.PI / 6);
+    inlay.position.y = anchor.floor + 0.006;
+    group.add(inlay);
     // 台面边缘发光描边（状态主视觉之一）
     const edgeMat = new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: 0.4 });
     const edgeGlow = new THREE.Mesh(new THREE.TorusGeometry(TABLE.roomRadius * 0.97, 0.035, 6, 6), edgeMat);
@@ -363,46 +330,46 @@ export class BattleScene3D {
     // 入口台阶（面向桌心，即本地 +Z）
     const stepMat = new THREE.MeshStandardMaterial({ color: 0x3a4149, roughness: 0.85, flatShading: true });
     const step1 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.34, 0.62), stepMat);
-    step1.position.set(0, 0.44, TABLE.roomRadius * 1.1);
+    step1.position.set(0, 0.83, TABLE.roomRadius * 0.9);
     const step2 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.18, 0.62), stepMat);
-    step2.position.set(0, 0.16, TABLE.roomRadius * 1.1 + 0.5);
+    step2.position.set(0, 0.60, TABLE.roomRadius * 0.9 + 0.35);
     group.add(step1, step2);
 
-    // 六角界柱（空间边界感）
-    const postGeo = new THREE.CylinderGeometry(0.085, 0.1, 0.62, 8);
-    const capGeo = new THREE.SphereGeometry(0.11, 10, 8);
-    const postMat = new THREE.MeshStandardMaterial({ color: 0x45404a, roughness: 0.7 });
-    const capMat = new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.4, metalness: 0.6 });
+    // Instanced boundary posts keep the playable floor open.
+    const postGeo = new THREE.CylinderGeometry(0.095, 0.145, 0.55, 5);
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x596373, roughness: 0.83 });
+    const posts = new THREE.InstancedMesh(postGeo, postMat, 6);
+    const caps = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.09, 0.12, 0.115, 5),
+      new THREE.MeshStandardMaterial({ color: RUINS_COLORS.bronze, roughness: 0.57, metalness: 0.28 }), 6);
+    const matrix = new THREE.Matrix4();
     for (let i = 0; i < 6; i++) {
-      const ang = (i / 6) * Math.PI * 2 + Math.PI / 6;
-      const pr = TABLE.roomRadius * 1.04;
-      const post = new THREE.Mesh(postGeo, postMat);
-      post.position.set(Math.cos(ang) * pr, PLATFORM_H + 0.31, Math.sin(ang) * pr);
-      const cap = new THREE.Mesh(capGeo, capMat);
-      cap.position.set(Math.cos(ang) * pr, PLATFORM_H + 0.66, Math.sin(ang) * pr);
-      group.add(post, cap);
+      const angle = (i / 6) * Math.PI * 2 + Math.PI / 6;
+      const x = Math.cos(angle) * anchor.radius * 0.91;
+      const z = Math.sin(angle) * anchor.radius * 0.91;
+      posts.setMatrixAt(i, matrix.makeTranslation(x, anchor.floor + 0.21, z));
+      caps.setMatrixAt(i, matrix.makeTranslation(x, anchor.floor + 0.51, z));
     }
+    group.add(posts, caps);
 
     // 状态灯塔（远处可读的事件/状态指示）
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.7, 8), postMat);
-    pole.position.set(-TABLE.roomRadius * 0.8, PLATFORM_H + 0.85, -TABLE.roomRadius * 0.55);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.085, 0.73, 6), postMat);
+    pole.position.set(-TABLE.roomRadius * 0.8, PLATFORM_H + 0.41, -TABLE.roomRadius * 0.55);
     const beaconMat = new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: 0.9 });
     const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), beaconMat);
-    beacon.position.set(-TABLE.roomRadius * 0.8, PLATFORM_H + 1.78, -TABLE.roomRadius * 0.55);
+    beacon.position.set(-TABLE.roomRadius * 0.8, PLATFORM_H + 0.80, -TABLE.roomRadius * 0.55);
     group.add(pole, beacon);
 
     // 全尺寸主题图腾（平台后半部）
     const totem = this.buildTotem(vis.totem, vis.prop);
-    totem.position.set(0, PLATFORM_H + 0.06, -TABLE.roomRadius * 0.62);
+    totem.position.set(0, anchor.floor, -TABLE.roomRadius * 0.68);
+    totem.scale.setScalar(0.61);
     group.add(totem);
 
     this.scene.add(group);
 
-    // 石径：房间入口 → 中央舞台
-    this.buildPath(new THREE.Vector3(pos0.x, 0, pos0.z));
-
-    r = {
-      rid, group, beacon, beaconMat, edgeGlow, edgeMat, dome: null,
+    const r: Room = {
+      rid, anchor, slots: new Map(), bridge: null, pulse: null,
+      group, beacon, beaconMat, edgeGlow, edgeMat, dome: null,
       label: this.buildRoomLabel(rid, vis.icon),
       labelCount: null as unknown as HTMLSpanElement,
       labelPending: null as unknown as HTMLSpanElement,
@@ -413,31 +380,6 @@ export class BattleScene3D {
     r.labelPending = r.label.querySelector('.b3-rl-pending')!;
     this.rooms.set(rid, r);
     return r;
-  }
-
-  /** 石径：从房间台阶到中央舞台边缘的空间连接 */
-  private buildPath(pos: THREE.Vector3): void {
-    const dir = pos.clone().setY(0).normalize();
-    const start = dir.clone().multiplyScalar(TABLE.roomRadius * 1.6);
-    const end = dir.clone().multiplyScalar(TABLE.coreRadius + 0.15);
-    const len = start.distanceTo(end);
-    if (len < 0.4) return;
-    const mid = start.clone().add(end).multiplyScalar(0.5);
-    const path = new THREE.Mesh(
-      new THREE.BoxGeometry(0.85, 0.1, len),
-      new THREE.MeshStandardMaterial({ color: 0x465060, roughness: 0.85 }),
-    );
-    path.position.set(mid.x, 0.02, mid.z);
-    path.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI / 2;
-    this.scene.add(path);
-    // 径面描边（微金）
-    const line = new THREE.Mesh(
-      new THREE.BoxGeometry(0.06, 0.04, len),
-      new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: 0.25 }),
-    );
-    line.position.set(mid.x, 0.09, mid.z);
-    line.rotation.y = path.rotation.y;
-    this.scene.add(line);
   }
 
   private buildTotem(kind: string, color: number): THREE.Group {
@@ -557,15 +499,26 @@ export class BattleScene3D {
     const el = document.createElement('div');
     el.className = 'b3-roomlabel';
     el.dataset.room = rid;
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', `房间 ${rid}`);
+    el.tabIndex = -1;
     el.innerHTML = `
       <span class="b3-rl-icon">${icon}</span>
-      <span class="b3-rl-name">${rid}</span>
+      <span class="b3-rl-name"></span>
       <span class="b3-rl-count">0 人</span>
       <span class="b3-rl-pending"></span>`;
+    el.querySelector('.b3-rl-name')!.textContent = rid;
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       if (this.roomPickMode) this.hooks.onPickRoom(rid);
     });
+    el.addEventListener('keydown', (e) => {
+      if (!this.roomPickMode || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      this.hooks.onPickRoom(rid);
+    });
+    el.addEventListener('pointerenter', () => { this.hoveredRoom = rid; });
+    el.addEventListener('pointerleave', () => { this.hoveredRoom = ''; });
     this.overlay.appendChild(el);
     return el;
   }
@@ -576,7 +529,7 @@ export class BattleScene3D {
     let e = this.entities.get(p.id);
     if (e?.charId === p.charId) return e;
     if (e) this.removeEntity(e);
-    const room = this.ensureRoom(p.room);
+    const room = this.rooms.get(p.room)!;
     const asset = createCharacterAsset(p.charId);
     const { rig } = asset;
     const appearance = rig.materials().map(material => ({ material, color: material.color.clone(), emissive: material.emissive.clone() }));
@@ -603,16 +556,18 @@ export class BattleScene3D {
     group.add(blob);
 
     room.group.add(group);
-    const idx = this.slotIndexOf(p.id, p.room);
-    const slot = roomSlot(idx, this.roomMemberCount(p.room));
+    const slot = this.spawnFor(p.id, room);
     group.position.set(slot.x, 0, slot.z);
     // 面向桌心（与房间朝向一致）
-    group.rotation.y = asset.id === 'humanoid' ? room.yaw : 0; // 角色 +Z 随房间朝向桌心
+    group.rotation.y = 0; // 房间局部 +Z 为入口方向
 
     // 名牌
+    group.userData.pid = p.id;
     const plate = document.createElement('div');
     plate.className = 'b3-plate';
     plate.dataset.pid = p.id;
+    plate.setAttribute('role', 'button');
+    plate.tabIndex = 0;
     plate.innerHTML = `
       <div class="b3-av"></div>
       <div class="b3-nm"><span class="b3-nm-text"></span></div>
@@ -620,6 +575,11 @@ export class BattleScene3D {
       <div class="b3-badges"></div>`;
     plate.addEventListener('click', (ev) => {
       ev.stopPropagation();
+      this.hooks.onPickPlayer(p.id);
+    });
+    plate.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
       this.hooks.onPickPlayer(p.id);
     });
     this.overlay.appendChild(plate);
@@ -644,7 +604,7 @@ export class BattleScene3D {
       stick: asset.stick,
       bobPhase: Math.random() * Math.PI * 2,
       pose: { kind: 'idle', t: 0, dur: Infinity },
-      curRoom: p.room, deadPose: false, invisible: false, alive: p.alive, walk: null, lunge: null, squash: null,
+      curRoom: p.room, shownHp: p.hp, deadPose: false, invisible: false, alive: p.alive, walk: null, lunge: null, squash: null,
       baseScale: rig.root.scale.clone(),
       plateSlot: 0, plateCount: 1,
     };
@@ -661,52 +621,49 @@ export class BattleScene3D {
     this.entities.delete(e.pid);
   }
 
-  private roomMemberIds(roomId: string): string[] {
-    return (this.lastSnapshot?.players ?? []).filter((p) => p.room === roomId && p.alive).map((p) => p.id);
+  private reconcileSlots(room: Room, players: SnapPlayerLite[]): void {
+    const occupants = stableMembers(players.filter(p => p.room === room.rid));
+    const ids = new Set(occupants.map(p => p.id));
+    for (const [pid, index] of room.slots) {
+      if (!ids.has(pid) || index >= room.anchor.spawns.length) room.slots.delete(pid);
+    }
+    const occupied = new Set(room.slots.values());
+    for (const p of occupants) {
+      if (room.slots.has(p.id)) continue;
+      const slot = room.anchor.spawns.findIndex((_, index) => !occupied.has(index));
+      if (slot < 0) break;
+      room.slots.set(p.id, slot);
+      occupied.add(slot);
+    }
   }
-  private roomMemberCount(roomId: string): number {
-    return Math.max(1, this.roomMemberIds(roomId).length);
-  }
-  private slotIndexOf(pid: string, roomId: string): number {
-    const ids = this.roomMemberIds(roomId).slice().sort();
-    const i = ids.indexOf(pid);
-    return i < 0 ? 0 : i;
+
+  private spawnFor(pid: string, room: Room) {
+    return room.anchor.spawns[room.slots.get(pid) ?? 0];
   }
 
   // ── 快照同步（显示权威） ───────────────────────────────────
 
-  syncSnapshot(snap: SnapLite): void {
+  syncSnapshot(snap: SnapLite, immediate = false, moveSeconds = 0.54): void {
     if (this.disposed) return;
     const prevActor = this.lastSnapshot?.currentActor ?? null;
-    const prevPhase = this.lastSnapshot?.phase ?? null;
     this.lastSnapshot = snap;
     this.myIds = snap.myIds ?? [];
 
-    for (const rid of snap.roomIds) this.ensureRoom(rid);
+    this.updateTopology(snap.roomIds);
+    for (const room of this.rooms.values()) this.reconcileSlots(room, snap.players);
+    const players = new Map(snap.players.filter(p => this.map.rooms.has(p.room)).map(p => [p.id, p]));
+    for (const [pid, e] of this.entities) if (!players.has(pid)) this.removeEntity(e);
+    for (const p of players.values()) this.syncEntity(this.ensureEntity(p), p, snap, immediate, moveSeconds);
     for (const [rid, room] of this.rooms) {
-      if (!snap.roomIds.includes(rid)) {
-        this.scene.remove(room.group);
-        room.label.remove();
-        this.rooms.delete(rid);
-      }
-    }
-
-    for (const p of snap.players) this.ensureEntity(p);
-    for (const [pid, e] of this.entities) {
-      const p = snap.players.find((x) => x.id === pid);
-      if (!p) {
-        this.removeEntity(e);
-        continue;
-      }
-      this.syncEntity(e, p, snap);
+      if (this.map.rooms.has(rid)) continue;
+      this.releaseRoomObject(room.group);
+      if (room.bridge) this.releaseRoomObject(room.bridge);
+      room.label.remove();
+      this.rooms.delete(rid);
     }
 
     // 房间状态
     for (const room of this.rooms.values()) {
-      const pos = roomPosition(room.rid, this.myRoom, snap.roomIds);
-      room.group.position.set(pos.x, 0, pos.z);
-      room.pos.set(pos.x, 0, pos.z);
-      room.group.rotation.y = Math.atan2(-pos.x, -pos.z);
       const members = snap.players.filter((x) => x.room === room.rid && x.alive);
       const acting = !!snap.currentActor && members.some((m) => m.id === snap.currentActor);
       const pendingD = snap.deferred?.find((d) => d.kind === 'ivan' && d.room === room.rid);
@@ -720,19 +677,7 @@ export class BattleScene3D {
       room.label.classList.toggle('is-pending', pending);
       room.label.classList.toggle('is-acting', acting);
       room.label.classList.toggle('is-winner', winnerHere);
-      // 状态灯：胜者金 / 待爆橙 / 行动金 / 默认暗金
-      const bc = winnerHere ? 0xffe08a : pending ? STATE_COLORS.alertIvan : acting ? 0xffd060 : GOLD;
-      room.beaconMat.color.setHex(bc);
-      room.beaconMat.opacity = winnerHere || pending ? 1 : acting ? 0.95 : 0.5;
-      room.edgeMat.color.setHex(bc);
-      room.edgeMat.opacity = winnerHere || pending ? 0.85 : acting ? 0.7 : 0.3;
-      // 房间选择模式：全部房间石台绿光高亮（点击石台/标签即可选房，无需下方下拉框）
-      if (this.roomPickMode) {
-        room.edgeMat.color.setHex(STATE_COLORS.targetable);
-        room.edgeMat.opacity = 0.9;
-        room.beaconMat.color.setHex(STATE_COLORS.targetable);
-        room.beaconMat.opacity = 0.95;
-      }
+      this.paintRoom(room);
       // 领域穹顶
       if (domainHere && !room.dome) {
         const dome = new THREE.Mesh(
@@ -743,7 +688,7 @@ export class BattleScene3D {
         room.group.add(dome);
         room.dome = dome;
       } else if (!domainHere && room.dome) {
-        room.group.remove(room.dome);
+        this.releaseRoomObject(room.dome);
         room.dome = null;
       }
       // 待爆炸弹浮标
@@ -757,52 +702,59 @@ export class BattleScene3D {
         room.group.add(g);
         room.bombMarker = g;
       } else if (!pending && room.bombMarker) {
-        room.group.remove(room.bombMarker);
+        this.releaseRoomObject(room.bombMarker);
         room.bombMarker = null;
       }
       room.group.visible = true;
     }
 
-    // 行动者变化 → 柔和镜头聚焦其房间
     if (snap.phase === 'act' && snap.currentActor && snap.currentActor !== prevActor) {
-      const p = snap.players.find((x) => x.id === snap.currentActor);
-      if (p) this.setFocus(p.room, 0.3);
+      const p = players.get(snap.currentActor);
+      if (p) this.focusRoom('room', p.room);
     }
-    // 终局
-    if (snap.phase === 'over' && prevPhase !== 'over') {
-      this.finaleWinner = snap.winner;
-      if (snap.winner) this.setFocus(snap.winner, 0.55, 1400, 3);
-      // 胜者欢呼
-      if (snap.winner) {
-        const we = this.entities.get(snap.winner);
-        if (we && canAct(we)) this.setPose(we, { kind: 'cheer', t: 0, dur: Infinity });
-      }
-    }
-    if (snap.phase !== 'over') this.finaleWinner = null;
   }
 
-  private syncEntity(e: Entity, p: SnapPlayerLite, snap: SnapLite): void {
-    // 房间迁移：快照权威（终态=新槽位）+ 视觉过渡（从当前位置平滑走到新房间，
-    // 不再瞬移——快照与演出日志同批到达时无论谁先处理都有行走动画）
+  private paintRoom(room: Room): void {
+    const selected = this.roomPickMode && this.selectedRoom === room.rid;
+    const hovered = this.roomPickMode && this.hoveredRoom === room.rid;
+    const acting = room.label.classList.contains('is-acting');
+    const winner = room.label.classList.contains('is-winner');
+    const empty = room.label.classList.contains('is-empty');
+    const pulse = room.pulse;
+    const edge = pulse ? ROOM_EFFECTS[pulse.kind] : room.pendingIvan ? STATE_COLORS.alertIvan
+      : selected ? 0x67e9f5 : winner || acting ? 0xffd060 : this.roomPickMode ? STATE_COLORS.targetable : GOLD;
+    room.edgeMat.color.setHex(edge);
+    room.edgeMat.opacity = pulse || selected || hovered || room.pendingIvan ? 1
+      : acting || this.roomPickMode || winner ? 0.83 : empty ? 0.25 : 0.44;
+    room.beaconMat.color.setHex(acting || winner ? 0xffd060 : edge);
+    room.beaconMat.opacity = 0.55 + 0.4 * room.edgeMat.opacity;
+    room.label.classList.toggle('is-pickable', this.roomPickMode);
+    room.label.classList.toggle('is-selected', selected);
+    room.label.setAttribute('aria-disabled', String(!this.roomPickMode));
+    room.label.tabIndex = this.roomPickMode ? 0 : -1;
+  }
+
+  private syncEntity(e: Entity, p: SnapPlayerLite, snap: SnapLite, immediate: boolean, moveSeconds: number): void {
+    const toRoom = this.rooms.get(p.room)!;
+    const slot = this.spawnFor(p.id, toRoom);
     if (e.curRoom !== p.room) {
-      const worldFrom = new THREE.Vector3();
-      e.group.getWorldPosition(worldFrom);
-      const fromRoom = this.rooms.get(e.curRoom);
-      if (fromRoom) e.group.removeFromParent();
-      const toRoom = this.ensureRoom(p.room);
+      const worldFrom = e.group.getWorldPosition(new THREE.Vector3());
       toRoom.group.add(e.group);
-      const idx = this.slotIndexOf(p.id, p.room);
-      const slot = roomSlot(idx, this.roomMemberCount(p.room));
-      this.startWalkTo(e, toRoom, slot, worldFrom);
       e.curRoom = p.room;
+      e.lunge = null;
+      if (p.alive && !immediate && !this.reduced) this.startWalkTo(e, toRoom, slot, worldFrom, moveSeconds);
     }
+    if (!e.walk && !e.lunge) e.group.position.set(slot.x, 0, slot.z);
     // 名牌错开参数（同房间成员序号/总数，updateOverlay 据此水平分散）
-    const memberIds = this.roomMemberIds(p.room);
+    const memberIds = Array.from(toRoom.slots).sort((a, b) => a[1] - b[1]).map(([pid]) => pid);
     e.plateSlot = Math.max(0, memberIds.indexOf(p.id));
     e.plateCount = memberIds.length;
     // 名牌
     e.nameEl.textContent = p.name;
+    e.plate.setAttribute('aria-label', `${p.name}，${p.room}，生命 ${p.hp}/${p.maxHp}`);
     const hpPct = Math.max(0, Math.min(100, (p.hp / Math.max(1, p.maxHp)) * 100));
+    e.shownHp = p.hp;
+    e.plate.dataset.hp = String(p.hp);
     e.hpFill.style.width = `${hpPct}%`;
     e.hpFill.style.background = hpPct > 50 ? 'linear-gradient(90deg,#63d97e,#8ce6a0)' : hpPct > 25 ? 'linear-gradient(90deg,#e2a23c,#f0c060)' : 'linear-gradient(90deg,#e23d30,#ff6a5c)';
     this.renderBadges(e, p, snap);
@@ -834,7 +786,7 @@ export class BattleScene3D {
     if (p.invisible && p.alive) parts.push('<span class="b3-bdg">👻</span>');
     if (p.char.domain === true && p.alive) parts.push('<span class="b3-bdg dom">✨领域</span>');
     if (typeof p.char.livesLeft === 'number' && (p.char.livesLeft as number) > 1 && p.alive) parts.push(`<span class="b3-bdg">💫${p.char.livesLeft}</span>`);
-    if (snap.submittedIds?.includes(p.id) && snap.phase === 'rps1' && p.alive) parts.push('<span class="b3-bdg">已出拳</span>');
+    if (snap.submittedIds?.includes(p.id) && (snap.phase === 'rps1' || snap.phase === 'rps2') && p.alive) parts.push('<span class="b3-bdg">已出拳</span>');
     if (!p.alive) parts.push('<span class="b3-bdg dead">淘汰</span>');
     if (snap.phase === 'over' && snap.winner === p.id) parts.push('<span class="b3-bdg win">👑 胜者</span>');
     e.badges.innerHTML = parts.join('');
@@ -934,6 +886,7 @@ export class BattleScene3D {
     if (!e || !canAct(e)) return;
     switch (kind) {
       case 'attack': {
+        this.focusPlayer('actor', pid);
         const targetPos = targetId ? this.worldOf(targetId) : null;
         if (targetPos) this.faceTo(e, targetPos);
         // 前扑
@@ -943,6 +896,7 @@ export class BattleScene3D {
           ? targetPos.clone().sub(myPos).setY(0).normalize()
           : new THREE.Vector3(0, 0, 1).applyQuaternion(e.group.getWorldQuaternion(new THREE.Quaternion())).setY(0).normalize();
         const base = e.group.position.clone();
+        if (e.group.parent) dir.applyQuaternion(e.group.parent.getWorldQuaternion(new THREE.Quaternion()).invert());
         e.lunge = { dir, t: 0, dur: 0.5, base };
         e.pose = { kind: 'attack', t: 0, dur: 0.52 };
         if (!this.reduced) {
@@ -1002,7 +956,7 @@ export class BattleScene3D {
     if (from && !this.reduced) {
       this.spawnFx(beamFx(from.clone().add(new THREE.Vector3(0, 0.8, 0)), to.clone().add(new THREE.Vector3(0, 0.8, 0)), STATE_COLORS.beam, 0.42, 0.034), new THREE.Vector3(0, 0, 0), 560);
     }
-    this.setFocus(to, 0.34, 700, 1);
+    this.focusPlayer('target', targetId);
   }
 
   /** 实际扣血 */
@@ -1010,6 +964,8 @@ export class BattleScene3D {
     const e = this.entities.get(pid);
     if (!e) return;
     const w = this.worldOf(pid)!;
+    this.pulseRoom(e.curRoom, 'hit', 0.68);
+    this.focusPlayer('target', pid);
     // 来源光束（冲击线）
     const src = o.sourceId ? this.worldOf(o.sourceId) : null;
     if (src && !this.reduced) {
@@ -1033,7 +989,7 @@ export class BattleScene3D {
     }
     // 命中白闪→红闪两段：先全白一瞬（打击确认感）再转红（伤害语义）
     const mats = e.rig.materials();
-    this.addTween(e, 0.42, (t) => {
+    if (!this.reduced && !this.lowEffects) this.addTween(e, 0.42, (t) => {
       const k = Math.sin(Math.PI * Math.min(1, t));
       if (t < 0.3) {
         const w2 = k / Math.max(0.001, Math.sin(Math.PI * 0.3));
@@ -1044,7 +1000,7 @@ export class BattleScene3D {
     }, () => {
       for (const { material, emissive } of e.appearance) material.emissive.copy(emissive);
     });
-    if (!this.reduced) this.spawnFx(flashLightFx(w, STATE_COLORS.hit, o.lethal ? 4.5 : 2.6, 0.35), w.clone().setY(0), 520);
+    if (!this.reduced && !this.lowEffects) this.spawnFx(flashLightFx(w, STATE_COLORS.hit, o.lethal ? 4.5 : 2.6, 0.35), w.clone().setY(0), 520);
     this.spawnFloat(w, `<span class="dmg-float ${o.lethal ? 'lethal' : ''}">-${fmtN(o.amount)}</span>`);
     if (o.segment && o.segment.total > 1) this.spawnFloat(w, `<span class="b3-seg">${o.segment.index}/${o.segment.total} 段</span>`, 30);
     if (o.lethal) this.shake(0.18);
@@ -1062,7 +1018,7 @@ export class BattleScene3D {
     }
     // 打击感：致命/重击瞬间全体演出短暂减速（微慢动作，不影响结算时序）
     if (!this.reduced && (o.lethal || o.amount >= 3)) {
-      this.hitStopUntil = this.elapsed + 0.09;
+      this.hitStopUntil = this.realElapsed + 0.09;
     }
   }
 
@@ -1071,6 +1027,8 @@ export class BattleScene3D {
     const w = this.worldOf(pid);
     if (!e || !w) return;
     if (canAct(e)) e.pose = { kind: 'cast', t: 0, dur: 1.0 };
+    this.pulseRoom(e.curRoom, 'heal', 0.85);
+    this.focusPlayer('actor', pid);
     this.spawnFx(healFx(), w.clone().setY(PLATFORM_H), 1000);
     this.spawnFloat(w, `<span class="heal-float">+${fmtN(o.amount ?? 0)}</span>`);
   }
@@ -1100,7 +1058,7 @@ export class BattleScene3D {
       this.spawnFx(flashLightFx(w, 0xff5545, 3.6, 0.4), w.clone().setY(0), 520);
     }
     this.shake(0.14);
-    this.setFocus(w, 0.55, 1000, 2);
+    this.focusPlayer('target', pid);
     this.killPose(e);
   }
 
@@ -1112,7 +1070,7 @@ export class BattleScene3D {
     this.standUp(e, true);
     this.spawnFloat(w, `<span class="revive-burst b3-stamp">💫 ${livesLeft} 命复活</span>`);
     // S 级事件：关键复活值得镜头聚焦（此前缺失，复活演出无聚焦）
-    this.setFocus(w, 0.6, 1100, 3);
+    this.focusPlayer('major', pid);
     if (!this.reduced) {
       this.spawnFx(ringBurst(0xffe082, 1.5, 0.85, { y: PLATFORM_H + 0.1 }), w.clone().setY(0), 950);
       this.spawnFx(flashLightFx(w, 0xffd68a, 3.4, 0.5), w.clone().setY(0), 620);
@@ -1124,7 +1082,7 @@ export class BattleScene3D {
    * 快照房间迁移与演出 playWalk 共用：起终点的世界坐标都以房间当前布局为准，
    * 终态与快照一致，仅过程是视觉过渡。
    */
-  private startWalkTo(e: Entity, toRoom: Room, slot: { x: number; z: number }, worldFrom: THREE.Vector3, dur = 0.85): THREE.Vector3 {
+  private startWalkTo(e: Entity, toRoom: Room, slot: { x: number; z: number }, worldFrom: THREE.Vector3, dur: number): THREE.Vector3 {
     const worldTo = new THREE.Vector3(slot.x, PLATFORM_H + 0.1, slot.z);
     toRoom.group.localToWorld(worldTo);
     // 控制点：起点→终点中点向桌心收，形成绕行弧线
@@ -1139,30 +1097,18 @@ export class BattleScene3D {
   /** 移动：沿路径行走（经中央舞台侧翼）+ 落点尘土 + 聚焦 */
   playWalk(pid: string, fromRoom: string, toRoom: string): void {
     const e = this.entities.get(pid);
-    if (!e || !canAct(e)) return;
-    const to = this.rooms.get(toRoom);
-    if (!to) return;
-    const worldFrom = new THREE.Vector3();
-    e.group.getWorldPosition(worldFrom);
-    const idx = this.slotIndexOf(pid, toRoom);
-    const slot = roomSlot(idx, Math.max(1, this.roomMemberIds(toRoom).length));
-    const worldTo = this.startWalkTo(e, to, slot, worldFrom);
-    if (!this.reduced) {
-      this.spawnFx(dustFx(), worldFrom.clone().setY(PLATFORM_H + 0.05), 600);
-      window.setTimeout(() => {
-        if (!this.disposed) this.spawnFx(dustFx(), worldTo.clone(), 600);
-      }, 780);
-    }
-    this.setFocus(worldTo, 0.24, 650, 1);
+    if (!e || !canAct(e) || e.curRoom !== toRoom || !this.rooms.has(fromRoom)) return;
+    if (e.walk && !this.reduced && !this.lowEffects) this.spawnFx(dustFx(), this.worldOf(pid)!.setY(PLATFORM_H + 0.05), 600);
+    this.focusPlayer('move', pid);
   }
 
-  playIvanThrow(pid: string, room: string): void {
+  playIvanThrow(pid: string, room: string, seconds = 1): void {
     const from = this.worldOf(pid);
     const to = this.rooms.get(room);
     if (!from || !to) return;
     const target = to.pos.clone().setY(PLATFORM_H + 0.5);
     const fx = projectileFx(from.clone().add(new THREE.Vector3(0, 0.9, 0)), target, {
-      color: 0xff9828, radius: 0.2, dur: 1.05, arc: 3.2, spin: true, trail: 3,
+      color: 0xff9828, radius: 0.2, dur: seconds, arc: 3.2, spin: true, trail: 3,
       build: (g) => {
         const fuse = new THREE.Mesh(
           new THREE.CylinderGeometry(0.024, 0.024, 0.12, 6),
@@ -1172,33 +1118,54 @@ export class BattleScene3D {
         g.add(fuse);
       },
     });
-    this.spawnFx(fx, new THREE.Vector3(0, 0, 0), 1400);
+    this.spawnFx(fx, new THREE.Vector3(0, 0, 0), seconds * 1000 + 200);
     this.spawnFloat(from, '<span class="b3-ticker">💣 大伊万投掷！</span>');
     // 投掷姿态
     const e = this.entities.get(pid);
     if (e && canAct(e)) e.pose = { kind: 'attack', t: 0, dur: 0.5 };
-    this.setFocus(to.pos, 0.5, 1200, 3);
+    this.focusRoom('major', room);
   }
 
   playIvanBoom(room: string): void {
     const to = this.rooms.get(room);
     if (!to) return;
     const pos = to.pos.clone().setY(PLATFORM_H + 0.4);
-    this.spawnFx(explosionFx(0xff8830), pos, 1500);
-    if (!this.reduced) this.spawnFx(flashLightFx(pos, 0xff9828, 7, 0.55), pos, 750);
+    if (this.lowEffects || this.reduced) this.spawnFx(ringBurst(0xff943c, TABLE.roomRadius * 1.5, 0.75), pos, 850);
+    else this.spawnFx(explosionFx(0xff8830), pos, 1500);
+    if (!this.reduced && !this.lowEffects) this.spawnFx(flashLightFx(pos, 0xff9828, 7, 0.55), pos, 750);
     this.spawnFloat(to.pos.clone().setY(PLATFORM_H + 2.4), '<span class="b3-ticker boom">💥 大伊万爆炸！</span>');
     this.shake(this.reduced ? 0.05 : 0.34);
-    this.setFocus(to.pos, 0.85, 1400, 3);
+    this.pulseRoom(room, 'blast', 1.5);
+    this.focusRoom('major', room);
   }
 
-  playRoomAlert(room: string, kind: 'aoe' | 'ivan'): void {
+  playRoomAlert(room: string, kind: 'aoe' | 'ivan', focus = true): void {
     const to = this.rooms.get(room);
     if (!to) return;
     const color = kind === 'ivan' ? STATE_COLORS.alertIvan : STATE_COLORS.alertAoe;
     this.spawnFx(ringBurst(color, TABLE.roomRadius * 1.5, 0.9, { y: PLATFORM_H + 0.12, tube: 0.055 }), to.pos.clone().setY(0), 1050);
-    this.setFocus(to.pos, 0.4, 900, 2);
-    to.label.classList.add('zone-alert', `zone-alert-${kind}`);
-    window.setTimeout(() => to.label.classList.remove('zone-alert', `zone-alert-${kind}`), 1150);
+    this.pulseRoom(room, kind === 'ivan' ? 'blast' : 'aoe', 1.05);
+    if (focus) this.focusRoom('area', room);
+  }
+
+  playAreaAlert(ids: string[]): void {
+    const anchors = ids.flatMap(id => {
+      const room = this.rooms.get(id);
+      if (!room) return [];
+      this.playRoomAlert(id, 'aoe', false);
+      return [room.anchor.focus];
+    });
+    if (!anchors.length) return;
+    const sum = anchors.reduce((total, point) => ({ x: total.x + point.x, z: total.z + point.z }), { x: 0, z: 0 });
+    this.director.request('area', ids.join(','), this.elapsed, () => ({ x: sum.x / anchors.length, z: sum.z / anchors.length }));
+  }
+
+  private pulseRoom(rid: string, kind: NonNullable<Room['pulse']>['kind'], seconds: number): void {
+    const room = this.rooms.get(rid);
+    if (!room || (room.pulse && (room.pulse.kind === 'blast' || room.pulse.kind === 'aoe') && kind === 'hit')) return;
+    room.pulse = { kind, until: this.elapsed + seconds };
+    room.label.dataset.effect = kind;
+    this.paintRoom(room);
   }
 
   playTrigger(pid: string, color = 0xb27ce8): void {
@@ -1216,7 +1183,7 @@ export class BattleScene3D {
     this.spawnFx(domainBurstFx(), w.clone().setY(PLATFORM_H), 1100);
     if (!this.reduced) this.spawnFx(flashLightFx(w, 0x9a6ae0, 3, 0.5), w.clone().setY(0), 620);
     this.spawnFloat(w, '<span class="b3-ticker dom">✨ 领域展开！</span>');
-    this.setFocus(w, 0.5, 1100, 3);
+    this.focusPlayer('major', pid);
   }
 
   // ── 覆盖层 ────────────────────────────────────────────────
@@ -1228,7 +1195,7 @@ export class BattleScene3D {
     wrap.innerHTML = html;
     this.floats.appendChild(wrap);
     (wrap as unknown as { _world?: THREE.Vector3 })._world = worldPos.clone();
-    window.setTimeout(() => wrap.remove(), 1700);
+    this.floatEnds.set(wrap, this.elapsed + 1.7);
   }
 
   private updateOverlay(): void {
@@ -1241,25 +1208,37 @@ export class BattleScene3D {
       world.y += PLATFORM_H + e.rig.headHeight() + 0.55;
       const p = proj(world);
       // 同房间多人名牌水平错开（一字排开，避免互相遮挡；行动者之外的同房间成员适用）
-      const spread = e.plateCount > 1 ? (e.plateSlot - (e.plateCount - 1) / 2) * 58 : 0;
-      e.plate.style.transform = `translate(-50%,-100%) translate(${((p.x * 0.5 + 0.5) * w + spread).toFixed(1)}px,${((-p.y * 0.5 + 0.5) * h).toFixed(1)}px) scale(var(--dead-scale, 1))`;
-      e.plate.style.display = p.z > 1 ? 'none' : '';
+      const columns = Math.min(3, Math.max(1, e.plateCount));
+      const spacing = w < 600 ? 79 : 110;
+      const ranked = e.plateSlot % columns - (columns - 1) * 0.5;
+      const row = Math.floor(e.plateSlot / columns);
+      const worldX = (p.x * 0.5 + 0.5) * w;
+      const worldY = (-p.y * 0.5 + 0.5) * h;
+      const x = Math.max(46, Math.min(w - 46, worldX + ranked * spacing * 0.83));
+      const y = worldY - row * 41;
+      e.plate.style.transform = `translate(-50%,-100%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px) scale(var(--dead-scale, 1))`;
+      e.plate.style.display = p.z > 1 || p.z < -1 || (e.deadPose && !e.rig.root.visible && e.plateCount > 4) ? 'none' : '';
       const t = this.targetablePids.has(e.pid) && e.alive;
       e.plate.classList.toggle('is-targetable', t);
-      (e.ring.material as THREE.MeshBasicMaterial).opacity = t ? 0.55 + Math.sin(this.elapsed * 6) * 0.28 : 0;
+      e.plate.classList.toggle('is-selected', t && this.selectedPlayer === e.pid);
+      const acting = this.lastSnapshot?.currentActor === e.pid && e.alive;
+      const ring = e.ring.material as THREE.MeshBasicMaterial;
+      ring.color.setHex(this.selectedPlayer === e.pid && t ? 0x67e9f5 : acting ? GOLD : STATE_COLORS.targetable);
+      ring.opacity = t ? 0.78 : acting ? 0.96 : 0;
       e.ring.scale.setScalar(t ? 1.2 : 1);
       e.plate.classList.toggle('is-acting', this.lastSnapshot?.currentActor === e.pid && e.alive);
       e.plate.classList.toggle('is-dead', !e.alive);
     }
     for (const r of this.rooms.values()) {
-      // 标签挂在台阶前方（世界坐标：房间位置朝桌心方向偏移）
-      const dir = r.pos.clone().setY(0).normalize();
-      const lp = r.pos.clone().addScaledVector(dir, TABLE.roomRadius * 2.0);
-      lp.y = PLATFORM_H + 0.12;
+      const lp = new THREE.Vector3(r.anchor.label.x, r.anchor.floor + 0.07, r.anchor.label.z);
       const p = proj(lp);
-      r.label.style.transform = `translate(-50%,-50%) translate(${((p.x * 0.5 + 0.5) * w).toFixed(1)}px,${((-p.y * 0.5 + 0.5) * h).toFixed(1)}px)`;
-      r.label.style.display = p.z > 1 ? 'none' : '';
-      r.label.classList.toggle('is-pickable', this.roomPickMode);
+      const x = (p.x * 0.5 + 0.5) * w;
+      const y = (-p.y * 0.5 + 0.5) * h;
+      const nearEdge = r.pos.z > this.lookCur.z + 2 && Math.abs(r.pos.x) < 3;
+      const labelX = nearEdge ? x + (w < 600 ? 54 : 76) : x;
+      const half = r.pendingIvan ? Math.min(114, w * 0.28) : 40;
+      r.label.style.transform = `translate(-50%,-50%) translate(${Math.max(half, Math.min(w - half, labelX)).toFixed(1)}px,${y.toFixed(1)}px)`;
+      r.label.style.display = p.z > 1 || p.z < -1 ? 'none' : '';
     }
     for (const wrap of Array.from(this.floats.children) as HTMLDivElement[]) {
       const wp = (wrap as unknown as { _world?: THREE.Vector3 })._world;
@@ -1276,6 +1255,8 @@ export class BattleScene3D {
     el.addEventListener('pointerdown', this.onDown);
     el.addEventListener('pointermove', this.onMove);
     el.addEventListener('pointerup', this.onUp);
+    el.addEventListener('pointercancel', this.onCancel);
+    el.addEventListener('lostpointercapture', this.onCancel);
     el.addEventListener('wheel', this.onWheel, { passive: false });
     if (typeof ResizeObserver !== 'undefined') {
       this.sizeObserver = new ResizeObserver(this.resize);
@@ -1292,45 +1273,45 @@ export class BattleScene3D {
     if (document.hidden) {
       cancelAnimationFrame(this.raf);
       this.raf = 0;
-      this.clock.stop();
     } else if (!this.raf) {
-      this.clock.start();
+      this.frameAt = performance.now();
       this.loop();
     }
   };
 
   private onDown = (e: PointerEvent): void => {
-    this.downPos = { x: e.clientX, y: e.clientY, t: Date.now() };
-    this.dragging = false;
+    if (this.downPos || e.button !== 0) return;
+    this.downPos = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, t: Date.now() };
+    this.renderer.domElement.setPointerCapture?.(e.pointerId);
   };
 
   private onMove = (e: PointerEvent): void => {
-    if (!this.downPos) return;
-    const dx = e.clientX - this.downPos.x;
-    const dy = e.clientY - this.downPos.y;
-    if (!this.dragging && Math.hypot(dx, dy) > 7) this.dragging = true;
-    if (this.dragging) {
-      this.orbit.az -= (e.movementX ?? dx * 0.2) * 0.0055;
-      this.orbit.polar = Math.min(0.9, Math.max(-0.5, this.orbit.polar - (e.movementY ?? dy * 0.2) * 0.0038));
-    }
+    const down = this.downPos;
+    if (!down || down.id !== e.pointerId) return;
+    if (!this.dragging && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 7) this.dragging = true;
+    if (!this.dragging) return;
+    this.director.drag(e.clientX - down.lastX, e.clientY - down.lastY);
+    down.lastX = e.clientX;
+    down.lastY = e.clientY;
+  };
+
+  private onCancel = (e: PointerEvent): void => {
+    if (e.pointerId !== this.downPos?.id) return;
+    this.downPos = null;
+    this.dragging = false;
   };
 
   private onUp = (e: PointerEvent): void => {
-    if (!this.downPos) return;
-    const moved = Math.hypot(e.clientX - this.downPos.x, e.clientY - this.downPos.y);
-    const quick = Date.now() - this.downPos.t < 600;
-    this.downPos = null;
-    if (this.dragging || moved > 8 || !quick) {
-      this.dragging = false;
-      return;
-    }
-    this.dragging = false;
-    this.pick(e);
+    const down = this.downPos;
+    if (!down || down.id !== e.pointerId) return;
+    const tap = !this.dragging && Math.hypot(e.clientX - down.x, e.clientY - down.y) <= 8 && Date.now() - down.t < 600;
+    this.onCancel(e);
+    if (tap) this.pick(e);
   };
 
   private onWheel = (e: WheelEvent): void => {
     e.preventDefault();
-    this.orbit.zoom = Math.min(1.75, Math.max(0.6, this.orbit.zoom * (e.deltaY > 0 ? 1.07 : 0.93)));
+    this.director.zoom(e.deltaY);
   };
 
   private pick(e: PointerEvent): void {
@@ -1340,106 +1321,96 @@ export class BattleScene3D {
       -((e.clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.raycaster.setFromCamera(this.pickedPoint, this.camera);
-    const entMeshes: THREE.Object3D[] = [];
-    for (const ent of this.entities.values()) {
-      if (ent.alive) entMeshes.push(ent.rig.root);
-    }
-    const hits = this.raycaster.intersectObjects(entMeshes, true);
-    if (hits.length > 0) {
-      let o: THREE.Object3D | null = hits[0].object;
-      while (o && !o.userData.pid) o = o.parent;
-      // rig.root 上没有 pid → 沿 group 找 entity
-      if (!o || !o.userData.pid) {
-        for (const [pid, ent] of this.entities) {
-          let p: THREE.Object3D | null = hits[0].object;
-          while (p) {
-            if (p === ent.group) { o = ent.group; o.userData.pid = pid; break; }
-            p = p.parent;
-          }
-          if (o && o.userData.pid) break;
-        }
-      }
-      if (o?.userData.pid) {
-        this.hooks.onPickPlayer(o.userData.pid as string);
-        return;
-      }
-    }
-    if (this.roomPickMode) {
-      const roomMeshes = Array.from(this.rooms.values()).map((r) => r.group);
-      const rh = this.raycaster.intersectObjects(roomMeshes, true);
-      if (rh.length > 0) {
-        let o: THREE.Object3D | null = rh[0].object;
-        while (o && !o.userData.room) o = o.parent;
-        if (o?.userData.room) this.hooks.onPickRoom(o.userData.room as string);
-      }
-    }
+    const candidates = this.roomPickMode
+      ? Array.from(this.rooms.values(), r => r.group)
+      : Array.from(this.entities.values()).filter(e => e.alive && e.rig.root.visible).map(e => e.rig.root);
+    const hit = this.raycaster.intersectObjects(candidates, true)[0];
+    let object: THREE.Object3D | undefined = hit?.object;
+    const field = this.roomPickMode ? 'room' : 'pid';
+    while (object && !object.userData[field]) object = object.parent ?? undefined;
+    const id = object?.userData[field] as string | undefined;
+    if (!id) return;
+    if (this.roomPickMode) this.hooks.onPickRoom(id);
+    else this.hooks.onPickPlayer(id);
   }
 
   // ── 对外控制 ──────────────────────────────────────────────
 
-  setMyRoom(rid: string | null): void {
-    if (this.myRoom === rid) return;
-    this.myRoom = rid;
-    this.refreshAllSlots();
+  setTargetable(pids: string[]): void { this.targetablePids = new Set(pids); }
+
+  setSelection(roomPickMode: boolean, room: string, player: string): void {
+    this.roomPickMode = roomPickMode;
+    this.selectedRoom = room;
+    this.selectedPlayer = player;
+    for (const r of this.rooms.values()) this.paintRoom(r);
   }
 
-  private refreshAllSlots(): void {
-    const snap = this.lastSnapshot;
-    if (!snap) return;
-    this.syncSnapshot(snap);
+  setReducedMotion(on: boolean): void { this.reduced = on; }
+
+  setLowEffects(on: boolean): void {
+    if (this.lowEffects === on) return;
+    this.lowEffects = on;
+    this.container.dataset.lowEffects = String(on);
+    this.renderer.setPixelRatio(on ? 1 : this.pixelRatio);
+    this.environment.motes.visible = !on;
   }
 
-  setTargetable(pids: string[]): void {
-    this.targetablePids = new Set(pids);
+  setAutomaticCamera(on: boolean): void { this.director.setAutomatic(on); }
+
+  private focusRoom(shot: Shot, rid: string): void {
+    this.director.request(shot, rid, this.elapsed, () => this.rooms.get(rid)?.anchor.focus);
   }
 
-  setRoomPickMode(on: boolean): void {
-    if (this.roomPickMode === on) return;
-    this.roomPickMode = on;
-    if (!on && this.lastSnapshot) this.syncSnapshot(this.lastSnapshot);
-  }
-
-  setReducedMotion(on: boolean): void {
-    this.reduced = on;
-  }
-
-  /**
-   * 镜头聚焦（Phase D 演出分级）。
-   * 优先级：1=B级（普通攻击/移动/行动者切换） 2=A级（淘汰/AOE） 3=S级（终局/大伊万/领域/复活）。
-   * 高优先级聚焦保持期内忽略低优先级请求（避免多事件争抢镜头、重复聚焦与抖动）；
-   * 新聚焦使旧的衰减定时器失效（令牌化，防止旧定时器提前压低新聚焦）。
-   */
-  setFocus(target: THREE.Vector3 | string | null, weight = 0.4, ms = 900, pri: 1 | 2 | 3 = 1): void {
-    if (target === null) {
-      this.focusWTarget = 0;
-      return;
-    }
-    if (pri < this.focusPri && this.elapsed < this.focusUntil) return;
-    let v: THREE.Vector3 | null = null;
-    if (typeof target === 'string') {
-      const r = this.rooms.get(target);
-      v = r ? r.pos.clone() : null;
-    } else {
-      v = target.clone();
-    }
-    if (!v) return;
-    this.focus.x = v.x;
-    this.focus.z = v.z;
-    this.focusWTarget = weight;
-    this.focusPri = pri;
-    this.focusUntil = this.elapsed + ms / 1000;
-    const myToken = ++this.focusSeq;
-    if (ms > 0) {
-      window.setTimeout(() => {
-        if (this.focusSeq === myToken && this.finaleWinner === null) this.focusWTarget = 0.08;
-      }, ms);
-    }
+  private focusPlayer(shot: Shot, pid: string): void {
+    this.director.request(shot, pid, this.elapsed, () => this.worldOf(pid) ?? undefined);
   }
 
   resetView(): void {
-    this.orbit = { az: 0, polar: 0, zoom: 1 };
-    this.focusWTarget = 0;
+    this.director.reset();
     this.shakeAmp = 0;
+  }
+
+  showFinale(key: string, winner: string | null): void {
+    if (this.finaleKey === key) return;
+    this.finaleKey = key;
+    this.finaleWinner = winner;
+    if (winner) {
+      this.focusPlayer('winner', winner);
+      const e = this.entities.get(winner);
+      if (e && canAct(e)) this.setPose(e, { kind: 'cheer', t: 0, dur: Infinity });
+    } else {
+      this.director.request('draw', key, this.elapsed);
+    }
+  }
+
+  resetPresentation(newGame = false): void {
+    this.director.cancel();
+    this.shakeAmp = 0;
+    this.hitStopUntil = 0;
+    for (const fx of this.fxList.slice()) this.removeFx(fx);
+    for (const node of this.floatEnds.keys()) node.remove();
+    this.floatEnds.clear();
+    this.tweens.length = 0;
+    for (const e of this.entities.values()) {
+      if (newGame) { this.removeEntity(e); continue; }
+      e.walk = null;
+      e.lunge = null;
+      e.squash = null;
+      e.rig.root.scale.copy(e.baseScale);
+      for (const { material, emissive } of e.appearance) material.emissive.copy(emissive);
+      if (e.alive && !e.deadPose) this.setPose(e, { kind: 'idle', t: 0, dur: Infinity });
+    }
+    for (const r of this.rooms.values()) {
+      r.pulse = null;
+      delete r.label.dataset.effect;
+      if (newGame) r.slots.clear();
+    }
+    if (newGame) {
+      this.lastSnapshot = null;
+      this.finaleWinner = null;
+      this.finaleKey = null;
+      this.resetView();
+    }
   }
 
   /** E2E/取证探针：当前演出活动量（不参与游戏逻辑） */
@@ -1449,7 +1420,7 @@ export class BattleScene3D {
       center.y += PLATFORM_H + e.rig.headHeight() * 0.55;
       const z = center.z;
       center.project(this.camera);
-      return { pid: e.pid, charId: e.charId, asset: e.asset.id, pose: e.pose.kind,
+      return { pid: e.pid, hp: e.shownHp, charId: e.charId, asset: e.asset.id, pose: e.pose.kind,
         t: e.pose.t, dur: e.pose.dur, room: e.curRoom, alive: e.alive, visible: e.rig.root.visible,
         x: (center.x + 1) * this.container.clientWidth / 2, y: (1 - center.y) * this.container.clientHeight / 2, z };
     });
@@ -1475,18 +1446,24 @@ export class BattleScene3D {
   }
 
   private shake(amp: number): void {
-    this.shakeAmp = Math.max(this.shakeAmp, this.reduced ? amp * 0.2 : amp);
+    if (!this.reduced && !this.lowEffects) this.shakeAmp = Math.max(this.shakeAmp, amp);
   }
 
   resize = (): void => {
     const w = this.container.clientWidth || 800;
     const h = this.container.clientHeight || 500;
     this.aspect = w / h;
-    this.camPose = defaultPose(this.aspect, this.lastSnapshot?.roomIds.length ?? this.rooms.size ?? 4);
+    this.camPose = defaultPose(this.aspect, this.map.rooms.size || 4);
     this.camera.aspect = this.aspect;
     this.camera.fov = this.camPose.fov;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
+    if (this.camera.position.lengthSq() < 1) {
+      const frame = this.director.frame(this.camPose, this.elapsed, this.reduced);
+      this.camera.position.set(frame.position.x, frame.position.y, frame.position.z);
+      this.lookCur.set(frame.look.x, 1.1, frame.look.z);
+      this.camera.lookAt(this.lookCur);
+    }
   };
 
   // ── 主循环 ────────────────────────────────────────────────
@@ -1494,10 +1471,18 @@ export class BattleScene3D {
   private loop = (): void => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
-    let dt = Math.min(0.05, this.clock.getDelta());
+    const now = performance.now();
+    const dt = Math.min(0.22, (now - this.frameAt) / 1000);
+    this.frameAt = now;
     // 打击感微慢动作：致命/重击瞬间的一拍减速（0.09s，纯视觉；结算与演出队列时序不受影响）
-    if (this.elapsed < this.hitStopUntil) dt *= 0.15;
+    this.realElapsed += dt;
     this.elapsed += dt;
+    const poseDt = this.realElapsed < this.hitStopUntil ? dt * 0.15 : dt;
+    for (const [node, until] of this.floatEnds) {
+      if (this.elapsed < until) continue;
+      node.remove();
+      this.floatEnds.delete(node);
+    }
     const snap = this.lastSnapshot;
     // 补间
     for (const t of this.tweens) {
@@ -1532,7 +1517,7 @@ export class BattleScene3D {
         if (parent) {
           const local = parent.worldToLocal(p.clone());
           e.group.position.copy(local);
-          e.group.position.y = 0;
+          e.group.position.y = Math.sin(Math.PI * t) * 0.68;
         }
         // 面向行进方向
         const aheadT = Math.min(1, t + 0.04);
@@ -1553,6 +1538,12 @@ export class BattleScene3D {
         }
         if (t >= 1) {
           e.walk = null;
+          const room = this.rooms.get(e.curRoom);
+          if (room) {
+            const slot = this.spawnFor(e.pid, room);
+            e.group.position.set(slot.x, 0, slot.z);
+            if (!this.lowEffects && !this.reduced) this.spawnFx(dustFx(), this.worldOf(e.pid)!.setY(PLATFORM_H + 0.05), 540);
+          }
           if (e.pose.kind === 'walk') e.pose = { kind: 'idle', t: 0, dur: Infinity };
         }
       }
@@ -1572,15 +1563,15 @@ export class BattleScene3D {
         // One pose clock owns collapse, hold and fade. Removing/reviving the
         // entity also cancels the fade, with no delayed callback holding the rig.
         if (e.rig.root.visible) {
-          e.pose.t += dt;
-          if (e.pose.t - dt < 0.55) e.rig.dead(Math.min(1, e.pose.t / 0.55));
+          e.pose.t += poseDt;
+          if (e.pose.t - poseDt < 0.55) e.rig.dead(Math.min(1, e.pose.t / 0.55));
           if (e.pose.t > 2.6) e.rig.setOpacity(Math.max(0, 1 - (e.pose.t - 2.6) / 0.8));
           if (e.pose.t >= 3.4) e.rig.root.visible = false;
         }
       } else if (e.walk && e.pose.kind === 'walk') {
         e.rig.walk(this.elapsed, 1);
       } else {
-        e.pose.t += dt;
+        e.pose.t += poseDt;
         switch (e.pose.kind) {
           case 'revive':
             e.rig.reviveRise(Math.min(1, e.pose.t / e.pose.dur));
@@ -1634,34 +1625,35 @@ export class BattleScene3D {
 
     // 房间动画
     for (const r of this.rooms.values()) {
-      if (r.pendingIvan && !this.reduced) {
+      if (r.pulse && this.elapsed >= r.pulse.until) {
+        r.pulse = null;
+        delete r.label.dataset.effect;
+        this.paintRoom(r);
+      }
+      if (this.roomPickMode) this.paintRoom(r);
+      if (r.pendingIvan && !this.reduced && !this.lowEffects) {
         r.beaconMat.opacity = 0.6 + Math.sin(this.elapsed * 5) * 0.35;
         if (r.bombMarker) r.bombMarker.position.y = PLATFORM_H + 1.35 + Math.sin(this.elapsed * 2.6) * 0.12;
       }
-      if (r.dome && !this.reduced) {
+      if (r.dome && !this.reduced && !this.lowEffects) {
         (r.dome.material as THREE.MeshBasicMaterial).opacity = 0.14 + Math.sin(this.elapsed * 2.2) * 0.05;
       }
       const lava = r.group.getObjectByName('lava');
-      if (lava && !this.reduced) {
+      if (lava && !this.reduced && !this.lowEffects) {
         (lava as THREE.Mesh).scale.y = 1 + Math.sin(this.elapsed * 3.2) * 0.25;
       }
     }
-    // 中央徽记旋转
-    const emblem = this.scene.getObjectByName('core-emblem');
-    if (emblem && !this.reduced) {
-      emblem.rotation.y += dt * 0.6;
-      emblem.position.y = 2.7 + Math.sin(this.elapsed * 1.4) * 0.12;
-      const beam = this.scene.getObjectByName('core-beam');
-      if (beam) (beam as THREE.Mesh).scale.setScalar(1 + Math.sin(this.elapsed * 1.4) * 0.06);
+    this.environment.motes.visible = !this.lowEffects && !this.reduced;
+    if (this.environment.motes.visible) {
+      this.environment.relic.rotation.y += dt * 0.52;
+      this.environment.relic.position.y = 1.56 + Math.sin(this.elapsed * 1.4) * 0.12;
+      this.environment.motes.rotation.y = this.elapsed * 0.023;
     }
 
     this.updateCamera(dt);
-    // 空闲降帧：无补间/特效/行走/镜头运动时按 20fps 渲染（降低 GPU 负载与移动端耗电；
-    // 有演出或用户交互时恢复满帧）。JS 侧动画状态每帧照常推进。
-    const busy = this.tweens.length > 0 || this.fxList.length > 0 || this.dragging
-      || this.shakeAmp > 0.001 || this.finaleWinner !== null || this.camMoving
-      || Math.abs(this.focus.w - this.focusWTarget) > 0.01;
-    const minFrame = busy ? 0 : 0.05;
+    const busy = this.tweens.length > 0 || this.fxList.length > 0 || this.dragging || this.camMoving
+      || Array.from(this.entities.values()).some(e => e.walk || e.lunge);
+    const minFrame = busy ? (this.lowEffects ? 0.027 : 0) : 0.05;
     if (this.elapsed - this.lastRender >= minFrame) {
       this.lastRender = this.elapsed;
       this.updateOverlay();
@@ -1670,25 +1662,17 @@ export class BattleScene3D {
   };
 
   private updateCamera(dt: number): void {
-    if (this.finaleWinner !== null) {
-      this.orbit.az += dt * 0.1;
-    }
-    this.focus.w += (this.focusWTarget - this.focus.w) * Math.min(1, dt * (this.reduced ? 8 : 3.2));
-    const base = this.camPose;
-    const pos = orbitPose(base, this.orbit.az, 0.68 + this.orbit.polar, this.orbit.zoom);
-    const look = new THREE.Vector3(base.look.x, 1.1, base.look.z);
-    const focusV = new THREE.Vector3(this.focus.x, 1.0, this.focus.z);
-    look.lerp(focusV, Math.min(1, this.focus.w));
-    const lookBefore = this.lookCur.clone();
-    this.lookCur.lerp(look, Math.min(1, dt * (this.reduced ? 8 : 3.4)));
-    const camTarget = new THREE.Vector3(pos.x, pos.y, pos.z);
-    camTarget.x += (this.focus.x * this.focus.w) * 0.22;
-    camTarget.z += (this.focus.z * this.focus.w) * 0.18;
-    const camBefore = this.camera.position.clone();
-    this.camera.position.lerp(camTarget, Math.min(1, dt * (this.reduced ? 8 : 3)));
-    // 相机是否仍在运动（供空闲降帧判定：趋近过程保持满帧）
-    this.camMoving = this.camera.position.distanceTo(camBefore) > 0.004
-      || this.lookCur.distanceTo(lookBefore) > 0.004;
+    const frame = this.director.frame(this.camPose, this.elapsed, this.reduced);
+    this.shot = frame.shot;
+    const look = new THREE.Vector3(frame.look.x, 1.1, frame.look.z);
+    const position = new THREE.Vector3(frame.position.x, frame.position.y, frame.position.z);
+    const blend = this.reduced ? 1 : 1 - Math.exp(-dt * 6.2);
+    // Smooth the unshaken pose. Shake never changes the orbit or framing state.
+    this.camTarget.lerp(position, this.camTarget.lengthSq() < 1 ? 1 : blend);
+    this.lookCur.lerp(look, blend);
+    this.camMoving = this.camTarget.distanceToSquared(position) > 0.003
+      || this.lookCur.distanceToSquared(look) > 0.003;
+    this.camera.position.copy(this.camTarget);
     if (this.shakeAmp > 0.001) {
       this.shakeAmp *= Math.pow(0.002, dt);
       this.camera.position.x += (Math.random() - 0.5) * this.shakeAmp;
@@ -1696,6 +1680,17 @@ export class BattleScene3D {
       this.camera.position.z += (Math.random() - 0.5) * this.shakeAmp;
     }
     this.camera.lookAt(this.lookCur);
+    this.camera.updateMatrixWorld();
+  }
+
+  debugMap() {
+    return {
+      map: this.map.id,
+      shot: this.shot,
+      rooms: Array.from(this.rooms.values(), r => ({
+        id: r.rid, center: r.pos.toArray(), pending: r.pendingIvan, effect: r.pulse?.kind, slots: Array.from(r.slots),
+      })),
+    };
   }
 
   dispose(): void {
@@ -1706,20 +1701,25 @@ export class BattleScene3D {
     this.renderer.domElement.removeEventListener('pointerdown', this.onDown);
     this.renderer.domElement.removeEventListener('pointermove', this.onMove);
     this.renderer.domElement.removeEventListener('pointerup', this.onUp);
+    this.renderer.domElement.removeEventListener('pointercancel', this.onCancel);
+    this.renderer.domElement.removeEventListener('lostpointercapture', this.onCancel);
+    this.renderer.domElement.removeEventListener('webglcontextlost', this.onContextLost);
+    this.renderer.domElement.removeEventListener('webglcontextrestored', this.onContextRestored);
+    window.clearTimeout(this.contextTimer);
     this.renderer.domElement.removeEventListener('wheel', this.onWheel);
     this.sizeObserver?.disconnect();
     window.removeEventListener('resize', this.resize);
     document.removeEventListener('visibilitychange', this.onVisibility);
-    for (const e of this.entities.values()) this.removeEntity(e);
-    this.tweens.length = 0;
-    this.scene.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.geometry) m.geometry.dispose();
-      const mat = (m as unknown as { material?: THREE.Material | THREE.Material[] }).material;
-      if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
-      else if (mat) mat.dispose();
-    });
+    this.resetPresentation(true);
+    this.releaseRoomObject(this.environment.root);
+    for (const room of this.rooms.values()) {
+      this.releaseRoomObject(room.group);
+      if (room.bridge) this.releaseRoomObject(room.bridge);
+    }
+    this.scene.clear();
+    this.rooms.clear();
     this.renderer.dispose();
+    this.renderer.forceContextLoss?.();
     this.renderer.domElement.remove();
     this.overlay.remove();
     this.floats.remove();

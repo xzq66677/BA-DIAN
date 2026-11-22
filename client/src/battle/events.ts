@@ -22,6 +22,7 @@ export interface LogLike {
 export type BattleEventKind =
   | 'action'      // 行动演出前置（行动者卡 fx）
   | 'attackDecl'  // 攻击宣告（出手意向：来源卡短暂攻击姿态）
+  | 'area'        // 播报由结构化 AOE 房间衍生的预警
   | 'damage'      // 实际扣血（受击斩击演出）
   | 'heal'        // 回复
   | 'move'        // 移动（from → to）
@@ -39,6 +40,9 @@ export interface BattleEvent {
   seq: number;
   /** 演出分组：AOE/多段/延迟伤害共享，同组顺序播放并先突出房间 */
   groupId?: string;
+  areaRooms?: string[];
+  aoe?: boolean;
+  explodeRound?: number;
   /** 行动者 / 移动者 */
   pid?: string;
   /** 受击 / 回复 / 淘汰目标 */
@@ -126,6 +130,7 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
           hpBefore: num(d.hpBefore), hpAfter,
           lethal: d.lethal === true || hpAfter === 0,
           dtype: str(d.dtype), tag: str(d.tag),
+          aoe: d.aoe === true,
           segment: (d.segment as { index: number; total: number } | undefined) ?? undefined,
           room: str(d.room),
           groupId: str(d.groupId),
@@ -190,7 +195,7 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
       const room = str(d.room);
       const pid = str(d.pid);
       if (pid && room) {
-        return { kind: 'ivanThrow', seq: log.seq, pid, room, important: true };
+        return { kind: 'ivanThrow', seq: log.seq, pid, room, explodeRound: num(d.explodeRound), important: true };
       }
       if (room && d.pid === undefined) {
         // 爆炸日志只有 room/source：旧数据若带 source 也只在有 room 时演出落点

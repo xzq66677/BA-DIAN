@@ -9,6 +9,7 @@
 import { describe, it, beforeAll, afterAll } from 'vitest';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
+import { mkdirSync, mkdtempSync } from 'node:fs';
 import { chromium, type Browser, type Page } from 'playwright';
 import { expect } from '@playwright/test';
 import { ALL_CASES } from '../../shared/src/testcases/index.js';
@@ -22,7 +23,14 @@ beforeAll(async () => {
   // React 开发版打进 bundle（体积翻倍 + StrictMode 双调用 effect），E2E 就会测到非生产行为
   // B-030：构建到独立 dist-e2e 目录 —— 此前直接重建 client/dist，而本机 systemd 生产实例
   // 恰好静态服务该目录，导致「跑一次测试 = 无意间更新生产内容」。测试基建必须与生产隔离。
-  execSync('npx vite build client --outDir dist-e2e --emptyOutDir', { cwd: path.resolve(import.meta.dirname, '../..'), stdio: 'pipe', env: { ...process.env, NODE_ENV: 'production' } });
+  const root = path.resolve(import.meta.dirname, '../..');
+  const scratch = path.join(root, '.tmp-build');
+  mkdirSync(scratch, { recursive: true });
+  // esbuild on Windows uses a named temporary file under TEMP; isolate each browser build.
+  const temp = mkdtempSync(path.join(scratch, 'browser-'));
+  execSync('npx vite build client --outDir dist-e2e --emptyOutDir', {
+    cwd: root, stdio: 'pipe', env: { ...process.env, NODE_ENV: 'production', TEMP: temp, TMP: temp, TMPDIR: temp },
+  });
   process.env.CLIENT_DIST = path.resolve(import.meta.dirname, '../../client/dist-e2e');
   const mod = await import('../../server/src/index.js');
   const httpServer = (mod as unknown as { httpServer: import('node:http').Server }).httpServer;
@@ -31,7 +39,10 @@ beforeAll(async () => {
   const addr = httpServer.address();
   const port = typeof addr === 'object' && addr ? addr.port : 3100;
   baseUrl = `http://127.0.0.1:${port}`;
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({
+    headless: true,
+    ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
+  });
 }, 90000);
 
 afterAll(async () => {
