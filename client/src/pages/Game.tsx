@@ -129,6 +129,21 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     }
   }, [announces?.length, announceOpen]);
 
+  // 顶栏高度写进 CSS 变量：窄屏顶栏按钮会换行（390px 下从 50px 变 93px），
+  // 播报抽屉与其它浮层的 top 用 --app-header-h 跟随，避免压住第二行按钮。
+  const headerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const write = () => root.style.setProperty('--app-header-h', `${Math.round(el.getBoundingClientRect().height)}px`);
+    write();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // 局内小互动（丢番茄等）
   const interactions = lobby.interactions ?? [];
   const interactCounts = lobby.interactionCounts ?? {};
@@ -417,7 +432,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
 
   return (
     <div className={`tcg-app has-chat ${use3d ? 's3d-mode' : ''}`}>
-      <header className="tcg-header">
+      <header className="tcg-header" ref={headerRef}>
         <span className="tcg-logo">拔典</span>
         <span className="tcg-chip hide-sm">房间 {lobby.code}</span>
         <span className="tcg-chip">第 <b>{game.roundNo}</b> 回合</span>
