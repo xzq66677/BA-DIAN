@@ -746,7 +746,7 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C075', name: '大贱客：辱骂无视躲避（不消耗行动）', category: 'character', charId: 'dajianke', seed: 275,
+    id: 'TC-C075', name: '大贱客：辱骂无视躲藏', category: 'character', charId: 'dajianke', seed: 275,
     desc: '躲藏的 B 仍可被辱骂锁定',
     run: () => run(() => {
       const g = makeGame([{ id: 'D', char: 'dajianke' }, 'B'], 275);
@@ -769,6 +769,53 @@ export const CHARACTER_CASES: TestCase[] = [
       const effectAppliedToB = g.logs.some((l) => l.text.includes('B 获得效果'));
       const ok = transferred && !effectAppliedToB;
       return check(ok, '伤害转移，效果未施加', `transferred=${transferred}, effectToB=${effectAppliedToB}`, g);
+    }),
+  },
+  {
+    id: 'TC-C085', name: '大贱客：辱骂无视距离（跨房间命中计数）', category: 'character', charId: 'dajianke', seed: 290,
+    desc: '辱骂可指定任意房间的目标（作者定案 2026-11-21：无视距离）——跨房间辱骂计数成功',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'D', char: 'dajianke' }, { id: 'B', char: 'default', room: 'R2' }], 290);
+      playThrows(g, [{ D: 'rock', B: 'scissors' }]); // D 胜
+      const r = g.submitAction('D', { type: 'attack', targetId: 'B' }); // B 在 R2：跨房间辱骂
+      const n = ((g.charState('D').insults as Record<string, number>)['B']) || 0;
+      const ok = r.ok && n === 1 && isAlive(g, 'B');
+      return check(ok, '跨房间辱骂成功（计数1，B 存活）', `ok=${r.ok}, insults=${n}`, g);
+    }),
+  },
+  {
+    id: 'TC-C086', name: '大贱客：转移伤害视为直击，无视自身躲藏', category: 'character', charId: 'dajianke', seed: 291,
+    desc: '大贱客躲藏时，被吸引的伤害仍命中他（作者确认 2026-11-21：转移后无视其自身躲藏/隐身）',
+    run: () => run(() => {
+      const g = makeGame([
+        { id: 'D', char: 'dajianke', hidden: true, room: 'R1' },
+        { id: 'A', char: 'default', room: 'R1' },
+        { id: 'B', char: 'default', room: 'R1' },
+      ], 291); // 三人同在 R1，大贱客躲藏
+      playThrows(g, [{ A: 'rock', B: 'scissors', D: 'scissors' }]); // A 胜
+      actQueue(g, { A: { type: 'attack', targetId: 'B' } }); // A 打 B → 转移 → 命中躲藏中的 D
+      const ok = hpOf(g, 'D') === 2 && hpOf(g, 'B') === 2 && isAlive(g, 'D');
+      return check(ok, '躲藏的大贱客仍被转移伤害命中（3→2），B 无损', `D hp=${hpOf(g, 'D')}, B hp=${hpOf(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C087', name: '大贱客：回合末瞬时爆发全部吸收（阵亡后同批伤害仍转移）', category: 'character', charId: 'dajianke', seed: 292,
+    desc: '大伊万炸两人：大贱客吸第一发致死，同批第二发仍由其（阵亡）吸收——被波及目标不受损（作者确认 2026-11-21）',
+    run: () => run(() => {
+      const g = makeGame([
+        { id: 'D', char: 'dajianke', room: 'R1' },
+        { id: 'A', char: 'ivan-girl', room: 'R2' },
+        { id: 'X', char: 'default', room: 'R2' },
+        { id: 'Y', char: 'default', room: 'R2' },
+      ], 292);
+      playThrows(g, [{ A: 'rock', D: 'scissors', X: 'scissors', Y: 'scissors' }]); // 第1回合 A 胜
+      actQueue(g, { A: { type: 'throwIvan', room: 'R2' } }); // 炸 R2（X、Y 在房内，D 在 R1）
+      playThrows(g, [{ A: 'rock', D: 'scissors', X: 'scissors', Y: 'scissors' }]); // 第2回合 A 再胜（引爆回合）
+      actQueue(g, { A: { type: 'skip' } }); // 第2回合末爆炸
+      const absorbed = g.logs.some((l) => l.text.includes('大贱客（已阵亡）仍吸收'));
+      const ok = !isAlive(g, 'D') && isAlive(g, 'X') && isAlive(g, 'Y')
+        && hpOf(g, 'X') === 2 && hpOf(g, 'Y') === 2 && absorbed;
+      return check(ok, 'D 阵亡吸收全部爆发：X、Y 满血无损', `D alive=${isAlive(g, 'D')}, X=${hpOf(g, 'X')}, Y=${hpOf(g, 'Y')}, absorbed=${absorbed}`, g);
     }),
   },
 

@@ -58,7 +58,7 @@ export interface DamageRequest {
   aoe?: boolean;
   /** 多段信息：第 index 段 / 共 total 段 */
   segment?: { index: number; total: number };
-  /** 无视躲藏（如拔棍） */
+  /** 无视躲藏（如拔棍；大贱客转移后的直击） */
   ignoreHide?: boolean;
   /** 精神类锁定无视躲藏（如大贱客辱骂） */
   bypassHide?: boolean;
