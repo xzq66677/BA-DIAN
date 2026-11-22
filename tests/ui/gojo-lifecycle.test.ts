@@ -73,11 +73,12 @@ afterEach(() => {
 });
 
 describe('Gojo entity lifecycle', () => {
-  it('drives attacks and room movement on the mounted rig, returning to idle', () => {
-    const p = player('G');
+  // 核心生命周期在每名专属角色上跑一遍（gojo 是基线，其余按 DEDICATED 扩展）
+  it.each(['gojo', 'laodaye'] as const)('%s: drives attacks and room movement on the mounted rig, returning to idle', (char) => {
+    const p = player('G', char);
     sync(p);
     const e = entity('G');
-    expect(e.asset.id).toBe('gojo-v1');
+    expect(e.asset.id).toBe(`${char}-v1`);
     expect(e.group.getObjectById(e.rig.root.id)).toBe(e.rig.root);
     const attack = vi.spyOn(e.rig, 'attackSwing');
     const walk = vi.spyOn(e.rig, 'walk');
@@ -103,15 +104,15 @@ describe('Gojo entity lifecycle', () => {
     expect(e.group.getWorldPosition(new THREE.Vector3()).distanceTo(enRoute)).toBeGreaterThan(0.1);
   });
 
-  it('isolates hit flash, hiding and death; revival restores the asset palette', () => {
-    const p = player('G1');
-    const q = player('G2');
+  it.each(['gojo', 'laodaye'] as const)('%s: isolates hit flash, hiding and death; revival restores the asset palette', (char) => {
+    const p = player('G1', char);
+    const q = player('G2', char);
     sync(p, q);
     const rig = entity(p.id).rig;
     const other = entity(q.id).rig;
     const palette = (r: typeof rig) => r.materials().map((m) => [m.color.getHex(), m.emissive.getHex()]);
     const original = palette(rig);
-    const factory = createCharacterAsset('gojo');
+    const factory = createCharacterAsset(char);
     try {
       expect(original).toEqual(palette(factory.rig));
     } finally {
@@ -231,9 +232,9 @@ describe('Gojo entity lifecycle', () => {
     sync({ ...p, charId: 'bagun', char: { stickDrawn: true } });
     const bagun = entity(p.id);
     expect(released()).toEqual([1]);
-    expect(bagun.rig).toBeInstanceOf(Humanoid);
+    expect(bagun.asset.id).toBe('bagun-v1');
     expect(bagun.rig).not.toBe(old.rig);
-    expect(bagun.stick?.visible).toBe(true);
+    expect(bagun.stick?.visible).toBe(true); // 快照 stickDrawn 驱动专用 rig 的棍
     sync({ ...p, charId: 'bagun' });
     expect(bagun.stick?.visible).toBe(false);
 

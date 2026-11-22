@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createCharacterAsset, type CharacterRig, releaseMeshes } from '../../client/src/battle3d/characters/index.js';
 import { createGojoRig } from '../../client/src/battle3d/characters/gojo.js';
-import { CHAR_VISUALS } from '../../client/src/battle3d/palette.js';
-import { Humanoid } from '../../client/src/battle3d/rig.js';
 
 // Inspect transforms of actual meshes, not just the existence of animation methods or joints.
 function meshPose(rig: CharacterRig) {
@@ -64,24 +62,5 @@ describe('Gojo asset', () => {
   });
 });
 
-// Legacy models remain the original humanoid, including prop sockets and character-specific scale.
-const legacy = Object.entries(CHAR_VISUALS).filter(([id]) => id !== 'gojo');
-describe('legacy character assets', () => {
-  it.each(legacy)('%s retains its palette, size and prop attachment', (id, visual) => {
-    const asset = createCharacterAsset(id);
-    try {
-      expect(asset.id).toBe('humanoid');
-      const r = asset.rig;
-      expect(r).toBeInstanceOf(Humanoid);
-      if (!(r instanceof Humanoid)) throw new Error(`Expected legacy rig for ${id}`);
-      expect(r.materials()[0].color.getHex()).toBe(visual.color);
-      expect(r.materials()[1].color.getHex()).toBe(visual.accent);
-      expect(r.root.scale.toArray()).toEqual([visual.scale, visual.scale, visual.scale]);
-      expect(r.handR.children.length > 0).toBe(['stick', 'flute', 'scissors', 'bomb'].includes(visual.prop));
-      expect(r.headTop.children.length > 0).toBe(['dice', 'hat', 'magnet'].includes(visual.prop));
-      expect(r.back.children.length > 0).toBe(visual.prop === 'taiji');
-    } finally {
-      asset.dispose();
-    }
-  });
-});
+// 2026-11-21：全部 11 名角色均已专属化，legacy Humanoid 仅剩未知 ID 回退路径，
+// 由 gojo-lifecycle.test.ts 的 unknown-character 用例覆盖。
