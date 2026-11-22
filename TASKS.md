@@ -676,26 +676,3 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | T-1923 | 交付边界 | 未提交/未推送/未部署；client/dist、server/dist、部署配置零触碰 |
 | T-1924 | 遗留 | ⑧躲藏提示的端到端机会性验证（依赖 AI 行为频率）；名牌错开 58px 步长在极端人数（6 人同房）下的观感待真机反馈；restart 直达开局后「返回房间大厅」入口仍保留在终局面板 |
 
-
-## 二十五轮 · 马保国三种判定改为玩家亲自出拳（Issue #10，2026-11-22）
-
-用户要求：混元形意太极 / 闪电五连鞭 / 不讲武德都改为**玩家自己猜拳判定**；不讲武德攻击类型定义为**精神攻击**；五连鞭伤害公式的最大血量改为**当前血量**、伤害保持**单次总量**。
-
-| 编号 | 任务 | 说明 |
-|---|---|---|
-| T-2500 | 引擎 judge 阶段 + 判定队列 | GamePhase 新增 judge；新增 judgeQueue / activeJudge / judgeResume / deferredDamage；公开 
-equestJudge / deferDamageJudge / submitJudgeThrow / orceFillJudgeThrows / skillJudgeView()；判定在行动后或回合末的安全点暂停收拳，结算完再恢复（
-esumeAfterJudges） |
-| T-2501 | 太极改为双方出拳 | 受伤时**挂起伤害**（deferredDamage + 
-eq.judgeResolved），双方各出一拳；赢则原伤反弹、平局/输则补结算正常受伤；反弹链仍由 
-eflected 终止；大伊万/肉山 
-oReflect 例外不变 |
-| T-2502 | 五连鞭改为双方出拳 + 当前血量 | 5 局逐局提交/揭牌；伤害改为 胜次 × 20% × 目标当前血量，仍为**单次总量**（一条伤害事件） |
-| T-2503 | 不讲武德改为双方出拳 + 精神攻击 | 死后 5 局判定；赢 ≥3 局对击杀者发动 dtype: 'mental' 伤害（伤害 = 其当前血量，
-oReflect、ypassHide）；checkWin 在存在待结算不讲武德时延迟判胜，保留同归于尽语义 |
-| T-2504 | 兼容模式 | skillJudgeMode: 'serverRoll' 保留旧的种子代掷即结算路径；共享用例助手与 AI 模拟用例显式使用该模式，避免 474 条存量用例被交互流程污染 |
-| T-2505 | 服务端与客户端 | game:throw 按阶段路由（rps1/rps2/judge）；kickAI 即刻代出判定出拳；超时代掷与 AI 看门狗覆盖 judge；游戏页新增技能判定出拳面板（交设备遮罩、等待态、局数/胜负提示）、座位已出拳角标 |
-| T-2506 | 测试与验收 | 新增 	ests/skill-judge.test.ts（12）+ 	ests/ui/skill-judge-ui.test.tsx（2）；
-pm test **28 文件 / 488 用例全过**；client/server 	sc --noEmit 双 0 错误；
-pm run build 通过 |
-| T-2507 | 文档 | GAME_RULES（马保国条目、阶段流程、A-03、待确认 4、伤害管线）、KNOWN_ISSUES、ARCHITECTURE（阶段机）、README（角色表/测试数）、CONTRIBUTING、CHANGELOG、docs/characters/mabaoguo.md 同步 |
