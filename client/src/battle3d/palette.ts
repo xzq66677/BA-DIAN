@@ -68,7 +68,7 @@ export const ROOM_VISUALS: Record<string, RoomVisual> = {
   R1: { totem: 'mountain', base: 0x3a4350, prop: 0xcfd8e2, icon: '🏔' },
   R2: { totem: 'forest', base: 0x2e4a34, prop: 0x5fae6f, icon: '🌲' },
   R3: { totem: 'village', base: 0x4a3d2e, prop: 0xd8a86a, icon: '🏘' },
-  R4: { totem: 'castle', base: 0x3d3d47, prop: 0x9aa4b8, icon: '🏰' },
+  R4: { totem: 'castle', base: 0x474060, prop: 0x9aa4b8, icon: '🏰' },
   R5: { totem: 'volcano', base: 0x4a2620, prop: 0xe06030, icon: '🌋' },
   R6: { totem: 'water', base: 0x24425a, prop: 0x5ab8d8, icon: '🌊' },
 };

@@ -1,0 +1,38 @@
+{
+  "tag": "map101-after",
+  "stats": {
+    "fx": 0,
+    "tweens": 0,
+    "walks": 0,
+    "entities": 4,
+    "rooms": 4,
+    "bodiesHidden": 0,
+    "calls": 189,
+    "triangles": 14424,
+    "geometries": 189,
+    "textures": 1,
+    "canvas": [
+      1440,
+      851
+    ],
+    "gl": {
+      "created": 1,
+      "lost": 0
+    },
+    "drawCalls": 189,
+    "rate": 16.856036958423733,
+    "rates": [
+      17.403194729314137,
+      16.74937965260546,
+      16.856036958423733
+    ],
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "characters": [
+      "ivan-girl",
+      "wuliuqi",
+      "default",
+      "default"
+    ]
+  },
+  "errors": []
+}
