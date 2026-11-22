@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "tree",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\AI工作区\\badian-game\\.archify\\tree-worktree-map-20261122-222714\\candidate.json",
+    "sha256": "ebf6f7efeeb14a08514aae53b415d0098192a0a8f5a45d02620cf0f235a4cef0",
+    "bytes": 4740
+  },
+  "artifact": {
+    "path": "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html",
+    "sha256": "9160165959f35eb7ff9604268e3d71e6e77ef1341b4c2a2e4f9fd4be4494fa76",
+    "bytes": 857423
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "skipped"
+  },
+  "failedStage": "browser-check",
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\AI工作区\\badian-game\\docs\\worktree-map.finalize.json",
+    "summaryReceipt": "D:\\AI工作区\\badian-game\\docs\\worktree-map.finalize-summary.json",
+    "browserCheckReceipt": "D:\\AI工作区\\badian-game\\docs\\worktree-map.browser-check.json"
+  },
+  "update": {
+    "status": "update_available",
+    "installedVersion": "3.1.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": "https://github.com/tt-a1i/archify/releases/tag/v3.2.0",
+    "severity": "normal",
+    "checkedAt": "2026-11-22T14:29:18.153Z",
+    "source": "cache",
+    "noticeRequired": true,
+    "noticeText": "Archify update: 3.1.0 → 3.2.0. A previous check at 2026-11-22T14:29:18.153Z found a newer release. Release notes: https://github.com/tt-a1i/archify/releases/tag/v3.2.0. The installed Skill has not changed; ask to snooze or ignore this reminder.",
+    "eventKey": "archify@sha256:70e210265c59f24dcbdf2a502ff671104b5454e7ee7d3554aecd86bad32384f5"
+  },
+  "visualReview": "not-requested",
+  "durationMs": 1772
+}

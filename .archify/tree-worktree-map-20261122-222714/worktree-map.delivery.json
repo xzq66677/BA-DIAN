@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "a0e78e01-a1d1-48f5-a661-7ad7f55b6507",
+  "status": "current",
+  "command": "deliver",
+  "type": "tree",
+  "input": "D:\\AI工作区\\badian-game\\.archify\\tree-worktree-map-20261122-222714\\candidate.json",
+  "output": "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html",
+  "specification": {
+    "sha256": "ebf6f7efeeb14a08514aae53b415d0098192a0a8f5a45d02620cf0f235a4cef0",
+    "bytes": 4740
+  },
+  "artifact": {
+    "sha256": "9160165959f35eb7ff9604268e3d71e6e77ef1341b4c2a2e4f9fd4be4494fa76",
+    "bytes": 857423
+  }
+}

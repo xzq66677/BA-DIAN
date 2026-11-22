@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "diagram_type": "tree",
+  "meta": {
+    "title": "BA-DIAN worktree 与分支地图",
+    "subtitle": "3 个活动 worktree、12 个本地分支与远程分支的当前分布（2026-11-22 git 快照）",
+    "output": "docs/WORKTREE-MAP.html",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "layout": {
+    "direction": "right"
+  },
+  "nodes": [
+    {
+      "id": "root",
+      "label": "BA-DIAN 工作区",
+      "sublabel": "3 worktree · 12 本地分支"
+    },
+    {
+      "id": "wt",
+      "label": "活动 worktree (3)",
+      "parent": "root"
+    },
+    {
+      "id": "wt-main",
+      "label": "主工作区",
+      "parent": "wt",
+      "sublabel": "D:\\AI工作区\\badian-game"
+    },
+    {
+      "id": "wt-main-br",
+      "label": "feat/v6-hair-style",
+      "parent": "wt-main",
+      "sublabel": "@ b358f356 · V6 低模发型增强层"
+    },
+    {
+      "id": "wt-75a3",
+      "label": "worktree/75a3",
+      "parent": "wt",
+      "sublabel": "E:\\...\\worktrees\\75a3"
+    },
+    {
+      "id": "wt-75a3-br",
+      "label": "release/v6-map",
+      "parent": "wt-75a3",
+      "sublabel": "@ 5190307 · V6 悬浮遗迹大版本"
+    },
+    {
+      "id": "wt-a926",
+      "label": "worktree/a926",
+      "parent": "wt",
+      "sublabel": "detached HEAD"
+    },
+    {
+      "id": "wt-a926-br",
+      "label": "89360e2",
+      "parent": "wt-a926",
+      "sublabel": "V3.0 基线检查点"
+    },
+    {
+      "id": "local",
+      "label": "本地分支 (12)",
+      "parent": "root"
+    },
+    {
+      "id": "loc-main",
+      "label": "main",
+      "parent": "local",
+      "sublabel": "主干 · 治理机制"
+    },
+    {
+      "id": "loc-v6",
+      "label": "V6 线 (2)",
+      "parent": "local"
+    },
+    {
+      "id": "loc-v6-hair",
+      "label": "feat/v6-hair-style",
+      "parent": "loc-v6",
+      "sublabel": "发型层（主工作区）"
+    },
+    {
+      "id": "loc-v6-map",
+      "label": "release/v6-map",
+      "parent": "loc-v6",
+      "sublabel": "地图发布（75a3）"
+    },
+    {
+      "id": "loc-3d",
+      "label": "3D 线",
+      "parent": "local"
+    },
+    {
+      "id": "loc-3d-battle",
+      "label": "feat/3d-battlefield-v4.2",
+      "parent": "loc-3d",
+      "sublabel": "3D 战场 V5.0-B"
+    },
+    {
+      "id": "loc-map",
+      "label": "MAP 线 (6)",
+      "parent": "local"
+    },
+    {
+      "id": "loc-map-101",
+      "label": "map101-stone-refinement",
+      "parent": "loc-map"
+    },
+    {
+      "id": "loc-map-102",
+      "label": "map102-labels-danger",
+      "parent": "loc-map"
+    },
+    {
+      "id": "loc-map-103",
+      "label": "map103-perf-sampling",
+      "parent": "loc-map"
+    },
+    {
+      "id": "loc-map-105",
+      "label": "map105-edge-tests",
+      "parent": "loc-map"
+    },
+    {
+      "id": "loc-map-ruins",
+      "label": "v5-floating-ruins",
+      "parent": "loc-map"
+    },
+    {
+      "id": "loc-map-codex",
+      "label": "codex/v5-map-original-work",
+      "parent": "loc-map"
+    },
+    {
+      "id": "loc-misc",
+      "label": "其他 (2)",
+      "parent": "local"
+    },
+    {
+      "id": "loc-bottom",
+      "label": "feat/bottom-chat-dock",
+      "parent": "loc-misc",
+      "sublabel": "局内底部发言面板"
+    },
+    {
+      "id": "loc-docs",
+      "label": "docs/map-task-status",
+      "parent": "loc-misc",
+      "sublabel": "任务状态文档"
+    },
+    {
+      "id": "remote",
+      "label": "远程分支 (origin)",
+      "parent": "root"
+    },
+    {
+      "id": "rem-main",
+      "label": "main",
+      "parent": "remote"
+    },
+    {
+      "id": "rem-gov",
+      "label": "governance-setup",
+      "parent": "remote",
+      "sublabel": "认领机制 PR"
+    },
+    {
+      "id": "rem-fix",
+      "label": "fix/MMR12345-ivan-girl",
+      "parent": "remote",
+      "sublabel": "连杀误判修复"
+    },
+    {
+      "id": "rem-tie",
+      "label": "feat/MMR12345-tie-round",
+      "parent": "remote",
+      "sublabel": "平局回合"
+    },
+    {
+      "id": "rem-sync",
+      "label": "已同步分支 (5)",
+      "parent": "remote",
+      "sublabel": "bottom-chat-dock · map105 · v6-hair-style · release/v6-map · docs/map-task-status"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "认领规则（防重复）",
+      "items": [
+        "动手前：设 Assignee + 改标签 status: in-progress",
+        "看板卡片拖到「进行中」列",
+        "已有 Assignee 的 Issue 不要重复开发"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "看图须知",
+      "items": [
+        "这是 2026-11-22 的 git 快照，非实时",
+        "worktree/分支变化后需重新生成",
+        "HTML 位于 docs/WORKTREE-MAP.html"
+      ]
+    }
+  ]
+}
