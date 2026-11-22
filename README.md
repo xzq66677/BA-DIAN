@@ -1,3 +1,8 @@
+> ## 📊 任务认领实时树图（成员入口）
+> **[点击打开实时看板](https://xzq66677.github.io/BA-DIAN/WORKTREE-LIVE.html)** — 打开即自动拉取 GitHub 上的远程分支 / PR / Issue 认领状态，谁在做什么一目了然。
+> 动手前请先认领：设 Assignee + 改标签 `status: in-progress`，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+> （本地文件：`docs/WORKTREE-LIVE.html`；需先在 Settings → Pages 启用 `main` 分支 `/docs` 目录。）
+
 # 拔典（BA DIAN）· 多人房间制生存游戏
 
 基于石头剪刀布的回合制多人生存游戏。
