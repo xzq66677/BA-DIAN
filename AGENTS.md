@@ -4,8 +4,10 @@
 
 ## 工作区地图（worktree / 分支）
 
-> 完整可视化：[docs/WORKTREE-MAP.html](docs/WORKTREE-MAP.html)（浏览器打开，交互式树图）
-> 以下为 2026-11-22 git 快照的文字版；分支变化后以 `git worktree list` / `git branch -a` 为准。
+> **实时地图（推荐）**：[docs/WORKTREE-LIVE.html](docs/WORKTREE-LIVE.html) — 打开即自动拉 GitHub API，
+> 实时显示远程分支、开放 PR、Issue 认领状态（无需 token，需联网）。
+> 静态快照：[docs/WORKTREE-MAP.html](docs/WORKTREE-MAP.html) — 2026-11-22 交互式树图。
+> 以下为 worktree 的文字版；以 `git worktree list` / `git branch -a` 实测为准。
 
 ### 活动 worktree（3 个）
 
