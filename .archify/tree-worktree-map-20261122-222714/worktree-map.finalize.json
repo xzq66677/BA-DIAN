@@ -1,0 +1,363 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "tree",
+  "quality": "showcase",
+  "startedAt": "2026-11-22T14:29:56.337Z",
+  "specification": {
+    "path": "D:\\AI工作区\\badian-game\\.archify\\tree-worktree-map-20261122-222714\\candidate.json",
+    "sha256": "ebf6f7efeeb14a08514aae53b415d0098192a0a8f5a45d02620cf0f235a4cef0",
+    "bytes": 4740
+  },
+  "artifact": {
+    "path": "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html",
+    "sha256": "9160165959f35eb7ff9604268e3d71e6e77ef1341b4c2a2e4f9fd4be4494fa76",
+    "bytes": 857423
+  },
+  "stages": {
+    "validate": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": null,
+      "execution": "embedded-in-deliver",
+      "command": [
+        "E:\\Node.js\\node.exe",
+        "C:\\Users\\38686\\.config\\opencode\\skills\\archify\\bin\\archify.mjs",
+        "deliver",
+        "tree",
+        "D:\\AI工作区\\badian-game\\.archify\\tree-worktree-map-20261122-222714\\candidate.json",
+        "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html",
+        "--quality",
+        "showcase",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "validate",
+        "specification": {
+          "sha256": "ebf6f7efeeb14a08514aae53b415d0098192a0a8f5a45d02620cf0f235a4cef0",
+          "bytes": 4740
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        }
+      }
+    },
+    "deliver": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 510,
+      "command": [
+        "E:\\Node.js\\node.exe",
+        "C:\\Users\\38686\\.config\\opencode\\skills\\archify\\bin\\archify.mjs",
+        "deliver",
+        "tree",
+        "D:\\AI工作区\\badian-game\\.archify\\tree-worktree-map-20261122-222714\\candidate.json",
+        "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html",
+        "--quality",
+        "showcase",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "receiptId": "9bb82651-5ba0-4a29-9bbe-3825b2463490",
+        "ok": true,
+        "command": "deliver",
+        "type": "tree",
+        "input": "D:\\AI工作区\\badian-game\\.archify\\tree-worktree-map-20261122-222714\\candidate.json",
+        "output": "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html",
+        "specification": {
+          "sha256": "ebf6f7efeeb14a08514aae53b415d0098192a0a8f5a45d02620cf0f235a4cef0",
+          "bytes": 4740
+        },
+        "artifact": {
+          "sha256": "9160165959f35eb7ff9604268e3d71e6e77ef1341b4c2a2e4f9fd4be4494fa76",
+          "bytes": 857423
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        },
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      }
+    },
+    "check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 290,
+      "command": [
+        "E:\\Node.js\\node.exe",
+        "C:\\Users\\38686\\.config\\opencode\\skills\\archify\\bin\\archify.mjs",
+        "check",
+        "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html",
+        "--require-provenance"
+      ],
+      "receipt": {
+        "ok": true,
+        "file": "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html",
+        "artifact": {
+          "sha256": "9160165959f35eb7ff9604268e3d71e6e77ef1341b4c2a2e4f9fd4be4494fa76",
+          "bytes": 857423
+        },
+        "checks": [
+          {
+            "name": "single_svg",
+            "ok": true,
+            "details": [
+              "found 1 <svg> block(s)"
+            ]
+          },
+          {
+            "name": "finite_svg",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "orthogonal_arrows",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "label_route_clearance",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_crossings",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_corridors",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "container_border_runs",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "route_rhythm",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "legend_clearance",
+            "ok": true,
+            "details": [
+              "no legend marker found"
+            ]
+          }
+        ],
+        "composition": {
+          "schemaVersion": 1,
+          "profile": "showcase",
+          "status": "pass",
+          "summary": {
+            "errors": 0,
+            "warnings": 0
+          },
+          "metrics": {
+            "properCrossings": 0,
+            "resolvedCrossovers": 0,
+            "ambiguousCorridors": 0,
+            "arrowheadCollisions": 0,
+            "containerBorderRuns": 0,
+            "labelRouteClearanceIssues": 0,
+            "labelCanvasOverflowIssues": 0,
+            "minLabelRouteClearance": null,
+            "desktopReadabilityIssues": 0,
+            "viewportHeightIssues": 0,
+            "minProjectedNodeTextPx": 9.789473684210526,
+            "maxBends": 0,
+            "routesOverSuggestedBends": 0,
+            "maxStretch": null,
+            "routesOverSuggestedStretch": 0,
+            "minSegmentPx": null,
+            "minInteriorSegmentPx": null,
+            "shortSegmentCount": 0,
+            "shortEndpointSegmentCount": 0,
+            "shortInteriorSegmentCount": 0,
+            "microSegmentCount": 0
+          },
+          "suggestedLimits": {
+            "bendsPerRelationship": 2,
+            "stretch": 1.35,
+            "segmentPx": 16,
+            "microSegmentPx": 8
+          },
+          "routeReview": {
+            "crossings": [],
+            "detours": []
+          },
+          "leadingSpace": {
+            "measured": false,
+            "reviewSuggested": false
+          },
+          "desktopReadability": {
+            "budgetBasis": "legacy-930",
+            "readerContract": "declared-wide-v1",
+            "availableDiagramWidth": 930,
+            "actualBudgetPx": 930,
+            "limit": "legacy",
+            "requestedTargetPx": 7.5,
+            "requestedTargetMet": true,
+            "hardFloorPx": 6,
+            "hardFloorMet": true,
+            "minimumOwner": {
+              "kind": "node",
+              "id": "root"
+            },
+            "minimumSourceTextPx": 11,
+            "minimumProjectedTextPx": 9.789473684210526,
+            "semanticTextCount": 48
+          },
+          "issues": []
+        },
+        "provenance": "current",
+        "deliveryReceiptId": "9bb82651-5ba0-4a29-9bbe-3825b2463490"
+      }
+    },
+    "browser-check": {
+      "status": "skipped",
+      "exitCode": 2,
+      "durationMs": 211,
+      "command": [
+        "E:\\Node.js\\node.exe",
+        "C:\\Users\\38686\\.config\\opencode\\skills\\archify\\bin\\archify.mjs",
+        "browser-check",
+        "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html",
+        "--json",
+        "--require-provenance"
+      ],
+      "execution": "in-process",
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "browser-check",
+        "evidenceKind": "automated-browser",
+        "status": "skipped",
+        "visualReview": "not-requested",
+        "provenance": "current",
+        "deliveryReceiptId": "9bb82651-5ba0-4a29-9bbe-3825b2463490",
+        "artifact": {
+          "path": "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html",
+          "sha256": "9160165959f35eb7ff9604268e3d71e6e77ef1341b4c2a2e4f9fd4be4494fa76",
+          "bytes": 857423
+        },
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "chrome": {
+          "status": "unavailable",
+          "executable": null
+        },
+        "diagnostics": [
+          {
+            "code": "viewer/chrome-unavailable",
+            "severity": "warning",
+            "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+            "subject": {
+              "artifact": "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html"
+            },
+            "evidence": {
+              "executable": null
+            },
+            "supportedFixes": [
+              "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+            ]
+          }
+        ],
+        "containment": {
+          "status": "skipped",
+          "policy": "fit-or-reader-declared-readable-vertical-scroll",
+          "viewports": []
+        },
+        "themeStates": {
+          "status": "skipped",
+          "viewports": []
+        },
+        "readability": {
+          "status": "skipped",
+          "minimumProjectedNodeTextPx": 6,
+          "viewports": []
+        },
+        "viewerChrome": {
+          "status": "skipped",
+          "viewports": []
+        },
+        "captures": {
+          "status": "not-requested",
+          "screenshots": [],
+          "contactSheet": null
+        },
+        "sidecars": {
+          "receipt": "worktree-map.browser-check.json",
+          "files": []
+        },
+        "error": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path."
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "D:\\AI工作区\\badian-game\\docs\\WORKTREE-MAP.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+      ]
+    }
+  ],
+  "evidence": {
+    "receipt": "D:\\AI工作区\\badian-game\\docs\\worktree-map.finalize.json",
+    "summaryReceipt": "D:\\AI工作区\\badian-game\\docs\\worktree-map.finalize-summary.json",
+    "browserCheckReceipt": "D:\\AI工作区\\badian-game\\docs\\worktree-map.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "browser-check",
+  "finishedAt": "2026-11-22T14:29:58.110Z",
+  "durationMs": 1772,
+  "update": {
+    "status": "update_available",
+    "installedVersion": "3.1.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": "https://github.com/tt-a1i/archify/releases/tag/v3.2.0",
+    "severity": "normal",
+    "checkedAt": "2026-11-22T14:29:18.153Z",
+    "source": "cache",
+    "noticeRequired": true,
+    "noticeText": "Archify update: 3.1.0 → 3.2.0. A previous check at 2026-11-22T14:29:18.153Z found a newer release. Release notes: https://github.com/tt-a1i/archify/releases/tag/v3.2.0. The installed Skill has not changed; ask to snooze or ignore this reminder.",
+    "eventKey": "archify@sha256:70e210265c59f24dcbdf2a502ff671104b5454e7ee7d3554aecd86bad32384f5"
+  }
+}

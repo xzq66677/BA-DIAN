@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BA-DIAN · 分支与认领实时地图</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2128; --border:#30363d;
+    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff;
+    --ready:#0e8a16; --progress:#d29922; --review:#1d76db; --done:#6f42c1;
+    --p0:#da3633; --p1:#d29922; --agent:#39c5cf;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.5;padding:24px;max-width:1280px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:8px 14px;
+    font-size:13px;cursor:pointer;font-weight:600}
+  button:hover{opacity:.85}
+  .status{color:var(--muted);font-size:12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+  .panel h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .badge{background:var(--panel2);border:1px solid var(--border);border-radius:20px;
+    padding:1px 9px;font-size:12px;color:var(--muted)}
+  .item{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;
+    background:var(--panel2)}
+  .item:last-child{margin-bottom:0}
+  .title{font-size:13px;font-weight:600;word-break:break-word}
+  .title a{color:var(--accent);text-decoration:none}
+  .title a:hover{text-decoration:underline}
+  .meta{font-size:11px;color:var(--muted);margin-top:5px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tag{font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid var(--border);white-space:nowrap}
+  .t-ready{color:#7ee787;border-color:#238636}
+  .t-progress{color:#e3b341;border-color:#9e6a03}
+  .t-review{color:#79c0ff;border-color:#1f6feb}
+  .t-done{color:#d2a8ff;border-color:#8957e5}
+  .t-p0{color:#ff7b72;border-color:#da3633}
+  .t-p1{color:#e3b341;border-color:#9e6a03}
+  .t-agent{color:#56d4dd;border-color:#1b7c83}
+  .assignee{color:#a5d6ff}
+  .branch{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+  .note{color:var(--muted);font-size:12px;background:var(--panel2);border:1px dashed var(--border);
+    border-radius:8px;padding:10px 12px;margin-bottom:16px}
+  .empty{color:var(--muted);font-size:13px;font-style:italic}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--border);
+    border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .err{color:#ff7b72;font-size:13px}
+</style>
+</head>
+<body>
+  <h1>BA-DIAN · 分支与认领实时地图</h1>
+  <div class="sub">每次打开自动从 GitHub API 实时拉取 · 仓库 xzq66677/BA-DIAN</div>
+
+  <div class="toolbar">
+    <button id="refresh">🔄 刷新</button>
+    <span class="status" id="status"><span class="spin"></span> 正在拉取…</span>
+  </div>
+
+  <div class="note" id="note">
+    ⚠️ 本页只追踪 <b>GitHub 上的远程分支 / PR / Issue 认领</b>（API 可实时获取）。
+    <code>git worktree</code> 是本地概念，GitHub 看不到——本地 worktree 的静态快照见
+    <a href="WORKTREE-MAP.html" style="color:var(--accent)">WORKTREE-MAP.html</a>。
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>🌿 远程分支 <span class="badge" id="bc">0</span></h2>
+      <div id="branches"><div class="empty">加载中…</div></div>
+    </div>
+    <div class="panel">
+      <h2>🔀 开放 PR <span class="badge" id="pc">0</span></h2>
+      <div id="prs"><div class="empty">加载中…</div></div>
+    </div>
+    <div class="panel">
+      <h2>📋 Issue 认领状态 <span class="badge" id="ic">0</span></h2>
+      <div id="issues"><div class="empty">加载中…</div></div>
+    </div>
+    <div class="panel">
+      <h2>🖥️ 本地 Worktree（静态快照）</h2>
+      <div style="font-size:12px;color:var(--muted);line-height:1.9">
+        <div class="branch">D:\AI工作区\badian-game</div>
+        <div>→ <code>feat/v6-hair-style</code> · V6 发型层</div>
+        <div class="branch" style="margin-top:8px">…\worktrees\75a3</div>
+        <div>→ <code>release/v6-map</code> · V6 地图</div>
+        <div class="branch" style="margin-top:8px">…\worktrees\a926</div>
+        <div>→ detached @ 89360e2 · V3.0 基线</div>
+        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+          以 <code>git worktree list</code> 实测为准；此处为 2026-11-22 快照。
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API = 'https://api.github.com/repos/xzq66677/BA-DIAN';
+const H = { 'User-Agent': 'BA-DIAN-worktree-map', 'Accept': 'application/vnd.github+json' };
+
+function tagClass(name){
+  if (/status:\s*ready/i.test(name)) return 't-ready';
+  if (/status:\s*in-progress/i.test(name)) return 't-progress';
+  if (/status:\s*review/i.test(name)) return 't-review';
+  if (/status:\s*done/i.test(name)) return 't-done';
+  if (/p0/i.test(name)) return 't-p0';
+  if (/p1/i.test(name)) return 't-p1';
+  if (/agent/i.test(name)) return 't-agent';
+  return '';
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function shortSha(s){ return (s||'').slice(0,7); }
+function fmtDate(s){ try{ return new Date(s).toLocaleDateString('zh-CN'); }catch(e){ return ''; } }
+
+async function getJSON(path){
+  const r = await fetch(API + path, { headers: H });
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + path);
+  return r.json();
+}
+
+function renderBranches(list){
+  const el = document.getElementById('branches');
+  document.getElementById('bc').textContent = list.length;
+  if (!list.length){ el.innerHTML = '<div class="empty">无分支</div>'; return; }
+  el.innerHTML = list.map(b => `
+    <div class="item">
+      <div class="title branch">🌿 ${esc(b.name)}</div>
+      <div class="meta"><span>${shortSha(b.commit && b.commit.sha)}</span>
+        <span>protected: ${b.protected ? 'yes' : 'no'}</span></div>
+    </div>`).join('');
+}
+
+function renderPRs(list){
+  const el = document.getElementById('prs');
+  document.getElementById('pc').textContent = list.length;
+  if (!list.length){ el.innerHTML = '<div class="empty">无开放 PR</div>'; return; }
+  el.innerHTML = list.map(p => `
+    <div class="item">
+      <div class="title"><a href="${esc(p.html_url)}" target="_blank" rel="noopener">#${p.number} ${esc(p.title)}</a></div>
+      <div class="meta">
+        <span class="branch">${esc(p.head && p.head.ref)} → ${esc(p.base && p.base.ref)}</span>
+        <span>by ${esc(p.user && p.user.login)}</span>
+        ${p.draft ? '<span class="tag">draft</span>' : ''}
+        <span>${fmtDate(p.updated_at)}</span>
+      </div>
+    </div>`).join('');
+}
+
+function renderIssues(list){
+  const el = document.getElementById('issues');
+  const issues = list.filter(i => !i.pull_request); // 排除 PR（GitHub issues API 会带 PR）
+  document.getElementById('ic').textContent = issues.length;
+  if (!issues.length){ el.innerHTML = '<div class="empty">无开放 Issue</div>'; return; }
+  el.innerHTML = issues.map(i => {
+    const asg = i.assignee ? `<span class="assignee">👤 ${esc(i.assignee.login)}</span>`
+                           : '<span style="color:var(--muted)">未认领</span>';
+    const labels = (i.labels||[]).map(l =>
+      `<span class="tag ${tagClass(l.name)}">${esc(l.name)}</span>`).join(' ');
+    return `
+    <div class="item">
+      <div class="title"><a href="${esc(i.html_url)}" target="_blank" rel="noopener">#${i.number} ${esc(i.title)}</a></div>
+      <div class="meta">${asg} ${labels}</div>
+    </div>`;
+  }).join('');
+}
+
+async function load(){
+  const status = document.getElementById('status');
+  status.innerHTML = '<span class="spin"></span> 正在拉取…';
+  try {
+    const [branches, prs, issues] = await Promise.all([
+      getJSON('/branches?per_page=100'),
+      getJSON('/pulls?state=open&per_page=100'),
+      getJSON('/issues?state=open&per_page=100')
+    ]);
+    renderBranches(branches);
+    renderPRs(prs);
+    renderIssues(issues);
+    status.textContent = '✅ 更新于 ' + new Date().toLocaleTimeString('zh-CN');
+  } catch (e) {
+    status.innerHTML = '<span class="err">❌ 拉取失败：' + esc(e.message) + '</span>';
+  }
+}
+
+document.getElementById('refresh').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>
