@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>V5 角色造型锚点 · 低模发型评审</title>
+<style>
+  :root{--bg:#0b0f14;--panel:#111820;--gold:#d8b04a;--ink:#e9dfc7;--dim:#8b97a8;--jade:#79bfa5;--line:rgba(216,176,74,.28)}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:"STSong","Songti SC","Noto Serif CJK SC",serif;overflow:hidden}
+  #app{height:100%;display:flex;flex-direction:column}
+  header{height:auto;min-height:72px;padding:12px 20px 10px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:9px;background:linear-gradient(180deg,#111821,#0b0f14)}
+  .headline{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .headline h1{margin:0;font-size:17px;letter-spacing:5px;color:var(--gold);font-weight:500}
+  .headline small{color:var(--dim);font-size:11px;letter-spacing:2px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.03);color:var(--dim);font-family:inherit;font-size:11px;letter-spacing:1px;padding:5px 10px;cursor:pointer;transition:.18s}
+  .chip:hover{border-color:var(--gold);color:var(--ink)}
+  .chip.on{border-color:var(--gold);background:rgba(216,176,74,.14);color:var(--gold)}
+  main{flex:1;display:flex;min-height:0}
+  #stage{position:relative;flex:1;min-width:0;background:#0b0f14}
+  #cv{display:block;width:100%;height:100%}
+  #labels{position:absolute;inset:0;pointer-events:none}
+  .lab{position:absolute;display:flex;align-items:flex-start;justify-content:space-between;padding:7px 9px;font-size:10px;letter-spacing:2px;color:var(--dim);text-shadow:0 2px 8px #000}
+  .lab b{font-weight:500;color:var(--gold)}
+  .lab.new b{color:var(--jade)}
+  aside{width:262px;flex:none;border-left:1px solid var(--line);background:linear-gradient(180deg,#10161d,#0b0f14);padding:16px;display:flex;flex-direction:column;gap:14px;overflow:auto}
+  .sec-title{font-size:10px;letter-spacing:4px;color:var(--gold);margin-bottom:8px}
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .mode{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.03);color:var(--dim);padding:9px 6px;font-family:inherit;font-size:11px;letter-spacing:1px;cursor:pointer;transition:.18s}
+  .mode:hover{border-color:var(--gold);color:var(--ink)}
+  .mode.on{border-color:var(--gold);background:rgba(216,176,74,.13);color:var(--gold)}
+  .info{font-size:11px;line-height:1.8;color:var(--dim);border-top:1px solid rgba(255,255,255,.08);padding-top:10px}
+  .info b{color:var(--ink);font-weight:500}
+  .toggle{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dim);cursor:pointer}
+  .toggle input{accent-color:var(--gold)}
+  .note{font-size:10px;line-height:1.7;color:#7d889a;border-top:1px solid rgba(255,255,255,.08);padding-top:10px;margin-top:auto}
+  @media(max-width:900px){aside{width:190px}.headline h1{font-size:14px}.chip{font-size:10px;padding:4px 7px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="headline">
+      <h1>角 色 造 型 锚 点</h1>
+      <small>LOW-POLY HAIR STANDARD · OLD / NEW SAME-CAMERA REVIEW</small>
+    </div>
+    <div class="chips" id="chips"></div>
+  </header>
+  <main>
+    <section id="stage"><canvas id="cv"></canvas><div id="labels"></div></section>
+    <aside>
+      <div>
+        <div class="sec-title">视 图 模 式</div>
+        <div class="modes" id="modes">
+          <button class="mode on" data-m="views">三视图对照</button>
+          <button class="mode" data-m="rotate">实时旋转</button>
+          <button class="mode" data-m="idle">待机</button>
+          <button class="mode" data-m="entry">入场</button>
+          <button class="mode" data-m="battle">战场俯视</button>
+          <button class="mode" data-m="mobile">手机选角</button>
+        </div>
+      </div>
+      <div>
+        <div class="sec-title">样 板 标 准</div>
+        <div class="info" id="info"></div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="stick"> 拔棍：显示拔出状态</label>
+      <div class="note">旧版 / 新版同机位渲染。新版只在独立原型挂点追加低模几何；脸、衣、道具与动作不动。</div>
+    </aside>
+  </main>
+</div>
+<script src="menu-bundle.js"></script>
+<script src="hair-style-kit.js"></script>
+<script>
+(function(){
+  const THREE=BA.THREE, V=BA.createCharacterAsset;
+  BAHair.install(THREE);
+  const NAMES={chuixiao:'吹箫哥',bagun:'拔棍','ivan-girl':'大伊万',gojo:'五条悟',laodaye:'老大爷',mabaoguo:'马保国',wuliuqi:'伍六七','hero-today':'今日勇者',dajianke:'大贱客',dapihuai:'大屁孩',default:'无业游民'};
+  const STANDARDS={
+    chuixiao:'束发髻扩成可辨轮廓，补鬓角与后脑发量；绿袍、竹箫、抬箫动作保持不动。',
+    bagun:'短发发际线与后脑轮廓明确，收棍状态下只看头部与站姿即可认出。',
+    'ivan-girl':'刘海与两侧头发做出体积，拉开脸和橙衣轮廓；怀里炸弹保留。',
+    gojo:'原银发已足，只补后脑厚度与背向发片，不遮挡眼罩。',
+    laodaye:'斗笠下补白发后量与鬓角，长髯不动。',
+    mabaoguo:'白发圆髻加厚，眼镜与太极盘不动。',
+    wuliuqi:'短发发顶与后脑补厚度，头巾垂角保留。',
+    'hero-today':'短发发量补齐，发带与头顶骰子保留。',
+    dajianke:'油头分线加强，后脑与鬓角补轮廓，磁环保留。',
+    dapihuai:'大头比例下补圆润发帽与两侧发束，呆毛保留。',
+    default:'普通短发补后脑轮廓，保持路人辨识度。'
+  };
+  const ids=Object.keys(NAMES);
+  let role='chuixiao', mode='views', stick=false, entryStart=performance.now()/1000;
+  const stage=document.getElementById('stage'), cv=document.getElementById('cv'), labels=document.getElementById('labels');
+  const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:false});
+  renderer.setPixelRatio(Math.min(2,devicePixelRatio||1));
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;
+  renderer.setClearColor(0x0b0f14,1);
+  let scenes=[], panels=[], lastW=0,lastH=0;
+
+  function makeScene(id,enhanced){
+    const sc=new THREE.Scene();
+    sc.add(new THREE.HemisphereLight(0xcfe2ff,0x20242c,1.15));
+    const key=new THREE.DirectionalLight(0xffd6a0,2.25);key.position.set(2.4,4.2,3.4);sc.add(key);
+    const fill=new THREE.DirectionalLight(0x9fc8ff,1.0);fill.position.set(-3,2.2,1.6);sc.add(fill);
+    const rim=new THREE.DirectionalLight(0xd8b04a,1.35);rim.position.set(-1.5,2.8,-3.2);sc.add(rim);
+    const deck=new THREE.Mesh(new THREE.CylinderGeometry(0.86,0.94,0.13,12),new THREE.MeshStandardMaterial({color:0x46505e,roughness:.9}));
+    deck.position.y=-0.07;deck.receiveShadow=true;sc.add(deck);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(0.72,0.018,4,12),new THREE.MeshBasicMaterial({color:0xd8b04a,transparent:true,opacity:.55}));
+    ring.rotation.x=-Math.PI/2;ring.position.y=0.006;sc.add(ring);
+    const pack=V(id), rig=pack.rig;
+    if(enhanced)BAHair.apply(rig,id);
+    rig.root.position.set(0,0.03,0);
+    if(pack.stick)pack.stick.visible=enhanced?stick:false;
+    sc.add(rig.root);
+    return {sc,rig,pack,enhanced,id,phase:enhanced?0.8:0.2};
+  }
+  function rebuild(){
+    scenes.forEach(s=>s.sc.traverse(o=>{if(o.geometry)o.geometry.dispose();}));
+    scenes=[];
+    if(mode==='views'||mode==='rotate'){
+      scenes.push(makeScene(role,false),makeScene(role,true));
+    }else{
+      scenes.push(makeScene(role,true));
+    }
+    layout();updateInfo();
+  }
+  function updateInfo(){
+    document.getElementById('info').innerHTML='<b>'+NAMES[role]+'</b><br>'+(STANDARDS[role]||'');
+    document.getElementById('stick').disabled=role!=='bagun';
+  }
+  function layout(){
+    const w=stage.clientWidth,h=stage.clientHeight;
+    if(!w||!h)return;
+    renderer.setSize(w,h,false);lastW=w;lastH=h;
+    labels.innerHTML='';panels=[];
+    const gap=8;
+    let cols,rows,angles;
+    if(mode==='views'){cols=2;rows=3;angles=[0,Math.PI/2,Math.PI];}
+    else if(mode==='rotate'){cols=2;rows=1;angles=[null,null];}
+    else{cols=1;rows=1;angles=[null];}
+    const pw=(w-gap*(cols+1))/cols,ph=(h-gap*(rows+1))/rows;
+    const angleNames=['正 面','侧 面','背 面'];
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      const x=gap+c*(pw+gap),y=gap+r*(ph+gap);
+      // 场景按「列」取：列0=旧版、列1=新版；行只决定机位角度，不应索引场景数组
+      const scene=scenes[Math.min(c,scenes.length-1)]||scenes[0];
+      panels.push({scene,x,y,w:pw,h:ph,angle:angles[r],row:r,col:c});
+      const lab=document.createElement('div');lab.className='lab'+(c===1?' new':'');
+      lab.style.cssText='left:'+x+'px;top:'+y+'px;width:'+pw+'px;height:'+ph+'px';
+      const left=mode==='views'?angleNames[r]:(mode==='rotate'?(c?'新版 · 增强':'旧版 · 原型'):'新版 · '+NAMES[role]);
+      const right=mode==='views'?(c?'新版 · 增强':'旧版 · 原型'):'';
+      lab.innerHTML='<b>'+left+'</b><span>'+right+'</span>';
+      labels.appendChild(lab);
+    }
+  }
+  function cameraFor(p,t){
+    const cam=p.cam||(p.cam=new THREE.PerspectiveCamera(32,p.w/p.h,.1,100));
+    cam.aspect=p.w/p.h;
+    if(mode==='battle'){
+      cam.fov=38;cam.position.set(0,3.5,2.25);cam.lookAt(0,0.52,0);
+    }else if(mode==='mobile'){
+      cam.fov=29;cam.position.set(Math.sin(.32)*3.05,1.18,Math.cos(.32)*3.05);cam.lookAt(0,0.92,0);
+    }else if(mode==='entry'){
+      const e=(t-entryStart)%6;
+      const rise=e<1.6?1-e/1.6:0;
+      cam.fov=34;cam.position.set(Math.sin(.42)*2.85,1.3+rise*.45,Math.cos(.42)*2.85);cam.lookAt(0,0.94,0);
+    }else{
+      const yaw=p.angle===null?t*.42:p.angle;
+      cam.fov=mode==='views'?31:29;
+      cam.position.set(Math.sin(yaw)*2.75,1.24,Math.cos(yaw)*2.75);
+      cam.lookAt(0,0.94,0);
+    }
+    cam.updateProjectionMatrix();return cam;
+  }
+  function poseScene(s,t){
+    const a=s.rig;
+    if(mode==='entry'){
+      const e=(t-entryStart)%6;
+      if(e<1.6){
+        a.root.position.y=0.03+(1-e/1.6)*1.35;
+        a.root.rotation.y=-0.55*(1-e/1.6);
+        if(a.idle)a.idle(t*.5);
+      }else if(e<3.4){
+        a.root.position.y=0.03;a.root.rotation.y=0;
+        if(a.attackSwing)a.attackSwing((e-1.6)/1.8);else if(a.idle)a.idle(t*.5);
+      }else{
+        a.root.position.y=0.03;a.root.rotation.y=0;
+        if(a.idle)a.idle(t*.6+s.phase);
+      }
+    }else{
+      a.root.position.y=0.03;a.root.rotation.y=0;
+      if(a.idle)a.idle(t*.6+s.phase);
+    }
+    if(s.pack.stick)s.pack.stick.visible=stick;
+  }
+  let prev=performance.now()/1000;
+  function frame(){
+    requestAnimationFrame(frame);
+    const t=performance.now()/1000;prev=t;
+    if(!panels.length)layout();
+    scenes.forEach(s=>poseScene(s,t));
+    renderer.setScissorTest(true);
+    panels.forEach(p=>{
+      const bottom=lastH-p.y-p.h;
+      renderer.setViewport(p.x,bottom,p.w,p.h);
+      renderer.setScissor(p.x,bottom,p.w,p.h);
+      renderer.setClearColor(0x0b0f14,1);renderer.clear();
+      renderer.render(p.scene.sc,cameraFor(p,t));
+    });
+    renderer.setScissorTest(false);
+  }
+
+  // 交互
+  const chips=document.getElementById('chips');
+  ids.forEach(id=>{const b=document.createElement('button');b.className='chip'+(id===role?' on':'');b.textContent=NAMES[id];b.dataset.id=id;b.onclick=()=>{role=id;[...chips.children].forEach(x=>x.classList.toggle('on',x.dataset.id===id));entryStart=performance.now()/1000;rebuild();};chips.appendChild(b);});
+  document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll('.mode').forEach(x=>x.classList.toggle('on',x===b));entryStart=performance.now()/1000;rebuild();});
+  document.getElementById('stick').onchange=e=>{stick=e.target.checked;rebuild();};
+  addEventListener('resize',layout);
+
+  window.__design={
+    setRole:id=>{role=id;[...chips.children].forEach(x=>x.classList.toggle('on',x.dataset.id===id));entryStart=performance.now()/1000;rebuild();},
+    setMode:m=>{mode=m;document.querySelectorAll('.mode').forEach(x=>x.classList.toggle('on',x.dataset.m===m));entryStart=performance.now()/1000;rebuild();},
+    stick:on=>{stick=!!on;document.getElementById('stick').checked=stick;rebuild();},
+    panelsInfo:()=>panels.map(p=>({row:p.row,col:p.col,enhanced:!!p.scene.enhanced,angle:p.angle})),
+    state:()=>({role,mode,stick,ids,standards:STANDARDS,sceneCount:scenes.length})
+  };
+  rebuild();frame();
+})();
+</script>
+</body>
+</html>
