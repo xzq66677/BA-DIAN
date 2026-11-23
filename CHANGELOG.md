@@ -5,6 +5,26 @@
 
 ---
 
+## 2026-11-23 · V5.0 电影感入口上线为默认游客态（Issue #待填）
+
+### 变更
+- **默认游客态切换为电影感入口**：未登录访问根路径现在加载 V5.0 四段入口（开场竞技场 → 主菜单 → 作战室 → 选角 → 战场交接，实时 Three.js 低模角色 + 吹箫哥待机/点击回应），取代原先直接落到「拔典」卡桌首页。原型资产以同源 iframe 承载（`/entrance/prototypes/`），零改原型内部。
+- **`?entrance=classic` 回退开关**：入口页右上角提供「经典入口」按钮，或直接在 URL 加 `?entrance=classic` 回到原 Home（角色卡池 / 房间列表）。入口原型探索 `?proto=A|B|C` 不受影响。
+- **`?stage=<id>` 透传**：入口 URL 的地图参数转发给 iframe，可在 `v6-floating-ruins` / `demo-crystal-arena` / `map006-weather` 之间切换（天气版含四态天气 + 泥潭两态）。
+
+### 新增
+- **真实房间桥接**：选角「确认出战」后，把选中角色 ID 随 `postMessage` 交给宿主，宿主调用真实 `net.createRoom` / `joinRoom` 建/入房间并进入真实对局——选中角色带入战场；加入房间时弹邀请码输入。桥接只认同源消息，失败给出「切到经典入口」逃生口。
+- **`client/src/pages/Entrance.tsx` + `client/src/entrance.css`**：宿主组件，负责加载原型、挂桥、建/入房间与回退；不侵入 lobby/game 运行时。
+- **`client/public/entrance/`**：原型静态资产（HTML/CSS/Three.js bundle/角色立绘），随客户端构建产出。
+- **`scripts/verify-entrance-online.mjs`**：入口上线回归（默认入口、四段流程、选角切换、真实对局链路、stage 透传、经典回退、原型探索、报错 0）。
+
+### 验证
+- `npm test`：**560/560 PASS**（33 文件）；E2E 5 处首页入口改用 `?entrance=classic`，保持原有卡桌测试语义。
+- `scripts/verify-entrance-online.mjs`：12/12 PASS，页面报错 0；Playwright 真机截图目视复核选角页（3D 双角色 + 技能面板 + 11 角色标签 + 回退开关）无破图。
+- `npm run build:client` / `build:server` 均通过；`client/dist/entrance/` 资产路径完整。
+
+---
+
 ## 2026-11-23 · 入口视觉原型：可复用地图适配层 + MAP-006 天气适配（纯原型资产）
 
 ### 新增

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Home from './pages/Home.js';
+import Entrance from './pages/Entrance.js';
 import Lobby from './pages/Lobby.js';
 import GamePage from './pages/Game.js';
 import Arena from './pages/Arena.js';
@@ -150,6 +151,10 @@ export default function App() {
   }
 
   if (!session || !lobby) {
+    // V5.0 电影感入口为默认游客态；?entrance=classic 回退旧入口，?proto=A|B|C 走原型探索
+    const classic = typeof window !== 'undefined'
+      && new URLSearchParams(window.location.search).get('entrance') === 'classic';
+    if (!classic) return <Entrance onEnter={enterSession} />;
     return (
       <div className="app">
         {err && <div className="error-banner">{err}</div>}
