@@ -6,6 +6,7 @@
  * OCR 存疑或资料缺失处均在 desc/dataMissing 中标注，并写入 docs/GAME_RULES.md 规则假设。
  */
 
+import { characterAi } from './ai-strategies.js';
 import type { CharDef } from '../chardef.js';
 import { fmtNum } from '../types.js';
 
@@ -20,6 +21,7 @@ const defaultChar: CharDef = {
 /** 1. 拔棍：需先拔棍才能造成伤害；无视躲避（含隐身、躲藏）直伤 */
 const bagun: CharDef = {
   id: 'bagun',
+  aiStrategy: characterAi.bagun,
   name: '拔棍',
   desc: '血量3攻击1。需先「拔棍」才能造成伤害；拔棍状态下攻击无视躲避（含隐身、躲藏）。',
   hp: 3,
@@ -49,6 +51,7 @@ const bagun: CharDef = {
 /** 2. 吹箫哥：仅能远程攻击，需瞄准吹箫，无法近战 */
 const chuixiao: CharDef = {
   id: 'chuixiao',
+  aiStrategy: characterAi.chuixiao,
   name: '吹箫哥',
   desc: '血量3攻击1。仅能远程攻击（异房间），可直接选择目标远程攻击，无需瞄准；无法近战。',
   hp: 3,
@@ -60,6 +63,7 @@ const chuixiao: CharDef = {
 /** 3. 五条悟：近战3伤；远程需瞄准2伤；领域展开后远程免瞄准、平局算胜；存在领域对冲 */
 const gojo: CharDef = {
   id: 'gojo',
+  aiStrategy: characterAi.gojo,
   name: '五条悟',
   desc: '血量3、2条命（首次致死消耗一条命满血复活）。近战3伤；远程2伤需瞄准。领域展开后：远程免瞄准、判定平局算五条悟胜。存在领域对冲（多名领域持有者效果抵消）。',
   hp: 3,
@@ -136,6 +140,7 @@ const laodaye: CharDef = {
 /** 4. 马保国：混元形意太极（受伤判定反弹）、闪电五连鞭、不讲武德 */
 const mabaoguo: CharDef = {
   id: 'mabaoguo',
+  aiStrategy: characterAi.mabaoguo,
   name: '马保国',
   desc: '血量4攻击1。混元形意太极：除大伊万爆、肉山坐外，受到伤害时与来源各出一拳判定，赢则原伤反弹（可选）。闪电五连鞭：对同房间敌人进行5局判定（双方各出5拳），按胜次造成其**当前血量** 20/40/60/80/100% 的伤害（单次总量）。不讲武德：被击杀后与击杀者进行5局判定，赢3局则以精神攻击带走对面（同时死亡）。',
   hp: 4,
@@ -278,6 +283,7 @@ const mabaoguo: CharDef = {
 /** 5. 伍六七（五六七）：3段AOE，每段对攻击时所在房间所有玩家造成1伤，段独立结算 */
 const wuliuqi: CharDef = {
   id: 'wuliuqi',
+  aiStrategy: characterAi.firstInRoom,
   name: '伍六七',
   desc: '血量3。攻击为3段AOE：每段对攻击发动时所在房间内所有玩家（默认不含自己）造成1伤；释放房间固定为攻击时所在房间；每段独立结算。',
   hp: 3,
@@ -321,6 +327,7 @@ const wuliuqi: CharDef = {
 /** 6. 卖大伊万的小女孩：掷大伊万至任意房间（含自己），投掷后第一个分出胜负回合末爆炸（平局回合顺延），动态判定成员 */
 const xiaonuhai: CharDef = {
   id: 'ivan-girl',
+  aiStrategy: characterAi.ivan,
   name: '卖大伊万的小女孩',
   desc: '掷一颗大伊万至任意房间（含自己所在房间）。扔出当回合引信未开；投掷后第一个分出胜负的回合引信激活，该回合末检测目标房间内存活者（含躲藏/隐身）全部毁灭（极高伤害，不触发反弹类被动）；平局回合顺延不消耗。炸弹先结算后判胜，可同归于尽。',
   hp: 2, // 原稿血量栏「-」，作者确认血量 2（2026-11-21，Issue #6）
@@ -358,6 +365,7 @@ const xiaonuhai: CharDef = {
 /** 7. 今日勇者：抽取今日运势（用户确认规则）——随机数决定面板，0/1 暴毙；全局仅一次，不限回合 */
 const jinriyongzhe: CharDef = {
   id: 'hero-today',
+  aiStrategy: characterAi.hero,
   name: '今日勇者',
   desc: '血量3攻击2（初始面板）。技能「抽取今日运势」：掷 0-9 随机数——0/1 直接暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。全局仅可使用一次，不限回合。',
   hp: 3,
@@ -413,6 +421,7 @@ const jinriyongzhe: CharDef = {
 /** 8. 大贱客：在场自动吸引全场伤害（仅伤害，不转移效果；精神伤害不转移）；辱骂三次致死 */
 const dajianke: CharDef = {
   id: 'dajianke',
+  aiStrategy: characterAi.firstInRoom,
   name: '大贱客',
   desc: '血量3。被动：在场时自动吸引全场非精神伤害（含AOE与延迟伤害）——伤害转移至大贱客，仅转移伤害数值，不转移附加效果。精神伤害不转移。攻击为辱骂（精神）：无视距离与躲藏，同一目标累计3次致死。',
   hp: 3,

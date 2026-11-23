@@ -62,12 +62,14 @@ over ◀──checkWin── roundEnd（延迟事件：ivan/damage）◀──�
 
 ### 6. 随机数与复现
 - 全部随机性来自 `Game.rng`（mulberry32，种子随开局固定）；AI 出拳亦走 `game.rng`，服务端代掷/技能判定同理。
-- 同种子 + 同操作序列 = 完全一致的对局日志（有测试保证）。
+- 房间保存开局规则、地图、角色与输入序列。真人输入、AI 输入、超时与离席均进入记录；AI 额外消耗的随机数也会保存。
+- `replayMatch(transcript, toTick?)` 可从开局重演到某一步，并核对快照和日志。完成的对局由当前仍在房间内的原参与者凭令牌获取输入记录。记录随房间进程保存在内存中。
+- 协议和重演输入各有版本号。修改角色规则或随机数语义时需要评估重演版本是否升级。
 
 ### 7. 房间与联机（server/src）
 - 房间：4 位邀请码、房主、座位（human/local/ai）、令牌（token，仅下发一次）。
 - 事件：room:create/join/reconnect/leave/setChar/addAI/removeSeat/start/restart；game:throw/action/state。
-- 断线重连：token 验证 → 重绑 socketId → 下发完整快照；重连不绕过行动限制（提交仍校验当前行动者与令牌）。
+- 断线重连在验证令牌后重绑同设备座位并补发快照。写操作校验当前绑定的连接和座位令牌。
 - 超时：出拳 30s 代掷、行动 45s 跳过（可配置；0=关闭）。**只在房间内有 ≥2 名真人时布防**（`Room.needsTimeout()`）：单人 vs AI 时 AI 即时应答、无人等待，超时只会打断本人思考，因此不布防；单设备多人同理。
 - AI 兜底：`kickAI` 的候选行动链保证 AI 永不因非法决策卡住；另有 `startAIWatchdog()`（1.2s，`state==='playing'` 期间运行，`disarmAll` 清理）在「仍等 AI 出拳 / 仍轮到 AI 行动」时补驱动一次，只动 AI、不动真人。
 - 广播：`room:update` = 大厅快照 + 游戏快照 + 增量日志（按 seq 去重）+ `you`。

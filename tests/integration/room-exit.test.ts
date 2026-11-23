@@ -18,33 +18,25 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
-let serverUrl: string;
-let httpServer: import('node:http').Server;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let mod: any;
+import { startTestServer, type TestServer } from '../support/test-server.js';
+
+let server: TestServer;
+let mod: typeof import('../../server/src/index.js');
 
 beforeAll(async () => {
   mod = await import('../../server/src/index.js');
-  httpServer = mod.httpServer;
-  mod.startServer(0);
-  await new Promise<void>((resolve) => httpServer.once('listening', () => resolve()));
-  const addr = httpServer.address();
-  const port = typeof addr === 'object' && addr ? addr.port : 3100;
-  serverUrl = `http://127.0.0.1:${port}`;
+  server = await startTestServer(mod);
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => {
-    httpServer.close(() => resolve());
-    setTimeout(resolve, 500);
-  });
+  await server?.close();
 });
 
 function connect(): Promise<ClientSocket> {
   return new Promise((resolve, reject) => {
-    const s = ioClient(serverUrl, { transports: ['websocket'] });
-    s.on('connect', () => resolve(s));
-    s.on('connect_error', reject);
+    const s = ioClient(server.url, { transports: ['websocket'], transportOptions: { websocket: { agent: server.agent } } });
+    s.once('connect', () => resolve(s));
+    s.once('connect_error', (error) => { s.disconnect(); reject(error); });
   });
 }
 
@@ -57,6 +49,34 @@ function emit<T = Record<string, unknown>>(s: ClientSocket, event: string, data:
 interface SeatInfo { playerId: string; name: string; token: string }
 
 describe('房间退出与占用规则（B-029）', () => {
+  it('单设备多人重连后恢复全部座位，再退出时不留下占用', async () => {
+    const host = await connect();
+    const resumed = await connect();
+    try {
+      const created = await emit<{ ok: boolean; code: string; seats: SeatInfo[] }>(host, 'room:create', {
+        name: '甲', localPlayers: ['甲', '乙', '丙'],
+      });
+      expect(created.ok).toBe(true);
+      const [main] = created.seats;
+      const reply = await emit<{ ok: boolean }>(resumed, 'room:reconnect', {
+        code: created.code, playerId: main.playerId, token: main.token,
+      });
+      expect(reply.ok).toBe(true);
+      const room = mod.rooms.get(created.code)!;
+      expect(room.seatBySocket(resumed.id!).map((seat) => seat.playerId)).toEqual(created.seats.map((seat) => seat.playerId));
+      expect(room.seatBySocket(host.id!)).toHaveLength(0);
+      host.disconnect();
+      const exited = await emit<{ ok: boolean; dissolved: boolean }>(resumed, 'room:leave', {
+        code: created.code, playerId: main.playerId, token: main.token,
+      });
+      expect(exited).toMatchObject({ ok: true, dissolved: true });
+      expect(mod.rooms.has(created.code)).toBe(false);
+    } finally {
+      host.disconnect();
+      resumed.disconnect();
+    }
+  });
+
   it('单设备多人：退出主身份 = 整台设备退出，全部身份移除且房间解散', async () => {
     const s = await connect();
     const r = await emit<{ ok: boolean; code: string; seats: SeatInfo[] }>(s, 'room:create', { name: '房主甲', localPlayers: ['甲1', '甲2', '甲3'], charId: 'default' });
@@ -76,7 +96,7 @@ describe('房间退出与占用规则（B-029）', () => {
     expect(mod.rooms.has(code)).toBe(false);
 
     // 释放后该 socket 可立即创建新房间（不再被占用卡死）
-    const r2 = await emit<{ ok: boolean; code: string }>(s, 'room:create', { name: '房主甲', charId: 'default' });
+    const r2 = await emit<{ ok: boolean; code: string; seats: SeatInfo[] }>(s, 'room:create', { name: '房主甲', charId: 'default' });
     expect(r2.ok).toBe(true);
     expect(mod.rooms.has(r2.code)).toBe(true);
     // 清理
@@ -94,7 +114,7 @@ describe('房间退出与占用规则（B-029）', () => {
     expect(j.activeCode).toBe(code);
     expect(j.error).toContain('不能重复加入');
     // 座位数不变（没有产生第二个自己）
-    const room = mod.rooms.get(code);
+    const room = mod.rooms.get(code)!;
     expect(room.seats.length).toBe(1);
     await emit(s, 'room:dissolve', { code, playerId: r.seats[0].playerId, token: r.seats[0].token });
     s.disconnect();
@@ -114,17 +134,17 @@ describe('房间退出与占用规则（B-029）', () => {
     expect(lv.ok).toBe(true);
     expect(lv.dissolved).toBe(false); // 还有真人 → 房间继续
 
-    const room = mod.rooms.get(code);
+    const room = mod.rooms.get(code)!;
     expect(room).toBeTruthy();
     // 房主丙在引擎内被淘汰公示，座位只剩 玩家丁 + AI
-    const engine = room.game;
+    const engine = room.game!;
     expect(engine.players[r.seats[0].playerId].alive).toBe(false);
     expect(room.seats.length).toBe(2);
     expect(room.hostSeat).not.toBe(r.seats[0].playerId);
     expect(room.state).toBe('playing');
 
     // 房主解散清理
-    const p2seat = room.seats.find((x: { type: string }) => x.type === 'human');
+    const p2seat = room.seats.find((seat) => seat.type === 'human')!;
     await emit(p2, 'room:dissolve', { code, playerId: p2seat.playerId, token: p2seat.token });
     expect(mod.rooms.has(code)).toBe(false);
     host.disconnect();
@@ -156,7 +176,7 @@ describe('房间退出与占用规则（B-029）', () => {
     expect(d.dissolved).toBe(true);
     expect(mod.rooms.has(code)).toBe(false);
     // 解除占用后可立即创建
-    const r2 = await emit<{ ok: boolean; code: string }>(s, 'room:create', { name: '己1', charId: 'default' });
+    const r2 = await emit<{ ok: boolean; code: string; seats: SeatInfo[] }>(s, 'room:create', { name: '己1', charId: 'default' });
     expect(r2.ok).toBe(true);
     await emit(s, 'room:dissolve', { code: r2.code, playerId: r2.seats[0].playerId, token: r2.seats[0].token });
     s.disconnect();
@@ -181,8 +201,8 @@ describe('房间退出与占用规则（B-029）', () => {
     const j = await emit<{ ok: boolean }>(p2, 'room:join', { code, name: '壬', charId: 'default' });
     expect(j.ok).toBe(true);
     // 踢掉唯一的另一名真人 → 房间只剩房主（真人）→ 继续
-    const room2 = mod.rooms.get(code);
-    const target = room2.seats.find((x: { name: string }) => x.name === '壬');
+    const room2 = mod.rooms.get(code)!;
+    const target = room2.seats.find((seat) => seat.name === '壬')!;
     const k = await emit<{ ok: boolean; dissolved?: boolean }>(host, 'room:kick', { code, playerId: r.seats[0].playerId, token: r.seats[0].token, targetId: target.playerId });
     expect(k.ok).toBe(true);
     expect(k.dissolved).toBe(false);

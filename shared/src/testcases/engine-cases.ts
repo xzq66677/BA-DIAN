@@ -427,7 +427,7 @@ export const ENGINE_CASES: TestCase[] = [
       const g = makeGame(['A', 'B'], 129);
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const snap = g.snapshot() as Record<string, unknown>;
+      const snap = g.snapshot();
       const ok = !('logs' in snap) && g.logs.length > 5;
       return check(ok, '快照无 logs 字段，引擎日志完整', `logsInSnap=${'logs' in snap}, engineLogs=${g.logs.length}`, g);
     }),

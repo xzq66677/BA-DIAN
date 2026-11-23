@@ -5,6 +5,8 @@ import { TABLE, createRuinsMap, defaultPose, stableMembers, type RoomAnchor } fr
 import { CameraDirector, type Shot } from './camera-director.js';
 import { RUINS_COLORS, buildBridge, createRuinsEnvironment, island } from './ruins.js';
 import { createRuinsWeather } from './ruins-weather.js';
+import type { GameSnapshot, SnapPlayer } from '../../../shared/src/protocol.js';
+import type { DeferredEvent } from '../../../shared/src/types.js';
 import type { RuinsConditions } from '../../../shared/src/floating-ruins.js';
 import { roomVisual, STATE_COLORS } from './palette.js';
 import { cardMeta } from '../cards.js';
@@ -31,25 +33,14 @@ export function setInsultGeneration(gen: string): void {
 }
 
 // ── 对外数据契约（与 net.ts 的 GameSnapshot 字段对齐的最小子集） ──
-export interface SnapPlayerLite {
-  id: string; name: string; charId: string; charName: string;
-  hp: number; maxHp: number; room: string; alive: boolean;
-  hidden: boolean; invisible: boolean;
-  char: Record<string, unknown>;
-}
-export interface SnapLite {
+export type SnapPlayerLite = Pick<SnapPlayer,
+  'id' | 'name' | 'charId' | 'charName' | 'hp' | 'maxHp' | 'room' | 'alive' | 'hidden' | 'invisible' | 'char'>;
+export type SnapLite = Pick<GameSnapshot, 'roomIds' | 'currentActor' | 'phase' | 'winner' | 'domainHolder' | 'ruins'> & {
   players: SnapPlayerLite[];
-  roomIds: string[];
-  currentActor: string | null;
-  phase: 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over';
-  winner: string | null;
-  domainHolder?: string | null;
-  deferred?: { id: string; kind: string; room: string; explodeRound: number }[];
-  ruins?: RuinsConditions;
+  deferred?: Pick<DeferredEvent, 'id' | 'kind' | 'room' | 'explodeRound'>[];
   submittedIds?: string[];
-  /** 本机身份（「我」徽标与镜头归属） */
   myIds?: string[];
-}
+};
 
 export interface SceneHooks {
   onPickPlayer: (pid: string) => void;

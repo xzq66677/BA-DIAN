@@ -223,7 +223,7 @@ describe('不讲武德：死后 5 局、精神攻击带走击杀者', () => {
 
 describe('兼容：serverRoll 模式下仍是即时结算（无 judge 阶段）', () => {
   it('五连鞭立即扣血、不进入 judge', () => {
-    const g = makeGame([{ id: 'A', char: 'mabaoguo' }, { id: 'B' }], 11); // helpers 默认 serverRoll
+    const g = makeGame([{ id: 'A', char: 'mabaoguo' }, 'B'], 11); // helpers 默认 serverRoll
     g.players.B.room = g.players.A.room;
     soloTurn(g, 'A', 'B');
     g.submitAction('A', { type: 'whip5', targetId: 'B' });
@@ -254,9 +254,9 @@ describe('房间层：AI 代出与真人超时', () => {
         const b = room.game!.players[ai.playerId];
         b.room = g.players[me.playerId].room;
         room.submitAction(me.playerId, { type: 'attack', targetId: ai.playerId });
-        if (g.phase !== 'judge') continue;
-        // judge 阶段：AI 份已由 kickAI 代出，真人出自己那份
-        const view = g.skillJudgeView()!;
+        // AI 份已由 kickAI 代出，真人出自己那份
+        const view = g.skillJudgeView();
+        if (!view) continue;
         if (view.waitingIds.includes(me.playerId)) {
           g.submitJudgeThrow(me.playerId, 'rock');
         }

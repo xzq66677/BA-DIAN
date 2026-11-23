@@ -195,8 +195,8 @@ describe('二次判定：顺序由胜负结果决定', () => {
     expect(rps2.length).toBeGreaterThan(0);
     const last = rps2[rps2.length - 1];
     expect(last.outcome).toBe('resolved');
-    expect(g.queue[0]).toBe(last.losers[0]);
-    expect(g.queue[1]).toBe(last.winners[0]);
+    expect(g.queue[0]).toBe(last.losers?.[0]);
+    expect(g.queue[1]).toBe(last.winners?.[0]);
   });
 
   it('只有一人有资格时跳过排序，直接行动', () => {
