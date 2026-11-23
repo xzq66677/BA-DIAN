@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   net, type LobbyState, type GameSnapshot, type SnapPlayer, type RevealInfo,
-  type PlayerStats, type InteractionEvent, type InteractionKind,
+  type PlayerStats, type InteractionEvent, type InteractionKind, type AnnounceItem,
 } from '../net.js';
 import type { SessionInfo } from '../App.js';
 import { CHARACTERS } from '../../../shared/src/characters/index.js';
@@ -16,6 +16,7 @@ import { useCardRoomFlip } from '../battle/flip.js';
 import { sfx } from '../audio/sfx.js';
 import { Battle3D, detectWebGL, preferredRenderer, setPreferredRenderer } from '../battle3d/Battle3D.js';
 import { clearSessionDegraded } from '../battle3d/gl-policy.js';
+import { AnnounceDrawer, GlobalAnnounceBanner } from '../battle/announce-view.js';
 import '../battle3d/battle3d.css';
 
 const THROW_LABEL: Record<string, string> = { rock: '石头', scissors: '剪刀', paper: '布' };
@@ -35,18 +36,20 @@ interface ActionOption {
   used?: boolean;
 }
 
-export default function GamePage({ lobby, game, session, logs, resync, onExit, onBackToLobby }: {
+export default function GamePage({ lobby, game, session, logs, announces, resync, onExit, onBackToLobby }: {
   lobby: LobbyState;
   resync?: { cursor: number };
   game: GameSnapshot | null;
   session: SessionInfo;
   logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[];
+  /** 全局播报（服务端权威增量，App 层累积）：横幅 + 播报抽屉的数据源 */
+  announces?: AnnounceItem[];
   onExit: () => void;
   /** 对局结束后返回房间大厅（房间仍保留） */
   onBackToLobby?: () => void;
 }) {
   if (!game) return <div className="tcg-app"><div className="tcg-panel" style={{ margin: 20 }}>等待游戏状态…</div></div>;
-  return <GameInner lobby={lobby} game={game} session={session} logs={logs} resync={resync} onExit={onExit} onBackToLobby={onBackToLobby} />;
+  return <GameInner lobby={lobby} game={game} session={session} logs={logs} announces={announces} resync={resync} onExit={onExit} onBackToLobby={onBackToLobby} />;
 }
 
 function fmtHp(n: number): string {
@@ -61,12 +64,13 @@ function atkOf(p: SnapPlayer): string {
   return fmtHp(v);
 }
 
-function GameInner({ lobby, game, session, logs, resync, onExit, onBackToLobby }: {
+function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBackToLobby }: {
   lobby: LobbyState;
   game: GameSnapshot;
   resync?: { cursor: number };
   session: SessionInfo;
   logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[];
+  announces?: AnnounceItem[];
   onExit: () => void;
   onBackToLobby?: () => void;
 }) {
@@ -110,6 +114,36 @@ function GameInner({ lobby, game, session, logs, resync, onExit, onBackToLobby }
     }
   }, [logs.length, logOpen]);
 
+  // ── 全局播报抽屉（代替翻日志）──
+  // 与战斗日志互补：日志是完整档案，播报是「谁做了什么 + 几点几分 + 停留多久」的公开动态。
+  const [announceOpen, setAnnounceOpen] = useState(false);
+  const [announceUnread, setAnnounceUnread] = useState(0);
+  const announceSeenRef = useRef(announces?.length ?? 0);
+  useEffect(() => {
+    const n = announces?.length ?? 0;
+    if (announceOpen) {
+      announceSeenRef.current = n;
+      setAnnounceUnread(0);
+    } else {
+      setAnnounceUnread(Math.max(0, n - announceSeenRef.current));
+    }
+  }, [announces?.length, announceOpen]);
+
+  // 顶栏高度写进 CSS 变量：窄屏顶栏按钮会换行（390px 下从 50px 变 93px），
+  // 播报抽屉与其它浮层的 top 用 --app-header-h 跟随，避免压住第二行按钮。
+  const headerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const write = () => root.style.setProperty('--app-header-h', `${Math.round(el.getBoundingClientRect().height)}px`);
+    write();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // 局内小互动（丢番茄等）
   const interactions = lobby.interactions ?? [];
   const interactCounts = lobby.interactionCounts ?? {};
@@ -125,7 +159,7 @@ function GameInner({ lobby, game, session, logs, resync, onExit, onBackToLobby }
   // ── 战斗演出（BattleEventQueue）：全部由服务端结构化事件驱动，
   //    不再用快照 HP 差分猜测伤害；快照仍是显示权威，叠加层只做视觉。
   //    终局延迟呈现：规则立即结算（快照 over），终局弹层等最后关键演出播完再登场。 ──
-  const { pres, queue: queueState, api: presApi, finaleWaiting } = useBattlePresentation(logs, lobby.gameNo, game.phase, resync);
+  const { pres, queue: queueState, api: presApi, finaleWaiting } = useBattlePresentation(logs, lobby.gameNo, game.phase, resync, announces);
   const reducedMotion = useReducedMotion();
   // 移动演出的 FLIP 卡片飞行动画（跟随快照房间变化，不依赖队列时序）
   useCardRoomFlip(game.players, reducedMotion, '.bt-room-cards .ccard[data-pid], .bt-mine-cards .ccard[data-pid]', 'flip-flying');
@@ -398,7 +432,7 @@ function GameInner({ lobby, game, session, logs, resync, onExit, onBackToLobby }
 
   return (
     <div className={`tcg-app has-chat ${use3d ? 's3d-mode' : ''}`}>
-      <header className="tcg-header">
+      <header className="tcg-header" ref={headerRef}>
         <span className="tcg-logo">拔典</span>
         <span className="tcg-chip hide-sm">房间 {lobby.code}</span>
         <span className="tcg-chip">第 <b>{game.roundNo}</b> 回合</span>
@@ -422,6 +456,13 @@ function GameInner({ lobby, game, session, logs, resync, onExit, onBackToLobby }
           }}
         >{sfxMuted ? '🔇' : '🔊'}</button>
         <button className="tcg-btn ghost tiny" onClick={() => setStatsOpen(true)}>📊 战绩</button>
+        <button
+          className={`tcg-btn ghost tiny ${announceOpen ? '' : 'off'} ${announceUnread > 0 ? 'has-unread' : ''}`}
+          title="全局播报：所有公开动作 + 服务端时间戳 + 展示时长"
+          onClick={() => setAnnounceOpen((v) => !v)}
+        >
+          📣 播报{announceUnread > 0 ? <span className="unread-badge">{announceUnread > 99 ? '99+' : announceUnread}</span> : ''}
+        </button>
         <button className={`tcg-btn ghost tiny ${logOpen ? '' : 'off'} ${logUnread > 0 ? 'has-unread' : ''}`} onClick={() => setLogOpen((v) => !v)}>
           📜 日志{logUnread > 0 ? <span className="unread-badge">{logUnread > 99 ? '99+' : logUnread}</span> : ''}
         </button>
@@ -493,14 +534,8 @@ function GameInner({ lobby, game, session, logs, resync, onExit, onBackToLobby }
       <div className={`tcg-main ${logOpen ? '' : 'no-log'}`}>
         {/* ── 战场主体：3D 战场（WebGL 可用时默认）或沉浸牌桌 2D 回退 ── */}
         <section className={`battlefield ${use3d ? 'bt3d-stage' : 'bt-table'} anim-in ${game.phase === 'over' ? 'is-over' : ''}`}>
-          {/* 全局播报（喝牛奶/今日勇者运势）：战场中央上方一次性横幅 */}
-          {pres.announce && (() => {
-            const who = game.players.find((p) => p.id === pres.announce?.pid)?.name || '?';
-            const text = pres.announce.kind === 'milk'
-              ? `🥛 ${who} 喝了一口牛奶，向全场发出嘲讽！`
-              : `🎰 ${who} 抽取今日运势：掷出 ${pres.announce.roll ?? '?'}`;
-            return <div className="global-announce" key={pres.announce.key}>{text}</div>;
-          })()}
+          {/* 全局播报：所有公开动作的战场中央横幅（服务端权威，带时间戳与停留时长） */}
+          {pres.globalAnnounce && <GlobalAnnounceBanner item={pres.globalAnnounce} />}
           {(queueState.playing || queueState.depth > 0 || finaleWaiting || finaleCameraPending) && (
             <div className="battle-ctl" data-testid="battle-ctl" data-queue-depth={String(queueState.depth)} data-queue-playing={queueState.playing ? '1' : '0'}>
               <span className="bc-depth">🎬 {queueState.depth}</span>
@@ -639,6 +674,8 @@ function GameInner({ lobby, game, session, logs, resync, onExit, onBackToLobby }
         <aside className={`log-side ${logOpen ? 'log-open' : 'log-closed'}`}>
           <LogPanel logs={logs} />
         </aside>
+
+        {announceOpen && <AnnounceDrawer items={announces ?? []} onClose={() => setAnnounceOpen(false)} />}
 
         {/* ── 我的席位 + 手牌（3D 模式：底部悬浮操作坞） ── */}
         <section className={`action-dock ddz-hand anim-in ${use3d ? ((myTurnId || game.phase === 'rps1' || (game.phase === 'rps2' && orderPendingLocalIds.length > 0) || (game.phase === 'judge' && judgePendingLocalIds.length > 0)) ? 'is-my-turn' : 'is-waiting') : ''}`}>

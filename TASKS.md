@@ -699,3 +699,23 @@ oReflect、ypassHide）；checkWin 在存在待结算不讲武德时延迟判�
 pm test **28 文件 / 488 用例全过**；client/server 	sc --noEmit 双 0 错误；
 pm run build 通过 |
 | T-2507 | 文档 | GAME_RULES（马保国条目、阶段流程、A-03、待确认 4、伤害管线）、KNOWN_ISSUES、ARCHITECTURE（阶段机）、README（角色表/测试数）、CONTRIBUTING、CHANGELOG、docs/characters/mabaoguo.md 同步 |
+
+## 二十六轮 · 全局播报机制代替日志翻找（Issue #39 / T-6.0.1，2026-11-22）
+
+用户要求：每个动作都像喝牛奶一样所有人可见，并且有反馈时间；用全局播报代替翻日志。
+
+| 编号 | 任务 | 状态 | 说明 |
+|---|---|---|---|
+| T-6.0.1 | 播报规则表 | DONE | 新增 `shared/src/announce.ts`：16 条内置规则（milk/fortune/domain/revive/eliminate/damage/heal/move/deferred/judge/order/result/trigger/action/phase/error）＋兜底，保证「引擎写了日志就一定有播报」；`registerAnnounceRule()` 可插拔扩展（默认插最前、返回撤销函数）；`buildAnnouncements/mergeAnnouncements/condenseAnnounceQueue` 纯函数 |
+| T-6.0.2 | 服务端权威广播 | DONE | `Room.toAnnouncements()` / `catchUpAnnouncements()`；`room:update` 新增 `announces`（与 `newLogs` 同批、所有座位同一份、含服务端 `ts`）；重连补发同窗口（最近 300 条日志） |
+| T-6.0.3 | 客户端横幅与抽屉 | DONE | `client/src/battle/announce-view.tsx`：通用横幅（icon＋文本＋`HH:MM:SS`＋停留秒数，动画时长按 `ttlMs` 内联）；「📣 播报」抽屉（时间倒序／⭐ 重点过滤／空态／未读徽标）；`useBattlePresentation` 独立播报队列（seq 去重、首帧补发不回放、局号变化清空、拥堵保留队首＋high） |
+| T-6.0.4 | 测试与验收 | DONE | 新增 `tests/announce.test.ts`（25）+ `tests/ui/announce-ui.test.tsx`（8）；`npm test` **32 文件 / 553 用例全过**（含 e2e 5 真实 Chromium）；client/server `tsc --noEmit` 双 0 错误；`vite build` 通过 |
+| T-6.0.5 | 文档 | DONE | README「全局播报」章节（接口表＋扩展示例＋协议字段＋优先级语义）、CHANGELOG、TASKS.md 登记 |
+
+### 工程边界与遗留
+
+| 编号 | 项 | 说明 |
+|---|---|---|
+| T-611 | 规则侵入性 | 零：只读 `LogEntry` 的 `type/text/data/important`，不动数值、结算顺序、隐藏出拳语义（提交阶段日志无拳种） |
+| T-612 | 兼容性 | 新增字段可选：旧客户端忽略 `announces`；旧服务端不发送时客户端按无播报降级；`useBattlePresentation` 第 5 参数可选，proto/存量测试零改动 |
+| T-613 | 遗留 | 横幅按 `ttlMs` 串行播放，超长局（一次广播几十条）仍会排队；已用「队首＋high」压缩策略缓解。真机上 3D 聚焦镜头与横幅层级（top 13%）需目视复验 |
