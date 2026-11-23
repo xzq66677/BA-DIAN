@@ -26,6 +26,7 @@ interface BridgePayload {
   mode?: 'create' | 'join';
   code?: string;
   charId?: string;
+  weather?: boolean;
 }
 interface FlowState { sel?: string; phase?: string; }
 
@@ -41,6 +42,8 @@ export default function Entrance({ onEnter }: { onEnter: (code: string, identiti
   const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [weather, setWeather] = useState(true);
+  const [pendingCreate, setPendingCreate] = useState<{ proceed: (weather: boolean) => void } | null>(null);
 
   // 宿主：接收原型的「确认出战」消息 → 真实建/入房间 → 进入真实对局
   useEffect(() => {
@@ -62,7 +65,7 @@ export default function Entrance({ onEnter }: { onEnter: (code: string, identiti
           const charId = d.charId || 'default';
           const raw = d.mode === 'join'
             ? await net.joinRoom(String(d.code || '').trim().toUpperCase(), name, charId)
-            : await net.createRoom(name, [name], charId);
+            : await net.createRoom(name, [name], charId, { id: 'floating-ruins', mechanics: { weather: d.weather !== false } });
           const r = raw as unknown as RoomResult;
           if (!r.ok || !r.code || !r.seats?.length) {
             setError(r.activeCode
@@ -114,18 +117,24 @@ export default function Entrance({ onEnter }: { onEnter: (code: string, identiti
         if (origJoin) origJoin.call(this);
       };
       confirm.onclick = function () {
-        if (origConfirm) origConfirm.call(this);
-        const st = flow.state();
-        // 等转场动画播完再切到真实房间，避免观感割裂
-        window.setTimeout(() => {
-          w.parent.postMessage({
-            __entrance: 1,
-            type: 'enter',
-            mode,
-            code,
-            charId: st.sel || 'default',
-          }, window.location.origin);
-        }, 900);
+        const button = this;
+        const proceed = (selectedWeather: boolean) => {
+          if (origConfirm) origConfirm.call(button);
+          const st = flow.state();
+          // 等转场动画播完再切到真实房间，避免观感割裂
+          window.setTimeout(() => {
+            w.parent.postMessage({
+              __entrance: 1,
+              type: 'enter',
+              mode,
+              code,
+              charId: st.sel || 'default',
+              weather: selectedWeather,
+            }, window.location.origin);
+          }, 900);
+        };
+        if (mode === 'create') setPendingCreate({ proceed });
+        else proceed(true);
       };
     };
     hook();
@@ -142,6 +151,24 @@ export default function Entrance({ onEnter }: { onEnter: (code: string, identiti
         allow="autoplay"
       />
       <a className="entrance-classic" href="?entrance=classic" title="返回原有入口">经典入口</a>
+      {pendingCreate && (
+        <div className="entrance-settings-backdrop">
+          <section className="entrance-settings" role="dialog" aria-modal="true" aria-labelledby="map-settings-title">
+            <p className="entrance-settings-kicker">ROOM SETTINGS · 悬浮遗迹</p>
+            <h2 id="map-settings-title">选择地图机制</h2>
+            <p>天气变化会带来泥潭预警、封路和泄水闸。</p>
+            <fieldset>
+              <legend>天气与泥潭</legend>
+              <label><input type="radio" name="entrance-weather" checked={weather} onChange={() => setWeather(true)} /> 开启</label>
+              <label><input type="radio" name="entrance-weather" checked={!weather} onChange={() => setWeather(false)} /> 关闭</label>
+            </fieldset>
+            <div className="entrance-settings-actions">
+              <button type="button" onClick={() => setPendingCreate(null)}>返回选角</button>
+              <button type="button" onClick={() => { const next = pendingCreate.proceed; setPendingCreate(null); next(weather); }}>创建房间</button>
+            </div>
+          </section>
+        </div>
+      )}
       {busy && <div className="entrance-toast">正在进入房间…</div>}
       {error && (
         <div className="entrance-error">
