@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { net, type RoomListEntry } from '../net.js';
+import { MAX_ROOM_SEATS } from '../../../shared/src/room-limits.js';
 import { CHARACTER_LIST } from '../../../shared/src/characters/index.js';
 import { thumbOf, cardMeta } from '../cards.js';
 
@@ -36,6 +37,12 @@ export default function Home({ onEnter, onArena }: {
   }, []);
 
   const charOptions = CHARACTER_LIST.filter((c) => c.id !== 'default' || true);
+  // 本机玩家 + AI 合计占用房间席位；改本机人数时自动收紧 AI 可选项。
+  const maxAi = MAX_ROOM_SEATS - localCount;
+  const changeLocalCount = (n: number) => {
+    setLocalCount(n);
+    setAiCount((prev) => Math.min(prev, MAX_ROOM_SEATS - n));
+  };
 
   async function wrap(fn: () => Promise<void>) {
     setBusy(true);
@@ -46,6 +53,10 @@ export default function Home({ onEnter, onArena }: {
 
   async function createRoom(autoStart: boolean) {
     if (!name.trim()) { setError('请先填写昵称'); return; }
+    if (localCount + aiCount > MAX_ROOM_SEATS) {
+      setError(`房间最多 ${MAX_ROOM_SEATS} 人，请减少本机玩家或 AI 数量`);
+      return;
+    }
     await wrap(async () => {
       localStorage.setItem('badian-name', name.trim());
       await net.connect();
@@ -164,16 +175,17 @@ export default function Home({ onEnter, onArena }: {
           </label>
           <label className="field">
             <span>单设备多人（本机玩家数）</span>
-            <select value={localCount} onChange={(e) => setLocalCount(Number(e.target.value))}>
+            <select value={localCount} onChange={(e) => changeLocalCount(Number(e.target.value))}>
               {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
           <label className="field">
             <span>AI 数量（单人游戏填 1 以上）</span>
             <select value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))}>
-              {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{n}</option>)}
+              {Array.from({ length: maxAi + 1 }, (_, i) => i).map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
+          <p className="room-cap-hint">共 {localCount + aiCount} / {MAX_ROOM_SEATS} 人（房间上限 {MAX_ROOM_SEATS} 人）</p>
           <label className="field">
             <span>悬浮遗迹：天气与泥潭</span>
             <select value={weather ? 'on' : 'off'} onChange={(e) => setWeather(e.target.value === 'on')}>

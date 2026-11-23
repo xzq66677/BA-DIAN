@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-11-23 · 入口身份修复 + 10 人上限 + 全局播报 V2
+
+### 修复
+- **V5.0 入口无法取名定身份**：默认电影感入口此前没有任何昵称输入框，桥接协议也没有 `name` 字段，游客建/入房间时昵称写死为 `棋手`，导致进游戏后「所有人是同一个人」（服务端 `playerId`/`token` 本来独立，问题在显示名）。现在创建/加入都先弹**房间设置**面板：昵称必填并记忆、未填则生成带随机后缀的默认名（如 `棋手4821`）；本机玩家数生成 `名字1/名字2/…` 独立身份；加入房间只填自己昵称、只持有自己那一个座位。经典入口能力（单设备多人 / AI 数量 / 天气）在新入口全部恢复。
+- 新增纯函数模块 `client/src/entrance-identity.ts`（`defaultName` / `resolveName` / `buildLocalNames`）与 6 条回归测试，集中昵称与本地身份构造逻辑。
+
+### 变更
+- **房间人数上限改为 10 人**（原 20）：新增共享常量 `shared/src/room-limits.ts`（`MAX_ROOM_SEATS` / `remainingSeats`）。`room:create`（本机人数超限在创建 Room 前拒绝，不留僵尸房）、`room:join`（≥10 拒绝）、`room:addAI`（钳制到剩余席位）三条路径统一校验；`Room.canAddSeat()` 供测试与后续复用。新入口与经典入口的本机人数 / AI 数量下拉框联动收紧，显示「共 N/10 人」。
+- **全局播报 V2（`ANNOUNCE_VERSION = 2`）**：
+  - **信息分级**：移动 / 攻击 / 技能 / 回血 / 躲藏列为重要信息（`high`，横幅必播、拥堵保留）；胜负 / 回合 / 阶段 / 顺序 / 未命中列为次要信息（`low`，只进抽屉）；淘汰 / 领域 / 复活 / 致命仍为最高规格重大瞬间。
+  - **时长调整**（`ANNOUNCE_TTL`）：`brief 1000→800`、`action 1500→1900`、`combat 1700→2200`、`major 2400→2600`、`spotlight 2200→2100`（ms）。
+  - **文案精简**：`ANNOUNCE_MAX_TEXT 64→48`，新增 `simplifyAnnounceText()`；如 `从 R1 移动到 R2→R1→R2`、`受到 1 点伤害（HP 3→2）→-1（3→2）`、`被淘汰，击杀者 A→A 淘汰 B`、`游戏结束：A 获得胜利！→A 获胜`。
+  - **类型差异化展示**：新增 `AnnounceKind`（`move/attack/skill/heal/hide/outcome/round/system`），`AnnounceItem` 带 `kind`；横幅与抽屉输出 `kind-*` class 与 `data-announce-kind`，各类有不同的形状/配色/动效（攻击红色尖角、技能紫色斜角、回血绿色胶囊、移动蓝色虚线滑入、躲藏灰色半透明、战果金色双线、回合小灰条）及类型短标签。
+  - 规则扩展点的 `AnnounceDraft` 也新增必填 `kind` 字段。
+
+### 验证
+- `npm run build`（服务端 tsc + 客户端 vite）通过。
+- `npm test`：**577 passed / 579**（Node v22.16.0）。新增：入口身份 6 条、10 人上限（纯逻辑 2 + socket 集成 3）、播报 V2 分类与类型展示用例。
+- jsdom 用例在 Node 22.13/22.14 下会因 `undici` 需要 `createZstdDecompress` 报错，升级到 Node ≥ 22.15 后恢复正常。
+- 系统 Chrome 跑 e2e：5 条中 3 条通过；另 2 条断言卡面 `.webp` 加载，因精简工作区不含 webp 二进制资源失败，与改动无关。
+- README / CHANGELOG 已同步更新三项改动。
+
+---
+
 ## 2026-11-23 · V5.0 电影感入口上线为默认游客态（Issue #待填）
 
 ### 变更

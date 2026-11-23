@@ -7,9 +7,14 @@
  *      把选中的角色 ID 通过 postMessage 交给宿主；
  *   2. 收到消息后用真实网络接口建/入房间，再交给 App 的 enterSession 进入真实对局。
  * 经典入口（?entrance=classic）与原型探索（?proto=A|B|C）均保留。
+ *
+ * 房间设置（昵称 / 本机人数 / AI 数量 / 天气）在宿主侧完成，与经典入口 Home 对齐：
+ * 昵称必填且会记住，避免所有游客都用默认名导致「所有人是同一个人」。
  */
 import { useEffect, useRef, useState } from 'react';
 import { net } from '../net.js';
+import { MAX_ROOM_SEATS } from '../../../shared/src/room-limits.js';
+import { defaultName, resolveName, buildLocalNames } from '../entrance-identity.js';
 import '../entrance.css';
 
 interface EnterIdentity { playerId: string; name: string; token: string; }
@@ -35,6 +40,16 @@ const ENTRANCE_SRC = (() => {
   return 'entrance/prototypes/v5-entrance.html' + (stage ? '?stage=' + encodeURIComponent(stage) : '');
 })();
 
+interface PendingRoom {
+  mode: 'create' | 'join';
+  proceed: (weather: boolean) => void;
+}
+interface RoomConfig {
+  name: string;
+  localCount: number;
+  aiCount: number;
+}
+
 export default function Entrance({ onEnter }: { onEnter: (code: string, identities: EnterIdentity[]) => void }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const onEnterRef = useRef(onEnter);
@@ -43,7 +58,22 @@ export default function Entrance({ onEnter }: { onEnter: (code: string, identiti
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [weather, setWeather] = useState(true);
-  const [pendingCreate, setPendingCreate] = useState<{ proceed: (weather: boolean) => void } | null>(null);
+  const [pending, setPending] = useState<PendingRoom | null>(null);
+
+  // 房间配置：与经典入口 Home 的 name / localCount / aiCount 对齐
+  const [name, setName] = useState(() => (localStorage.getItem('badian-name') || '').trim() || defaultName());
+  const [localCount, setLocalCount] = useState(1);
+  const [aiCount, setAiCount] = useState(0);
+  // ref：让 onMessage 与桥接闭包始终读到最新配置（useEffect 只挂一次，不能依赖 state 闭包）
+  const cfgRef = useRef<RoomConfig>({ name, localCount, aiCount });
+  cfgRef.current = { name, localCount, aiCount };
+
+  // 本机玩家 + AI 共用房间席位，合计不得超过服务端上限；改一项时自动收紧另一项的可选范围。
+  const maxAi = MAX_ROOM_SEATS - localCount;
+  const changeLocalCount = (n: number) => {
+    setLocalCount(n);
+    setAiCount((prev) => Math.min(prev, MAX_ROOM_SEATS - n));
+  };
 
   // 宿主：接收原型的「确认出战」消息 → 真实建/入房间 → 进入真实对局
   useEffect(() => {
@@ -60,13 +90,23 @@ export default function Entrance({ onEnter }: { onEnter: (code: string, identiti
       void (async () => {
         try {
           await net.connect();
-          const name = (localStorage.getItem('badian-name') || '棋手').trim();
-          localStorage.setItem('badian-name', name);
+          const cfg = cfgRef.current;
+          const finalName = resolveName(cfg.name);
+          localStorage.setItem('badian-name', finalName);
           const charId = d.charId || 'default';
-          const raw = d.mode === 'join'
-            ? await net.joinRoom(String(d.code || '').trim().toUpperCase(), name, charId)
-            : await net.createRoom(name, [name], charId, { id: 'floating-ruins', mechanics: { weather: d.weather !== false } });
-          const r = raw as unknown as RoomResult;
+          const code = String(d.code || '').trim().toUpperCase();
+          let raw: unknown;
+          if (d.mode === 'join') {
+            raw = await net.joinRoom(code, finalName, charId);
+          } else {
+            // 单设备多人：与经典入口一致，按本机人数生成「名字1/名字2/…」的本地身份
+            const localNames = buildLocalNames(finalName, cfg.localCount);
+            raw = await net.createRoom(finalName, localNames, charId, {
+              id: 'floating-ruins',
+              mechanics: { weather: d.weather !== false },
+            });
+          }
+          const r = raw as RoomResult;
           if (!r.ok || !r.code || !r.seats?.length) {
             setError(r.activeCode
               ? `你已在房间 ${r.activeCode}，请用经典入口返回该房间`
@@ -75,7 +115,17 @@ export default function Entrance({ onEnter }: { onEnter: (code: string, identiti
             setBusy(false);
             return;
           }
-          onEnterRef.current(r.code, r.seats);
+          // 创建房间后按配置补 AI（经典入口「单人开局(+AI)」等价能力），失败不阻断进房
+          if (d.mode !== 'join' && cfg.aiCount > 0 && r.seats[0]) {
+            try {
+              const host = r.seats[0];
+              await net.addAI(r.code, host.playerId, host.token, cfg.aiCount);
+            } catch { /* 进房后再由房主在 lobby 手动加，不阻断 */ }
+          }
+          // 加入房间：本机只持有自己那一个座位（最后一个）；创建房间：本机持有全部本地座位
+          const mine = d.mode === 'join' ? r.seats[r.seats.length - 1] : null;
+          const identities = mine ? [mine] : r.seats;
+          onEnterRef.current(r.code, identities.map((s) => ({ playerId: s.playerId, name: s.name, token: s.token })));
         } catch (err) {
           setError(String(err));
           busyRef.current = false;
@@ -133,11 +183,28 @@ export default function Entrance({ onEnter }: { onEnter: (code: string, identiti
             }, window.location.origin);
           }, 900);
         };
-        if (mode === 'create') setPendingCreate({ proceed });
-        else proceed(true);
+        // 创建与加入都先弹宿主设置框（填昵称等），确认后再走真实网络
+        setPending({ mode, proceed });
       };
     };
     hook();
+  };
+
+  const confirmPending = () => {
+    if (!pending) return;
+    const finalName = name.trim();
+    if (!finalName) { setError('请先填写昵称'); return; }
+    // 二次校验：即使 UI 选项被绕开，也不把注定被服务端拒绝的组合发出去。
+    if (pending.mode === 'create' && localCount + aiCount > MAX_ROOM_SEATS) {
+      setError(`房间最多 ${MAX_ROOM_SEATS} 人，请减少本机玩家或 AI 数量`);
+      return;
+    }
+    setName(finalName);
+    localStorage.setItem('badian-name', finalName);
+    setError('');
+    const next = pending.proceed;
+    setPending(null);
+    next(weather);
   };
 
   return (
@@ -151,20 +218,42 @@ export default function Entrance({ onEnter }: { onEnter: (code: string, identiti
         allow="autoplay"
       />
       <a className="entrance-classic" href="?entrance=classic" title="返回原有入口">经典入口</a>
-      {pendingCreate && (
+      {pending && (
         <div className="entrance-settings-backdrop">
-          <section className="entrance-settings" role="dialog" aria-modal="true" aria-labelledby="map-settings-title">
+          <section className="entrance-settings" role="dialog" aria-modal="true" aria-labelledby="room-settings-title">
             <p className="entrance-settings-kicker">ROOM SETTINGS · 悬浮遗迹</p>
-            <h2 id="map-settings-title">选择地图机制</h2>
-            <p>天气变化会带来泥潭预警、封路和泄水闸。</p>
-            <fieldset>
-              <legend>天气与泥潭</legend>
-              <label><input type="radio" name="entrance-weather" checked={weather} onChange={() => setWeather(true)} /> 开启</label>
-              <label><input type="radio" name="entrance-weather" checked={!weather} onChange={() => setWeather(false)} /> 关闭</label>
-            </fieldset>
+            <h2 id="room-settings-title">{pending.mode === 'create' ? '创建房间' : '加入房间'}</h2>
+            <label className="entrance-field">
+              <span>昵称（必填，本设备会记住）</span>
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={12} placeholder="输入昵称" />
+            </label>
+            {pending.mode === 'create' && (
+              <>
+                <div className="entrance-field-row">
+                  <label className="entrance-field">
+                    <span>本机玩家数</span>
+                    <select value={localCount} onChange={(e) => changeLocalCount(Number(e.target.value))}>
+                      {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} 人</option>)}
+                    </select>
+                  </label>
+                  <label className="entrance-field">
+                    <span>AI 数量</span>
+                    <select value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))}>
+                      {Array.from({ length: maxAi + 1 }, (_, i) => i).map((n) => <option key={n} value={n}>{n} 个</option>)}
+                    </select>
+                  </label>
+                </div>
+                <p className="entrance-cap-hint">共 {localCount + aiCount} / {MAX_ROOM_SEATS} 人（房间上限 {MAX_ROOM_SEATS} 人）</p>
+                <fieldset>
+                  <legend>天气与泥潭（悬浮遗迹）</legend>
+                  <label><input type="radio" name="entrance-weather" checked={weather} onChange={() => setWeather(true)} /> 开启</label>
+                  <label><input type="radio" name="entrance-weather" checked={!weather} onChange={() => setWeather(false)} /> 关闭</label>
+                </fieldset>
+              </>
+            )}
             <div className="entrance-settings-actions">
-              <button type="button" onClick={() => setPendingCreate(null)}>返回选角</button>
-              <button type="button" onClick={() => { const next = pendingCreate.proceed; setPendingCreate(null); next(weather); }}>创建房间</button>
+              <button type="button" onClick={() => setPending(null)}>返回选角</button>
+              <button type="button" onClick={confirmPending}>{pending.mode === 'create' ? '创建房间' : '加入房间'}</button>
             </div>
           </section>
         </div>

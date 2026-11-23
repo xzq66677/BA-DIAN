@@ -459,3 +459,43 @@ describe('拔典联机系统', () => {
     host.disconnect();
   });
 });
+
+describe('房间人数上限（10 人）', () => {
+  it('创建房间：本机人数超过 10 直接拒绝，不留僵尸房间', async () => {
+    const host = await connect();
+    const r = await emit<{ ok: boolean; error?: string }>(host, 'room:create', {
+      name: '超限测试专用房主', localPlayers: Array.from({ length: 11 }, (_, i) => `本机${i + 1}`),
+    });
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('10');
+    const list = await emit<{ ok: boolean; rooms: { hostName: string }[] }>(host, 'lobby:roomsReq', {});
+    expect(list.rooms.some((x) => x.hostName === '超限测试专用房主')).toBe(false);
+    host.disconnect();
+  });
+
+  it('加入房间：满 10 人后拒绝新玩家', async () => {
+    const host = await connect();
+    const c = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(host, 'room:create', {
+      name: '满房房主', localPlayers: Array.from({ length: 10 }, (_, i) => `P${i + 1}`),
+    });
+    expect(c.ok).toBe(true);
+    expect(c.seats).toHaveLength(10);
+    const guest = await connect();
+    const j = await emit<{ ok: boolean; error?: string }>(guest, 'room:join', { code: c.code, name: '后来者' });
+    expect(j.ok).toBe(false);
+    expect(j.error).toContain('已满');
+    guest.disconnect();
+    host.disconnect();
+  });
+
+  it('添加 AI：请求 20 个也只补到 10 人', async () => {
+    const host = await connect();
+    const c = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(host, 'room:create', { name: 'AI 房主' });
+    const me = c.seats[0];
+    const a = await emit<{ ok: boolean }>(host, 'room:addAI', { code: c.code, playerId: me.playerId, token: me.token, count: 20 });
+    expect(a.ok).toBe(true);
+    const list = await emit<{ ok: boolean; rooms: { code: string; seatCount: number }[] }>(host, 'lobby:roomsReq', {});
+    expect(list.rooms.find((x) => x.code === c.code)?.seatCount).toBe(10);
+    host.disconnect();
+  });
+});

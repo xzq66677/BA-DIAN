@@ -31,6 +31,7 @@ function item(over: Partial<AnnounceItem> = {}): AnnounceItem {
     icon: '⚔️',
     text: '张三 → 李四 受到 1 点伤害（HP 3→2）',
     tone: 'combat',
+    kind: 'attack',
     priority: 'normal',
     ttlMs: 1700,
     rule: 'damage',
@@ -46,8 +47,11 @@ describe('全局播报 · 战场横幅', () => {
     expect(el.textContent).toContain('09:05:03');
     expect(el.className).toContain('tone-combat');
     expect(el.className).toContain('prio-normal');
+    expect(el.className).toContain('kind-attack');
     expect(el.getAttribute('data-announce-seq')).toBe('1');
     expect(el.getAttribute('data-announce-rule')).toBe('damage');
+    expect(el.getAttribute('data-announce-kind')).toBe('attack');
+    expect(el.textContent).toContain('战斗');
     expect((el as HTMLElement).style.animationDuration).toBe('2400ms');
   });
 
@@ -57,6 +61,25 @@ describe('全局播报 · 战场横幅', () => {
     expect(el.className).toContain('tone-danger');
     expect(el.className).toContain('prio-high');
     expect(el.textContent).toContain('李四 被淘汰');
+  });
+
+  it('八种信息类型输出不同的 kind class、类型标签与 data 属性', () => {
+    const kinds = ['move', 'attack', 'skill', 'heal', 'hide', 'outcome', 'round', 'system'] as const;
+    const labels = ['移动', '战斗', '技能', '回复', '潜行', '战果', '回合', '系统'];
+    const { container } = render(
+      <div>
+        {kinds.map((k, i) => (
+          <GlobalAnnounceBanner key={k} item={item({ id: `a-${i}`, seq: i + 1, kind: k })} />
+        ))}
+      </div>,
+    );
+    const bars = container.querySelectorAll('[data-testid="global-announce"]');
+    expect(bars).toHaveLength(kinds.length);
+    kinds.forEach((k, i) => {
+      expect(bars[i].className).toContain(`kind-${k}`);
+      expect(bars[i].getAttribute('data-announce-kind')).toBe(k);
+      expect(bars[i].textContent).toContain(labels[i]);
+    });
   });
 });
 
@@ -72,6 +95,8 @@ describe('全局播报 · 播报抽屉', () => {
     expect(lines[0].textContent).toContain('第二条'); // 最新在上
     expect(lines[0].textContent).toContain('09:05:08');
     expect(lines[0].textContent).toContain('2.4s');
+    expect(lines[0].className).toContain('kind-attack');
+    expect(lines[0].getAttribute('data-announce-kind')).toBe('attack');
     expect(lines[1].textContent).toContain('第一条');
     expect(lines[1].textContent).toContain('1.7s');
   });

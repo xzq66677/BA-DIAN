@@ -45,5 +45,21 @@ html, body, #root { height: 100%; margin: 0; }
 .entrance-settings label { display: flex; align-items: center; gap: 7px; cursor: pointer; }
 .entrance-settings input { accent-color: #cbb98a; }
 .entrance-settings-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* 房间设置：昵称 / 本机人数 / AI 数量（与经典入口对齐） */
+.entrance-field { display: flex; flex-direction: column; align-items: stretch; gap: 7px; margin: 16px 0; cursor: default; }
+.entrance-field > span { color: #cbb98a; font-size: 12px; letter-spacing: .08em; }
+.entrance-field input[type="text"], .entrance-field select {
+  box-sizing: border-box; width: 100%; min-height: 42px; padding: 8px 12px;
+  color: #e8dcc0; background: #101a26; border: 1px solid #766e59; border-radius: 3px;
+  font-size: 14px; font-family: inherit; outline: none;
+}
+.entrance-field input[type="text"]:focus, .entrance-field select:focus { border-color: #cbb98a; }
+.entrance-field-row { display: flex; gap: 14px; }
+.entrance-field-row .entrance-field { flex: 1; min-width: 0; }
+/* 本机人数 + AI 数量合计提示（房间上限 10） */
+.entrance-cap-hint { margin: -6px 0 12px; font-size: 12px; color: #cbb98a; letter-spacing: .06em; }
+/* 昵称校验失败时的错误条在对话框内也能看清 */
+.entrance-settings .entrance-error { position: static; transform: none; max-width: none; margin: 4px 0 12px; padding: 10px 14px; }
 .entrance-settings-actions button { min-height: 44px; padding: 8px 18px; color: #e8dcc0; background: #17232e; border: 1px solid #a79870; cursor: pointer; }
 .entrance-settings-actions button:last-child { color: #121921; background: #cbb98a; }
