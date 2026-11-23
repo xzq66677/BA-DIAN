@@ -9,7 +9,7 @@
 
 > 代码仓库：https://github.com/xzq66677/BA-DIAN每回合所有存活玩家隐藏出拳判定行动资格，胜者再判定行动顺序，依次执行移动/攻击/回复（角色技能可改变规则），最后一名存活玩家获胜。
 
-支持：真人联机（Socket.IO 房间制）、单设备多人（隐私出拳）、**二次判定亲自出拳**（资格者逐子轮隐藏出拳决定行动顺序）、AI 玩家（休闲/普通/硬核三档难度）、10 个角色（9 个首轮验证角色 + 老大爷）、**3D 战场**（Three.js 低模人形 + 六棱石台房间，WebGL 不可用自动回退 2D 牌桌）、局内战绩统计、丢番茄小互动、横屏/竖屏自适应、机制测试场。
+支持：真人联机（Socket.IO 房间制，**每房最多 10 人**）、单设备多人（隐私出拳）、**二次判定亲自出拳**（资格者逐子轮隐藏出拳决定行动顺序）、AI 玩家（休闲/普通/硬核三档难度）、10 个角色（9 个首轮验证角色 + 老大爷）、**3D 战场**（Three.js 低模人形 + 六棱石台房间，WebGL 不可用自动回退 2D 牌桌）、局内战绩统计、丢番茄小互动、横屏/竖屏自适应、机制测试场。
 
 ## 环境要求
 
@@ -22,7 +22,7 @@
 # 1. 安装依赖
 npm install
 
-# 2. 全量自动化测试（560 用例）
+# 2. 全量自动化测试（579 用例，需 Node ≥ 22.15；见下方「测试」）
 npm test
 
 # 3. 构建（服务端 tsc + 客户端 vite）
@@ -46,9 +46,10 @@ npm run dev:client    # vite dev 客户端 :5173（代理到 :3100）
 
 ### 入口模式
 
-- **默认（电影感入口）**：未登录访问根路径先进入 V5.0 四段入口（开场 → 主菜单 → 作战室 → 选角 → 战场交接），实时 3D 低模角色；选角「确认出战」后以所选角色创建/加入真实房间并进入对局。
+- **默认（电影感入口）**：未登录访问根路径先进入 V5.0 四段入口（开场 → 主菜单 → 作战室 → 选角 → 战场交接），实时 3D 低模角色；选角「确认出战」后弹出**房间设置**面板（昵称必填并记忆、本机玩家数、AI 数量、天气），再以所选角色创建/加入真实房间进入对局。
   - `?stage=<id>`：切换入口地图（`v6-floating-ruins` / `demo-crystal-arena` / `map006-weather`）。
-  - 加入房间：在主菜单点「加入房间」，输入邀请码后走同样流程。
+  - 加入房间：在主菜单点「加入房间」，输入邀请码后走同样流程；加入时只填**自己**的昵称，本机只持有自己那一个身份。
+  - 昵称必填：未设置过会自动生成带随机后缀的默认名（如 `棋手4821`），避免所有游客都叫同一个名字。
 - **经典入口**：URL 加 `?entrance=classic`，或点入口页右上角「经典入口」，回到原卡桌首页（下方说明）。
 - **原型探索**：`?proto=A|B|C` 为同一真实引擎对局的三种视觉架构原型，不受入口模式影响。
 
@@ -68,7 +69,7 @@ npm run dev:client    # vite dev 客户端 :5173（代理到 :3100）
 - **对局回放（已完成，暂未启用）**：录制与播放器已实现（状态帧去重、逐帧播放、0.5–4× 倍速、导出 JSON），但按 2026-11-20 要求**暂不发布、界面不挂入口**（`Game.tsx` 内 `REPLAY_ENABLED = false`，置 true 即恢复）；服务端录制逻辑保持不变，历史数据不受影响
 - **`prefers-reduced-motion`**：系统开启「减少动态效果」时，演出自动降级为最短时长、无震动/闪烁的轻反馈；终局弹层光效/光屑静止、投掷物飞行隐藏，信息保持完整
 - **屏幕适配**：手机横放（≤560px 高）自动切换紧凑牌桌——座位条压缩、中央分栏、手牌横向可滑、日志与发言改为可收起抽屉；手机竖屏隐藏侧栏并把牌桌改为内部滚动，保证「开始出拳」按钮始终一屏可见；桌面端整桌单屏不滚动
-- **房间管理**：房主可解散房间（全员退出）；玩家可随时退出房间——**整台设备退出**（单设备多人的全部身份一起移除，对局中=引擎内淘汰公示），退出后房间无真人可继续（空/只剩 AI）则**默认解散**，仍有其他真人则对局继续；同一设备不能重复加入同一房间（不会出现两个自己）；首页被旧房间占用时提供「回到房间 / 退出旧房间」一键解除；胜负判定为全屏弹层（胜者卡面+再来一局）；昵称必填且本设备记忆
+- **房间管理**：**每房最多 10 人**（本机玩家 + AI 合计，创建/加入/加 AI 三条路径服务端统一校验，入口下拉框联动收紧并显示「共 N/10 人」）；房主可解散房间（全员退出）；玩家可随时退出房间——**整台设备退出**（单设备多人的全部身份一起移除，对局中=引擎内淘汰公示），退出后房间无真人可继续（空/只剩 AI）则**默认解散**，仍有其他真人则对局继续；同一设备不能重复加入同一房间（不会出现两个自己）；首页被旧房间占用时提供「回到房间 / 退出旧房间」一键解除；胜负判定为全屏弹层（胜者卡面+再来一局）；昵称必填且本设备记忆
 
 - **单人开局**：填昵称 + AI 数量 → 直接开局
 - **创建房间**：获得 4 位邀请码 → 朋友在「加入房间」输入码加入 → 房主开始游戏
@@ -110,8 +111,23 @@ npm run dev:client    # vite dev 客户端 :5173（代理到 :3100）
 
 - **每个动作都可见**：攻击 / 技能 / 瞄准 / 躲藏 / 找出来 / 跳过 / 移动 / 回复 / 喝牛奶 / 今日运势 / 淘汰 / 复活 / 领域 / 大伊万 / 判定 / 行动顺序 / 回合小结 / 终局全部有播报；未知的新日志类型由 `fallback` 兜底——不存在「引擎写了日志但没人看见」。
 - **有反馈时间**：每条播报带 `ts`（服务端生成时刻）与 `ttlMs`（横幅停留时长）。横幅显示 `HH:MM:SS`（房间时间线）并在右侧标注停留秒数；抽屉每行是「时间 · 图标 · 文本 · 停留时长」，可切「⭐ 重点」只看战斗/淘汰类。
-- **优先级不抢镜头**：`high`（淘汰/致命/领域/复活/终局）必上横幅，`normal`（普通动作）依次播放，`low`（阶段提示、未命中）只进抽屉。积压时保留队首与 `high`，其余过时的中低价值条目直接丢弃（`condenseAnnounceQueue`），避免播到过时消息。
+- **重要信息 vs 次要信息（V2）**：**移动 / 攻击 / 技能 / 回血 / 躲藏**是重要信息（`priority: high`，横幅必播、拥堵保留、时长上调）；**胜负 / 回合 / 阶段 / 顺序 / 未命中**是次要信息（`priority: low`，只进抽屉、时长缩短）；淘汰 / 领域 / 复活 / 致命仍是最高规格的重大瞬间。详见下方[信息分级与时长](#信息分级与时长v2)。
+- **不同类型的视觉表现不同**：每条播报带 `kind` 字段（8 类），横幅与抽屉按类型给出不同的形状、配色与动效——攻击=红色尖角+红光、技能=紫色斜角+光晕、回血=绿色胶囊、移动=蓝色虚线+滑入、躲藏=灰色虚线半透明、战果=金色双线、回合=小号灰条；横幅左侧还有「战斗 / 技能 / 回复 …」类型短标签。
+- **文案精简**：`ANNOUNCE_MAX_TEXT` 从 64 收紧到 48，结构化规则用短句（如 `张三 R1→R2`、`李四 +1 HP（2→3）`、`张三 淘汰 李四`、`张三 获胜`），完整内容仍在战斗日志里可追溯。
+- **优先级不抢镜头**：积压时保留队首与 `high`，其余过时的中低价值条目直接丢弃（`condenseAnnounceQueue`），避免播到过时消息。
 - **零规则侵入**：播报只读 `LogEntry` 的 `type/text/data/important`，不改数值、不改结算顺序，也不影响隐藏出拳（提交阶段的日志里没有拳种）。所以「所有人可见」不会变成「提前泄露」。
+
+### 信息分级与时长（V2）
+
+| 信息类型 | `kind` | 优先级 | 停留时长 | 表现 |
+|---|---|---|---|---|
+| 移动 / 技能 / 回血 / 躲藏 | `move` / `skill` / `heal` / `hide` | `high` | `action` 1900ms | 各自独立配色与形状 |
+| 攻击宣告 / 命中 / 伤害 | `attack` | `high`（未命中 `low`） | `combat` 2200ms（宣告 1900ms） | 红色尖角 + 红光 |
+| 淘汰 / 领域 / 复活 / 致命 | `outcome` / `skill` | `high` | `major` 2600ms | 金色双线 / 危险红 |
+| 胜负 / 回合 / 阶段 / 顺序 | `outcome` / `round` | `low` | `brief` 800ms | 小号灰条，只进抽屉 |
+| 系统 / 错误 / 兜底 | `system` | 视重要性 | `brief` 或 `major` | 中性蓝灰 |
+
+`ANNOUNCE_TTL` 常量：`brief 800` / `action 1900` / `combat 2200` / `major 2600` / `spotlight 2100`（毫秒）。`ANNOUNCE_VERSION = 2`。
 
 ### 扩展点（以后新事件怎么加）
 
@@ -124,7 +140,7 @@ const off = registerAnnounceRule({
   id: 'my-skill',
   summary: '我的新技能',
   match: (log, nameOf) => (log.data?.mySkill === true
-    ? { icon: '🔥', text: `${nameOf(String(log.data.pid))} 点燃了战场`, tone: 'danger', priority: 'high', ttlMs: 3000 }
+    ? { icon: '🔥', text: `${nameOf(String(log.data.pid))} 点燃了战场`, tone: 'danger', kind: 'skill', priority: 'high', ttlMs: 3000 }
     : null),
 }, { before: 'fallback' });   // 默认插在规则表最前；before 可指定插入位置
 // 返回撤销函数：测试 / 热重载用完即撤
@@ -134,11 +150,13 @@ const off = registerAnnounceRule({
 |---|---|
 | `AnnounceItem.ts` / `ttlMs` | 服务端时刻与建议展示时长（即「反馈时间」） |
 | `AnnounceItem.priority` | `high` / `normal` / `low`：决定是否上横幅、拥堵时是否保留 |
+| `AnnounceItem.kind` | `move`/`attack`/`skill`/`heal`/`hide`/`outcome`/`round`/`system`：决定前端差异化表现形式 |
 | `AnnounceItem.rule` | 命中的规则 id（埋点/定制渲染用；未知值按 `tone` 降级） |
 | `buildAnnouncements(logs, { names, now })` | 纯函数：日志批次 → 播报项（幂等、保序、有界） |
 | `mergeAnnouncements(prev, next)` | 客户端增量累积（seq 去重 + 截断） |
 | `condenseAnnounceQueue(queue, incoming)` | 拥堵压缩：保留队首与 `high` |
-| `fmtAnnounceClock(ts)` / `fmtAnnounceTtl(ms)` | `HH:MM:SS` / `1.7s` |
+| `simplifyAnnounceText(text)` / `clampAnnounceText(text)` | 精简日志原文（剥图标 + 短句替换）/ 截断到 48 字 |
+| `fmtAnnounceClock(ts)` / `fmtAnnounceTtl(ms)` | `HH:MM:SS` / `0.8s` |
 
 协议层：`room:update` 新增 `announces?: AnnounceItem[]`，与 `newLogs` 同批、所有座位完全一致；断线重连随 `catchUp` 补发最近 300 条日志对应的播报。旧客户端忽略该字段即可；旧服务端不发送时客户端按「无播报」安全降级。
 
@@ -263,14 +281,13 @@ scripts/
 
 ```bash
 npm test
-# 32 个测试文件 / 553 用例全绿（全局播报实测，含 e2e 5 真实 Chromium）。按文件：
-#   character-assets 152 · shared-cases 111 · battle3d 27 · battle-queue 25 · domain 20
-#   map-playback 16 · battle-events 14 · order-rps2 12 · skill-judge 12 · gojo-asset 11
-#   socket 11 · components 11 · ai-difficulty 10 · gojo-lifecycle 8 · room-exit 7
-#   room-logseq 6 · finale-gate 6 · timeout 6 · ai-sim 5 · e2e 5
-#   stats 4 · reveal 4 · interaction 4 · broadcast-cursor 4 · throw-privacy 4
-#   announce 25 · announce-ui 8
-#   replay 3 · sfx 3 · skill-judge-ui 2 · exit-guard 1
+# 35 个测试文件 / 579 用例（Node ≥ 22.15）。
+# 本轮新增：room-cap（10 人上限，纯逻辑 2 + socket 集成 3）、
+#           entrance-identity（入口身份 6）、announce V2 分类用例、announce-ui 类型用例。
+# 用例数为 577 passed / 579；另 2 条 e2e 断言卡面 .webp 加载，
+#   在不含 webp 二进制资源的精简工作区会失败，完整仓库正常。
 ```
+
+> **Node 版本**：jsdom 用例依赖 `undici` 的 `node:zlib.createZstdDecompress`，需 **Node ≥ 22.15**（开发验证使用 v22.16.0）。Node 22.13/22.14 下纯逻辑测试正常，但 jsdom 用例会报 `Cannot read properties of undefined (reading 'bind')`。
 
 详见 `docs/TEST_REPORT.md`。历史版本变更见 [CHANGELOG.md](CHANGELOG.md)。

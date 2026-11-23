@@ -10,23 +10,33 @@
  */
 
 import { useMemo, useState } from 'react';
-import { fmtAnnounceClock, fmtAnnounceTtl } from '../../../shared/src/announce.js';
+import { fmtAnnounceClock, fmtAnnounceTtl, type AnnounceKind } from '../../../shared/src/announce.js';
 import type { AnnounceItem } from '../net.js';
+
+/** 每类播报的短标签：让「重要动作」与「胜负回合」在视觉上一眼可区分 */
+const KIND_LABEL: Record<AnnounceKind, string> = {
+  move: '移动', attack: '战斗', skill: '技能', heal: '回复', hide: '潜行',
+  outcome: '战果', round: '回合', system: '系统',
+};
 
 /**
  * 战场中央横幅：图标 + 文本 + 服务端时间戳。
  * 停留时长由 `ttlMs` 通过内联 `animationDuration` 控制（CSS 只负责动画曲线与配色）。
  */
 export function GlobalAnnounceBanner({ item }: { item: AnnounceItem }) {
+  // 老客户端/补发数据可能没有 kind，降级到 system，避免生成 kind-undefined 的无效 class
+  const kind = item.kind ?? 'system';
   return (
     <div
-      className={`global-announce tone-${item.tone} prio-${item.priority}`}
+      className={`global-announce tone-${item.tone} prio-${item.priority} kind-${kind}`}
       key={item.id}
       data-testid="global-announce"
       data-announce-seq={item.seq}
       data-announce-rule={item.rule}
+      data-announce-kind={kind}
       style={{ animationDuration: `${item.ttlMs}ms` }}
     >
+      <span className="ga-kind" aria-hidden>{KIND_LABEL[kind]}</span>
       <span className="ga-icon" aria-hidden>{item.icon}</span>
       <span className="ga-text">{item.text}</span>
       <span
@@ -72,9 +82,10 @@ export function AnnounceDrawer({ items, onClose }: { items: AnnounceItem[]; onCl
         {shown.map((a) => (
           <div
             key={a.id}
-            className={`announce-line tone-${a.tone} prio-${a.priority}`}
+            className={`announce-line tone-${a.tone} prio-${a.priority} kind-${a.kind ?? 'system'}`}
             data-testid="announce-line"
             data-seq={a.seq}
+            data-announce-kind={a.kind ?? 'system'}
           >
             <time className="al-time" dateTime={new Date(a.ts).toISOString()}>{fmtAnnounceClock(a.ts)}</time>
             <span className="al-icon" aria-hidden>{a.icon}</span>

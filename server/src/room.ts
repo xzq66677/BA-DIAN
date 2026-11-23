@@ -12,6 +12,7 @@
 import { Game } from '../../shared/src/engine.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
 import { buildAnnouncements, type AnnounceItem } from '../../shared/src/announce.js';
+import { MAX_ROOM_SEATS } from '../../shared/src/room-limits.js';
 import { parseMapConfig, type MapConfig } from '../../shared/src/map-config.js';
 import type {
   PlayerId, ActionRequest, Throw, GamePlayerConfig, RuleConfig, AiDifficulty,
@@ -171,6 +172,11 @@ export class Room {
 
   humanSeats(): Seat[] {
     return this.seats.filter((s) => s.type !== 'ai');
+  }
+
+  /** 房间是否还有空位（服务端权威上限；socket 处理器在 addSeat 前统一调用） */
+  canAddSeat(): boolean {
+    return this.seats.length < MAX_ROOM_SEATS;
   }
 
   /** 设置 AI 难度（房主） */
