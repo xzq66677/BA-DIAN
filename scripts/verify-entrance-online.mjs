@@ -14,7 +14,7 @@ import fs from 'node:fs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const BASE = process.env.PLAYWRIGHT_URL || 'http://localhost:3199';
-const OUT = path.join(ROOT, 'visual-prototype/screenshots/entrance-online');
+const OUT = process.env.ENTRANCE_EVIDENCE_DIR || path.join(ROOT, 'visual-prototype/screenshots/entrance-online');
 fs.mkdirSync(OUT, { recursive: true });
 
 const results = [];
@@ -74,13 +74,17 @@ try {
 
   // 确认出战 → 桥接消息 → 真实建房间 → 进入真实 lobby（等网络）
   await frame.locator('#confirmBtn').click();
+  await page.getByRole('radio', { name: '关闭' }).check();
+  await page.getByRole('button', { name: '创建房间', exact: true }).click();
   await page.waitForTimeout(1600);
   const enteredLobby = await page.locator('.tcg-lobby, .lobby').count() > 0
     || await page.locator('text=房间').count() > 0
     || !(await page.locator('.entrance-shell').count());
   check('确认出战进入真实对局链路', enteredLobby, `url=${page.url()}`);
+  check('新入口关闭天气配置已进入真实房间', await page.getByText('地图：悬浮遗迹 · 天气与泥潭：关闭').count() === 1);
 
   // ── 3. 地图参数透传 ──
+  await page.evaluate(() => localStorage.removeItem('badian-session'));
   await page.goto(BASE + '/?stage=map006-weather', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.entrance-frame', { timeout: 15000 });
   const src2 = await page.getAttribute('.entrance-frame', 'src');

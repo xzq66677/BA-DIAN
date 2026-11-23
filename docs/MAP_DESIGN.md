@@ -33,3 +33,9 @@ MAP-101 石材细化（2026-11-22）：岩层升级为五层锥度 + 凿刻基�
 | 延迟危险 | [待爆房间](screenshots-v5-map/02-pending.png) |
 | 范围与结算 | [伍六七范围预警](screenshots-v5-map/05-aoe.png) · [爆炸冲击](screenshots-v5-map/06-blast.png) |
 | 胜负反馈 | [胜者镜头](screenshots-v5-map/08-winner.png) · [胜负弹层](screenshots-v5-map/07-result.png) |
+
+## 房间地图配置接口
+
+创建房间时，`room:create` 可携带 `map: { id: 'floating-ruins', mechanics: { weather: boolean } }`。`weather` 同时控制天气、泥潭和泄水闸；关闭后地图画面仍为悬浮遗迹，但对局不会产生这些机制。未传 `map` 的旧客户端默认开启，服务端拒绝未知地图或无效机制选项。最终配置随 `lobby.config.map` 广播和重连补发，同一房间重开时沿用。
+
+新增地图时，在 `shared/src/map-config.ts` 扩展 `MapConfig` 联合类型与 `parseMapConfig` 校验，并在房间启动时接入该地图的机制；客户端创建界面需提交对应配置。目前只实现悬浮遗迹，不能通过传入其他地图 ID 启用尚未实现的地图。

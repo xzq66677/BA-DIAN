@@ -20,6 +20,7 @@ export default function Home({ onEnter, onArena }: {
   const [joinCode, setJoinCode] = useState('');
   const [localCount, setLocalCount] = useState(1);
   const [aiCount, setAiCount] = useState(0);
+  const [weather, setWeather] = useState(true);
   const [charId, setCharId] = useState('default');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -50,7 +51,7 @@ export default function Home({ onEnter, onArena }: {
       await net.connect();
       const myName = name.trim() || '玩家1';
       const localNames = Array.from({ length: localCount }, (_, i) => (localCount === 1 ? myName : `${myName}${i + 1}`));
-      const r = await net.createRoom(myName, localNames, charId) as unknown as RoomOpResult;
+      const r = await net.createRoom(myName, localNames, charId, { id: 'floating-ruins', mechanics: { weather } }) as unknown as RoomOpResult;
       if (!r.ok || !r.code || !r.seats) {
         setError(r.error || '创建失败');
         if (r.activeCode) setStuckCode(r.activeCode);
@@ -171,6 +172,13 @@ export default function Home({ onEnter, onArena }: {
             <span>AI 数量（单人游戏填 1 以上）</span>
             <select value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))}>
               {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span>悬浮遗迹：天气与泥潭</span>
+            <select value={weather ? 'on' : 'off'} onChange={(e) => setWeather(e.target.value === 'on')}>
+              <option value="on">开启（天气、泥潭和泄水闸）</option>
+              <option value="off">关闭</option>
             </select>
           </label>
           <div className="btn-row">

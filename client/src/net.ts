@@ -4,6 +4,7 @@
 
 import { io, type Socket } from 'socket.io-client';
 import type { RuinsConditions } from '../../shared/src/floating-ruins.js';
+import type { MapConfig } from '../../shared/src/map-config.js';
 import type { AnnounceItem } from '../../shared/src/announce.js';
 
 /** 全局播报条目（服务端权威，随 room:update 增量下发；类型定义见 shared/src/announce.ts） */
@@ -31,7 +32,7 @@ export interface LobbyState {
   hostSeat: string | null;
   seats: LobbySeat[];
   chat: { name: string; text: string; ts: number }[];
-  config: { submitTimeoutMs: number; turnTimeoutMs: number };
+  config: { submitTimeoutMs: number; turnTimeoutMs: number; map?: MapConfig };
   /** AI 难度（房主可调） */
   aiDifficulty?: AiDifficulty;
   /** 局内小互动（最近若干条，客户端按 id 增量播放动画） */
@@ -303,8 +304,8 @@ class Net {
     });
   }
 
-  createRoom(name: string, localNames: string[], charId: string) {
-    return this.emit('room:create', { name, localPlayers: localNames, charId });
+  createRoom(name: string, localNames: string[], charId: string, map?: MapConfig) {
+    return this.emit('room:create', { name, localPlayers: localNames, charId, map });
   }
   joinRoom(code: string, name: string, charId: string) {
     return this.emit('room:join', { code, name, charId });

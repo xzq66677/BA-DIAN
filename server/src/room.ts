@@ -12,6 +12,7 @@
 import { Game } from '../../shared/src/engine.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
 import { buildAnnouncements, type AnnounceItem } from '../../shared/src/announce.js';
+import { parseMapConfig, type MapConfig } from '../../shared/src/map-config.js';
 import type {
   PlayerId, ActionRequest, Throw, GamePlayerConfig, RuleConfig, AiDifficulty,
   InteractionEvent, InteractionKind, ReplayFrame, ReplayRecord, ReplaySummary, ReplayPlayer,
@@ -31,6 +32,7 @@ export interface Seat {
 }
 
 export interface RoomConfig {
+  map: MapConfig;
   rules?: Partial<RuleConfig>;
   seed?: number;
   turnTimeoutMs: number;
@@ -120,6 +122,7 @@ export class Room {
       turnTimeoutMs: 45000,
       submitTimeoutMs: 30000,
       ...config,
+      map: parseMapConfig(config?.map),
       // 线上对局默认「二次判定 / 技能判定都由玩家亲自出拳」；显式传 serverRoll 时保留（自动化用例）
       rules: { secondJudgeMode: 'player', skillJudgeMode: 'player', ...(config?.rules ?? {}) },
     };
@@ -189,7 +192,7 @@ export class Room {
     this.gameNo++;
     this.game = new Game({
       seed: usedSeed, players, chars: CHARACTERS, rules: this.config.rules,
-      floatingRuins: true,
+      floatingRuins: this.config.map.id === 'floating-ruins' && this.config.map.mechanics.weather,
       // 续接上一局的日志序号，保证同一房间内 seq 单调递增（否则第二局日志会被当成重复丢弃）
       logSeqOffset: this.logSeqCursor,
     });
@@ -660,7 +663,7 @@ export class Room {
         connected: s.connected,
       })),
       chat: this.chat.slice(-50),
-      config: { submitTimeoutMs: this.config.submitTimeoutMs, turnTimeoutMs: this.config.turnTimeoutMs },
+      config: { submitTimeoutMs: this.config.submitTimeoutMs, turnTimeoutMs: this.config.turnTimeoutMs, map: this.config.map },
       aiDifficulty: this.aiDifficulty,
       interactions: this.interactions.slice(-30),
       interactionCounts: this.interactionCounts,

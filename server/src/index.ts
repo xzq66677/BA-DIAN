@@ -11,6 +11,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Room } from './room.js';
+import { parseMapConfig } from '../../shared/src/map-config.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
 import type { PlayerId, ActionRequest, Throw, InteractionKind } from '../../shared/src/types.js';
 
@@ -133,13 +134,13 @@ io.on('connection', (socket: Socket) => {
     return room.seatBySocket(socket.id).length > 0 ? room : undefined;
   }
 
-  socket.on('room:create', (data: { name: string; charId?: string; localPlayers?: string[] }, ack?: (r: unknown) => void) => {
+  socket.on('room:create', (data: { name: string; charId?: string; localPlayers?: string[]; map?: unknown }, ack?: (r: unknown) => void) => {
     const active = socketActiveRoom(socket);
     if (active) { ack?.({ ok: false, error: `你已在房间 ${active.code} 中，请先退出该房间（或点「退出旧房间」解除占用）`, activeCode: active.code }); return; }
     if (!data.name || !data.name.trim()) { ack?.({ ok: false, error: '请先填写昵称' }); return; }
     try {
       const code = genRoomCode();
-      const room = new Room(code);
+      const room = new Room(code, { map: parseMapConfig(data.map) });
       rooms.set(code, room);
       room.onBroadcast = broadcastRoom;
       room.onGameOver = () => io.to(code).emit('game:over', { winner: room.game?.winner ?? null });

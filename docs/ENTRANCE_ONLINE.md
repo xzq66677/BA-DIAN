@@ -23,6 +23,7 @@
   - `joinBtn` → 弹邀请码输入，标记「加入房间」意图
   - `confirmBtn` → 读取 `window.__flow.state().sel`（选中角色 ID），转场后 `postMessage` 给宿主
 - **宿主**：`Entrance.tsx` 只接受同源 `message`，调用真实 `net.createRoom` / `net.joinRoom`，成功后交 `App` 的 `enterSession` 进入真实 lobby/game。选中角色 ID 一并传给服务端，因此「选角带入战场」是真实生效的，不是演示。
+- **地图机制**：创建房间时选角确认后可选择开启或关闭悬浮遗迹的天气与泥潭，选择随建房请求提交并在真实大厅显示；加入房间沿用房主配置。经典入口也提供同一选项。
 - **未触碰**：lobby / game / arena / 协议 / 状态机 / 角色 rig 源码均未改；原型内部的「作战室 9 5 X 4 / 猜拳对手」仍是 Demo 展示数据，真实对局在确认出战后由服务端驱动。
 
 ## 为什么用 iframe

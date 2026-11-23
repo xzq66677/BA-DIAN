@@ -34,6 +34,10 @@ describe('首页 UI（TCG风格）', () => {
     expect(screen.getByRole('button', { name: '加入房间' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /机制测试场/ })).toBeTruthy();
     expect(screen.getByPlaceholderText('4位邀请码')).toBeTruthy();
+    const weather = screen.getByLabelText('悬浮遗迹：天气与泥潭') as HTMLSelectElement;
+    expect(weather.value).toBe('on');
+    fireEvent.change(weather, { target: { value: 'off' } });
+    expect(weather.value).toBe('off');
     // 房间列表容器
     expect(screen.getByText(/房间列表/)).toBeTruthy();
   });

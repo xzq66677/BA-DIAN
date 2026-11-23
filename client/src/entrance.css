@@ -35,3 +35,15 @@ html, body, #root { height: 100%; margin: 0; }
   font-size: 14px; line-height: 1.6; text-align: center;
 }
 .entrance-error a { color: #7fd4c1; text-decoration: underline; }
+
+.entrance-settings-backdrop { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 20px; background: rgba(3, 8, 15, .76); }
+.entrance-settings { box-sizing: border-box; width: min(100%, 430px); padding: 26px; color: #e8dcc0; background: #0a111b; border: 1px solid rgba(203, 185, 138, .5); box-shadow: 0 18px 60px #0009; }
+.entrance-settings-kicker { color: #cbb98a; font-size: 11px; letter-spacing: .16em; }
+.entrance-settings h2 { margin: 12px 0; font-size: 24px; letter-spacing: .1em; }
+.entrance-settings p { line-height: 1.6; }
+.entrance-settings fieldset { display: flex; gap: 26px; margin: 20px 0; padding: 14px; border: 1px solid #766e59; }
+.entrance-settings label { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.entrance-settings input { accent-color: #cbb98a; }
+.entrance-settings-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.entrance-settings-actions button { min-height: 44px; padding: 8px 18px; color: #e8dcc0; background: #17232e; border: 1px solid #a79870; cursor: pointer; }
+.entrance-settings-actions button:last-child { color: #121921; background: #cbb98a; }
