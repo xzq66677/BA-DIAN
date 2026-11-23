@@ -2,8 +2,8 @@
  * 前置：npm run build（本脚本走 server/dist + client/dist 编译产物）
  * 运行：node scripts/djk-match.mjs before|after
  * 输出：docs/screenshots-djk/<tag>/（姿态截图、全 UI 截图、录像、djk-<tag>.json）
- * 流程：热座大厅（host=陪练，座位2=大贱客，座位3=受骂者）→ 跨房辱骂① → 受骂者移入同房
- *       → 同房辱骂② → 辱骂③致死 → 待机复归/连续触发不叠偏检查。
+ * 流程：热座大厅（host=陪练，座位2=大贱客，座位3=受骂者）→ 跨房辱骂① → 切 2D 再切回 3D（计数续接回归）
+ *       → 受骂者移入同房 → 同房辱骂② → 辱骂③致死 → 待机复归/连续触发不叠偏检查。
  * 每次辱骂固定 RPS（石头胜剪刀）让大贱客行动；三次分别抓 蓄势/戳指峰值/收势 姿态窗口。
  */
 import { chromium } from 'playwright';
@@ -163,27 +163,29 @@ function feedbackSnapshot(page) {
 async function feedbackTrace(page, ms = 9000) {
   const t0 = Date.now();
   const samples = [];
-  let firstFloatAt = -1, firstFloats = null;
+  let firstFloatAt = -1, firstFloats = null, lastCounts = null;
   while (Date.now() - t0 < ms) {
     const s = await page.evaluate(() => {
       const floats = [...document.querySelectorAll('.b3-float .b3-ticker')].map(e => e.textContent.trim());
       const scene = window.__b3scene;
-      let stats = null, chars = null;
+      let stats = null, chars = null, counts = null;
       if (scene) {
         try { stats = scene.debugStats(); } catch { }
         try { chars = scene.debugCharacters().map(c => `${c.pid.slice(0, 2)}:${c.pose}${c.alive ? '' : '/dead'}`); } catch { }
+        try { counts = scene.debugInsultCounts(); } catch { }
       }
-      return { floats, fx: stats ? stats.fx : -2, tweens: stats ? stats.tweens : -2, chars };
+      return { floats, fx: stats ? stats.fx : -2, tweens: stats ? stats.tweens : -2, chars, counts };
     }).catch(() => null);
     if (s) {
       const rec = { t: Date.now() - t0, ...s };
       samples.push(rec);
+      if (s.counts) lastCounts = s.counts;
       if (s.floats.length && firstFloatAt < 0) { firstFloatAt = rec.t; firstFloats = s.floats; }
       if (firstFloatAt >= 0 && rec.t - firstFloatAt > 500) break; // 抓到后再采 0.5s 即停
     }
     await new Promise(r => setTimeout(r, 250));
   }
-  return { firstFloatAt, firstFloats, samples };
+  return { firstFloatAt, firstFloats, counts: lastCounts, samples };
 }
 
 // ── 主流程 ──────────────────────────────────────────────
@@ -304,6 +306,18 @@ try {
   evidence.insult1 = r1; evidence.steps.push('03 跨房辱骂·戳指峰值');
   await shot(page, '03-full-ui-peak');
 
+  // 2D/3D 切换回归：辱骂① 后切 2D（场景 dispose）再切回 3D（场景实例重建），
+  // 辱骂计数应跨实例续接——辱骂② 浮字须为 2/3，而不是从 1/3 重来
+  step = 'toggle 2D -> 3D after insult 1';
+  await nclick(page.locator('button[title="切换到 2D 牌桌"]'));
+  await wait('2D 牌桌接管（3D 场景已释放）', () => page.evaluate(() => !window.__b3scene));
+  await nclick(page.locator('button[title="切换到 3D 战场"]'));
+  await wait('3D 场景重建（3 角色可见）', () => page.evaluate(() => {
+    const chars = window.__b3scene?.debugCharacters();
+    return !!window.__b3scene && chars.length === 3 && chars.every(c => c.visible);
+  }));
+  evidence.steps.push('辱骂①后切 2D 再切回 3D（场景实例重建）');
+
   // 受骂者移入大贱客房间（受骂者赢拳后移动）——构造同房现场
   step = 'victim moves into dajianke room';
   {
@@ -327,6 +341,15 @@ try {
   step = 'insult 2 (same room, windup)';
   const r2 = await insult({ capture: { file: '02-windup', lo: 0.12, hi: 0.45 } });
   evidence.insult2 = r2; evidence.steps.push('02 同房辱骂·蓄势');
+  // 计数续接断言（地面真值）：切 2D/3D 后辱骂② 对受骂者的累计应为 2（浮字随之显示 2/3）
+  evidence.insult2Counts = r2.feedbackPeak.counts ?? null;
+  const victimStrikes = (r2.feedbackPeak.counts ?? []).filter(([k]) => k.endsWith(`->${victim}`)).map(([, v]) => v);
+  assert.ok(victimStrikes.length === 1 && victimStrikes[0] === 2,
+    `切 2D/3D 后辱骂② 计数应续接为 2/3（而非重置为 1/3）: ${JSON.stringify(r2.feedbackPeak.counts)}`);
+  if (r2.feedbackPeak.firstFloatAt >= 0) {
+    assert.ok(r2.feedbackPeak.firstFloats.some(t => t.includes('2/3')),
+      `辱骂② 浮字应显示 2/3: ${JSON.stringify(r2.feedbackPeak.firstFloats)}`);
+  }
 
   // 辱骂③：致死——抓「收势」，并验证真实结算死亡
   step = 'insult 3 (kill, recover)';

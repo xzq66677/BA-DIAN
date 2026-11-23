@@ -16,6 +16,20 @@ import {
 import { gllog } from './gllog.js';
 import { B3D_RESTORE_WAIT_MS } from './gl-policy.js';
 
+// ── 大贱客辱骂演出计数 ──────────────────────────────────────
+// 2D/3D 视图切换会 dispose 并重建 BattleScene3D 实例，实例字段会丢计数；
+// 因此放模块级，按「战局代|行动者->目标」累计。战局代由 Battle3D 在每次
+// 演出前以当前 gameNo 调用 setInsultGeneration 同步，换代（重开新局）即清零。
+const insultSeen = new Map<string, number>();
+let insultGen = '';
+/** 同步辱骂计数的战局代（换代即清零；权威累计仍在服务端） */
+export function setInsultGeneration(gen: string): void {
+  if (gen !== insultGen) {
+    insultGen = gen;
+    insultSeen.clear();
+  }
+}
+
 // ── 对外数据契约（与 net.ts 的 GameSnapshot 字段对齐的最小子集） ──
 export interface SnapPlayerLite {
   id: string; name: string; charId: string; charName: string;
@@ -151,8 +165,6 @@ export class BattleScene3D {
   private topologyKey = '';
   private contextTimer: number | undefined;
   private readonly floatEnds = new Map<HTMLDivElement, number>();
-  /** 大贱客辱骂演出计数（按「行动者→目标」累计真实 attack 事件次数）；权威累计仍在服务端 */
-  private readonly insultSeen = new Map<string, number>();
 
   // 相机
   private aspect = 1.5;
@@ -987,9 +999,9 @@ export class BattleScene3D {
       const to = this.worldOf(targetId);
       if (!target || !from || !to) return;
       from.y += 0.72; to.y += 0.72;
-      const key = `${actor.pid}->${targetId}`;
-      const strike = (this.insultSeen.get(key) ?? 0) + 1;
-      this.insultSeen.set(key, strike);
+      const key = `${insultGen}|${actor.pid}->${targetId}`;
+      const strike = (insultSeen.get(key) ?? 0) + 1;
+      insultSeen.set(key, strike);
       if (!this.reduced) {
         this.spawnFx(beamFx(from, to, STATE_COLORS.domain, 0.34, 0.03), new THREE.Vector3(), 520);
         if (target.alive) {
@@ -1108,8 +1120,9 @@ export class BattleScene3D {
     const e = this.entities.get(pid);
     const w = this.worldOf(pid);
     if (!e || !w) return;
-    for (const key of this.insultSeen.keys()) {
-      if (key.endsWith(`->${pid}`)) this.insultSeen.delete(key);
+    const insultPrefix = `${insultGen}|`;
+    for (const key of insultSeen.keys()) {
+      if (key.startsWith(insultPrefix) && key.endsWith(`->${pid}`)) insultSeen.delete(key);
     }
     this.spawnFloat(w, '<span class="death-stamp b3-stamp">💀 淘汰</span>');
     if (!this.reduced) {
@@ -1579,6 +1592,11 @@ export class BattleScene3D {
         t: e.pose.t, dur: e.pose.dur, room: e.curRoom, alive: e.alive, visible: e.rig.root.visible,
         x: (center.x + 1) * this.container.clientWidth / 2, y: (1 - center.y) * this.container.clientHeight / 2, z };
     });
+  }
+
+  /** E2E/取证探针：辱骂计数现状（key = 战局代|行动者->目标；模块级，跨场景实例存续） */
+  debugInsultCounts(): [string, number][] {
+    return [...insultSeen.entries()];
   }
 
   debugStats() {
