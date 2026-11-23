@@ -8,3 +8,6 @@ client/dist-e2e/
 .tmp-build/
 .tmp-probe/
 .tmp/
+
+# 大贱客专项：行为验证录像只留本地，仓库只收 PNG/JSON 对照素材
+docs/screenshots-djk/**/*.webm
