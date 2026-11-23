@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { TABLE, createRuinsMap, defaultPose, stableMembers, type RoomAnchor } from './layout.js';
 import { CameraDirector, type Shot } from './camera-director.js';
 import { RUINS_COLORS, buildBridge, createRuinsEnvironment, island } from './ruins.js';
+import { createRuinsWeather } from './ruins-weather.js';
+import type { RuinsConditions } from '../../../shared/src/floating-ruins.js';
 import { roomVisual, STATE_COLORS } from './palette.js';
 import { cardMeta } from '../cards.js';
 import { createCharacterAsset, releaseMeshes, type CharacterRig } from './characters/index.js';
@@ -29,6 +31,7 @@ export interface SnapLite {
   winner: string | null;
   domainHolder?: string | null;
   deferred?: { id: string; kind: string; room: string; explodeRound: number }[];
+  ruins?: RuinsConditions;
   submittedIds?: string[];
   /** 本机身份（「我」徽标与镜头归属） */
   myIds?: string[];
@@ -101,6 +104,7 @@ interface Room {
   label: HTMLDivElement;
   labelCount: HTMLSpanElement;
   labelPending: HTMLSpanElement;
+  labelMud: HTMLSpanElement;
   pos: THREE.Vector3;
   yaw: number;
   pendingIvan: boolean;
@@ -142,6 +146,7 @@ export class BattleScene3D {
   private lowEffects = false;
   private pixelRatio = 1;
   private readonly environment = createRuinsEnvironment();
+  private readonly weather = createRuinsWeather();
   private map = createRuinsMap([]);
   private topologyKey = '';
   private contextTimer: number | undefined;
@@ -159,6 +164,7 @@ export class BattleScene3D {
   private hitStopUntil = 0;
   private finaleWinner: string | null = null;
   private roomPickMode = false;
+  private blockedRoom = '';
   private lastRender = 0;
   private camMoving = true;
   private targetablePids = new Set<string>();
@@ -212,6 +218,7 @@ export class BattleScene3D {
     this.scene.fog = new THREE.Fog(BG, 30, 76);
     this.camera = new THREE.PerspectiveCamera(48, 1.5, 0.1, 180);
 
+    this.environment.root.add(this.weather.root);
     this.scene.add(this.environment.root);
     this.bindEvents();
     this.resize();
@@ -373,11 +380,13 @@ export class BattleScene3D {
       label: this.buildRoomLabel(rid, vis.icon),
       labelCount: null as unknown as HTMLSpanElement,
       labelPending: null as unknown as HTMLSpanElement,
+      labelMud: null as unknown as HTMLSpanElement,
       pos: new THREE.Vector3(pos0.x, 0, pos0.z),
       yaw, pendingIvan: false, bombMarker: null,
     };
     r.labelCount = r.label.querySelector('.b3-rl-count')!;
     r.labelPending = r.label.querySelector('.b3-rl-pending')!;
+    r.labelMud = r.label.querySelector('.b3-rl-mud')!;
     this.rooms.set(rid, r);
     return r;
   }
@@ -506,14 +515,15 @@ export class BattleScene3D {
       <span class="b3-rl-icon">${icon}</span>
       <span class="b3-rl-name"></span>
       <span class="b3-rl-count">0 人</span>
+      <span class="b3-rl-mud" hidden></span>
       <span class="b3-rl-pending"></span>`;
     el.querySelector('.b3-rl-name')!.textContent = rid;
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (this.roomPickMode) this.hooks.onPickRoom(rid);
+      if (this.roomPickMode && rid !== this.blockedRoom) this.hooks.onPickRoom(rid);
     });
     el.addEventListener('keydown', (e) => {
-      if (!this.roomPickMode || (e.key !== 'Enter' && e.key !== ' ')) return;
+      if (!this.roomPickMode || rid === this.blockedRoom || (e.key !== 'Enter' && e.key !== ' ')) return;
       e.preventDefault();
       this.hooks.onPickRoom(rid);
     });
@@ -650,6 +660,13 @@ export class BattleScene3D {
     this.myIds = snap.myIds ?? [];
 
     this.updateTopology(snap.roomIds);
+    const mud = snap.ruins?.mud;
+    this.weather.sync(snap.ruins, mud ? this.map.rooms.get(mud.room) : undefined, this.map.radius);
+    const weather = snap.ruins?.weather ?? 'clear';
+    this.container.dataset.weather = weather;
+    const fog = this.scene.fog as THREE.Fog;
+    fog.far = fog.near + (weather === 'mist' ? 31 : 42);
+    fog.color.setHex(weather === 'mist' ? 0x3a5369 : BG);
     for (const room of this.rooms.values()) this.reconcileSlots(room, snap.players);
     const players = new Map(snap.players.filter(p => this.map.rooms.has(p.room)).map(p => [p.id, p]));
     for (const [pid, e] of this.entities) if (!players.has(pid)) this.removeEntity(e);
@@ -670,9 +687,14 @@ export class BattleScene3D {
       const pending = !!pendingD;
       const winnerHere = snap.phase === 'over' && !!snap.winner && members.some((m) => m.id === snap.winner);
       const domainHere = members.some((m) => m.char.domain === true);
+      const mudHere = mud?.room === room.rid ? mud : null;
       room.pendingIvan = pending;
       room.labelCount.textContent = `${members.length} 人${acting ? ' · 行动中' : ''}`;
       room.labelPending.textContent = pending ? `💣 预计第 ${pendingD!.explodeRound} 回合末爆炸（平局顺延）` : '';
+      room.labelMud.hidden = !mudHere;
+      room.labelMud.textContent = mudHere?.active ? '泥潭' : mudHere ? '积水' : '';
+      room.label.classList.toggle('is-muddy', !!mudHere?.active);
+      room.label.setAttribute('aria-label', `房间 ${room.rid}${mudHere?.active ? '，泥潭封路' : mudHere ? `，第 ${mudHere.activeRound} 回合泥潭预警` : ''}`);
       room.label.classList.toggle('is-empty', members.length === 0);
       room.label.classList.toggle('is-pending', pending);
       room.label.classList.toggle('is-acting', acting);
@@ -715,23 +737,25 @@ export class BattleScene3D {
   }
 
   private paintRoom(room: Room): void {
-    const selected = this.roomPickMode && this.selectedRoom === room.rid;
-    const hovered = this.roomPickMode && this.hoveredRoom === room.rid;
+    const pickable = this.roomPickMode && this.blockedRoom !== room.rid;
+    const selected = pickable && this.selectedRoom === room.rid;
+    const hovered = pickable && this.hoveredRoom === room.rid;
     const acting = room.label.classList.contains('is-acting');
     const winner = room.label.classList.contains('is-winner');
     const empty = room.label.classList.contains('is-empty');
     const pulse = room.pulse;
     const edge = pulse ? ROOM_EFFECTS[pulse.kind] : room.pendingIvan ? STATE_COLORS.alertIvan
-      : selected ? 0x67e9f5 : winner || acting ? 0xffd060 : this.roomPickMode ? STATE_COLORS.targetable : GOLD;
+      : selected ? 0x67e9f5 : winner || acting ? 0xffd060 : pickable ? STATE_COLORS.targetable
+        : room.label.classList.contains('is-muddy') ? 0xc18346 : GOLD;
     room.edgeMat.color.setHex(edge);
     room.edgeMat.opacity = pulse || selected || hovered || room.pendingIvan ? 1
-      : acting || this.roomPickMode || winner ? 0.83 : empty ? 0.25 : 0.44;
+      : acting || pickable || winner ? 0.83 : empty ? 0.25 : 0.44;
     room.beaconMat.color.setHex(acting || winner ? 0xffd060 : edge);
     room.beaconMat.opacity = 0.55 + 0.4 * room.edgeMat.opacity;
-    room.label.classList.toggle('is-pickable', this.roomPickMode);
+    room.label.classList.toggle('is-pickable', pickable);
     room.label.classList.toggle('is-selected', selected);
-    room.label.setAttribute('aria-disabled', String(!this.roomPickMode));
-    room.label.tabIndex = this.roomPickMode ? 0 : -1;
+    room.label.setAttribute('aria-disabled', String(!pickable));
+    room.label.tabIndex = pickable ? 0 : -1;
   }
 
   private syncEntity(e: Entity, p: SnapPlayerLite, snap: SnapLite, immediate: boolean, moveSeconds: number): void {
@@ -1424,16 +1448,18 @@ export class BattleScene3D {
     while (object && !object.userData[field]) object = object.parent ?? undefined;
     const id = object?.userData[field] as string | undefined;
     if (!id) return;
-    if (this.roomPickMode) this.hooks.onPickRoom(id);
-    else this.hooks.onPickPlayer(id);
+    if (this.roomPickMode) {
+      if (id !== this.blockedRoom) this.hooks.onPickRoom(id);
+    } else this.hooks.onPickPlayer(id);
   }
 
   // ── 对外控制 ──────────────────────────────────────────────
 
   setTargetable(pids: string[]): void { this.targetablePids = new Set(pids); }
 
-  setSelection(roomPickMode: boolean, room: string, player: string): void {
+  setSelection(roomPickMode: boolean, room: string, player: string, blockedRoom = ''): void {
     this.roomPickMode = roomPickMode;
+    this.blockedRoom = blockedRoom;
     this.selectedRoom = room;
     this.selectedPlayer = player;
     for (const r of this.rooms.values()) this.paintRoom(r);
@@ -1750,6 +1776,7 @@ export class BattleScene3D {
     const minFrame = busy ? (this.lowEffects ? 0.027 : 0) : 0.05;
     if (this.elapsed - this.lastRender >= minFrame) {
       this.lastRender = this.elapsed;
+      this.weather.update(this.realElapsed, !this.lowEffects && !this.reduced);
       this.updateOverlay();
       this.renderer.render(this.scene, this.camera);
     }

@@ -3,6 +3,7 @@
  */
 
 import { io, type Socket } from 'socket.io-client';
+import type { RuinsConditions } from '../../shared/src/floating-ruins.js';
 import type { AnnounceItem } from '../../shared/src/announce.js';
 
 /** 全局播报条目（服务端权威，随 room:update 增量下发；类型定义见 shared/src/announce.ts） */
@@ -170,6 +171,7 @@ export interface GameSnapshot {
   phase: 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over';
   players: SnapPlayer[];
   roomIds: string[];
+  ruins?: RuinsConditions;
   submittedIds: string[];
   pendingCount: number;
   qualified: string[];

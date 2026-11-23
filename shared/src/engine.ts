@@ -19,6 +19,7 @@ import {
   DEFAULT_RULES, fmtNum,
 } from './types.js';
 import { RNG, randomThrow } from './rng.js';
+import { FloatingRuins, type RuinsConditions } from './floating-ruins.js';
 import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats } from './judge.js';
 import type { CharDef, GameLike, CharActionContext } from './chardef.js';
 
@@ -43,6 +44,7 @@ export interface GameConfig {  players: GamePlayerConfig[];
   rules?: Partial<RuleConfig>;
   /** 角色注册表（id → CharDef） */
   chars: Record<string, CharDef>;
+  floatingRuins?: boolean;
   /**
    * 日志序号起点（默认 0，即本局日志 seq 从 1 开始）。
    *
@@ -61,6 +63,7 @@ export class Game implements GameLike {
   players: Record<PlayerId, PlayerState> = {};
   playerIds: PlayerId[] = [];
   roomIds: RoomId[] = [];
+  private readonly ruins?: FloatingRuins;
   roundNo = 1;
   subRound = 1;
   phase: GamePhase = 'rps1';
@@ -132,6 +135,7 @@ export class Game implements GameLike {
   constructor(config: GameConfig) {
     this.seed = config.seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
     this.rng = new RNG(this.seed);
+    if (config.floatingRuins) this.ruins = new FloatingRuins(this.seed);
     // 日志序号可续接上一局（同房间多局时保证单调递增，见 GameConfig.logSeqOffset）
     this.logSeq = config.logSeqOffset ?? 0;
     this.rules = { ...DEFAULT_RULES, ...(config.rules || {}) };
@@ -884,6 +888,7 @@ export class Game implements GameLike {
   private actionLabel(req: ActionRequest): string {
     switch (req.type) {
       case 'move': return `移动到 ${req.room}`;
+      case 'openSluice': return '开启泄水闸';
       case 'attack': return `攻击 ${req.targetId ? this.players[req.targetId].name : '?'}`;
       case 'heal': return '回复';
       case 'hide': return '躲藏';
@@ -904,6 +909,12 @@ export class Game implements GameLike {
     const cd = this.charDef(pid);
     switch (req.type) {
       case 'move': return this.actMove(pid, req);
+      case 'openSluice': {
+        const room = p.room;
+        if (!this.ruins?.openSluice(room)) return { ok: false, error: '只有积水预警房间的玩家可开启泄水闸' };
+        this.log('info', `${p.name} 开启 ${room} 的泄水闸，积水排入云海，泥潭预警解除。`, undefined, true);
+        return { ok: true };
+      }
       case 'attack': return this.actAttack(pid, req);
       case 'heal': return this.actHeal(pid, req);
       case 'hide': return this.actHide(pid, req);
@@ -932,6 +943,7 @@ export class Game implements GameLike {
     const p = this.players[pid];
     const room = req.room as RoomId;
     if (!room || !this.roomIds.includes(room)) return { ok: false, error: `非法目标房间：${room}` };
+    if (this.isMoveBlocked(pid, room)) return { ok: false, error: `${room} 泥潭封路，下回合恢复通行` };
     const from = p.room;
     p.room = room;
     if (p.hidden) {
@@ -1360,6 +1372,9 @@ export class Game implements GameLike {
     // 这里**不清除**；只有被其他领域覆盖或持有者淘汰时才失效。
     this.phase = 'rps1';
     this.log('phase', `—— 第 ${this.roundNo} 回合 · 隐藏出拳 ——`, undefined, true);
+    for (const note of this.ruins?.advance(this.roundNo, this.roomIds) ?? []) {
+      this.log('info', note, undefined, true);
+    }
   }
 
   addDeferred(ev: Omit<DeferredEvent, 'id'>): void {
@@ -1432,6 +1447,14 @@ export class Game implements GameLike {
     return rec ? this.toRevealInfo(rec) : null;
   }
 
+  ruinsConditions(): RuinsConditions | undefined {
+    return this.ruins?.snapshot();
+  }
+
+  isMoveBlocked(pid: PlayerId, room: RoomId): boolean {
+    return this.ruins?.blocksEntry(this.players[pid].room, room) ?? false;
+  }
+
   snapshot(): Record<string, unknown> {
     const players = this.playerIds.map((pid) => {
       const p = this.players[pid];
@@ -1449,6 +1472,7 @@ export class Game implements GameLike {
       phase: this.phase,
       players,
       roomIds: this.roomIds,
+      ruins: this.ruinsConditions(),
       submittedIds: this.submittedIds.filter((pid) => this.players[pid]?.alive),
       pendingCount: Object.keys(this.pendingThrows).length,
       qualified: this.qualified,

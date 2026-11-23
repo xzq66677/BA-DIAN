@@ -1,7 +1,39 @@
 # TASKS.md · 拔典开发任务追踪
 
-> 自动维护。状态：TODO / IN_PROGRESS / DONE / BLOCKED
-> 开发时间：2026-11-19 15:19 — 16:16（约 1 小时实际执行，远未到 10 小时窗口，全部任务提前完成）
+> 原始开发记录：2026-11-19 15:19 — 16:16（约 1 小时）。
+
+## 未完成任务汇总
+
+2026-11-23 核对 GitHub `main`（`b1fa2d0`）、Issue 和 PR。历史明细按原章节顺序接续，历史轮次标题记录当时的状态。 [云端提交](https://github.com/xzq66677/BA-DIAN/commit/b1fa2d0b801e164afc712fee717b749a844cdb91) · [开放 Issue](https://github.com/xzq66677/BA-DIAN/issues?q=is%3Aissue+is%3Aopen)
+
+| 编号 | 未完成事项 | 状态 | 剩余工作及来源 |
+|---|---|---|---|
+| T-13 / #43 | 本地多人无法攻击 1P、单人局 AI 五连鞭要求玩家代判 | TODO（P0） | 复现两个场景，核对目标选择和判定参与者，确认是否同源。 [Issue #43](https://github.com/xzq66677/BA-DIAN/issues/43) |
+| T-11 / #23 | 完善五条悟技能和机制 | IN_PROGRESS（MMR12345） | 核对领域规则、数值与特殊技能。 [Issue #23](https://github.com/xzq66677/BA-DIAN/issues/23) |
+| T-12 / #31 | 完善精神攻击定义与逻辑 | TODO（P1） | 统一核对大贱客、大屁孩、马保国的精神攻击语义及太极反弹优先级。 [Issue #31](https://github.com/xzq66677/BA-DIAN/issues/31) |
+| T-10 / #16 | 完善躲藏机制 | TODO（P1） | 确认目标锁定、解除条件、范围伤害及无视躲藏例外。 [Issue #16](https://github.com/xzq66677/BA-DIAN/issues/16) |
+| #28 | 落地每局最多 10 人并确认代判规则 | TODO（P1） | 2026-11-23 用户确认最多 10 人。云端 `main` 的加入房间与添加 AI 仍按 20 人判断，待统一服务端容量、前端选项及规则文档。代判起始人数与适用判定待决定。 [服务端实现](https://github.com/xzq66677/BA-DIAN/blob/b1fa2d0b801e164afc712fee717b749a844cdb91/server/src/index.ts#L167-L241) · [Issue #28](https://github.com/xzq66677/BA-DIAN/issues/28) |
+| #26 | 统一远程瞄准文档 | TODO | 远程默认免瞄准已实现（T-520）。规则表仍把吹箫哥列为需瞄准示例，与同文角色条目及实现冲突。 [规则文档](docs/GAME_RULES.md#3-行动基础) · [Issue #26](https://github.com/xzq66677/BA-DIAN/issues/26) |
+| #11 | 核对角色默认血量与大伊万例外 | 待规则确认 | 大屁孩和伍六七在 `main` 为 3 血，小女孩按已关闭的 #6 定为 2 血。需确认 #11 的默认 3 血要求如何适用。 [Issue #6](https://github.com/xzq66677/BA-DIAN/issues/6) · [Issue #11](https://github.com/xzq66677/BA-DIAN/issues/11) |
+| #18 | 排查九位初始角色机制 | TODO | 逐角色核对规则与实现，并在 Issue 登记已检查名单。 [Issue #18](https://github.com/xzq66677/BA-DIAN/issues/18) |
+| #2 | 排查其他角色机制并复核新增角色接口 | TODO | 小女孩的爆炸逻辑已由 #6 落地。剩余角色逻辑与新增角色规则接口仍待排查。 [Issue #2](https://github.com/xzq66677/BA-DIAN/issues/2) |
+| MAP-102 | 10 人同房名牌重叠 | TODO | 显示层补测中，三种视口均可通过键盘选中房间和角色。名牌在桌面、手机竖屏和手机横屏分别有 3、8、3 对重叠。 [地图任务清单](MAP_TASKS.md#验收与回滚) |
+| MAP-103 | 精简模式移动端硬件验收 | 待手机实测 | 桌面 Intel UHD 已跑两局，像素比均从 1.55 降至 1，重开资源计数未增长。目标手机上的帧耗时、分辨率与资源趋势仍待实测。 [地图任务清单](MAP_TASKS.md#验收与回滚) |
+| MAP-104 | 触屏安全区域和缩放 | TODO | 已支持单指拖拽与滚轮。仍缺双指缩放、屏幕安全区和手机横竖屏验收。 [地图任务清单](MAP_TASKS.md#后续待领) |
+| MAP-006 | 首图天气、泥潭与泄水闸手机验收 | 待手机实测 | 记录天气和泥潭在精简模式的可读性、触控选房、开闸和切换 2D。 [地图任务清单](MAP_TASKS.md#核心交付) |
+| MAP-106 | 第二主题配置样例 | BLOCKED | 等待首发地图的硬件与人工验收。 [地图任务清单](MAP_TASKS.md#后续待领) |
+| V5.0-B | 正常镜头下的角色辨识度与手机真机 | 待人工验收 | 在桌面及手机默认镜头下辨认五条悟，检查名牌、揭示栏遮挡和触控反馈。 [角色 QA](plugins/character-pipeline/examples/first-character/character-qa.md) |
+| V4.3 / B-031 | 3D 长局稳定性、真实触控和演出节奏 | 待真机验收 | 验证手机和桌面 GPU 的 WebGL 长局稳定性及降级，检查顶栏触摸、横竖屏切换和镜头手势，观察高频战局演出时长。 [原验收遗留](#v43-遗留与下一阶段建议) |
+| T-1924 | 躲藏提示和密集名牌验收 | 待验收 | 补测躲藏提示的端到端场景。多人同房的名牌可读性见 MAP-102。 [V4.4 验收记录](#二十四轮--v443d-战场体验迭代用户-11-项需求2026-11-21) |
+| T-613 | 3D 聚焦镜头与全局播报横幅 | 待真机验收 | 目视复验真实设备上的横幅层级，并观察超长局的播报队列延迟。 [PR #42](https://github.com/xzq66677/BA-DIAN/pull/42) |
+| P2-2 | 观战模式 | TODO | 支持无座位加入并实时查看公开战场和日志。 [优化路线图](docs/OPTIMIZATION_PLAN.md#二后续路线图p2-待实施按价值排序) |
+| P2-3 | 按速查表扩充角色库 | TODO | 按规则完整度分批补充角色。 [优化路线图](docs/OPTIMIZATION_PLAN.md#二后续路线图p2-待实施按价值排序) |
+| P2-5 | 稳定公网地址 | 待部署核实 | 核实现有公网入口是否已固定，原方案为 Cloudflare 命名隧道。 [优化路线图](docs/OPTIMIZATION_PLAN.md#二后续路线图p2-待实施按价值排序) |
+| P2-7 | 房间状态持久化 | TODO | 服务重启后恢复未结束的对局。 [优化路线图](docs/OPTIMIZATION_PLAN.md#二后续路线图p2-待实施按价值排序) |
+| P2-8 | 跨局角色战绩统计 | TODO | 汇总角色胜率和对局数并落盘。T-704 已完成独立的局内面板。 [优化路线图](docs/OPTIMIZATION_PLAN.md#二后续路线图p2-待实施按价值排序) |
+| P2-9 | 移动端卡牌手势 | TODO | 横屏布局已有实现（T-702、V4.2）。路线图仍有卡牌拖动选目标的手势项，地图镜头触控见 MAP-104。 [优化路线图](docs/OPTIMIZATION_PLAN.md#二后续路线图p2-待实施按价值排序) |
+
+T-407 已由 T-415 解除阻塞。Issue #39 已随 PR #42 合并，真机复验见 T-613。云端开放的 #13 是标为 `status: done` 的治理记录。对局回放已实现，按 T-805 暂停开放。 [Issue #13](https://github.com/xzq66677/BA-DIAN/issues/13) · [Issue #39](https://github.com/xzq66677/BA-DIAN/issues/39)
 
 ## V5.0-B · 五条悟 3D 与角色工作流
 
@@ -74,7 +106,7 @@
 | T-404 | 机制测试场页 | DONE | 与 vitest 同源数据 |
 | T-405 | 前端构建验证 | DONE | 2.53s，75 模块 |
 | T-406 | UI 组件测试（jsdom） | DONE | 4 用例（含测试场页全量运行 89 用例全 PASS） |
-| T-407 | 真实 Chromium 端到端点击测试 | BLOCKED | 服务器缺图形系统库且无 sudo；已尝试 Playwright |
+| T-407 | 真实 Chromium 端到端点击测试 | DONE | 初次尝试缺少系统库，安装后由 T-415 补测通过。云端 PR #42 的回归包含 5 个真实 Chromium 用例。 |
 
 ## 阶段5 · 测试修复与回归
 
@@ -683,21 +715,13 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 
 | 编号 | 任务 | 说明 |
 |---|---|---|
-| T-2500 | 引擎 judge 阶段 + 判定队列 | GamePhase 新增 judge；新增 judgeQueue / activeJudge / judgeResume / deferredDamage；公开 
-equestJudge / deferDamageJudge / submitJudgeThrow / orceFillJudgeThrows / skillJudgeView()；判定在行动后或回合末的安全点暂停收拳，结算完再恢复（
-esumeAfterJudges） |
-| T-2501 | 太极改为双方出拳 | 受伤时**挂起伤害**（deferredDamage + 
-eq.judgeResolved），双方各出一拳；赢则原伤反弹、平局/输则补结算正常受伤；反弹链仍由 
-eflected 终止；大伊万/肉山 
-oReflect 例外不变 |
+| T-2500 | 引擎 judge 阶段 + 判定队列 | GamePhase 新增 judge；新增 judgeQueue / activeJudge / judgeResume / deferredDamage；公开 `requestJudge` / `deferDamageJudge` / `submitJudgeThrow` / `forceFillJudgeThrows` / `skillJudgeView()`；判定在行动后或回合末的安全点暂停收拳，结算完再恢复（`resumeAfterJudges`） |
+| T-2501 | 太极改为双方出拳 | 受伤时**挂起伤害**（`deferredDamage` + `req.judgeResolved`），双方各出一拳；赢则原伤反弹、平局/输则补结算正常受伤；反弹链仍由 `reflected` 终止；大伊万/肉山 `noReflect` 例外不变 |
 | T-2502 | 五连鞭改为双方出拳 + 当前血量 | 5 局逐局提交/揭牌；伤害改为 胜次 × 20% × 目标当前血量，仍为**单次总量**（一条伤害事件） |
-| T-2503 | 不讲武德改为双方出拳 + 精神攻击 | 死后 5 局判定；赢 ≥3 局对击杀者发动 dtype: 'mental' 伤害（伤害 = 其当前血量，
-oReflect、ypassHide）；checkWin 在存在待结算不讲武德时延迟判胜，保留同归于尽语义 |
+| T-2503 | 不讲武德改为双方出拳 + 精神攻击 | 死后 5 局判定；赢 ≥3 局对击杀者发动 dtype: 'mental' 伤害（伤害 = 其当前血量，`noReflect`、`bypassHide`）；checkWin 在存在待结算不讲武德时延迟判胜，保留同归于尽语义 |
 | T-2504 | 兼容模式 | skillJudgeMode: 'serverRoll' 保留旧的种子代掷即结算路径；共享用例助手与 AI 模拟用例显式使用该模式，避免 474 条存量用例被交互流程污染 |
 | T-2505 | 服务端与客户端 | game:throw 按阶段路由（rps1/rps2/judge）；kickAI 即刻代出判定出拳；超时代掷与 AI 看门狗覆盖 judge；游戏页新增技能判定出拳面板（交设备遮罩、等待态、局数/胜负提示）、座位已出拳角标 |
-| T-2506 | 测试与验收 | 新增 	ests/skill-judge.test.ts（12）+ 	ests/ui/skill-judge-ui.test.tsx（2）；
-pm test **28 文件 / 488 用例全过**；client/server 	sc --noEmit 双 0 错误；
-pm run build 通过 |
+| T-2506 | 测试与验收 | 新增 `tests/skill-judge.test.ts`（12）+ `tests/ui/skill-judge-ui.test.tsx`（2）；`npm test` **28 文件 / 488 用例全过**；client/server `tsc --noEmit` 双 0 错误；`npm run build` 通过 |
 | T-2507 | 文档 | GAME_RULES（马保国条目、阶段流程、A-03、待确认 4、伤害管线）、KNOWN_ISSUES、ARCHITECTURE（阶段机）、README（角色表/测试数）、CONTRIBUTING、CHANGELOG、docs/characters/mabaoguo.md 同步 |
 
 ## 二十六轮 · 全局播报机制代替日志翻找（Issue #39 / T-6.0.1，2026-11-22）

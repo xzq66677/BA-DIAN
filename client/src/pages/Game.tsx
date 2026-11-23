@@ -5,6 +5,7 @@ import {
 } from '../net.js';
 import type { SessionInfo } from '../App.js';
 import { CHARACTERS } from '../../../shared/src/characters/index.js';
+import { canOpenSluice, mudBlocksEntry, RUINS_WEATHER_NAME } from '../../../shared/src/floating-ruins.js';
 import { cardMeta } from '../cards.js';
 import ReplayViewer from './Replay.js';
 import {
@@ -191,6 +192,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   const myTurnId = myIds.find((i) => i.playerId === game.currentActor);
 
   const actor = game.players.find(p => p.id === myTurnId?.playerId) ?? me;
+  const mud = game.ruins?.mud;
+  const blockedRoom = selAction?.key === 'move' && mud && actor && mudBlocksEntry(game.ruins, actor.room, mud.room) ? mud.room : '';
 
   // 可选行动列表（基础 + 角色）
   const options: ActionOption[] = useMemo(() => {
@@ -204,6 +207,9 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
       { key: 'hide', label: '躲藏', desc: '指向性攻击无法锁定；AOE与无视躲避攻击仍可命中', typeLabel: '基础' },
     ];
     if (actor.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标（伤害1），无需瞄准；无法近战';
+    if (canOpenSluice(game.ruins, actor.room)) {
+      list.push({ key: 'openSluice', label: '开启泄水闸', desc: '排空本房积水，解除下一回合的泥潭预警。消耗本次行动。', typeLabel: '地图' });
+    }
     if (hiddenSameRoomCount(game, actor.id) > 0) list.push({ key: 'seek', label: '找出来', desc: '找出同房间躲藏的玩家', typeLabel: '基础', targetHint: 'seek' });
     if (cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && actor.char.domain === true)) {
       list.push({ key: 'aim', label: '瞄准', desc: '锁定一名玩家（远程攻击前必须瞄准）', typeLabel: '基础', targetHint: 'aim' });
@@ -273,6 +279,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     }
     if (needRoom) {
       if (!selRoom) { setActMsg('请先点击战场中发绿光的房间'); return; }
+      if (selRoom === blockedRoom) { setActMsg(`${selRoom} 泥潭封路，请选择其他房间`); return; }
       action.room = selRoom;
     }
     if (selAction.key === 'attack' && validTargets.find((t) => t.id === selTarget)?.room !== actor?.room) action.ranged = true;
@@ -378,6 +385,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     targetablePids,
     roomPickMode,
     selectedRoom: selRoom,
+    blockedRoom,
     selectedPlayer: selTarget,
     reducedMotion,
     automaticCamera,
@@ -438,6 +446,12 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         <span className="tcg-chip">第 <b>{game.roundNo}</b> 回合</span>
         <span className="tcg-chip hot">{phaseText()}</span>
         <span className="tcg-chip">存活 {game.aliveCount}</span>
+        {game.ruins && (
+          <span className="tcg-chip ruins-weather-chip" data-weather={game.ruins.weather} role="status">
+            {RUINS_WEATHER_NAME[game.ruins.weather]}
+            {mud && <span className="ruins-mud-chip" data-active={mud.active}> · {mud.room} {mud.active ? '泥潭封路' : `第 ${mud.activeRound} 回合泥潭预警`}</span>}
+          </span>
+        )}
         {lobby.seats.some((s) => s.type === 'ai') && (
           <span className="tcg-chip" title="AI 难度（房主可在房间里调整）">
             🤖 AI {AI_LABEL[lobby.aiDifficulty || 'normal']}
@@ -615,6 +629,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                 <span className="bt-mine-icon">🏠</span>
                 <span>◈ {me.room} · 我的房间</span>
                 <span className="zone-n">{myRoomMembers.length} 人{myRoomMembers.some((m) => m.id === game.currentActor) ? ' · 行动中' : ''}</span>
+                {mud?.room === me.room && <span className="ruins-mud-chip" data-active={mud.active}>{mud.active ? '泥潭封路' : '积水预警'}</span>}
                 {myRoomPendingIvan && (
                   <span className="ivan-pending bt-mine-pending" title={`大伊万预计在第 ${myRoomPendingIvan.explodeRound} 回合末爆炸（平局回合顺延）`}>
                     💣 预计第 {myRoomPendingIvan.explodeRound} 回合末爆炸
@@ -798,8 +813,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                         <select aria-label="目标房间" value={selRoom} onChange={(e) => setSelRoom(e.target.value)}>
                           {use3d && <option value="">选择目标房间</option>}
                           {game.roomIds.map((r) => (
-                            <option key={r} value={r}>
-                              {r}（{game.players.filter((p) => p.alive && p.room === r).map((p) => p.name).join('、') || '空'}）
+                            <option key={r} value={r} disabled={r === blockedRoom}>
+                              {r}（{game.players.filter((p) => p.alive && p.room === r).map((p) => p.name).join('、') || '空'}{r === blockedRoom ? ' · 泥潭封路' : ''}）
                             </option>
                           ))}
                         </select>
@@ -821,7 +836,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                           </span>
                         );
                       })()}
-                      <button className="tcg-btn" disabled={(!!selAction.targetHint && !selTarget) || ((selAction.roomHint || selAction.key === 'move') && use3d && !selRoom)} onClick={confirmAction}>确认发动</button>
+                      {blockedRoom && <span className="ruins-mud-chip" data-active="true">{blockedRoom} 泥潭封路，下回合恢复</span>}
+                      <button className="tcg-btn" disabled={(!!selAction.targetHint && !selTarget) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom))} onClick={confirmAction}>确认发动</button>
                       <button className="tcg-btn ghost" onClick={resetSelection}>取消</button>
                       {actMsg && <span className="error-text">{actMsg}</span>}
                     </div>
@@ -1158,6 +1174,7 @@ function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTarge
   const alertHere = pres.zoneAlert?.room === rid;
   const boomHere = pres.ivanBoom?.room === rid;
   const pendingIvan = game.deferred?.find((d) => d.kind === 'ivan' && d.room === rid);
+  const mud = game.ruins?.mud?.room === rid ? game.ruins.mud : null;
   const isWinnerRoom = game.phase === 'over' && game.winner && members.some((m) => m.id === game.winner);
   // 弧形错落：两侧房间略微下沉（中轴最高）
   const mid = (arcLen - 1) / 2;
@@ -1173,6 +1190,7 @@ function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTarge
         <span className="bt-room-icon">{ROOM_TOTEM[rid] ?? '◈'}</span>
         <span className="bt-room-name">◈ {rid}</span>
         <span className="zone-n">{members.length > 0 ? `${members.length} 人${hasActor ? ' · 行动中' : ''}` : '空房间'}</span>
+        {mud && <span className="ruins-mud-chip" data-active={mud.active}>{mud.active ? '泥潭封路' : '积水预警'}</span>}
       </div>
       <div className="bt-room-cards">
         {members.length === 0 && <div className="zone-empty">{pendingIvan ? '💣 待爆炸' : '空房间'}</div>}

@@ -189,6 +189,7 @@ export class Room {
     this.gameNo++;
     this.game = new Game({
       seed: usedSeed, players, chars: CHARACTERS, rules: this.config.rules,
+      floatingRuins: true,
       // 续接上一局的日志序号，保证同一房间内 seq 单调递增（否则第二局日志会被当成重复丢弃）
       logSeqOffset: this.logSeqCursor,
     });
@@ -741,7 +742,7 @@ export function aiDecideActions(g: Game, pid: PlayerId, difficulty: AiDifficulty
   const sameRoom = g.roomMembers(me.room).filter((p) => p !== pid && !g.players[p].hidden && !g.players[p].invisible);
   for (const t of sameRoom) push({ type: 'attack', targetId: t });
   if (me.hp < me.maxHp) push({ type: 'heal' });
-  const otherRoom = g.roomIds.find((r) => r !== me.room && g.roomMembers(r).length > 0);
+  const otherRoom = g.roomIds.find((r) => r !== me.room && !g.isMoveBlocked(pid, r) && g.roomMembers(r).length > 0);
   if (otherRoom) push({ type: 'move', room: otherRoom });
   if (g.rules.allowHide && !me.hidden) push({ type: 'hide' });
   push({ type: 'skip' });
@@ -761,7 +762,7 @@ function easyDecide(g: Game, pid: PlayerId): ActionRequest {
     return { type: 'attack', targetId: g.rng.pick(visible) };
   }
   if (visible.length > 0) return { type: 'attack', targetId: visible[0] };
-  const rooms = g.roomIds.filter((r) => r !== me.room);
+  const rooms = g.roomIds.filter((r) => r !== me.room && !g.isMoveBlocked(pid, r));
   if (rooms.length > 0) return { type: 'move', room: g.rng.pick(rooms) };
   return { type: 'skip' };
 }
@@ -845,7 +846,7 @@ function normalDecide(g: Game, pid: PlayerId): ActionRequest {
   }
   if (me.hp < me.maxHp) return { type: 'heal' };
   const roomScores = g.roomIds
-    .filter((r) => r !== me.room)
+    .filter((r) => r !== me.room && !g.isMoveBlocked(pid, r))
     .map((r) => ({ r, n: g.roomMembers(r).length }))
     .sort((a, b) => b.n - a.n);
   if (roomScores.length > 0 && roomScores[0].n > 0) {
@@ -902,7 +903,7 @@ function hardDecide(g: Game, pid: PlayerId): ActionRequest {
   });
   if (danger && me.hp < me.maxHp) return { type: 'heal' };
   if (danger && sameRoom.length > 0) {
-    const safe = g.roomIds.find((r) => r !== me.room && g.roomMembers(r).length === 0);
+    const safe = g.roomIds.find((r) => r !== me.room && !g.isMoveBlocked(pid, r) && g.roomMembers(r).length === 0);
     if (safe) return { type: 'move', room: safe };
   }
 
@@ -929,7 +930,7 @@ function hardDecide(g: Game, pid: PlayerId): ActionRequest {
   // 5) 房间空了：补血后主动找人（优先人多且有残血的房间）
   if (me.hp < me.maxHp) return { type: 'heal' };
   const rooms = g.roomIds
-    .filter((r) => r !== me.room)
+    .filter((r) => r !== me.room && !g.isMoveBlocked(pid, r))
     .map((r) => {
       const mem = g.roomMembers(r);
       const weak = mem.filter((m) => g.players[m].hp <= myAtk).length;
