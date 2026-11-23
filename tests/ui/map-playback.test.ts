@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CameraDirector } from '../../client/src/battle3d/camera-director.js';
 import { defaultPose } from '../../client/src/battle3d/layout.js';
-import { projectMapSnapshot } from '../../client/src/battle3d/map-playback.js';
+import { playMapEvent, projectMapSnapshot, type MapPlaybackScene } from '../../client/src/battle3d/map-playback.js';
 import type { SnapLite } from '../../client/src/battle3d/scene.js';
 import { parseBattleEvent, type BattleEvent } from '../../client/src/battle/events.js';
 import { BattleEventQueue } from '../../client/src/battle/queue.js';
@@ -327,4 +327,33 @@ describe('MAP-105 边角案例 · 重复播报与倍速', () => {
     expect(kinds.indexOf('ivanBoom')).toBeLessThan(kinds.indexOf('damage'));
     expect(kinds.indexOf('damage')).toBeLessThan(kinds.indexOf('eliminate'));
   });
+});
+
+
+it('routes the authoritative queue events to production scene methods with playback timing', () => {
+  const scene: MapPlaybackScene = {
+    playAttackDecl: vi.fn(), playAction: vi.fn(), playAreaAlert: vi.fn(), playHit: vi.fn(),
+    playHeal: vi.fn(), playMiss: vi.fn(), playEliminate: vi.fn(), playRevive: vi.fn(), playWalk: vi.fn(),
+    playIvanThrow: vi.fn(), playIvanBoom: vi.fn(), playTrigger: vi.fn(), playDomain: vi.fn(),
+  };
+  const events: BattleEvent[] = [
+    { seq: 10, kind: 'attackDecl', sourceId: 'a', targetId: 'p' },
+    { seq: 11, kind: 'area', areaRooms: ['far', 'origin'] },
+    move, { seq: 12, kind: 'ivanThrow', pid: 'p', room: 'far' }, boom, hit, death,
+    { seq: 13, kind: 'revive', targetId: 'p', livesLeft: 2 },
+  ];
+  events.forEach((event) => playMapEvent(scene, event, 1000));
+  expect(scene.playAttackDecl).toHaveBeenCalledWith('a', 'p');
+  expect(scene.playAreaAlert).toHaveBeenCalledTimes(1);
+  expect(scene.playAreaAlert).toHaveBeenCalledWith(['far', 'origin']);
+  expect(scene.playWalk).toHaveBeenCalledWith('p', 'origin', 'far');
+  expect(scene.playIvanThrow).toHaveBeenCalledWith('p', 'far', expect.any(Number));
+  expect(vi.mocked(scene.playIvanThrow).mock.calls[0][2]).toBeCloseTo(0.97);
+  expect(scene.playIvanBoom).toHaveBeenCalledWith('far');
+  expect(scene.playHit).toHaveBeenCalledWith('p', expect.objectContaining({ hpBefore: 3, hpAfter: 0, lethal: true }));
+  expect(scene.playEliminate).toHaveBeenCalledWith('p');
+  expect(scene.playRevive).toHaveBeenCalledWith('p', 2);
+  expect(vi.mocked(scene.playIvanBoom).mock.invocationCallOrder[0]).toBeLessThan(
+    vi.mocked(scene.playEliminate).mock.invocationCallOrder[0],
+  );
 });

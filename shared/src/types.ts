@@ -3,6 +3,8 @@
  * 规则引擎完全独立于前端与网络层。
  */
 
+import type { MatchTranscript } from './simulation-types.js';
+
 export type Throw = 'rock' | 'scissors' | 'paper';
 
 export type PlayerId = string;
@@ -154,6 +156,7 @@ export type LogType =
   | 'eliminate' | 'trigger' | 'state' | 'deferred' | 'error' | 'result' | 'info';
 
 export interface LogEntry {
+  v?: number;
   seq: number;
   round: number;
   sub: number;
@@ -383,6 +386,10 @@ export interface ReplaySummary {
 }
 
 export interface ReplayRecord extends ReplaySummary {
+  v?: number;
+  truncated?: boolean;
+  /** Finished matches may contain private inputs that have since been resolved. */
+  simulation?: MatchTranscript;
   frames: ReplayFrame[];
 }
 

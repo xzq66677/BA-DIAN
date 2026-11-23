@@ -11,3 +11,6 @@ export * from './chardef.js';
 export * from './engine.js';
 export * from './characters/index.js';
 export * from './testcases/index.js';
+export * from './protocol.js';
+export * from './simulation-types.js';
+export * from './simulation.js';

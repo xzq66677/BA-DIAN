@@ -4,7 +4,7 @@
  * 禁止在引擎中堆砌 if/else 硬编码角色逻辑。
  */
 
-import type { PlayerId, RoomId, ActionRequest, DamageRequest, Throw } from './types.js';
+import type { PlayerId, RoomId, ActionRequest, CharRuntimeState, DamageRequest, PlayerState, Throw } from './types.js';
 
 /** 前置声明引擎接口，避免循环导入（运行时由 engine.ts 实现） */
 export interface GameLike {
@@ -114,7 +114,19 @@ export interface JudgeAppendCtx {
   sub: number;
 }
 
+export interface CharacterAiContext {
+  game: Pick<GameLike, 'roundNo' | 'players' | 'roomIds' | 'roomMembers' | 'isSameRoom'>;
+  difficulty: 'normal' | 'hard';
+  pid: PlayerId;
+  me: PlayerState;
+  st: CharRuntimeState;
+  members: PlayerId[];
+  alive: PlayerId[];
+}
+
 export interface CharDef {
+  /** 可选的角色优先行动。返回 undefined 时由服务器使用通用策略。 */
+  aiStrategy?(ctx: CharacterAiContext): ActionRequest | undefined;
   id: string;
   name: string;
   desc: string;

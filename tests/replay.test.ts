@@ -3,9 +3,11 @@
  * 服务端按状态变化录制帧，对局结束归档；回放只包含「已结算」的公开信息。
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Room } from '../server/src/room.js';
 import { CHARACTERS } from '../shared/src/characters/index.js';
+import { replayMatch } from '../shared/src/simulation.js';
+import { PROTOCOL_VERSION, REPLAY_FORMAT_VERSION } from '../shared/src/protocol.js';
 import type { Throw } from '../shared/src/types.js';
 
 function makeRoom(names: string[]) {
@@ -107,5 +109,121 @@ describe('对局回放', () => {
     expect(room.game).toBeNull();
     expect(room.replayList()).toHaveLength(0);
     room.dispose();
+  });
+});
+
+
+describe('可重演对局输入', () => {
+  it('保留 AI 随机流、超时代掷和批量离席，重演快照与完整日志一致', () => {
+    vi.useFakeTimers();
+    const room = new Room('REPLAY', { submitTimeoutMs: 20, turnTimeoutMs: 20, aiDifficulty: 'easy' });
+    const host = room.addSeat('A', 'default', 'human').playerId;
+    const guest = room.addSeat('B', 'default', 'human').playerId;
+    const ai = room.addSeat('AI', 'gojo', 'ai').playerId;
+    try {
+      room.start(42);
+      expect(room.currentReplay()?.simulation).toBeUndefined();
+      expect(room.game?.snapshot().v).toBe(PROTOCOL_VERSION);
+      vi.advanceTimersByTime(60);
+      if (!room.game!.isOver()) room.removeParticipants([guest, ai], 'left');
+      expect(room.state).toBe('over');
+      const record = room.replays[0];
+      expect(record.v).toBe(REPLAY_FORMAT_VERSION);
+      const transcript = structuredClone(record.simulation!);
+      expect(transcript.inputs.some(({ input }) => input.kind === 'throwTimeout')).toBe(true);
+      expect(transcript.inputs.some(({ rngAdvance }) => rngAdvance > 0)).toBe(true);
+      expect(transcript.inputs.at(-1)?.input.kind).toBe('remove');
+      expect(replayMatch(transcript, 0).snapshot().phase).toBe('rps1');
+      const rebuilt = replayMatch(transcript);
+      expect(rebuilt.snapshot()).toEqual(room.game!.snapshot());
+      expect(rebuilt.logs).toEqual(room.game!.logs);
+      expect(rebuilt.rng.next()).toBe(room.game!.rng.next());
+      expect(rebuilt.winner).toBe(host);
+      expect(() => replayMatch(transcript, transcript.inputs.length + 1)).toThrow(RangeError);
+    } finally {
+      room.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('可重演技能判定的中间一拳，随后独立重演至终局', () => {
+    const room = new Room('JUDGE', { submitTimeoutMs: 0, turnTimeoutMs: 0 });
+    const a = room.addSeat('A', 'mabaoguo', 'human').playerId;
+    const b = room.addSeat('B', 'default', 'human').playerId;
+    const c = room.addSeat('C', 'default', 'human').playerId;
+    try {
+      room.start(7);
+      const winThrow = () => {
+        expect(room.submitThrow(a, 'rock').ok).toBe(true);
+        expect(room.submitThrow(b, 'scissors').ok).toBe(true);
+        expect(room.submitThrow(c, 'scissors').ok).toBe(true);
+      };
+      winThrow();
+      expect(room.submitAction(a, { type: 'move', room: 'R2' }).ok).toBe(true);
+      winThrow();
+      expect(room.submitAction(a, { type: 'whip5', targetId: b }).ok).toBe(true);
+      expect(room.submitThrow(a, 'rock').ok).toBe(true);
+      const partial = room.game!.snapshot();
+      expect(partial.judge).toMatchObject({ submittedIds: [a], last: null });
+      for (let round = 1; round <= 5; round++) {
+        if (round > 1) room.submitThrow(a, 'rock');
+        room.submitThrow(b, 'scissors');
+      }
+      expect(room.game!.players[b].alive).toBe(false);
+      room.removeParticipants([c], 'left');
+
+      const transcript = room.replays[0].simulation!;
+      const skill = transcript.inputs.findIndex(({ input }) => input.kind === 'action' && input.action.type === 'whip5');
+      expect(skill).toBeGreaterThan(0);
+      const duringJudge = replayMatch(transcript, skill + 2);
+      expect(duringJudge.snapshot()).toEqual(partial);
+      expect(replayMatch(transcript).logs).toEqual(room.game!.logs);
+    } finally {
+      room.dispose();
+    }
+  });
+
+  it('移除排序参与者后立即推进，只产生一次终局归档与通知', () => {
+    const { room, seats } = makeRoom(['A', 'B', 'C', 'D']);
+    const [a, b, c, d] = seats.map((seat) => seat.playerId);
+    const ended = vi.fn();
+    room.onGameOver = ended;
+    try {
+      room.start(42);
+      room.submitThrow(a, 'rock');
+      room.submitThrow(b, 'rock');
+      room.submitThrow(c, 'scissors');
+      room.submitThrow(d, 'scissors');
+      expect(room.game?.phase).toBe('rps2');
+      room.removeParticipants([a], 'left');
+      expect(room.game?.currentActor()).toBe(b);
+      room.removeParticipants([c, d], 'left');
+      expect(room.state).toBe('over');
+      expect(room.replays).toHaveLength(1);
+      expect(ended).toHaveBeenCalledTimes(1);
+      expect(replayMatch(room.replays[0].simulation!).snapshot()).toEqual(room.game!.snapshot());
+    } finally {
+      room.dispose();
+    }
+  });
+
+  it('动画帧达上限仍保留终局帧和完整可重演输入', () => {
+    const { room, seats } = makeRoom(['A', 'B']);
+    const [a, b] = seats.map((seat) => seat.playerId);
+    try {
+      room.start(7);
+      for (let round = 0; round < 752; round++) {
+        room.submitThrow(a, 'rock');
+        room.submitThrow(b, 'rock');
+      }
+      room.removeParticipants([b], 'left');
+      const [record] = room.replays;
+      expect(record.truncated).toBe(true);
+      expect(record.frames).toHaveLength(1500);
+      expect(record.frames.at(-1)).toMatchObject({ i: 1499, phase: 'over', winner: a });
+      expect(replayMatch(record.simulation!).logs).toEqual(room.game!.logs);
+    } finally {
+      room.dispose();
+    }
   });
 });

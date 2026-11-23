@@ -5,7 +5,7 @@
 服务器上已安装定时器 `badian-autodeploy.timer`：**每 2 分钟**检查 GitHub 仓库 `origin/main`。
 
 - 你把改动推到 `main`（GitHub 网页编辑、本地 push、其他工具推送都可以）
-- 2 分钟内服务器自动：拉取 → 构建 → 重启服务
+- 定时器发现新提交后拉取，先跑回归测试，通过后构建并重启服务
 - 无需你登录服务器
 
 查看自动部署日志：
@@ -30,8 +30,8 @@ npm run deploy          # 等价于 bash scripts/deploy.sh
 脚本做的事：
 1. 检查工作区是否干净（有未提交改动会中止，避免覆盖）
 2. `git pull --ff-only origin main`
-3. 若 `package.json` 有变更 → `npm ci`
-4. `npm run build`（服务端 tsc + 客户端 vite）
+3. 依赖清单或锁文件变化时运行 `npm ci`
+4. 回归测试通过后运行 `npm run build`（服务端和客户端 TypeScript 检查及打包）
 5. 重启服务（优先 systemctl，无免密权限时结束进程由 systemd 自动拉起）
 6. 健康检查 `http://127.0.0.1:3100/api/health`
 7. 打印线上地址（来自 `TUNNEL_URL.txt`）
@@ -41,7 +41,13 @@ npm run deploy          # 等价于 bash scripts/deploy.sh
 DEPLOY_BRANCH=main bash scripts/deploy.sh
 ```
 
-## 三、服务与地址
+## 三、合并前验证
+
+`npm test` 使用真实本地 TCP 连接。GitHub CI 分别跑联机集成、构建及 Chromium E2E。
+
+本地运行环境不允许连接回环地址时，可用 Node 22.6 或更高版本执行 `npm run test:in-process`。它运行同一套测试，用进程内传输把真实 Chromium 发出的 HTTP 和 WebSocket 请求交给服务器。先用 `npx playwright install chromium` 安装浏览器。合并前仍以 CI 的 TCP 测试结果为准。
+
+## 四、服务与地址
 
 | 项 | 说明 |
 |---|---|
@@ -51,7 +57,7 @@ DEPLOY_BRANCH=main bash scripts/deploy.sh
 | 服务日志 | `journalctl -u badian -n 100` 或 `/var/log/badian.log` |
 | 隧道日志 | `/var/log/badian-tunnel.log` |
 
-## 四、常见问题
+## 五、常见问题
 
 **Q：推了代码但线上没变？**
 1. 看日志 `tail -20 /var/log/badian-deploy.log`

@@ -3,218 +3,20 @@
  */
 
 import { io, type Socket } from 'socket.io-client';
-import type { RuinsConditions } from '../../shared/src/floating-ruins.js';
-import type { AnnounceItem } from '../../shared/src/announce.js';
+import { PROTOCOL_VERSION, supportsProtocol } from '../../shared/src/protocol.js';
+import type { Identity, RoomListEntry, RoomUpdate } from '../../shared/src/protocol.js';
+import type { ActionRequest, AiDifficulty, InteractionKind, Throw } from '../../shared/src/types.js';
 
-/** 全局播报条目（服务端权威，随 room:update 增量下发；类型定义见 shared/src/announce.ts） */
-export type { AnnounceItem };
-
-export interface Identity {
-  playerId: string;
-  name: string;
-  token: string;
-}
-
-export interface LobbySeat {
-  playerId: string;
-  name: string;
-  charId: string;
-  type: 'human' | 'ai' | 'local';
-  connected: boolean;
-}
-
-export interface LobbyState {
-  code: string;
-  state: 'lobby' | 'playing' | 'over';
-  /** 第几局（1 起，重开累加）：变化即代表新一局，战斗日志需清空重来 */
-  gameNo?: number;
-  hostSeat: string | null;
-  seats: LobbySeat[];
-  chat: { name: string; text: string; ts: number }[];
-  config: { submitTimeoutMs: number; turnTimeoutMs: number };
-  /** AI 难度（房主可调） */
-  aiDifficulty?: AiDifficulty;
-  /** 局内小互动（最近若干条，客户端按 id 增量播放动画） */
-  interactions?: InteractionEvent[];
-  /** 互动计数：给 / 收 */
-  interactionCounts?: Record<string, { given: number; got: number }>;
-  /** 已完成对局回放摘要 */
-  replays?: ReplaySummary[];
-}
-
-export type AiDifficulty = 'easy' | 'normal' | 'hard';
-export type InteractionKind = 'tomato' | 'egg' | 'flower';
-
-export interface InteractionEvent {
-  id: number;
-  from: string;
-  fromName: string;
-  to: string;
-  kind: InteractionKind;
-  ts: number;
-}
-
-export interface PlayerStats {
-  throwWin: number;
-  throwLose: number;
-  throwTie: number;
-  damageDealt: number;
-  damageTaken: number;
-  kills: number;
-  actions: number;
-  heals: number;
-  moves: number;
-  roundsAlive: number;
-}
-
-export interface ReplayPlayer {
-  id: string;
-  name: string;
-  charId: string;
-  charName: string;
-  hp: number;
-  maxHp: number;
-  room: string;
-  alive: boolean;
-  hidden: boolean;
-  invisible: boolean;
-  type: 'human' | 'ai' | 'local';
-  stats?: PlayerStats;
-}
-
-export interface ReplayFrame {
-  i: number;
-  roundNo: number;
-  phase: 'rps1' | 'rps2' | 'act' | 'roundEnd' | 'over';
-  subRound: number;
-  players: ReplayPlayer[];
-  roomIds: string[];
-  reveal: RevealInfo | null;
-  currentActor: string | null;
-  queue: string[];
-  actIndex: number;
-  aliveCount: number;
-  winner: string | null;
-  logs: { seq: number; type: string; text: string; important?: boolean }[];
-}
-
-export interface ReplaySummary {
-  id: string;
-  ts: number;
-  seed: number;
-  winner: string | null;
-  winnerName: string | null;
-  rounds: number;
-  frameCount: number;
-  players: { id: string; name: string; charId: string; charName: string }[];
-}
-
-export interface ReplayRecord extends ReplaySummary {
-  frames: ReplayFrame[];
-}
-
-export interface RoomListEntry {
-  code: string;
-  state: 'lobby' | 'playing' | 'over';
-  seatCount: number;
-  humans: number;
-  hostName: string;
-  updatedAt: number;
-}
-
-export interface SnapPlayer {
-  id: string; name: string; charId: string; charName: string;
-  hp: number; maxHp: number; room: string; originRoom: string;
-  alive: boolean; type: 'human' | 'ai' | 'local';
-  hidden: boolean; invisible: boolean;
-  char: Record<string, unknown>;
-}
-
-export interface SnapLog {
-  seq: number; round: number; sub: number;
-  phase: string; type: string; text: string;
-  important?: boolean;
-  data?: Record<string, unknown>;
-}
-
-/** 已揭示的出拳（判定结算后才下发，提交阶段为 null → 不泄露拳种） */
-export interface RevealInfo {
-  round: number;
-  stage: string;
-  sub: number;
-  throws: Record<string, string>;
-  outcome: string;
-  winners: string[];
-  losers: string[];
-}
-
-/** 技能内判定（马保国系）：进行中的出拳面板数据 */
-export interface SkillJudgeView {
-  kind: string;
-  label: string;
-  owner: string;
-  opponent: string;
-  /** 当前第几局（1-based） */
-  round: number;
-  rounds: number;
-  /** 己方已胜局数 */
-  wins: number;
-  submittedIds: string[];
-  waitingIds: string[];
-  last: { round: number; ownerThrow: string; opponentThrow: string; result: string } | null;
-}
-
-export interface GameSnapshot {
-  seed: number;
-  roundNo: number;
-  subRound: number;
-  phase: 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over';
-  players: SnapPlayer[];
-  roomIds: string[];
-  ruins?: RuinsConditions;
-  submittedIds: string[];
-  pendingCount: number;
-  qualified: string[];
-  queue: string[];
-  actIndex: number;
-  currentActor: string | null;
-  deferred: { id: string; kind: string; room: string; explodeRound: number; source?: string }[];
-  judgeRecords: { stage: string; sub: number; throws: Record<string, string>; outcome: string; winners?: string[]; losers?: string[] }[];
-  /** 出拳揭示：全员可见，仅在子轮结算完成后出现 */
-  reveal?: RevealInfo | null;
-  /** 本回合最近一次排序子轮的揭示（行动阶段用来说明行动顺序来源；无排序则 null） */
-  orderReveal?: RevealInfo | null;
-  /** 技能内判定（马保国系）：进行中的出拳面板数据；非判定阶段为 null */
-  judge?: SkillJudgeView | null;
-  /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
-  orderGroup?: string[];
-  orderSubmittedIds?: string[];
-  orderResult?: string[];
-  orderSub?: number;
-  /** 局内战绩（每人一份） */
-  stats?: Record<string, PlayerStats>;
-  /** 领域持有者（全场唯一；null 表示当前无领域生效） */
-  domainHolder?: string | null;
-  logs: SnapLog[];
-  winner: string | null;
-  aliveCount: number;
-}
-
-export interface RoomUpdate {
-  lobby: LobbyState;
-  game: GameSnapshot | null;
-  newLogs: SnapLog[];
-  /**
-   * 全局播报增量（与 newLogs 同批、所有座位同一份）。
-   * 旧服务端不发送该字段时为 undefined —— 客户端按「无播报」安全降级。
-   */
-  announces?: AnnounceItem[];
-  catchUp?: boolean;
-  you: string;
-}
+export type { AnnounceItem } from '../../shared/src/announce.js';
+export type { Identity, LobbySeat, LobbyState, RoomListEntry, SnapPlayer, SnapLog, GameSnapshot, RoomUpdate } from '../../shared/src/protocol.js';
+export type {
+  AiDifficulty, InteractionKind, InteractionEvent, PlayerStats, ReplayPlayer, ReplayFrame,
+  ReplaySummary, ReplayRecord, RevealInfo, SkillJudgeView,
+} from '../../shared/src/types.js';
 
 class Net {
   private socket: Socket | null = null;
+  private connecting: Promise<void> | null = null;
   identities: Identity[] = [];
   /** 当前房间码（断线重连时用于自动恢复座位绑定） */
   currentCode: string | null = null;
@@ -225,38 +27,64 @@ class Net {
   connected = false;
 
   connect(): Promise<void> {
-    if (this.socket && this.connected) return Promise.resolve();
-    // 部署在子路径（如 nginx /badian/）时，socket.io 路径自适应
-    const inSubPath = window.location.pathname.startsWith('/badian');
-    const socketPath = (inSubPath ? '/badian' : '') + '/socket.io';
-    return new Promise((resolve, reject) => {
-      this.socket = io({ transports: ['websocket', 'polling'], path: socketPath });
-      let connectedBefore = false;
-      this.socket.on('connect', () => {
-        const first = !connectedBefore;
-        connectedBefore = true;
-        this.connected = true;
-        resolve();
-        // 断线自动重连后：重新绑定座位（服务器 disconnect 时清除了 socketId）
-        if (!first && this.currentCode && this.identities.length > 0) {
-          const main = this.identities[0];
-          this.socket!.emit('room:reconnect', { code: this.currentCode, playerId: main.playerId, token: main.token }, () => {
-            for (const fn of this.reconnectListeners) fn();
-          });
+    if (this.socket?.connected) return Promise.resolve();
+    if (this.connecting) return this.connecting;
+
+    const socket = this.socket ?? this.createSocket();
+    this.socket = socket;
+    this.connecting = new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(deadline);
+        socket.off('connect', onConnect);
+        socket.off('connect_error', onError);
+      };
+      const onConnect = () => { cleanup(); resolve(); };
+      const onError = (error: Error & { data?: { code?: string } }) => {
+        if (error.data?.code !== 'PROTOCOL_VERSION') return;
+        cleanup();
+        reject(new Error('游戏版本已更新，请刷新页面'));
+      };
+      const deadline = setTimeout(() => { cleanup(); reject(new Error('连接超时')); }, 8000);
+      socket.once('connect', onConnect);
+      socket.on('connect_error', onError);
+      if (!socket.active) socket.connect();
+    }).finally(() => { this.connecting = null; });
+    return this.connecting;
+  }
+
+  private createSocket(): Socket {
+    const prefix = window.location.pathname.startsWith('/badian') ? '/badian' : '';
+    const socket = io({
+      autoConnect: false,
+      transports: ['websocket', 'polling'],
+      tryAllTransports: true,
+      path: prefix + '/socket.io',
+      auth: { protoVer: PROTOCOL_VERSION },
+    });
+    socket.on('connect', () => {
+      this.connected = true;
+      const code = this.currentCode;
+      const main = this.identities[0];
+      if (!code || !main) return;
+      void this.reconnect(code, main.playerId, main.token).then((result) => {
+        if (result.ok && this.currentCode === code) {
+          for (const fn of this.reconnectListeners) fn();
         }
       });
-      this.socket.on('disconnect', () => { this.connected = false; });
-      this.socket.on('room:update', (u: RoomUpdate) => {
-        for (const fn of this.listeners) fn(u);
-      });
-      this.socket.on('lobby:rooms', (r: { rooms: RoomListEntry[] }) => {
-        for (const fn of this.lobbyRoomsListeners) fn(r.rooms);
-      });
-      this.socket.on('room:dissolved', (r: { code: string }) => {
-        for (const fn of this.dissolvedListeners) fn(r.code);
-      });
-      setTimeout(() => reject(new Error('连接超时')), 8000);
     });
+    socket.on('disconnect', () => { this.connected = false; });
+    socket.on('room:update', (u: RoomUpdate) => {
+      if (supportsProtocol(u.v) && supportsProtocol(u.game?.v)) {
+        for (const fn of this.listeners) fn(u);
+      }
+    });
+    socket.on('lobby:rooms', (r: { rooms: RoomListEntry[] }) => {
+      for (const fn of this.lobbyRoomsListeners) fn(r.rooms);
+    });
+    socket.on('room:dissolved', (r: { code: string }) => {
+      for (const fn of this.dissolvedListeners) fn(r.code);
+    });
+    return socket;
   }
 
   /** socket.io 断线重连并恢复座位后回调（用于刷新界面） */
@@ -298,8 +126,10 @@ class Net {
 
   private emit(event: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
     return new Promise((resolve) => {
-      if (!this.socket) { resolve({ ok: false, error: '未连接' }); return; }
-      this.socket.emit(event, data, (r: Record<string, unknown>) => resolve(r || { ok: true }));
+      if (!this.socket?.connected) { resolve({ ok: false, error: '未连接' }); return; }
+      this.socket.timeout(8000).emit(event, data, (error: Error | null, reply?: Record<string, unknown>) => {
+        resolve(error ? { ok: false, error: '服务端响应超时' } : reply ?? { ok: true });
+      });
     });
   }
 
@@ -315,10 +145,10 @@ class Net {
   setChar(code: string, playerId: string, token: string, charId: string, targetId?: string) {
     return this.emit('room:setChar', { code, playerId, token, charId, targetId });
   }
-  addAI(code: string, playerId: string, token: string, count: number, charId?: string, difficulty?: string) {
+  addAI(code: string, playerId: string, token: string, count: number, charId?: string, difficulty?: AiDifficulty) {
     return this.emit('room:addAI', { code, playerId, token, count, charId, difficulty });
   }
-  setAI(code: string, playerId: string, token: string, difficulty: string) {
+  setAI(code: string, playerId: string, token: string, difficulty: AiDifficulty) {
     return this.emit('room:setAI', { code, playerId, token, difficulty });
   }
   interact(code: string, playerId: string, token: string, targetId: string, kind: InteractionKind) {
@@ -328,7 +158,8 @@ class Net {
     return this.emit('replay:list', { code });
   }
   replayGet(code: string, id: string) {
-    return this.emit('replay:get', { code, id });
+    const identity = this.currentCode === code ? this.identities[0] : undefined;
+    return this.emit('replay:get', { code, id, playerId: identity?.playerId, token: identity?.token });
   }
   removeSeat(code: string, playerId: string, token: string, targetId: string) {
     return this.emit('room:removeSeat', { code, playerId, token, targetId });
@@ -352,10 +183,10 @@ class Net {
   detach() {
     return this.emit('room:detach', {});
   }
-  submitThrow(code: string, playerId: string, token: string, t: string) {
+  submitThrow(code: string, playerId: string, token: string, t: Throw) {
     return this.emit('game:throw', { code, playerId, token, throw: t });
   }
-  submitAction(code: string, playerId: string, token: string, action: Record<string, unknown>) {
+  submitAction(code: string, playerId: string, token: string, action: ActionRequest) {
     return this.emit('game:action', { code, playerId, token, action });
   }
 }

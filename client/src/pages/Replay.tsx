@@ -4,12 +4,13 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { net, type ReplayRecord, type ReplayFrame, type ReplaySummary } from '../net.js';
+import { supportsReplayFormat } from '../../../shared/src/protocol.js';
 import { CHARACTERS } from '../../../shared/src/characters/index.js';
 
 const THROW_LABEL: Record<string, string> = { rock: '石头', scissors: '剪刀', paper: '布' };
 const THROW_ICON: Record<string, string> = { rock: '✊', scissors: '✌️', paper: '✋' };
 const PHASE_LABEL: Record<string, string> = {
-  rps1: '隐藏出拳', act: '行动阶段', roundEnd: '回合末结算', over: '游戏结束',
+  rps1: '隐藏出拳', rps2: '行动排序', judge: '技能判定', act: '行动阶段', roundEnd: '回合末结算', over: '游戏结束',
 };
 
 function fmt(n: number): string {
@@ -58,10 +59,11 @@ export default function ReplayViewer({ code, onClose, autoOpenId }: {
       const r = await net.replayGet(code, selId) as { ok: boolean; replay?: ReplayRecord; error?: string };
       if (!alive) return;
       if (!r.ok || !r.replay) { setMsg(r.error || '回放载入失败'); return; }
+      if (!supportsReplayFormat(r.replay.v)) { setMsg('这份回放需要更新版本的客户端'); return; }
       setRec(r.replay);
       setIdx(0);
       setPlaying(false);
-      setMsg('');
+      setMsg(r.replay.truncated ? '这局很长，部分状态帧未保存' : '');
     })();
     return () => { alive = false; };
   }, [code, selId]);

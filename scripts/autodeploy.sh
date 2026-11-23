@@ -10,10 +10,11 @@ flock -n 9 || exit 0                      # 防并发
 [ -n "$(git status --porcelain)" ] && exit 0   # 有本地改动→跳过
 
 git fetch --quiet --prune origin || exit 0
-LOCAL=$(git rev-parse HEAD)
+DEPLOYED_FILE=$(git rev-parse --git-path badian-deployed)
+LOCAL=$(cat "$DEPLOYED_FILE" 2>/dev/null || git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main 2>/dev/null) || exit 0
 [ "$LOCAL" = "$REMOTE" ] && exit 0        # 无新提交
 
 mkdir -p "$(dirname "$LOG")" 2>/dev/null
 echo "$(date '+%F %T') 检测到新提交 ${LOCAL:0:7} → ${REMOTE:0:7}，开始自动部署" >> "$LOG" 2>/dev/null
-bash "$APP_DIR/scripts/deploy.sh" >> "$LOG" 2>&1
+DEPLOY_REVISION="$REMOTE" bash "$APP_DIR/scripts/deploy.sh" >> "$LOG" 2>&1

@@ -12,9 +12,12 @@ import path from 'node:path';
 import { mkdirSync, mkdtempSync } from 'node:fs';
 import { chromium, type Browser, type Page } from 'playwright';
 import { expect } from '@playwright/test';
+import { attachBrowserTransport } from '../support/browser-transport.js';
+import { startTestServer, type TestServer } from '../support/test-server.js';
 import { ALL_CASES } from '../../shared/src/testcases/index.js';
 
 let browser: Browser;
+let server: TestServer;
 let baseUrl = '';
 
 beforeAll(async () => {
@@ -32,13 +35,8 @@ beforeAll(async () => {
     cwd: root, stdio: 'pipe', env: { ...process.env, NODE_ENV: 'production', TEMP: temp, TMP: temp, TMPDIR: temp },
   });
   process.env.CLIENT_DIST = path.resolve(import.meta.dirname, '../../client/dist-e2e');
-  const mod = await import('../../server/src/index.js');
-  const httpServer = (mod as unknown as { httpServer: import('node:http').Server }).httpServer;
-  (mod as unknown as { startServer: (port?: number) => void }).startServer(0);
-  await new Promise<void>((resolve) => httpServer.once('listening', () => resolve()));
-  const addr = httpServer.address();
-  const port = typeof addr === 'object' && addr ? addr.port : 3100;
-  baseUrl = `http://127.0.0.1:${port}`;
+  server = await startTestServer(await import('../../server/src/index.js'));
+  baseUrl = server.url;
   browser = await chromium.launch({
     headless: true,
     ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
@@ -46,11 +44,17 @@ beforeAll(async () => {
 }, 90000);
 
 afterAll(async () => {
-  await browser?.close();
+  try {
+    await browser?.close();
+  } finally {
+    await server?.close();
+  }
 });
 
-function newPage(browser: Browser): Promise<Page> {
-  return browser.newPage();
+async function newPage(browser: Browser): Promise<Page> {
+  const page = await browser.newPage();
+  await attachBrowserTransport(page, server);
+  return page;
 }
 
 describe('真实浏览器端到端', { timeout: 120000 }, () => {
@@ -208,6 +212,11 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     await page.waitForTimeout(800);
     const chatText = await page.locator('.chat-log').innerText();
     expect(chatText).toContain('一起玩拔典！');
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByText(/玩家卡位/)).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.chat-log')).toContainText('一起玩拔典！');
+    await expect(page.locator('.seat-slot').first()).toContainText('伍六七');
     await page.close();
   });
 

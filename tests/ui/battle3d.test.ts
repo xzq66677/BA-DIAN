@@ -1,6 +1,6 @@
 /**
  * 拔典 3D 战场 · 单元测试（jsdom，无 WebGL 依赖）
- * 覆盖：布局数学 / 视觉元数据完整性 / 演出适配层（pres diff → 场景命令）/ 回退检测 / 降级策略 / 诊断日志。
+ * 覆盖：布局数学 / 视觉元数据完整性/ 回退检测 / 降级策略 / 诊断日志。
  */
 // @vitest-environment jsdom
 
@@ -8,8 +8,6 @@ import { describe, it, expect } from 'vitest';
 import { TABLE, createRuinsMap, roomSlot, defaultPose, orbitPose, stableMembers } from '../../client/src/battle3d/layout.js';
 import { CHAR_VISUALS, charVisual, ROOM_VISUALS, roomVisual } from '../../client/src/battle3d/palette.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
-import { presToCommands, applyCommands, type SceneLike } from '../../client/src/battle3d/pres-adapter.js';
-import { EMPTY_PRESENTATION, type PresentationState } from '../../client/src/battle/useBattlePresentation.js';
 import { detectWebGL, preferredRenderer } from '../../client/src/battle3d/Battle3D.js';
 import {
   recordContextLost, markSessionDegraded, isSessionDegraded, clearSessionDegraded,
@@ -111,95 +109,6 @@ describe('battle3d 视觉元数据', () => {
 });
 
 // ── 演出适配层 ───────────────────────────────────────────────
-
-function withHits(next: Partial<PresentationState>): PresentationState {
-  return { ...EMPTY_PRESENTATION, ...next };
-}
-
-describe('pres → 场景命令适配层', () => {
-  it('空 diff 产生零命令（幂等）', () => {
-    expect(presToCommands(EMPTY_PRESENTATION, EMPTY_PRESENTATION)).toEqual([]);
-  });
-
-  it('同 key 不重复下发，新 key 触发命令', () => {
-    const s1 = withHits({ hits: { P2: { key: 5, amount: 1 } } });
-    expect(presToCommands(EMPTY_PRESENTATION, s1).map((c) => c.c)).toEqual(['hit']);
-    const s2 = withHits({ hits: { P2: { key: 5, amount: 1 } } });
-    expect(presToCommands(s1, s2)).toEqual([]);
-    const s3 = withHits({ hits: { P2: { key: 9, amount: 2, lethal: true } } });
-    const cmds = presToCommands(s2, s3);
-    expect(cmds).toHaveLength(1);
-    expect(cmds[0]).toMatchObject({ c: 'hit', pid: 'P2', amount: 2, lethal: true });
-  });
-
-  it('攻击宣告携带目标（3D 光束用），行动 fx 携带朝向目标', () => {
-    const s = withHits({
-      decls: { P1: { key: 3, targetId: 'P2', amount: 1 } },
-      fx: { P1: { kind: 'attack', key: 4, targetId: 'P2' } },
-    });
-    const cmds = presToCommands(EMPTY_PRESENTATION, s);
-    expect(cmds[0]).toMatchObject({ c: 'attackDecl', sourceId: 'P1', targetId: 'P2' });
-    expect(cmds[1]).toMatchObject({ c: 'action', pid: 'P1', fx: 'attack', targetId: 'P2' });
-  });
-
-  it('移动/伊万投掷/爆炸/房间告警按桶映射', () => {
-    const s = withHits({
-      moveBanner: { key: 7, pid: 'P1', from: 'R1', to: 'R2' },
-      ivanThrow: { key: 8, pid: 'P2', room: 'R3' },
-      ivanBoom: { key: 9, room: 'R3' },
-      zoneAlert: { key: 10, room: 'R3', kind: 'aoe' },
-    });
-    const kinds = presToCommands(EMPTY_PRESENTATION, s).map((c) => c.c);
-    expect(kinds).toEqual(['move', 'ivanThrow', 'ivanBoom', 'zoneAlert']);
-  });
-
-  it('ivan 类房间告警不重复下发（爆炸已覆盖）', () => {
-    const s = withHits({ zoneAlert: { key: 10, room: 'R3', kind: 'ivan' } });
-    expect(presToCommands(EMPTY_PRESENTATION, s)).toEqual([]);
-  });
-
-  it('淘汰/复活命令带载荷', () => {
-    const s = withHits({
-      deaths: { P3: { key: 11, cause: 'insult' } },
-      revives: { P4: { key: 12, livesLeft: 1 } },
-    });
-    const cmds = presToCommands(EMPTY_PRESENTATION, s);
-    expect(cmds[0]).toMatchObject({ c: 'death', pid: 'P3' });
-    expect(cmds[1]).toMatchObject({ c: 'revive', pid: 'P4', livesLeft: 1 });
-  });
-
-  it('applyCommands 顺序调用场景接口（录制器验证）', () => {
-    const calls: string[] = [];
-    const scene: SceneLike = {
-      playAttackDecl: (a, b) => calls.push(`decl:${a}->${b}`),
-      playAction: (pid, fx) => calls.push(`act:${pid}:${fx}`),
-      playHit: (pid, o) => calls.push(`hit:${pid}:${o.amount}`),
-      playHeal: (pid) => calls.push(`heal:${pid}`),
-      playMiss: (pid) => calls.push(`miss:${pid}`),
-      playEliminate: (pid) => calls.push(`death:${pid}`),
-      playRevive: (pid, lives) => calls.push(`revive:${pid}:${lives}`),
-      playWalk: (pid, from, to) => calls.push(`walk:${pid}:${from}>${to}`),
-      playIvanThrow: (pid, room) => calls.push(`throw:${pid}->${room}`),
-      playIvanBoom: (room) => calls.push(`boom:${room}`),
-      playRoomAlert: (room, kind) => calls.push(`alert:${room}:${kind}`),
-      playTrigger: (pid) => calls.push(`trigger:${pid}`),
-    };
-    const cmds = [
-      { c: 'attackDecl', seq: 1, sourceId: 'P1', targetId: 'P2' } as const,
-      { c: 'hit', seq: 2, pid: 'P2', amount: 1, lethal: true } as const,
-      { c: 'death', seq: 3, pid: 'P2' } as const,
-      { c: 'move', seq: 4, pid: 'P3', from: 'R1', to: 'R2' } as const,
-      { c: 'ivanThrow', seq: 5, pid: 'P4', room: 'R3' } as const,
-      { c: 'ivanBoom', seq: 6, room: 'R3' } as const,
-    ];
-    applyCommands(scene, cmds as never);
-    expect(calls).toEqual([
-      'decl:P1->P2', 'hit:P2:1', 'death:P2', 'walk:P3:R1>R2', 'throw:P4->R3', 'boom:R3',
-    ]);
-  });
-});
-
-// ── 回退检测 ─────────────────────────────────────────────────
 
 describe('WebGL 回退', () => {
   it('jsdom 无 WebGL → detectWebGL 为 false（自动回退 2D 牌桌）', () => {

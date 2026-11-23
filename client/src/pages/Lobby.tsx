@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { net, type LobbyState } from '../net.js';
+import { net, type AiDifficulty, type LobbyState } from '../net.js';
 import type { SessionInfo } from '../App.js';
 import { CHARACTER_LIST } from '../../../shared/src/characters/index.js';
 import { thumbOf } from '../cards.js';
@@ -110,7 +110,7 @@ export default function Lobby({ lobby, session, onExit }: {
               <>
                 <select
                   value={lobby.aiDifficulty || 'normal'}
-                  onChange={(e) => net.setAI(lobby.code, me.playerId, me.token, e.target.value)}
+                  onChange={(e) => net.setAI(lobby.code, me.playerId, me.token, e.target.value as AiDifficulty)}
                   style={{ minWidth: 150 }}
                   title="AI 难度：休闲=随性、普通=稳健、硬核=会反制出拳并优先补刀"
                 >

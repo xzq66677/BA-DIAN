@@ -18,8 +18,11 @@ import {
   type ActionEventData,
   DEFAULT_RULES, fmtNum,
 } from './types.js';
+import { PROTOCOL_VERSION, type GameSnapshot } from './protocol.js';
 import { RNG, randomThrow } from './rng.js';
-import { FloatingRuins, type RuinsConditions } from './floating-ruins.js';
+import type { RuinsConditions } from './floating-ruins.js';
+import { MAPS, type BattleMap, type MapId } from './maps.js';
+import { serializeSnapshot } from './snapshot.js';
 import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats } from './judge.js';
 import type { CharDef, GameLike, CharActionContext } from './chardef.js';
 
@@ -39,11 +42,13 @@ interface ActiveJudge extends SkillJudgeOptions {
   records: SkillJudgeRoundRecord[];
 }
 
-export interface GameConfig {  players: GamePlayerConfig[];
+export interface GameConfig {
+  players: GamePlayerConfig[];
   seed?: number;
   rules?: Partial<RuleConfig>;
   /** 角色注册表（id → CharDef） */
   chars: Record<string, CharDef>;
+  mapId?: MapId;
   floatingRuins?: boolean;
   /**
    * 日志序号起点（默认 0，即本局日志 seq 从 1 开始）。
@@ -63,7 +68,7 @@ export class Game implements GameLike {
   players: Record<PlayerId, PlayerState> = {};
   playerIds: PlayerId[] = [];
   roomIds: RoomId[] = [];
-  private readonly ruins?: FloatingRuins;
+  private readonly map: BattleMap;
   roundNo = 1;
   subRound = 1;
   phase: GamePhase = 'rps1';
@@ -117,6 +122,7 @@ export class Game implements GameLike {
   roundSummary: string[] = [];
   private deferredSeq = 0;
   private deathChainDepth = 0;
+  private removingParticipants = false;
   /** 正在结算回合末延迟事件（endRound 循环期间置位）：期间淘汰不触发终局判定，结算完统一判；
    *  对角色钩子可见（GameLike）——大贱客阵亡后在窗口内继续吸收同批爆发伤害（作者确认 2026-11-21） */
   settlingDeferred = false;
@@ -135,7 +141,9 @@ export class Game implements GameLike {
   constructor(config: GameConfig) {
     this.seed = config.seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
     this.rng = new RNG(this.seed);
-    if (config.floatingRuins) this.ruins = new FloatingRuins(this.seed);
+    const mapId = config.mapId ?? (config.floatingRuins ? 'floatingRuins' : 'classic');
+    this.map = MAPS[mapId](this.seed, config.players.length);
+    this.roomIds = [...this.map.layout.rooms];
     // 日志序号可续接上一局（同房间多局时保证单调递增，见 GameConfig.logSeqOffset）
     this.logSeq = config.logSeqOffset ?? 0;
     this.rules = { ...DEFAULT_RULES, ...(config.rules || {}) };
@@ -143,7 +151,7 @@ export class Game implements GameLike {
     config.players.forEach((pc, i) => {
       const cd = this.chars[pc.charId] || this.chars['default'];
       const maxHp = cd.hp ?? this.rules.defaultMaxHp;
-      const room: RoomId = `R${i + 1}`;
+      const room: RoomId = this.map.layout.spawn[i];
       this.players[pc.id] = {
         id: pc.id,
         name: pc.name,
@@ -159,7 +167,6 @@ export class Game implements GameLike {
         char: { ...(cd.init ? cd.init() : {}), livesLeft: cd.lives ?? 1 },
       };
       this.playerIds.push(pc.id);
-      this.roomIds.push(room);
       this.histories[pc.id] = [];
       this.stats[pc.id] = emptyStats();
       this.throwHistory[pc.id] = [];
@@ -211,6 +218,7 @@ export class Game implements GameLike {
 
   log(type: LogType, text: string, data?: Record<string, unknown>, important = false): void {
     this.logs.push({
+      v: PROTOCOL_VERSION,
       seq: ++this.logSeq,
       round: this.roundNo,
       sub: this.subRound,
@@ -314,7 +322,7 @@ export class Game implements GameLike {
     const before = p.hp;
     p.hp = Math.min(p.maxHp, Math.round((p.hp + amount) * 10000) / 10000);
     const data: HealEventData = { target: pid, amount, hpBefore: before, hpAfter: p.hp };
-    this.log('heal', `${p.name} 回复 ${fmtNum(amount)}：${fmtNum(before)} → ${fmtNum(p.hp)}`, data as unknown as Record<string, unknown>);
+    this.log('heal', `${p.name} 回复 ${fmtNum(amount)}：${fmtNum(before)} → ${fmtNum(p.hp)}`, { ...data });
   }
 
   /**
@@ -870,7 +878,7 @@ export class Game implements GameLike {
       ...(req.targetId ? { targetId: req.targetId } : {}),
       ...(req.room ? { room: req.room } : {}),
     };
-    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, actionData as unknown as Record<string, unknown>, true);
+    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, { ...actionData }, true);
     this.roundSummary.push(`${p.name} ${this.actionLabel(req)}`);
     if ((this.phase as GamePhase) === 'over') return { ok: true };
     // 技能内判定（马保国五连鞭等）：先暂停收拳，等判定结算完再消耗行动/推进队列
@@ -885,65 +893,68 @@ export class Game implements GameLike {
     return this.submitAction(pid, { type: 'skip' });
   }
 
+  private static readonly baseActions = new Map<string, {
+    label: (game: Game, req: ActionRequest) => string;
+    execute: (game: Game, pid: PlayerId, req: ActionRequest) => ActionResult;
+  }>([
+    ['move', {
+      label: (_, req) => `移动到 ${req.room}`,
+      execute: (game, pid, req) => game.actMove(pid, req),
+    }],
+    ['attack', {
+      label: (game, req) => `攻击 ${req.targetId ? game.players[req.targetId].name : '?'}`,
+      execute: (game, pid, req) => game.actAttack(pid, req),
+    }],
+    ['heal', { label: () => '回复', execute: (game, pid, req) => game.actHeal(pid, req) }],
+    ['hide', { label: () => '躲藏', execute: (game, pid, req) => game.actHide(pid, req) }],
+    ['seek', {
+      label: (game, req) => `找出来（${req.targetId ? game.players[req.targetId].name : '?'}）`,
+      execute: (game, pid, req) => game.actSeek(pid, req),
+    }],
+    ['aim', {
+      label: (game, req) => `瞄准（${req.targetId ? game.players[req.targetId].name : '?'}）`,
+      execute: (game, pid, req) => game.actAim(pid, req),
+    }],
+    ['milk', { label: () => '喝牛奶（嘲讽）', execute: (game, pid) => game.actMilk(pid) }],
+    ['skip', {
+      label: () => '跳过',
+      execute: (game) => game.rules.allowSkip ? { ok: true } : { ok: false, error: '本局不允许跳过' },
+    }],
+  ]);
+
   private actionLabel(req: ActionRequest): string {
-    switch (req.type) {
-      case 'move': return `移动到 ${req.room}`;
-      case 'openSluice': return '开启泄水闸';
-      case 'attack': return `攻击 ${req.targetId ? this.players[req.targetId].name : '?'}`;
-      case 'heal': return '回复';
-      case 'hide': return '躲藏';
-      case 'seek': return `找出来（${req.targetId ? this.players[req.targetId].name : '?'}）`;
-      case 'aim': return `瞄准（${req.targetId ? this.players[req.targetId].name : '?'}）`;
-      case 'milk': return '喝牛奶（嘲讽）';
-      case 'skip': return '跳过';
-      default: {
-        const cd = this.charDef(this.currentActor() || this.playerIds[0]);
-        const act = cd.actions?.find((a) => a.name === req.type);
-        return act ? act.label : req.type;
-      }
-    }
+    const base = Game.baseActions.get(req.type);
+    if (base) return base.label(this, req);
+    const mapAction = this.map.actions?.get(req.type);
+    if (mapAction) return mapAction.label;
+    const cd = this.charDef(this.currentActor() || this.playerIds[0]);
+    return cd.actions?.find((action) => action.name === req.type)?.label ?? req.type;
   }
 
   private executeAction(pid: PlayerId, req: ActionRequest): ActionResult {
-    const p = this.players[pid];
-    const cd = this.charDef(pid);
-    switch (req.type) {
-      case 'move': return this.actMove(pid, req);
-      case 'openSluice': {
-        const room = p.room;
-        if (!this.ruins?.openSluice(room)) return { ok: false, error: '只有积水预警房间的玩家可开启泄水闸' };
-        this.log('info', `${p.name} 开启 ${room} 的泄水闸，积水排入云海，泥潭预警解除。`, undefined, true);
-        return { ok: true };
-      }
-      case 'attack': return this.actAttack(pid, req);
-      case 'heal': return this.actHeal(pid, req);
-      case 'hide': return this.actHide(pid, req);
-      case 'seek': return this.actSeek(pid, req);
-      case 'aim': return this.actAim(pid, req);
-      case 'milk': return this.actMilk(pid);
-      case 'skip': {
-        if (!this.rules.allowSkip) return { ok: false, error: '本局不允许跳过' };
-        return { ok: true };
-      }
-      default: {
-        const act = cd.actions?.find((a) => a.name === req.type);
-        if (!act) return { ok: false, error: `未知行动：${req.type}` };
-        const ctx: CharActionContext = { game: this, actor: pid, params: req };
-        if (act.validate) {
-          const err = act.validate(ctx);
-          if (err) return { ok: false, error: err };
-        }
-        act.execute(ctx);
-        return { ok: true };
-      }
+    const base = Game.baseActions.get(req.type);
+    if (base) return base.execute(this, pid, req);
+    const mapAction = this.map.actions?.get(req.type);
+    if (mapAction) {
+      const { note, ...result } = mapAction.execute(this.players[pid], req);
+      if (note) this.log('info', note, undefined, true);
+      return result;
     }
+    const act = this.charDef(pid).actions?.find((a) => a.name === req.type);
+    if (!act) return { ok: false, error: `未知行动：${req.type}` };
+    const ctx: CharActionContext = { game: this, actor: pid, params: req };
+    const error = act.validate?.(ctx);
+    if (error) return { ok: false, error };
+    act.execute(ctx);
+    return { ok: true };
   }
 
   private actMove(pid: PlayerId, req: ActionRequest): ActionResult {
     const p = this.players[pid];
     const room = req.room as RoomId;
     if (!room || !this.roomIds.includes(room)) return { ok: false, error: `非法目标房间：${room}` };
-    if (this.isMoveBlocked(pid, room)) return { ok: false, error: `${room} 泥潭封路，下回合恢复通行` };
+    const movementError = this.map.movementError?.(p.room, room);
+    if (movementError) return { ok: false, error: movementError };
     const from = p.room;
     p.room = room;
     if (p.hidden) {
@@ -951,7 +962,7 @@ export class Game implements GameLike {
       this.log('state', `${p.name} 移动后现身（离开躲藏）`);
     }
     const moveData: MoveEventData = { pid, from, to: room };
-    this.log('move', `${p.name} 从 ${from} 移动到 ${room}`, moveData as unknown as Record<string, unknown>, true);
+    this.log('move', `${p.name} 从 ${from} 移动到 ${room}`, { ...moveData }, true);
     return { ok: true };
   }
 
@@ -997,7 +1008,7 @@ export class Game implements GameLike {
         ? (cd.rangedDamage ?? cd.attack ?? this.rules.defaultAttack)
         : (cd.meleeDamage ?? cd.attack ?? this.rules.defaultAttack));
     const decl: AttackDeclEventData = { declared: true, source: pid, target: targetId, amount, ranged, room: tp.room };
-    this.log('damage', `${this.players[pid].name} ${ranged ? '远程' : '近战'}攻击 ${tp.name}（伤害 ${fmtNum(amount)}）`, decl as unknown as Record<string, unknown>, true);
+    this.log('damage', `${this.players[pid].name} ${ranged ? '远程' : '近战'}攻击 ${tp.name}（伤害 ${fmtNum(amount)}）`, { ...decl }, true);
     this.applyDamage({
       target: targetId,
       amount,
@@ -1017,7 +1028,7 @@ export class Game implements GameLike {
       amount: Math.round((p.hp - before) * 10000) / 10000,
       hpBefore: before, hpAfter: p.hp,
     };
-    this.log('heal', `${p.name} 回复：${fmtNum(before)} → ${fmtNum(p.hp)}（满血）`, data as unknown as Record<string, unknown>, true);
+    this.log('heal', `${p.name} 回复：${fmtNum(before)} → ${fmtNum(p.hp)}（满血）`, { ...data }, true);
     return { ok: true };
   }
 
@@ -1082,7 +1093,7 @@ export class Game implements GameLike {
           dtype: req.dtype, tag: req.tag, aoe: req.aoe,
           ...(req.groupId ? { groupId: req.groupId } : {}),
         };
-        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`, cancelData as unknown as Record<string, unknown>);
+        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`, { ...cancelData });
         applied.missed = true;
         return applied;
       }
@@ -1103,7 +1114,7 @@ export class Game implements GameLike {
         dtype: req.dtype, tag: req.tag, aoe: req.aoe, room: tp.room,
         ...(req.groupId ? { groupId: req.groupId } : {}),
       };
-      this.log('state', `${tp.name} 处于躲藏/隐身，${req.source ? this.players[req.source].name + ' 的' : ''}攻击未命中`, missData as unknown as Record<string, unknown>);
+      this.log('state', `${tp.name} 处于躲藏/隐身，${req.source ? this.players[req.source].name + ' 的' : ''}攻击未命中`, { ...missData });
       applied.missed = true;
       return applied;
     }
@@ -1120,7 +1131,7 @@ export class Game implements GameLike {
           dtype: req.dtype, tag: req.tag, aoe: req.aoe,
           ...(req.groupId ? { groupId: req.groupId } : {}),
         };
-        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`, cancelData2 as unknown as Record<string, unknown>);
+        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`, { ...cancelData2 });
         applied.missed = true;
         return applied;
       }
@@ -1153,7 +1164,7 @@ export class Game implements GameLike {
       reflected: !!req.reflected, transferred: !!req.transferred,
       ...(req.groupId ? { groupId: req.groupId } : {}),
     };
-    this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, dmgData as unknown as Record<string, unknown>, true);
+    this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, { ...dmgData }, true);
 
     // 战绩：实际掉血量
     const dealt = Math.max(0, before - tp.hp);
@@ -1193,7 +1204,7 @@ export class Game implements GameLike {
       p.hidden = false;
       p.invisible = false;
       const reviveData: ReviveEventData = { pid, livesLeft: livesLeft - 1 };
-      this.log('trigger', `💫 ${p.name} 消耗一条命（剩余 ${livesLeft - 1} 条），以 ${fmtNum(p.maxHp)} HP 复活！`, reviveData as unknown as Record<string, unknown>, true);
+      this.log('trigger', `💫 ${p.name} 消耗一条命（剩余 ${livesLeft - 1} 条），以 ${fmtNum(p.maxHp)} HP 复活！`, { ...reviveData }, true);
       return;
     }
 
@@ -1209,7 +1220,7 @@ export class Game implements GameLike {
     }
     if (killer && killer !== pid && this.stats[killer]) this.stats[killer].kills++;
     const elimData: EliminateEventData = { pid, cause, ...(killer && killer !== pid ? { killer } : {}) };
-    this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, elimData as unknown as Record<string, unknown>, true);
+    this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, { ...elimData }, true);
     this.roundSummary.push(`${p.name} 被淘汰（${cause}）`);
     this.qualified = this.qualified.filter((x) => x !== pid);
     // 注意：queue 不在此处过滤——已行动过的索引不应因淘汰而移位；
@@ -1230,8 +1241,41 @@ export class Game implements GameLike {
     this.checkWin();
   }
 
+  /** 将整台设备的退场作为一次外部输入，统一清理等待项后再判胜。 */
+  removeParticipants(ids: PlayerId[], reason: 'left' | 'kicked' | 'removed', host?: PlayerId): void {
+    if (this.isOver()) return;
+    this.removingParticipants = true;
+    try {
+      for (const id of ids) {
+        const player = this.players[id];
+        if (!player) continue;
+        if (player.alive) {
+          if (reason === 'left') this.log('info', `🚪 ${player.name} 主动退出对局`, { pid: id }, true);
+          if (reason === 'kicked') this.log('info', `⚖ ${player.name} 被房主踢出对局`, { pid: id }, true);
+          this.eliminate(id, reason === 'left' ? 'left' : 'kicked', host);
+        }
+        delete this.pendingThrows[id];
+        delete this.orderPending[id];
+      }
+    } finally {
+      this.removingParticipants = false;
+    }
+    if (this.checkWin()) return;
+    if (this.phase === 'rps1' && this.aliveIds().every((id) => this.pendingThrows[id])) {
+      this.resolveJudgeSubRound();
+    } else if (this.phase === 'rps2') {
+      const group = this.orderGroup.filter((id) => this.players[id].alive);
+      if (group.length <= 1 || group.every((id) => this.orderSubmittedIds.includes(id))) {
+        this.resolveOrderSubRound();
+      }
+    } else if (this.phase === 'act' && !this.currentActor()) {
+      this.advanceQueue();
+    }
+  }
+
   checkWin(): boolean {
     if (this.phase === 'over') return true;
+    if (this.removingParticipants) return false;
     // 炸弹先结算、后判胜（Issue #6）：存在已激活（explodeRound<=roundNo）、待本回合末引爆的大伊万时，
     // 延迟终局判定——让本回合完整走完，回合末延迟事件结算后再做最终胜负判断（最后一人在房内可被同归于尽）。
     // settlingDeferred：延迟事件结算循环期间不定胜负——同一发爆炸连杀两人时，第一人淘汰后剩余人数
@@ -1372,7 +1416,7 @@ export class Game implements GameLike {
     // 这里**不清除**；只有被其他领域覆盖或持有者淘汰时才失效。
     this.phase = 'rps1';
     this.log('phase', `—— 第 ${this.roundNo} 回合 · 隐藏出拳 ——`, undefined, true);
-    for (const note of this.ruins?.advance(this.roundNo, this.roomIds) ?? []) {
+    for (const note of this.map.advance?.(this.roundNo) ?? []) {
       this.log('info', note, undefined, true);
     }
   }
@@ -1448,57 +1492,14 @@ export class Game implements GameLike {
   }
 
   ruinsConditions(): RuinsConditions | undefined {
-    return this.ruins?.snapshot();
+    return this.map.snapshot?.().ruins;
   }
 
   isMoveBlocked(pid: PlayerId, room: RoomId): boolean {
-    return this.ruins?.blocksEntry(this.players[pid].room, room) ?? false;
+    return !!this.map.movementError?.(this.players[pid].room, room);
   }
 
-  snapshot(): Record<string, unknown> {
-    const players = this.playerIds.map((pid) => {
-      const p = this.players[pid];
-      return {
-        id: p.id, name: p.name, charId: p.charId, charName: this.charName(pid),
-        hp: p.hp, maxHp: p.maxHp, room: p.room, originRoom: p.originRoom,
-        alive: p.alive, type: p.type, hidden: p.hidden, invisible: p.invisible,
-        char: { ...p.char }, // 判定历史单独剥离
-      };
-    });
-    return {
-      seed: this.seed,
-      roundNo: this.roundNo,
-      subRound: this.subRound,
-      phase: this.phase,
-      players,
-      roomIds: this.roomIds,
-      ruins: this.ruinsConditions(),
-      submittedIds: this.submittedIds.filter((pid) => this.players[pid]?.alive),
-      pendingCount: Object.keys(this.pendingThrows).length,
-      qualified: this.qualified,
-      queue: this.queue,
-      actIndex: this.actIndex,
-      currentActor: this.currentActor(),
-      deferred: this.deferred.map((d) => ({ ...d })),
-      judgeRecords: this.judgeRecords.map((r) => ({ ...r, throws: { ...r.throws } })),
-      /** 已揭示的出拳（全员可见）；提交阶段为 null，不泄露任何拳种 */
-      reveal: this.revealInfo(),
-      /** 本回合最近一次排序子轮的揭示（行动阶段用来解释行动顺序来源） */
-      orderReveal: this.orderRevealInfo(),
-      /** 技能内判定（马保国系）：进行中的出拳面板数据；非判定阶段为 null */
-      judge: this.skillJudgeView(),
-      /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
-      orderGroup: this.phase === 'rps2' ? [...this.orderGroup] : [],
-      orderSubmittedIds: [...this.orderSubmittedIds],
-      orderResult: [...this.orderOrder],
-      orderSub: this.orderSub,
-      /** 局内战绩（每人一份，纯统计） */
-      stats: Object.fromEntries(this.playerIds.map((pid) => [pid, { ...this.stats[pid] }])),
-      /** 领域持有者（全场唯一；null 表示当前无领域生效） */
-      domainHolder: this.domainHolder,
-      // 日志通过增量（newLogs）下发，快照不再重复携带（带宽优化：长对局不随每次状态同步重发全量日志）
-      winner: this.winner ?? null,
-      aliveCount: this.aliveIds().length,
-    };
+  snapshot(): GameSnapshot {
+    return serializeSnapshot(this, this.map.snapshot?.());
   }
 }
