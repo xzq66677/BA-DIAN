@@ -1,5 +1,6 @@
 import type { AnnounceItem } from './announce.js';
 import type { RuinsConditions } from './floating-ruins.js';
+import type { MapConfig } from './map-config.js';
 import type {
   AiDifficulty, DeferredEvent, GamePhase, InteractionEvent, JudgeRoundRecord,
   LogEntry, PlayerState, PlayerStats, ReplaySummary, RevealInfo, SkillJudgeView,
@@ -44,7 +45,7 @@ export interface LobbyState {
   hostSeat: string | null;
   seats: LobbySeat[];
   chat: ChatMessage[];
-  config: { submitTimeoutMs: number; turnTimeoutMs: number };
+  config: { submitTimeoutMs: number; turnTimeoutMs: number; map?: MapConfig };
   /** AI 难度（房主可调） */
   aiDifficulty?: AiDifficulty;
   /** 局内小互动（最近若干条，客户端按 id 增量播放动画） */
