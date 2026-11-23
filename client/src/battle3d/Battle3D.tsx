@@ -41,6 +41,7 @@ export interface Battle3DProps {
   targetablePids: string[];
   roomPickMode: boolean;
   selectedRoom: string;
+  blockedRoom?: string;
   selectedPlayer: string;
   reducedMotion: boolean;
   lowEffects: boolean;
@@ -51,7 +52,7 @@ export interface Battle3DProps {
 }
 
 export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed: boolean; resetView: () => void } {
-  const { active, game, gameNo, resync, myIds, playback, finaleReady, targetablePids, roomPickMode, selectedRoom,
+  const { active, game, gameNo, resync, myIds, playback, finaleReady, targetablePids, roomPickMode, selectedRoom, blockedRoom,
     selectedPlayer, reducedMotion, lowEffects, automaticCamera } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<BattleScene3D | null>(null);
@@ -140,8 +141,8 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
     const scene = sceneRef.current;
     if (!scene) return;
     scene.setTargetable(targetablePids);
-    scene.setSelection(roomPickMode, selectedRoom, selectedPlayer);
-  }, [active, targetablePids, roomPickMode, selectedRoom, selectedPlayer]);
+    scene.setSelection(roomPickMode, selectedRoom, selectedPlayer, blockedRoom);
+  }, [active, targetablePids, roomPickMode, selectedRoom, selectedPlayer, blockedRoom]);
 
   useLayoutEffect(() => {
     const scene = sceneRef.current;
@@ -163,6 +164,7 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
       winner: game.winner,
       domainHolder: game.domainHolder ?? null,
       deferred: game.deferred ?? [],
+      ruins: game.ruins,
       submittedIds: game.phase === 'rps2' ? game.orderSubmittedIds : game.submittedIds,
       myIds,
     };

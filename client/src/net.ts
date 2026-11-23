@@ -3,6 +3,7 @@
  */
 
 import { io, type Socket } from 'socket.io-client';
+import type { RuinsConditions } from '../../shared/src/floating-ruins.js';
 
 export interface Identity {
   playerId: string;
@@ -166,6 +167,7 @@ export interface GameSnapshot {
   phase: 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over';
   players: SnapPlayer[];
   roomIds: string[];
+  ruins?: RuinsConditions;
   submittedIds: string[];
   pendingCount: number;
   qualified: string[];
