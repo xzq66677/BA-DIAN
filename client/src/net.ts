@@ -4,6 +4,10 @@
 
 import { io, type Socket } from 'socket.io-client';
 import type { RuinsConditions } from '../../shared/src/floating-ruins.js';
+import type { AnnounceItem } from '../../shared/src/announce.js';
+
+/** 全局播报条目（服务端权威，随 room:update 增量下发；类型定义见 shared/src/announce.ts） */
+export type { AnnounceItem };
 
 export interface Identity {
   playerId: string;
@@ -200,6 +204,11 @@ export interface RoomUpdate {
   lobby: LobbyState;
   game: GameSnapshot | null;
   newLogs: SnapLog[];
+  /**
+   * 全局播报增量（与 newLogs 同批、所有座位同一份）。
+   * 旧服务端不发送该字段时为 undefined —— 客户端按「无播报」安全降级。
+   */
+  announces?: AnnounceItem[];
   catchUp?: boolean;
   you: string;
 }

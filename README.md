@@ -22,7 +22,7 @@
 # 1. 安装依赖
 npm install
 
-# 2. 全量自动化测试（504 用例）
+# 2. 全量自动化测试（553 用例）
 npm test
 
 # 3. 构建（服务端 tsc + 客户端 vite）
@@ -53,7 +53,7 @@ npm run dev:client    # vite dev 客户端 :5173（代理到 :3100）
 - **二次判定（行动排序）**：初次判定分出胜负后，若资格者 ≥2 人则进入排序判定——**资格者亲自出拳**（隐藏提交、逐子轮），每轮输者整组先动、赢者整组靠后，同侧继续递归；平局（同拳/三人循环）同组重出拳、不消耗回合；**领域不参与排序**、**不写角色判定历史**（大屁孩的暴走/自爆与排序无关）；AI 即时代出，房间内 ≥2 名真人时 30s 超时代掷；仅 1 名资格者时跳过排序直接行动
 - **对局内（2D 牌桌 / 3D 不可用回退）**：斗地主式牌桌布局（上方对手座位条 / 中央牌桌与出拳揭示台 / 底部我的席位与手牌 / 右侧战斗日志）；WebGL 上下文丢失时自动无感回退 2D，对局不中断；**出拳揭示**——每轮判定结算后所有人可见彼此的石头剪刀布（提交期间保密封锁，公平不破坏）；**战斗演出**——受击斩击（弹出+斜向斩击+冲击闪光+伤害飘字+HP条平滑下降）、回复柔光、移动飞行动画（卡片跨房间 FLIP）、淘汰印章/复活爆发、AOE 房间告警、**大伊万完整演出链**（投掷物从投掷者卡面飞向目标房间 → 落点冲击波 → 房间内成员逐个结算；爆炸前目标房间持续显示「💣 预计第 N 回合末爆炸（平局顺延）」待爆警示），全部由服务端结构化事件经演出队列驱动（不快照差分猜测）；演出可 1×/2×/4× 倍速、跳过本段、全部跳过；局内发言（底部常驻面板，实时同步，可收起）、房主可踢人（点卡牌详情里的踢出按钮，对局中被踢=淘汰）
 - **终局演出**：胜负判定弹层——胜者聚光+一次性金色光屑+结果摘要（终局回合/出局人数）；平局使用独立冷灰构图；关闭弹层后战场进入终局态（胜者卡金色光环+👑、空房间弱化），横幅显示完整结果；可随时「查看战场」跳过；房主点「🔄 再来一局」**直接以原座位开新局**（无需回大厅再点开始）
-- **全局播报与反馈**：喝牛奶（嘲讽）/ 今日勇者抽取运势以战场中央横幅全局播报一次；运势全局仅一次、用后技能卡自动灰化；点击不可选目标（隐身/躲藏/异房间近战/远程未瞄准）时明确提示原因；打击感三件套——受击挤压脉冲、致命/重击微慢动作、白闪→红闪两段 + 沿攻击方向的击退；战斗日志抽屉收起时顶栏显示未读徽标
+- **全局播报与反馈**：**每个公开动作都进全局播报**——战场中央横幅（图标 + 文本 + 服务端 `HH:MM:SS` + 停留秒数）+ 顶栏「📣 播报」抽屉（时间倒序、⭐ 重点过滤、未读徽标），不再需要翻日志找「刚才谁干了什么」；重大事件（淘汰/致命/领域/复活/终局）优先且拥堵时不被丢弃，阶段提示类只进抽屉不抢镜头（详见[全局播报](#全局播报每个动作都可见--反馈时间)）；运势全局仅一次、用后技能卡自动灰化；点击不可选目标（隐身/躲藏/异房间近战/远程未瞄准）时明确提示原因；打击感三件套——受击挤压脉冲、致命/重击微慢动作、白闪→红闪两段 + 沿攻击方向的击退；战斗日志抽屉收起时顶栏显示未读徽标
 - **音效（可关）**：WebAudio 实时合成的轻量原创音效（受击/回复/移动/淘汰/爆炸/胜利等，与结构化事件绑定），顶栏 🔊/🔇 开关，默认开启、音量克制；拥堵时自动只保留重大事件音效，系统「减少动态效果」时同步精简；零素材/零网络加载
 - **局内战绩**：顶栏「📊 战绩」打开统计面板，逐人显示出拳胜/负/平、造成与承受伤害、击杀数、行动次数、回复次数、移动次数、存活回合、被番茄砸中次数
 - **丢番茄**：点座位上的 🍅（或卡牌详情里的 🍅/🥚/🌹）向任意存活玩家投掷，全房间可见飞行与命中动画，对方座位累计被砸次数；纯娱乐，**不进战斗日志、不改血量、不影响判定**，同一玩家 2.2 秒冷却
@@ -93,6 +93,46 @@ npm run dev:client    # vite dev 客户端 :5173（代理到 :3100）
 - **超时只在「有人等」时生效**：出拳 30s 代掷、行动 45s 跳过（可配置），但**仅当房间内有 ≥2 名真人**才布防。单人 vs AI 没有超时这回事——AI 是即时应答的，没有任何人在等你，你的回合不会被系统代掷或自动跳过；单设备多人（同一块屏幕）同样不布防。
 - **AI 永不卡局**：AI 决策本身走「候选行动链」（非法就换下一个，最差 `skip`）；房间另有 1.2s 的 AI 看门狗，只要还停在该 AI 出拳/行动，就补驱动一次——它只驱动 AI、绝不替真人操作，因此取消超时也不会让对局僵死。
 - **同一房间连打多局**：重开时战斗日志清空重来（服务端下发 `gameNo`，客户端据此清空），日志序号 `seq` 整个房间内单调递增（不随每局归零），因此第二局之后增量推送与去重都正常，不会出现「第二局日志不再更新」。
+
+## 全局播报（每个动作都可见 + 反馈时间）
+
+> Issue #39 / TASKS.md `T-6.0.1`：不用再翻日志找「刚才谁干了什么」。
+
+一条链路：**引擎日志 → `shared/src/announce.ts` 规则表 → `AnnounceItem` → 服务端一次广播（所有座位同一份）→ 战场横幅 + 「📣 播报」抽屉**。
+
+- **每个动作都可见**：攻击 / 技能 / 瞄准 / 躲藏 / 找出来 / 跳过 / 移动 / 回复 / 喝牛奶 / 今日运势 / 淘汰 / 复活 / 领域 / 大伊万 / 判定 / 行动顺序 / 回合小结 / 终局全部有播报；未知的新日志类型由 `fallback` 兜底——不存在「引擎写了日志但没人看见」。
+- **有反馈时间**：每条播报带 `ts`（服务端生成时刻）与 `ttlMs`（横幅停留时长）。横幅显示 `HH:MM:SS`（房间时间线）并在右侧标注停留秒数；抽屉每行是「时间 · 图标 · 文本 · 停留时长」，可切「⭐ 重点」只看战斗/淘汰类。
+- **优先级不抢镜头**：`high`（淘汰/致命/领域/复活/终局）必上横幅，`normal`（普通动作）依次播放，`low`（阶段提示、未命中）只进抽屉。积压时保留队首与 `high`，其余过时的中低价值条目直接丢弃（`condenseAnnounceQueue`），避免播到过时消息。
+- **零规则侵入**：播报只读 `LogEntry` 的 `type/text/data/important`，不改数值、不改结算顺序，也不影响隐藏出拳（提交阶段的日志里没有拳种）。所以「所有人可见」不会变成「提前泄露」。
+
+### 扩展点（以后新事件怎么加）
+
+引擎只要写了日志，新动作**默认就会出现在播报里**（兜底规则）。要定制图标/优先级/文案时，注册一条规则即可，服务端与客户端都不用改：
+
+```ts
+import { registerAnnounceRule } from './shared/src/announce.js';
+
+const off = registerAnnounceRule({
+  id: 'my-skill',
+  summary: '我的新技能',
+  match: (log, nameOf) => (log.data?.mySkill === true
+    ? { icon: '🔥', text: `${nameOf(String(log.data.pid))} 点燃了战场`, tone: 'danger', priority: 'high', ttlMs: 3000 }
+    : null),
+}, { before: 'fallback' });   // 默认插在规则表最前；before 可指定插入位置
+// 返回撤销函数：测试 / 热重载用完即撤
+```
+
+| 接口 | 说明 |
+|---|---|
+| `AnnounceItem.ts` / `ttlMs` | 服务端时刻与建议展示时长（即「反馈时间」） |
+| `AnnounceItem.priority` | `high` / `normal` / `low`：决定是否上横幅、拥堵时是否保留 |
+| `AnnounceItem.rule` | 命中的规则 id（埋点/定制渲染用；未知值按 `tone` 降级） |
+| `buildAnnouncements(logs, { names, now })` | 纯函数：日志批次 → 播报项（幂等、保序、有界） |
+| `mergeAnnouncements(prev, next)` | 客户端增量累积（seq 去重 + 截断） |
+| `condenseAnnounceQueue(queue, incoming)` | 拥堵压缩：保留队首与 `high` |
+| `fmtAnnounceClock(ts)` / `fmtAnnounceTtl(ms)` | `HH:MM:SS` / `1.7s` |
+
+协议层：`room:update` 新增 `announces?: AnnounceItem[]`，与 `newLogs` 同批、所有座位完全一致；断线重连随 `catchUp` 补发最近 300 条日志对应的播报。旧客户端忽略该字段即可；旧服务端不发送时客户端按「无播报」安全降级。
 
 ## 更新线上版本
 
@@ -152,6 +192,14 @@ npm run deploy
 
 视觉验收用 `npx tsx scripts/char-shots.ts <charId>`（配合 `client/char-harness.html` 隔离渲染）出全姿态原帧。
 
+### 低模发型增强层
+
+全员 rig 在 `head` / `headTop` 挂点上统一叠加一层程序化低模发型几何（`client/src/battle3d/characters/hair-style.ts`），补足束发、鬓角、后脑发量、短发发际线与刘海体积，让正面/侧面/背面与战场俯视下都更容易辨认。脸、服装、道具、动作与脚底锁定一概不动，几何随头/头顶关节同步；沿用原发色与顶点色平面着色，无新增贴图或外部模型，随材质一起淡入淡出与释放。
+
+- 三名样板：吹箫哥（束发髻 + 鬓角 + 后脑，绿袍/竹箫/抬箫保持）、拔棍（短发发际线 + 后脑轮廓，收棍态只看头部站姿可辨）、大伊万（刘海 + 两侧体积，脸与橙衣轮廓拉开，怀里炸弹保留）；其余角色按束发/短发/强发量/配件优先/大头比例推广，详见 [造型标准](docs/CHARACTER_HAIR_STYLE.md)。
+- 工厂统一挂接（`characters/index.ts` 的 `createCharacterAsset`），幂等；无 3D 兜底的 legacy Humanoid 不受影响。
+- 需要新旧对照时可整体开关：`setCharacterHairStyle(rig, false)` 关闭、`true` 恢复。
+
 ## V6.0 · 地图（悬浮遗迹）/ MAP 任务进展
 
 V5 悬浮遗迹地图的任务分工与验收边界见 [MAP_TASKS.md](MAP_TASKS.md)、设计见 [MAP_DESIGN.md](docs/MAP_DESIGN.md)、架构见 [MAP_ARCHITECTURE.md](docs/MAP_ARCHITECTURE.md)、端到端验收见 [MAP_ACCEPTANCE.md](docs/MAP_ACCEPTANCE.md)。核心 Phase 0–5（MAP-000~005）已完成；后续独立任务截至本分支状态如下：
@@ -180,18 +228,21 @@ npx vitest run tests/ui/battle3d.test.ts tests/ui/map-playback.test.ts
 ```
 shared/src/          核心规则引擎（独立于前端与网络层）
   types.ts rng.ts judge.ts chardef.ts engine.ts
+  announce.ts        全局播报规则表（日志 → AnnounceItem，服务端/客户端同源）
   characters/        角色注册表（10+1角色）
   testcases/         共享测试用例（vitest 与网页测试场同源）
 server/src/          Socket.IO 服务端（房间/隐藏提交/断线重连/AI/互动/回放录制）
 client/src/          React 前端（首页/大厅/游戏页/回放播放器/机制测试场）
-  battle/            结构化事件解析 + BattleEventQueue 演出队列 + 音效
+  battle/            结构化事件解析 + BattleEventQueue 演出队列 + 音效 + 播报视图（announce-view）
   battle3d/          3D 战场（scene 场景/rig 人形/layout 布局数学/fx 特效/map-playback 演出投影/camera-director 取景）
-    characters/      角色专属 3D 视觉（kit 骨架套件 + 逐角色 rig + 注册工厂）
+    characters/      角色专属 3D 视觉（kit 骨架套件 + hair-style 发型增强层 + 逐角色 rig + 注册工厂）
   proto/             3D 架构原型（浏览器内直跑真实引擎的 A/B/C 构图对比运行时）
 tests/               自动化测试（共享用例/socket集成/AI回归/战绩/互动/回放/UI组件/battle3d 布局与适配层）
 docs/                规则/架构/测试报告/已知问题/角色原始数据/截图取证
   characters/        逐角色 3D 视觉规格与 QA 记录（10 份）
+  CHARACTER_HAIR_STYLE.md  低模发型增强标准（样板/推广/挂点/验收）
   screenshots-characters/  角色视觉取证原帧（隔离渲染 + 真实对局）
+  screenshots-hair-style/  三名样板发型增强取证（正/侧/3-4 视角 + 拔棍两态）
   MAP_TASKS.md / MAP_DESIGN.md / MAP_ARCHITECTURE.md / MAP_ACCEPTANCE.md
   screenshots-v5-map/  悬浮遗迹主任务取证
   screenshots-map101/ ~ screenshots-map105/  各后续 MAP 任务取证
@@ -204,12 +255,13 @@ scripts/
 
 ```bash
 npm test
-# 29 个测试文件 / 504 用例全绿（V6.0 实测）。按文件：
+# 32 个测试文件 / 553 用例全绿（全局播报实测，含 e2e 5 真实 Chromium）。按文件：
 #   character-assets 152 · shared-cases 111 · battle3d 27 · battle-queue 25 · domain 20
 #   map-playback 16 · battle-events 14 · order-rps2 12 · skill-judge 12 · gojo-asset 11
 #   socket 11 · components 11 · ai-difficulty 10 · gojo-lifecycle 8 · room-exit 7
 #   room-logseq 6 · finale-gate 6 · timeout 6 · ai-sim 5 · e2e 5
 #   stats 4 · reveal 4 · interaction 4 · broadcast-cursor 4 · throw-privacy 4
+#   announce 25 · announce-ui 8
 #   replay 3 · sfx 3 · skill-judge-ui 2 · exit-guard 1
 ```
 

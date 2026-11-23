@@ -111,4 +111,25 @@ describe('悬浮遗迹风雨和导流机关', () => {
       room.dispose();
     }
   });
+
+  it('天气、泥潭预警和开闸的真实日志进入全局播报', () => {
+    const room = new Room('RUIN', { seed: 1, turnTimeoutMs: 0, submitTimeoutMs: 0 });
+    try {
+      for (const id of ['A', 'B', 'C']) room.addSeat(id, 'default', 'local');
+      expect(room.start().ok).toBe(true);
+      const game = room.game!;
+      tieUntil(game, 4);
+      const warning = room.toAnnouncements(room.takeNewLogs());
+      expect(warning.some(item => item.text.includes('斜风骤雨'))).toBe(true);
+      expect(warning.some(item => item.text.includes('预计下一回合形成泥潭'))).toBe(true);
+      const occupant = game.playerIds.find(id => game.players[id].room === game.ruinsConditions()?.mud?.room)!;
+      expect(occupant).toBeTruthy();
+      winRound(game, occupant);
+      expect(game.submitAction(occupant, { type: 'openSluice' }).ok).toBe(true);
+      const opened = room.toAnnouncements(room.takeNewLogs());
+      expect(opened.some(item => item.text.includes('泥潭预警解除'))).toBe(true);
+    } finally {
+      room.dispose();
+    }
+  });
 });

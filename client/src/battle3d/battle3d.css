@@ -477,25 +477,53 @@
   white-space: nowrap;
 }
 
-/* ── 全局播报横幅（喝牛奶/今日勇者运势：一次性，不抢镜头） ── */
+/* ── 全局播报横幅（所有公开动作：一次性，不抢镜头） ──
+   结构：icon + text + 服务端时间戳；具体停留时长由 React 内联 animationDuration 覆盖。
+   规则表见 shared/src/announce.ts —— 新增动作类型无需改这里。 */
 .global-announce {
   position: absolute;
   top: 13%;
   left: 50%;
   transform: translateX(-50%);
   z-index: 9;
-  padding: 6px 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(90vw, 720px);
+  padding: 6px 16px 6px 18px;
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 1.5px;
   color: #ffe9c0;
-  background: rgba(28, 20, 8, 0.88);
+  background: rgba(28, 20, 8, 0.9);
   border: 1px solid rgba(240, 214, 138, 0.65);
   border-radius: 999px;
-  white-space: nowrap;
   pointer-events: none;
-  animation: b3-announce-anim 2.1s ease forwards;
+  animation: b3-announce-anim 2.1s ease forwards; /* 默认值，按 ttlMs 内联覆盖 */
 }
+.global-announce .ga-icon { flex: 0 0 auto; font-size: 16px; line-height: 1; }
+.global-announce .ga-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.global-announce .ga-time {
+  flex: 0 0 auto;
+  padding-left: 8px;
+  border-left: 1px solid rgba(240, 214, 138, 0.3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #c0a878;
+}
+/* 色调：只调边框与文字，保持同一条横幅的视觉统一 */
+.global-announce.tone-danger { border-color: rgba(255, 122, 95, 0.8); color: #ffd9cc; background: rgba(46, 14, 8, 0.92); }
+.global-announce.tone-reward { border-color: rgba(255, 215, 106, 0.85); color: #fff0c2; }
+.global-announce.tone-combat { border-color: rgba(255, 178, 122, 0.7); }
+.global-announce.tone-system { border-color: rgba(154, 187, 204, 0.5); color: #dbe9f2; }
+.global-announce.prio-high { box-shadow: 0 0 0 1px rgba(216, 176, 74, 0.25), 0 6px 22px rgba(0, 0, 0, 0.5); }
 @keyframes b3-announce-anim {
   0% { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.92); }
   12% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }

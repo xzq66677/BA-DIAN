@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Home from './pages/Home.js';
 import Lobby from './pages/Lobby.js';
 import GamePage from './pages/Game.js';
 import Arena from './pages/Arena.js';
 import PrototypePage from './proto/Prototype.js';
-import { net, type LobbyState, type GameSnapshot } from './net.js';
+import { net, type AnnounceItem, type LobbyState, type GameSnapshot } from './net.js';
+import { mergeAnnouncements } from '../../shared/src/announce.js';
 
 export type Page = 'home' | 'lobby' | 'game' | 'arena';
 
@@ -22,6 +23,8 @@ export default function App() {
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [game, setGame] = useState<GameSnapshot | null>(null);
   const [logs, setLogs] = useState<{ seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[]>([]);
+  /** 全局播报（服务端权威，增量累积；新局/换房清空） */
+  const [announces, setAnnounces] = useState<AnnounceItem[]>([]);
   const [resync, setResync] = useState<{ cursor: number }>();
   const [err, setErr] = useState('');
   /** 已渲染的局号（新开一局要清空上一局的战斗日志） */
@@ -39,7 +42,7 @@ export default function App() {
         const gNo = u.lobby.gameNo ?? null;
         const newGame = gNo !== null && gameNoRef.current !== null && gNo !== gameNoRef.current;
         if (gNo !== null) gameNoRef.current = gNo;
-        if (newGame) setLogs([]);
+        if (newGame) { setLogs([]); setAnnounces([]); }
         if (u.newLogs && u.newLogs.length > 0) {
           setLogs((prev) => {
             const have = new Set(prev.map((l) => l.seq));
@@ -48,6 +51,10 @@ export default function App() {
             const merged = [...prev, ...add];
             return merged.slice(-800);
           });
+        }
+        // 全局播报：与日志同批增量；seq 去重、保序、保留最近 200 条（广播层已限 80/批）
+        if (u.announces && u.announces.length > 0) {
+          setAnnounces((prev) => mergeAnnouncements(newGame ? [] : prev, u.announces ?? []));
         }
         // 状态机：lobby → playing 时进入游戏页；over 时留在游戏页显示结果
         setPage((p) => {
@@ -102,6 +109,7 @@ export default function App() {
     net.currentCode = code;
     localStorage.setItem('badian-session', JSON.stringify(s));
     setLogs([]);
+    setAnnounces([]);
     gameNoRef.current = null; // 跨房间加入：上一局的局号比较基线一并清掉
     setPage('lobby');
   };
@@ -125,6 +133,7 @@ export default function App() {
     setLobby(null);
     setGame(null);
     setLogs([]);
+    setAnnounces([]);
     gameNoRef.current = null;
     setPage('home');
   };
@@ -166,6 +175,7 @@ export default function App() {
           game={game}
           session={session}
           logs={logs}
+          announces={announces}
           onExit={exitSession}
           onBackToLobby={() => setPage('lobby')}
         />
