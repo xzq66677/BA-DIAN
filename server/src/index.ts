@@ -11,6 +11,8 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Room } from './room.js';
+import { parseMapConfig } from '../../shared/src/map-config.js';
+import { MAX_ROOM_SEATS, remainingSeats } from '../../shared/src/room-limits.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
 import type { PlayerId, ActionRequest, Throw, InteractionKind } from '../../shared/src/types.js';
 
@@ -133,17 +135,23 @@ io.on('connection', (socket: Socket) => {
     return room.seatBySocket(socket.id).length > 0 ? room : undefined;
   }
 
-  socket.on('room:create', (data: { name: string; charId?: string; localPlayers?: string[] }, ack?: (r: unknown) => void) => {
+  socket.on('room:create', (data: { name: string; charId?: string; localPlayers?: string[]; map?: unknown }, ack?: (r: unknown) => void) => {
     const active = socketActiveRoom(socket);
     if (active) { ack?.({ ok: false, error: `你已在房间 ${active.code} 中，请先退出该房间（或点「退出旧房间」解除占用）`, activeCode: active.code }); return; }
     if (!data.name || !data.name.trim()) { ack?.({ ok: false, error: '请先填写昵称' }); return; }
+    const names = data.localPlayers && data.localPlayers.length > 0 ? data.localPlayers : [data.name || '玩家1'];
+    // 单设备多人的本地身份 + 房主自己，全部占用同一房间席位；创建时就切断超限组合，
+    // 避免 rooms 里留下一个永远无法开始的房间。
+    if (names.length > MAX_ROOM_SEATS) {
+      ack?.({ ok: false, error: `房间最多 ${MAX_ROOM_SEATS} 人，当前 ${names.length} 人` });
+      return;
+    }
     try {
       const code = genRoomCode();
-      const room = new Room(code);
+      const room = new Room(code, { map: parseMapConfig(data.map) });
       rooms.set(code, room);
       room.onBroadcast = broadcastRoom;
       room.onGameOver = () => io.to(code).emit('game:over', { winner: room.game?.winner ?? null });
-      const names = data.localPlayers && data.localPlayers.length > 0 ? data.localPlayers : [data.name || '玩家1'];
       const first = room.addSeat(names[0], data.charId || 'default', 'human');
       first.socketId = socket.id;
       first.connected = true;
@@ -176,7 +184,10 @@ io.on('connection', (socket: Socket) => {
     const room = getRoom(data.code || '');
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     if (room.state !== 'lobby') { ack?.({ ok: false, error: '游戏已开始，无法加入' }); return; }
-    if (room.seats.length >= 20) { ack?.({ ok: false, error: '房间已满' }); return; }
+    if (room.seats.length >= MAX_ROOM_SEATS) {
+      ack?.({ ok: false, error: `房间已满（最多 ${MAX_ROOM_SEATS} 人）` });
+      return;
+    }
     const seat = room.addSeat(data.name || `玩家${room.seats.length + 1}`, data.charId || 'default', 'human');
     seat.socketId = socket.id;
     seat.connected = true;
@@ -232,7 +243,9 @@ io.on('connection', (socket: Socket) => {
     const seat = room.seatOf(data.playerId);
     if (!seat || !room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可添加AI' }); return; }
     if (data.difficulty) room.setAiDifficulty(data.difficulty);
-    const count = Math.min(data.count ?? 1, 20 - room.seats.length);
+    const free = remainingSeats(room.seats.length);
+    if (free <= 0) { ack?.({ ok: false, error: `房间已满（最多 ${MAX_ROOM_SEATS} 人）` }); return; }
+    const count = Math.max(0, Math.min(Math.floor(data.count ?? 1), free));
     for (let i = 0; i < count; i++) {
       // 角色选择：显式指定 > 随机（注册表内随机）
       const wanted = data.charId && data.charId !== 'random' && CHARACTERS[data.charId] ? data.charId : undefined;

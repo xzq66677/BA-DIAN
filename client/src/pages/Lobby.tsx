@@ -61,6 +61,7 @@ export default function Lobby({ lobby, session, onExit }: {
           把邀请码发给朋友加入；房主：<b style={{ color: 'var(--gold-2)' }}>{lobby.seats.find((s) => s.playerId === lobby.hostSeat)?.name || '?'}</b>
           {isHost ? '（你）' : ''} · 至少 2 人可开局
         </p>
+        <p className="muted">地图：悬浮遗迹 · 天气与泥潭：{lobby.config.map?.mechanics.weather === false ? '关闭' : '开启'}</p>
       </div>
 
       <div className="hall-grid">

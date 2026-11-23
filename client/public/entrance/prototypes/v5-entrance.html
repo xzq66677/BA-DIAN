@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>BA·DIAN V5.0 · 入口原型（四段式 · 实时 3D）</title>
+<link rel="stylesheet" href="menu.css">
+<link rel="stylesheet" href="entrance.css">
+</head>
+<body>
+<div id="app">
+  <div id="stage"></div>
+  <div class="far" id="far"><div class="layer l1"></div><div class="layer l2"></div></div>
+
+  <!-- 顶部阶段指示 -->
+  <div class="phasebar" id="phasebar">
+    <div class="step on" data-p="intro"><span class="n">1</span>竞技场</div><span class="ln"></span>
+    <div class="step" data-p="menu"><span class="n">2</span>主菜单</div><span class="ln"></span>
+    <div class="step" data-p="lobby"><span class="n">3</span>大厅 / 选角</div><span class="ln"></span>
+    <div class="step" data-p="battle"><span class="n">4</span>战场交接</div>
+  </div>
+
+  <div class="topbar">
+    <div class="brand-mini">BA·DIAN <i></i> V5.0 ENTRANCE</div>
+    <div class="chapter" id="chapter">STEP 01 / 开场</div>
+  </div>
+
+  <div class="controls">
+    <button class="ctl" id="motionBtn"><span class="dot"></span>减少动态</button>
+  </div>
+
+  <!-- 开场跳过 -->
+  <button class="skip-intro" id="skipIntro">跳过开场 <span class="ar">→</span></button>
+
+  <!-- 字幕式舞台说明 -->
+  <div class="subline" id="subline"><div class="cn" id="subCn"></div><div class="en" id="subEn"></div></div>
+
+  <!-- 主菜单 -->
+  <div class="ui" id="menuUI">
+    <div class="left">
+      <img class="logo" src="../assets/logo-menu.svg" alt="BA·DIAN">
+      <div class="kicker">石 台 之 上 · 一 决 生 死</div>
+      <h1>拔 典</h1>
+      <div class="tagline">石头 · 剪刀 · 布<br>每一种棋子，都藏着一种活下去的方式。</div>
+      <div class="menu">
+        <button class="mbtn primary" id="createBtn"><span class="idx">01</span>创建房间<span class="arw">→</span></button>
+        <button class="mbtn" id="joinBtn"><span class="idx">02</span>加入房间<span class="arw">→</span></button>
+        <button class="mbtn" id="howBtn"><span class="idx">03</span>玩法说明<span class="arw">→</span></button>
+      </div>
+      <div class="foot-hint">点击角色，他会回应你</div>
+    </div>
+  </div>
+
+  <div class="hint" id="hint"><span class="tap"><b>◉</b> 轻触吹箫哥</span></div>
+
+  <!-- 席位标签（3D 投影定位，JS 创建） -->
+  <div id="tags"></div>
+
+  <!-- 大厅 HUD -->
+  <div class="lobbyHud" id="lobbyHud">
+    <button class="hbtn back2" id="backBtn">← 返回主菜单</button>
+    <div class="codeBox"><div class="lb">房 间 邀 请 码</div><div class="val">9 5 X 4</div><div class="cp">本地模拟 · 未接入房间协议</div></div>
+    <div class="hostOps">
+      <button class="hbtn" id="readyBtn">房主准备</button>
+      <button class="hbtn go" id="toSelectBtn">开始选角 →</button>
+    </div>
+  </div>
+
+  <!-- 选角面板 -->
+  <div class="selPanel" id="selPanel">
+    <div class="chp" id="selChp">CHAMPION 01 / 11</div>
+    <div class="cname" id="selName">吹箫哥</div>
+    <div class="ctitle" id="selTitle">远 音 · 吹 奏 者</div>
+    <div class="crole" id="selRole">远程 · 只攻异房间</div>
+    <div class="stat" id="selStat"><b>血 3</b><b>攻 1</b></div>
+    <div class="blk"><div class="k">被 动</div><div class="v" id="selPassive"></div></div>
+    <div class="blk"><div class="k">技 能 / 机 制</div><div class="v" id="selSkill"></div></div>
+    <div class="blk"><div class="k">战 斗 特 点</div><div class="v" id="selTrait"></div></div>
+    <div class="quote" id="selQuote"></div>
+  </div>
+  <div class="selTabs" id="selTabs">
+    <div class="ttl">选 择 出 战 角 色</div>
+    <div class="row" id="selTabRow"></div>
+  </div>
+  <div class="selStage" id="selStage">MODEL · 3D 展示区 / 技能说明 →</div>
+  <div class="rotHint" id="rotHint"><b>↔</b> 在角色上左右拖动可旋转查看</div>
+  <button class="hbtn go selConfirm" id="confirmBtn">确认出战 →</button>
+
+  <!-- 战场交接：猜拳 HUD -->
+  <div class="rpsHud" id="rpsHud">
+    <div class="ask" id="rpsAsk">石头 · 剪刀 · 布 —— 轮到你出拳<small id="rpsAskSub">模拟对手已就位，由你接手这一手</small></div>
+    <div class="choices">
+      <button class="rpsBtn" data-rps="rock"><span class="ic">✊</span>石头</button>
+      <button class="rpsBtn" data-rps="scissors"><span class="ic">✌️</span>剪刀</button>
+      <button class="rpsBtn" data-rps="paper"><span class="ic">🖐</span>布</button>
+    </div>
+    <div class="rpsResult" id="rpsResult"></div>
+    <button class="hbtn reselect" id="reselectBtn">↩ 重新选角</button>
+  </div>
+
+  <!-- 转场 -->
+  <div class="transition" id="transition"><div class="mark" id="transMark">过 场</div></div>
+  <div id="boot">载 入 竞 技 场 …</div>
+</div>
+
+<script src="menu-bundle.js"></script>
+<script src="hair-style-kit.js"></script>
+<script src="stage-adapter.js"></script>
+<script>
+(function(){
+'use strict';
+const { THREE, createCharacterAsset } = window.BA;
+window.BAHair.install(THREE);
+window.BAStage.install(THREE);
+const stage=document.getElementById('stage');
+const reducedMedia=matchMedia('(prefers-reduced-motion: reduce)');
+let reduced=reducedMedia.matches;
+const $=id=>document.getElementById(id);
+
+// ── 渲染器 / 场景 ──
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.06;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(50,1,0.1,160);
+// 雾、灯光、配色、几何全部由地图适配层构建（见 stage-adapter.js）；此处只保留渲染器能力。
+
+// ── 竞技场：完全由地图适配层构建 ──
+// 换地图只需 define 新适配器（或 ?stage=<id>），原型主体不依赖任何地图常量/几何。
+const _wantStage=new URLSearchParams(location.search).get('stage')||'v6-floating-ruins';
+const arena=BAStage.use(BAStage.ids().includes(_wantStage)?_wantStage:'v6-floating-ruins');
+const FLOOR=arena.floorY;                  // 台面高度：全原型唯一的落地基准
+const LAND_Y=arena.anchor('hero').y;       // 角色落地 y = floorY + 脚底抬升（由适配层计算）
+const stageHandle=arena.build(scene);      // 主台/侧台/栈桥/遗物/散景由适配器构建
+
+// 接触阴影与遗物显隐：委托给适配层，原型只传语义参数（不碰具体几何）
+function setSelectShadow(i,c,w,h){stageHandle.setSelectShadow(i,c.rig.root.position.x,c.rig.root.position.z,w,h);}
+function setRelicVisible(on){stageHandle.setRelicVisible(on);}
+
+// 席位分布：名字/角色/准备态是 Demo 数据，留在原型；坐标（x/z）来自适配层锚点
+const SEATS=[
+  {id:'p1',name:'五条悟',role:'AI · 硬核',char:'gojo',a:'seat0',empty:false,ready:true,tags:['AI','已准备']},
+  {id:'p2',name:'拔棍',role:'真人 · 房间 3',char:'bagun',a:'seat1',empty:false,ready:false,tags:['真人','未准备']},
+  {id:'p3',name:'等待玩家加入…',role:'空席位',char:null,a:'seat2',empty:true,ready:false,tags:['空位']},
+].map(s=>Object.assign(s,{x:arena.anchor(s.a).x,z:arena.anchor(s.a).z}));
+
+// ── 角色包装：通用待机（保留各自身形/待机姿态）+ 吹箫哥专属实时动画 ──
+function makeChar(id,x,z,faceYaw){
+  const asset=createCharacterAsset(id),rig=asset.rig;
+  window.BAHair.apply(rig,id);
+  rig.root.position.set(x,LAND_Y,z);
+  scene.add(rig.root);
+  const J=n=>rig.root.getObjectByName(n);
+  rig.resetPose();
+  const NS=['pelvis','body','head','headTop','armL','elbowL','armR','elbowR','thighL','kneeL','thighR','kneeR'];
+  const REST={};
+  NS.forEach(n=>{const o=J(n);if(o)REST[n]={rx:o.rotation.x,ry:o.rotation.y,rz:o.rotation.z,py:o.position.y,pz:o.position.z};});
+  const c={id,rig,J,REST,faceYaw:faceYaw||0,phase:Math.random()*6,
+    move:null,baseX:x,baseZ:z,mode:'idle',modeT:0,respond:0,rotExtra:0};
+  return c;
+}
+function resetJoints(c){
+  for(const n in c.REST){const o=c.J(n),r=c.REST[n];if(o){o.rotation.set(r.rx,r.ry,r.rz);o.position.y=r.py;o.position.z=r.pz;}}
+}
+// 通用待机：呼吸(躯干)+重心漂移+短暂侧视；腿与 root 位置不动 → 脚底锁定
+function poseIdle(c,t,k){
+  resetJoints(c);
+  const body=c.J('body'),head=c.J('head');
+  const breath=Math.sin(t*1.9+c.phase),sway=Math.sin(t*0.82+c.phase),glance=Math.sin(t*0.55+c.phase*1.7);
+  const burst=Math.pow(Math.max(0,Math.sin(t*0.42+c.phase)),8);
+  if(body){body.rotation.x=c.REST.body.rx+0.012*breath*k;body.rotation.z=c.REST.body.rz+0.026*sway*k;
+    body.rotation.y=c.REST.body.ry+0.018*sway*k;body.position.y=c.REST.body.py+0.008*breath*k;}
+  if(head){head.rotation.y=c.REST.head.ry+(0.10*glance+0.14*burst)*k;head.rotation.x=c.REST.head.rx+0.02*breath*k;}
+  if(c.id==='chuixiao'){
+    // 吹箫哥专属：收敛原生张开的手臂，贴近吹奏姿态（保留上一轮实时动画微调）
+    const aL=c.J('armL'),aR=c.J('armR'),eL=c.J('elbowL'),eR=c.J('elbowR');
+    if(aL)aL.rotation.x=c.REST.armL.rx-0.12*k;
+    if(aR)aR.rotation.x=c.REST.armR.rx-0.12*k;
+    if(aL)aL.rotation.z=c.REST.armL.rz+0.16*k;
+    if(aR)aR.rotation.z=c.REST.armR.rz-0.16*k;
+    if(eL)eL.rotation.x=c.REST.elbowL.rx+0.12-0.03*breath*k;
+    if(eR)eR.rotation.x=c.REST.elbowR.rx+0.12-0.03*breath*k;
+  }
+}
+// 吹箫哥点击回应：转向玩家 → 抬箫 → 回落（箫挂头部随头动，手随肘，不分离）
+function poseRespond(c,local,t){
+  poseIdle(c,t,1);
+  const k=reduced?0.45:1;
+  let L;
+  if(local<0.18)L=smooth(local/0.18)*0.55;
+  else if(local<0.62)L=0.55+0.45*smooth((local-0.18)/0.44);
+  else L=1-smooth((local-0.62)/0.38);
+  L*=k;
+  const head=c.J('head'),body=c.J('body'),eL=c.J('elbowL'),eR=c.J('elbowR'),aL=c.J('armL'),aR=c.J('armR');
+  if(head){head.rotation.x-=0.15*L;head.rotation.y-=0.28*L;}
+  if(body){body.rotation.x-=0.07*L;body.position.y+=0.014*L;}
+  if(eL)eL.rotation.x-=0.30*L;
+  if(eR)eR.rotation.x-=0.30*L;
+  if(aL)aL.rotation.z-=0.10*L;
+  if(aR)aR.rotation.z+=0.10*L;
+}
+const RESPOND_DUR=2.4;
+
+// ── 角色池：11 名原生 rig 惰性创建，保留各自身形/道具/待机 ──
+// 吹箫哥专属实时动画沿用上一轮；其余角色用通用待机（呼吸+重心+侧视，脚底锁定）
+const CHAR_IDS=['chuixiao','gojo','bagun','laodaye','mabaoguo','wuliuqi','ivan-girl','hero-today','dajianke','dapihuai','default'];
+const chars=[];                       // 已创建的角色实例
+const charMap={};
+function getChar(id,x,z,faceYaw){
+  if(charMap[id])return charMap[id];
+  const c=makeChar(id,x===undefined?0:x,z===undefined?0:z,faceYaw);
+  charMap[id]=c;chars.push(c);
+  return c;
+}
+const _ha=arena.anchor('hero');
+const hero=getChar('chuixiao',_ha.x,_ha.z,0);  // 中央主台：房主/主角/菜单角色（落点来自适配层）
+function moveTo(c,x,y,z,dur,ease){
+  c.rig.root.visible=true;
+  c.move={fx:c.rig.root.position.x,fy:c.rig.root.position.y,fz:c.rig.root.position.z,
+    tx:x,ty:y,tz:z,st:now(),dur:dur||0.7,ease:ease||'inout'};
+}
+function hideChar(c){if(c){c.move=null;c.rig.root.visible=false;}}
+const easeIO=t=>t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+const easeOut=t=>1-Math.pow(1-t,3);
+const easeBack=t=>{const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);};
+const smooth=t=>t*t*(3-2*t);
+const clamp01=t=>Math.max(0,Math.min(1,t));
+
+// ── 相机运镜 ──
+// 所有机位来自适配层；init 机位以适配层 introHigh 初始化，避免换图后残留旧坐标
+const VIEWS={
+  introHigh:arena.view('introHigh'),
+  menu:arena.view('menu',{mobile:innerWidth<=820}),
+  lobby:arena.view('lobby'),
+  select:arena.view('select',{mobile:innerWidth<=820}),
+  battle:arena.view('battle'),
+};
+const _iv=VIEWS.introHigh;
+const cam={px:_iv.pos[0],py:_iv.pos[1],pz:_iv.pos[2],lx:_iv.look[0],ly:_iv.look[1],lz:_iv.look[2],fov:_iv.fov,tw:null};
+const now=()=>performance.now();
+function camTo(name,dur,instant){
+  const v=VIEWS[name];
+  if(instant||reduced){cam.px=v.pos[0];cam.py=v.pos[1];cam.pz=v.pos[2];cam.lx=v.look[0];cam.ly=v.look[1];cam.lz=v.look[2];cam.fov=v.fov;cam.tw=null;return;}
+  cam.tw={fx:cam.px,fy:cam.py,fz:cam.pz,flx:cam.lx,fly:cam.ly,flz:cam.lz,ffov:cam.fov,
+    tx:v.pos[0],ty:v.pos[1],tz:v.pos[2],tlx:v.look[0],tly:v.look[1],tlz:v.look[2],tfov:v.fov,st:now(),dur:dur};
+}
+camTo('introHigh',0,true);
+
+// ── 阶段状态机 ──
+let phase='intro', introT=0, introDone=false;
+const PHASES={intro:'开场',menu:'主菜单',lobby:'作战室',select:'选角',battle:'战场'};
+function setPhase(p){
+  phase=p;
+  // 近景阶段隐藏中央遗物，避免遮挡角色；全景/大厅/战场显示以体现竞技场身份
+  setRelicVisible(p==='intro'||p==='lobby'||p==='battle');
+  stageHandle.setSelectShadowsVisible(p==='select');
+  document.querySelectorAll('.phasebar .step').forEach(s=>{
+    const order=['intro','menu','lobby','battle'];
+    const cur=order.indexOf(p==='select'?'lobby':p);
+    const idx=order.indexOf(s.dataset.p);
+    s.classList.toggle('on',idx===cur);
+    s.classList.toggle('done',idx<cur);
+  });
+  $('chapter').textContent='STEP '+({'intro':'01','menu':'02','lobby':'03','select':'03','battle':'04'}[p])+' / '+PHASES[p];
+}
+function subline(cn,en,hold){
+  $('subCn').textContent=cn;$('subEn').textContent=en;
+  $('subline').classList.add('show');
+  clearTimeout(subline._t);
+  if(hold)subline._t=setTimeout(()=>$('subline').classList.remove('show'),hold);
+}
+function transition(label,done){
+  $('transMark').textContent=label;
+  const tr=$('transition');tr.classList.add('show');
+  setTimeout(()=>{done&&done();tr.classList.remove('show');},reduced?120:620);
+}
+
+// 开场：高位全景 → 下降到吹箫哥石台 → Logo/菜单浮现
+function startIntro(){
+  setPhase('intro');
+  camTo('introHigh',0,true);
+  introT=0;introDone=false;
+  // 开场只给竞技场全景：菜单/Logo/提示随镜头落位后才浮现
+  $('menuUI').style.display='none';$('hint').style.display='none';
+  $('skipIntro').classList.add('show');
+  subline('悬 浮 遗 迹 · 竞 技 场','THE FLOATING RUINS',2600);
+}
+function finishIntro(skipped){
+  if(introDone)return;introDone=true;
+  $('skipIntro').classList.remove('show');
+  camTo('menu',skipped?(reduced?0:0.5):1.3);
+  setTimeout(()=>{
+    setPhase('menu');
+    $('menuUI').style.display='';$('hint').style.display='';
+    subline('石 台 之 上 · 吹 箫 哥','CHUIXIAO // THE FLUTIST',innerWidth<=820?1400:2400);
+  },skipped?(reduced?0:420):900);
+}
+
+// 主菜单交互（保留点击角色回应）
+const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();let down=null;
+function onChar(cx,cy,obj){
+  const r=renderer.domElement.getBoundingClientRect();
+  pointer.x=((cx-r.left)/r.width)*2-1;pointer.y=-((cy-r.top)/r.height)*2+1;
+  raycaster.setFromCamera(pointer,camera);
+  return raycaster.intersectObject(obj,true).length>0;
+}
+renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,t:performance.now()};});
+renderer.domElement.addEventListener('pointerup',e=>{
+  if(!down)return;const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y);down=null;
+  if(moved<12){
+    if(phase==='menu'&&onChar(e.clientX,e.clientY,hero.rig.root))triggerRespond();
+    else if(phase==='select'&&onChar(e.clientX,e.clientY,selFocus().rig.root))triggerRespond();
+  }
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+  // 选角：拖动旋转焦点角色
+  if(phase==='select'&&dragRot&&down){
+    const dx=e.clientX-dragRot.last;selFocus().rotExtra+=dx*0.012;dragRot.last=e.clientX;
+  }
+  const nx=(e.clientX/innerWidth-0.5),ny=(e.clientY/innerHeight-0.5);
+  document.querySelectorAll('.far .layer').forEach((l,i)=>{const d=(i+1)*6;l.style.transform=`translate(${nx*d}px,${ny*d*0.35}px)`;});
+});
+let dragRot=false;
+renderer.domElement.addEventListener('pointerdown',e=>{if(phase==='select'){dragRot=true;dragRot={last:e.clientX};}});
+addEventListener('pointerup',()=>{dragRot=false;});
+function triggerRespond(){
+  const c=(phase==='select')?selFocus():hero;
+  if(c.mode==='respond')return;c.mode='respond';c.modeT=0;c.modeSt=now();
+  $('hint').style.opacity='0';
+}
+
+// 大厅
+function enterLobby(){
+  transition('进 入 作 战 室',()=>{
+    setPhase('lobby');
+    $('menuUI').style.display='none';$('hint').style.display='none';
+    camTo('lobby',1.1);
+    // 房主吹箫哥留主台；两名模拟玩家落座各自侧台（本地模拟数据）
+    moveTo(hero,_ha.x,_ha.y,_ha.z,0.6);hero.rotExtra=0;
+    const p1=getChar('gojo',SEATS[0].x,LAND_Y,SEATS[0].z,-0.4);
+    const p2=getChar('bagun',SEATS[1].x,LAND_Y,SEATS[1].z,0.4);
+    p1.rotExtra=0;p2.rotExtra=0;
+    moveTo(p1,SEATS[0].x,LAND_Y,SEATS[0].z,0.6);
+    moveTo(p2,SEATS[1].x,LAND_Y,SEATS[1].z,0.6);
+    $('lobbyHud').classList.add('show');
+    showSeatTags(true);
+    subline('作 战 室 · 4 / 8 席','ROOM // 9 5 X 4',2200);
+  });
+}
+function backMenu(){
+  transition('返 回 主 菜 单',()=>{
+    setPhase('menu');
+    $('lobbyHud').classList.remove('show');$('selPanel').classList.remove('show');
+    $('selTabs').classList.remove('show');$('rotHint').classList.remove('show');$('confirmBtn').classList.remove('show');
+    showSeatTags(false);hideNameTags();$('rpsHud').classList.remove('show');$('rpsResult').classList.remove('show');
+    $('menuUI').style.display='';$('hint').style.display='';$('hint').style.opacity='';
+    // 复位角色：只留主角在主台，其余隐藏
+    chars.forEach(c=>{if(c!==hero)c.rig.root.visible=false;});
+    moveTo(hero,_ha.x,_ha.y,_ha.z,0.7);hero.rotExtra=0;
+    camTo('menu',1.0);
+  });
+}
+
+// 11 名角色：技能/被动/战斗特点/称号来自 shared 角色注册表真实规则文案
+// frame: 取景参数 [身高系数, 武器宽度系数]，大体型/长武器角色自动拉远留边
+const CHAMPS={
+  chuixiao:{name:'吹箫哥',title:'远 音 · 吹 奏 者',role:'远程 · 只攻异房间',stat:['血 3','攻 1'],frame:[1.0,1.0],
+    passive:'无被动 · 专精远程',
+    skill:'【远音】只能远程攻击异房间目标，伤害 1；无需瞄准，直接选人开吹。贴身近战一概打不出来。',
+    trait:'手位抱箫、常驻唇边竹箫（随头动）。远程出手为凝气吹奏（微后仰）。',
+    quote:'「离这么近干嘛，我吹的又不是贴脸曲。」'},
+  gojo:{name:'五条悟',title:'无 量 · 领 域 主',role:'双命 · 领域掌控者',stat:['血 3','2 条命','近 3'],frame:[1.22,1.05],
+    passive:'双命 · 首次致死满血复活',
+    skill:'【无量】【领域展开】首次致死消耗一条命并满血复活。近战 3 伤；远程需瞄准 2 伤。领域展开后远程免瞄准、平局算五条悟胜。',
+    trait:'高大体型、双命机制；领域展开后远程免瞄准。存在领域对冲（多名领域持有者效果抵消）。',
+    quote:'「平局？在我领域里，平局也算我赢。」'},
+  bagun:{name:'拔棍',title:'棍 出 · 破 隐 者',role:'近战 · 无视闪避',stat:['血 3','攻 1'],frame:[1.0,1.28],
+    passive:'拔棍后 · 攻击无视闪避',
+    skill:'【拔棍/收棍】切换拔棍状态。未拔棍时攻击无法造成伤害；拔棍状态下攻击无视躲避（含隐身、躲藏），造成直伤。',
+    trait:'长棍道具。需要先用「拔棍」行动进入状态，才能打出伤害；专克隐身躲藏。',
+    quote:'「棍不出鞘，如何分高下？」'},
+  laodaye:{name:'老大爷',title:'领 域 · 对 冲 者',role:'近战 · 领域强化',stat:['血 3','近 3','远 2'],frame:[1.06,1.06],
+    passive:'领域展开 · 平局算胜',
+    skill:'【领域展开】【领域强化】领域展开后平局算老大爷胜；领域内近战 5 伤、远程 3 伤。与五条悟等领域对冲。',
+    trait:'斗笠造型。领域强化开关控制领域内高伤；后展开的领域覆盖先展开者。',
+    quote:'「姜还是老的辣，年轻人。」'},
+  mabaoguo:{name:'马保国',title:'太 极 · 五 连 鞭',role:'反伤 · 闪电五连鞭',stat:['血 4','攻 1'],frame:[1.04,1.1],
+    passive:'混元形意太极 · 反伤',
+    skill:'【太极反弹】受到伤害时判定，赢则原伤反弹给来源。【闪电五连鞭】5 场判定按胜次扣敌 20/40/60/80/100% 血。【不讲武德】被击杀后 5 局判定赢 3 局带走对面。',
+    trait:'太极盘道具。反伤与延迟爆发兼具；大伊万爆/肉山坐不触发反弹。',
+    quote:'「年轻人，不讲武德！」'},
+  wuliuqi:{name:'伍六七',title:'三 段 · 剪 击 者',role:'范围 · 三段斩击',stat:['血 3','攻 1'],frame:[1.0,1.12],
+    passive:'三段 AOE · 独立结算',
+    skill:'【三段斩击】攻击为 3 段 AOE：每段对攻击时所在房间所有玩家造成 1 伤；释放房间固定，段间独立结算。',
+    trait:'剪刀道具。范围压制，目标在攻击时所在房间内全部受击（默认不含自己）。',
+    quote:'「我剪的，是命运的线。」'},
+  'ivan-girl':{name:'大伊万',title:'投 掷 · 毁 灭 者',role:'投掷 · 延迟毁灭',stat:['血 2','攻 0'],frame:[0.92,1.2],
+    passive:'延迟引爆 · 不触发反弹',
+    skill:'【投掷大伊万】掷一颗大伊万至任意房间（含自己）。投掷后第一个分出胜负的回合末爆炸，毁灭目标房间内存活者（含躲藏/隐身）；平局回合顺延。',
+    trait:'炸弹道具。伤害极高且不触发反弹类被动；可同归于尽。',
+    quote:'「大伊万，扔进你的房间！」'},
+  'hero-today':{name:'今日勇者',title:'运 势 · 一 掷 者',role:'运势 · 一掷定命',stat:['血 3','攻 2'],frame:[0.98,1.04],
+    passive:'全局仅一次 · 运势转换',
+    skill:'【抽取今日运势】掷 0-9：0/1 暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。全局仅一次。',
+    trait:'骰子道具。高风险高回报的面板转换，不限回合。',
+    quote:'「今天的运气，全押在这一掷。」'},
+  dajianke:{name:'大贱客',title:'磁 引 · 嘲 讽 者',role:'吸引 · 精神攻击',stat:['血 3','攻 1'],frame:[1.0,1.14],
+    passive:'在场 · 吸引全场伤害',
+    skill:'【磁场吸引】在场时自动吸引全场非精神伤害（不转移附加效果）。【辱骂】精神攻击无视距离与躲藏，同一目标累计 3 次直接精神致死。',
+    trait:'磁环道具。伤害转移只转数值不转效果；精神伤害不转移。',
+    quote:'「都冲我来，骂你三次你就没了。」'},
+  dapihuai:{name:'大屁孩',title:'判 定 · 暴 走 者',role:'判定 · 暴走自爆',stat:['血 3','攻 1'],frame:[0.74,0.9],
+    passive:'判定历史 · 跨回合记忆',
+    skill:'【判定记忆】连续三次判定出现三种不同结果 → 暴走：随机一名玩家受精神攻击；连续三次相同 → 自爆。历史跨回合记忆。',
+    trait:'矮小体型、呆毛发型的造型差异角色。判定连锁触发暴走或自爆。',
+    quote:'「哇啊啊啊，我要暴走啦！」'},
+  default:{name:'无业游民',title:'平 凡 · 无 被 动',role:'无被动 · 默认棋子',stat:['血 2','攻 1'],frame:[1.0,0.96],
+    passive:'无被动 · 默认角色',
+    skill:'无被动（未选上角色者默认此角色）。血量 2，攻击 1。',
+    trait:'标准身形、无专属道具。靠基础猜拳与走位活下去。',
+    quote:'「我只是路过打酱油的。」'},
+};
+let selIndex=0;
+const selOrder=CHAR_IDS;
+function selFocus(){return getChar(selOrder[selIndex]);}
+function buildSelTabs(){
+  const row=$('selTabRow');row.innerHTML='';
+  selOrder.forEach((id,i)=>{
+    const d=CHAMPS[id];const b=document.createElement('button');b.className='tab';
+    b.innerHTML=`<img src="../assets/characters3d/${id==='ivan-girl'?'ivan-girl':id}.png" alt=""><span class="tn">${d.name}</span>`;
+    b.onclick=()=>selectChamp(i);row.appendChild(b);
+  });
+}
+// 取景：按焦点角色体型/武器宽度自适应相机距离与视点（具体机位公式在适配层，主体只传体型参数）
+function selectViewFor(id){
+  const mobile=innerWidth<=820;
+  const d=CHAMPS[id],h=d.frame[0],w=d.frame[1];
+  VIEWS.select=arena.view('select',{mobile,h,w});
+  return VIEWS.select;
+}
+function selectChamp(i){
+  selIndex=i;
+  const id=selOrder[i],d=CHAMPS[id];
+  $('selChp').textContent='CHAMPION '+String(i+1).padStart(2,'0')+' / 11';
+  $('selName').textContent=d.name;$('selTitle').textContent=d.title;
+  $('selRole').textContent=d.role;
+  $('selStat').innerHTML=d.stat.map(x=>'<b>'+x+'</b>').join('');
+  $('selPassive').textContent=d.passive;
+  $('selSkill').textContent=d.skill;$('selTrait').textContent=d.trait;$('selQuote').textContent=d.quote;
+  document.querySelectorAll('.tab').forEach((t,k)=>t.classList.toggle('on',k===i));
+  // 两名原生模型并排：焦点角色到主展示位，对照角色（五条悟）稍后退——保留各自身形
+  // 注意：getChar 对已创建角色不重设位置，必须用 moveTo 显式搬位
+  const sf=arena.anchor('selectFocus'),so=arena.anchor('selectOther');
+  const focus=getChar(id);
+  moveTo(focus,sf.x,sf.y,sf.z,0.5);focus.faceYaw=0.28;focus.rotExtra=0;
+  const otherId=id==='gojo'?'chuixiao':'gojo';
+  const other=getChar(otherId);
+  moveTo(other,so.x,so.y,so.z,0.5);other.faceYaw=-0.18;other.rotExtra=0;
+  setSelectShadow(0,focus,d.frame[1],d.frame[0]);
+  setSelectShadow(1,other,CHAMPS[otherId].frame[1],CHAMPS[otherId].frame[0]);
+  // 只显示焦点与对照两名，隐藏其余（含 hero，避免吹箫哥抢主展示位）
+  chars.forEach(c=>{c.rig.root.visible=(c===focus||c===other);});
+  selectViewFor(id);
+  if(phase==='select'&&!cam.tw)camTo('select',0,true);
+  updateSeatTagsFocus();
+}
+function enterSelect(){
+  transition('选 择 出 战 角 色',()=>{
+    setPhase('select');
+    $('lobbyHud').classList.remove('show');showSeatTags(false);
+    moveTo(hero,_ha.x,_ha.y,_ha.z,0.4);hero.rotExtra=0;
+    buildSelTabs();selectChamp(0);
+    selectViewFor(selOrder[selIndex]);camTo('select',1.0);
+    $('selPanel').classList.add('show');$('selTabs').classList.add('show');
+    $('rotHint').classList.add('show');$('confirmBtn').classList.add('show');$('selStage').classList.add('show');
+    subline('选 角 · 11 名 出 战 角 色','CHOOSE YOUR CHAMPION',2000);
+  });
+}
+
+// 战场交接：确认选中的角色带进玩家侧 → 依次落位 → 名字称号 → 可操作视角 → 猜拳接手
+let battlePick=null,battleRival=null; // 本局确认的角色 / 模拟对手
+function enterBattle(){
+  const pickId=selOrder[selIndex];
+  const rivalId=pickId==='gojo'?'mabaoguo':'gojo'; // 模拟对手，避免与玩家同角
+  battlePick=pickId;battleRival=rivalId;
+  const pickD=CHAMPS[pickId],rivalD=CHAMPS[rivalId];
+  transition('推 进 战 场',()=>{
+    setPhase('battle');
+    $('selPanel').classList.remove('show');$('selTabs').classList.remove('show');
+    $('rotHint').classList.remove('show');$('confirmBtn').classList.remove('show');$('selStage').classList.remove('show');
+    camTo('battle',1.6);
+    hideNameTags();
+    // 玩家侧（左）= 确认选中的角色；对手侧（右）= 模拟对手
+    const pick=getChar(pickId);
+    const rival=getChar(rivalId);
+    pick.faceYaw=0.32;rival.faceYaw=-0.32;
+    pick.rotExtra=0;rival.rotExtra=0;
+    // 隐藏未参与的角色
+    chars.forEach(c=>{if(c!==pick&&c!==rival)c.rig.root.visible=false;});
+    const land=(a,delay,tag)=>{
+      const c=getChar(a.id);
+      c.rig.root.position.set(a.x,FLOOR+2.6,a.z);c.rig.root.visible=true;
+      setTimeout(()=>{moveTo(c,a.x,LAND_Y,a.z,0.62,'back');
+        setTimeout(()=>showNameTag(tag,c),640);},delay);
+    };
+    const bp=arena.anchor('battlePlayer'),br=arena.anchor('battleRival');
+    land({id:pickId,x:bp.x,z:bp.z},250,{name:pickD.name,title:pickD.title});
+    land({id:rivalId,x:br.x,z:br.z},1050,{name:rivalD.name+' · AI',title:rivalD.title});
+    subline('战 场 交 接 · '+pickD.name,'TO THE ARENA',1800);
+    setTimeout(()=>{
+      $('rpsAsk').firstChild.textContent=pickD.name+' · 轮到你出拳 —— ';
+      $('rpsAskSub').textContent='对手：'+rivalD.name+'（模拟） · 由你接手这一手';
+      $('rpsHud').classList.add('show');
+      // 猜拳 HUD 自带说明文案，此处不再叠字幕，避免与 ask 文字重叠
+    },2600);
+  });
+}
+function reselect(){
+  transition('重 新 选 角',()=>{
+    setPhase('select');
+    $('rpsHud').classList.remove('show');$('rpsResult').classList.remove('show');
+    hideNameTags();
+    camTo('select',1.0);
+    buildSelTabs();selectChamp(selIndex);
+    $('selPanel').classList.add('show');$('selTabs').classList.add('show');
+    $('rotHint').classList.add('show');$('confirmBtn').classList.add('show');$('selStage').classList.add('show');
+  });
+}
+
+// ── 席位标签 / 名字称号标签（3D 世界坐标投影到屏幕） ──
+const tagsBox=$('tags');
+const seatTags=SEATS.map((s,i)=>{
+  const d=document.createElement('div');d.className='seatTag'+(s.empty?' empty':'');
+  d.innerHTML=`<div class="nm"><span class="dot"></span>${s.name}</div><div class="meta">${s.role}</div>`+
+    (s.tags.length?`<div class="tags">${s.tags.map(t=>`<span class="${t==='已准备'?'ready':t==='AI'?'host':''}">${t}</span>`).join('')}</div>`:'');
+  tagsBox.appendChild(d);
+  return {el:d,pos:new THREE.Vector3(s.x,FLOOR+1.9,s.z)};
+});
+// 房主石台名牌（主台中央，吹箫哥）—— 大字、准备态醒目
+const hostTag=(function(){
+  const d=document.createElement('div');d.className='hostTag';
+  d.innerHTML=`<div class="hnm"><span class="crown">◆</span>吹箫哥 <span class="hrole">房主 · 你</span></div>`+
+    `<div class="hstate"><span class="hostUnrdy">● 未准备</span></div>`;
+  tagsBox.appendChild(d);
+  return {el:d,state:d.querySelector('.hstate'),pos:new THREE.Vector3(_ha.x,FLOOR+2.5,_ha.z)};
+})();
+function showSeatTags(on){seatTags.forEach(t=>t.el.classList.toggle('show',on));hostTag.el.classList.toggle('show',on);}
+function updateSeatTagsFocus(){
+  const focus=selOrder[selIndex];
+  seatTags.forEach((t,i)=>{
+    const s=SEATS[i];
+    t.el.classList.toggle('focus',phase==='select'&&((focus==='gojo'&&s.id==='p1')||(focus==='bagun'&&s.id==='p2')));
+  });
+}
+// 房主石台名牌：大字显示准备状态，一眼分清 已准备/未准备/空位
+let hostReady=false;
+function refreshHostTag(){
+  hostTag.el.classList.toggle('rdy',hostReady);
+  hostTag.state.innerHTML=hostReady
+    ?'<span class="hostRdy">✓ 已准备</span>'
+    :'<span class="hostUnrdy">● 未准备</span>';
+}
+const nameTags=[];
+function showNameTag(tag,c){
+  const d=document.createElement('div');d.className='nameTag show';
+  d.innerHTML=`<div class="nt">${tag.name}</div><div class="ts">${tag.title}</div>`;
+  tagsBox.appendChild(d);nameTags.push({el:d,c});
+}
+function hideNameTags(){nameTags.forEach(n=>n.el.remove());nameTags.length=0;}
+function project(el,pos){
+  const v=pos.clone().project(camera);
+  // 仅在明显超出视锥时隐藏；否则清除内联 opacity，交回 .show 类控制
+  if(v.z>1.5||v.z<-1.5){el.style.opacity='0';return;}
+  el.style.opacity='';
+  el.style.transform=`translate(-50%,-100%) translate(${(v.x*0.5+0.5)*innerWidth}px,${(-v.y*0.5+0.5)*innerHeight}px)`;
+}
+
+// 猜拳（本地模拟）
+function playRps(mine){
+  const moves=['rock','scissors','paper'],cn={rock:'石头',scissors:'剪刀',paper:'布'};
+  const ai=moves[Math.floor(Math.random()*3)];
+  const win=(mine==='rock'&&ai==='scissors')||(mine==='scissors'&&ai==='paper')||(mine==='paper'&&ai==='rock');
+  const tie=mine===ai;
+  const r=$('rpsResult');
+  const me=battlePick?CHAMPS[battlePick].name:'你';
+  const opp=battleRival?CHAMPS[battleRival].name:'对手';
+  r.textContent=`${me} 出「${cn[mine]}」 · ${opp} 出「${cn[ai]}」 → ${tie?'平局':win?'你赢了':'你输了'}`;
+  r.style.color=tie?'var(--gold-lt)':win?'var(--jade)':'var(--red)';
+  r.classList.add('show');
+}
+
+// ── 事件绑定 ──
+$('skipIntro').onclick=()=>finishIntro(true);
+$('createBtn').onclick=enterLobby;
+$('joinBtn').onclick=enterLobby;
+$('backBtn').onclick=backMenu;
+$('readyBtn').onclick=function(){
+  hostReady=!hostReady;
+  this.classList.toggle('ready-on',hostReady);
+  this.textContent=hostReady?'✓ 已准备':'房主准备';
+  refreshHostTag();
+};
+$('toSelectBtn').onclick=enterSelect;
+$('confirmBtn').onclick=enterBattle;
+$('reselectBtn').onclick=reselect;
+$('howBtn').onclick=()=>{if(phase==='menu')triggerRespond();};
+$('motionBtn').onclick=function(){reduced=!reduced;this.classList.toggle('on',reduced);};
+reducedMedia.addEventListener?.('change',e=>{reduced=e.matches;$('motionBtn').classList.toggle('on',reduced);});
+document.querySelectorAll('.rpsBtn').forEach(b=>b.onclick=()=>playRps(b.dataset.rps));
+
+// ── 尺寸 ──
+function resize(){
+  const w=innerWidth,h=innerHeight;
+  renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+  // 手机竖屏：上半屏角色、下半屏操作（机位由适配层按 mobile 给出）
+  const mobile=w<=820;
+  VIEWS.menu=arena.view('menu',{mobile});
+  if(phase==='select'){
+    selectViewFor(selOrder[selIndex]); // 按焦点角色体型/武器自适应取景
+    if(!cam.tw)camTo('select',0,true);
+  }
+  if(phase==='menu'&&!cam.tw)camTo('menu',0,true);
+}
+addEventListener('resize',resize);
+
+// ── 主循环 ──
+const clock=new THREE.Clock();let T=0;
+const T0=now();
+function frame(){
+  requestAnimationFrame(frame);
+  const dt=Math.min(clock.getDelta(),0.05);
+  T=(now()-T0)/1000; // 待机动画用真实时钟，低帧率下节奏不变
+  // 相机 tween（真实时钟，不受帧率钳制）
+  if(cam.tw){const w=cam.tw;const p=Math.min(1,(now()-w.st)/(w.dur*1000));const e=easeIO(p);
+    cam.px=w.fx+(w.tx-w.fx)*e;cam.py=w.fy+(w.ty-w.fy)*e;cam.pz=w.fz+(w.tz-w.fz)*e;
+    cam.lx=w.flx+(w.tlx-w.flx)*e;cam.ly=w.fly+(w.tly-w.fly)*e;cam.lz=w.flz+(w.tlz-w.flz)*e;
+    cam.fov=w.ffov+(w.tfov-w.ffov)*e;if(p>=1)cam.tw=null;}
+  camera.position.set(cam.px,cam.py,cam.pz);camera.lookAt(cam.lx,cam.ly,cam.lz);
+  if(Math.abs(camera.fov-cam.fov)>0.01){camera.fov=cam.fov;camera.updateProjectionMatrix();}
+
+  // 开场运镜：高位停留后自动下降
+  if(phase==='intro'&&!introDone){
+    introT+=dt;
+    if(introT>(reduced?0.4:2.2))finishIntro(false);
+  }
+
+  // 角色移动 tween（真实时钟）
+  chars.forEach(c=>{
+    if(c.move){const m=c.move;const p=Math.min(1,(now()-m.st)/(m.dur*1000));
+      const e=m.ease==='back'?easeBack(p):(m.ease==='out'?easeOut(p):easeIO(p));
+      c.rig.root.position.x=m.fx+(m.tx-m.fx)*e;
+      c.rig.root.position.y=m.fy+(m.ty-m.fy)*e;
+      c.rig.root.position.z=m.fz+(m.tz-m.fz)*e;
+      if(p>=1)c.move=null;}
+  });
+
+  // 角色待机 / 回应动画
+  chars.forEach(c=>{
+    if(c.mode==='idle'){
+      poseIdle(c,T,reduced?0.35:1);
+    }else if(c.mode==='respond'){
+      c.modeT=(now()-c.modeSt)/1000;const local=clamp01(c.modeT/RESPOND_DUR);
+      poseRespond(c,local,T);
+      if(c.modeT>=RESPOND_DUR){c.mode='idle';c.modeT=0;$('hint').style.opacity='';}
+    }
+    // 角色朝向：默认面向桌心/镜头 + 选角旋转 + 回应转向
+    let yaw=c.faceYaw+c.rotExtra;
+    if(c.mode==='respond')yaw+= -0.25*Math.sin(Math.PI*clamp01(c.modeT/RESPOND_DUR));
+    c.rig.root.rotation.y=yaw;
+  });
+
+  // 标签投影
+  if($('lobbyHud').classList.contains('show')||phase==='select'){
+    seatTags.forEach(t=>project(t.el,t.pos));
+    project(hostTag.el,hostTag.pos);
+  }
+  nameTags.forEach(n=>project(n.el,n.c.rig.root.position.clone().add(new THREE.Vector3(0,2.05,0))));
+
+  // 地图适配层可选动画钩子（天气等）：主体只转发时间/降效标志，不认识地图细节
+  if(stageHandle.update)stageHandle.update(T,dt,reduced);
+
+  renderer.render(scene,camera);
+}
+
+// 暴露给演示驱动
+window.__flow={
+  phase:()=>phase,
+  skip:()=>$('skipIntro').click(),
+  create:()=>$('createBtn').click(),
+  ready:()=>$('readyBtn').click(),
+  toSelect:()=>$('toSelectBtn').click(),
+  select:i=>selectChamp(i),
+  rotate:d=>{selFocus().rotExtra+=d;},
+  confirm:()=>$('confirmBtn').click(),
+  reselect:()=>reselect(),
+  punch:m=>playRps(m),
+  back:()=>$('backBtn').click(),
+  respond:()=>triggerRespond(),
+  // 天气控制（仅天气版地图提供；其他地图为空操作，接口统一）
+  setWeather:(w,m)=>{if(stageHandle.setWeather)stageHandle.setWeather(w,m);},
+  weatherNames:()=>stageHandle.weatherNames?stageHandle.weatherNames():[],
+  state:()=>({phase,reduced,sel:selOrder[selIndex],
+    selCount:selOrder.length,
+    stage:{id:arena.id,label:arena.label,floorY:arena.floorY,available:BAStage.ids()},
+    weather:stageHandle.weatherInfo?stageHandle.weatherInfo():null,
+    battlePick,battleRival,hostReady,
+    selPanel:{name:$('selName').textContent,title:$('selTitle').textContent,chp:$('selChp').textContent,
+      skill:($('selSkill').textContent||'').slice(0,20)},
+    nameTags:nameTags.map(n=>n.el.querySelector('.nt').textContent),
+    cam:{p:[+cam.px.toFixed(2),+cam.py.toFixed(2),+cam.pz.toFixed(2)],fov:+cam.fov.toFixed(1)}}),
+};
+
+hostReady=false;refreshHostTag();
+resize();startIntro();frame();
+requestAnimationFrame(()=>{const b=$('boot');b.classList.add('gone');setTimeout(()=>b.remove(),600);});
+})();
+</script>
+</body>
+</html>

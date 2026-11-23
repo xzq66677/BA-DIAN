@@ -62,6 +62,33 @@ function waitFor(s: ClientSocket, event: string, timeoutMs = 5000): Promise<Reco
 }
 
 describe('拔典联机系统', () => {
+  it.each([true, false])('创建房间的天气开关 %s 同步给房客并作用于对局', async (weather) => {
+    const host = await connect();
+    const guest = await connect();
+    try {
+      const map = { id: 'floating-ruins', mechanics: { weather } };
+      const created = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(host, 'room:create', { name: '房主', map });
+      expect(created.ok).toBe(true);
+      const joinedUpdate = waitFor(guest, 'room:update');
+      expect((await emit<{ ok: boolean }>(guest, 'room:join', { code: created.code, name: '房客' })).ok).toBe(true);
+      const lobby = (await joinedUpdate).lobby as { config: { map: unknown } };
+      expect(lobby.config.map).toEqual(map);
+      const started = waitForGame(guest);
+      expect((await emit<{ ok: boolean }>(host, 'room:start', { code: created.code, ...created.seats[0], seed: 1 })).ok).toBe(true);
+      const game = (await started).game as { ruins?: unknown };
+      expect(Boolean(game.ruins)).toBe(weather);
+    } finally { host.disconnect(); guest.disconnect(); }
+  });
+
+  it('拒绝未知地图和无效天气选项', async () => {
+    const host = await connect();
+    try {
+      for (const map of [{ id: 'unknown', mechanics: { weather: true } }, { id: 'floating-ruins', mechanics: { weather: 'false' } }]) {
+        expect((await emit<{ ok: boolean }>(host, 'room:create', { name: '房主', map })).ok).toBe(false);
+      }
+    } finally { host.disconnect(); }
+  });
+
   it('创建房间 → 第二名玩家加入 → 广播座位同步', async () => {
     const host = await connect();
     const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(
@@ -429,6 +456,46 @@ describe('拔典联机系统', () => {
     const t2 = await emit<{ ok: boolean }>(host, 'game:throw', { code, playerId: me2.playerId, token: me2.token, throw: 'paper' });
     expect(t1.ok).toBe(true);
     expect(t2.ok).toBe(true);
+    host.disconnect();
+  });
+});
+
+describe('房间人数上限（10 人）', () => {
+  it('创建房间：本机人数超过 10 直接拒绝，不留僵尸房间', async () => {
+    const host = await connect();
+    const r = await emit<{ ok: boolean; error?: string }>(host, 'room:create', {
+      name: '超限测试专用房主', localPlayers: Array.from({ length: 11 }, (_, i) => `本机${i + 1}`),
+    });
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('10');
+    const list = await emit<{ ok: boolean; rooms: { hostName: string }[] }>(host, 'lobby:roomsReq', {});
+    expect(list.rooms.some((x) => x.hostName === '超限测试专用房主')).toBe(false);
+    host.disconnect();
+  });
+
+  it('加入房间：满 10 人后拒绝新玩家', async () => {
+    const host = await connect();
+    const c = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(host, 'room:create', {
+      name: '满房房主', localPlayers: Array.from({ length: 10 }, (_, i) => `P${i + 1}`),
+    });
+    expect(c.ok).toBe(true);
+    expect(c.seats).toHaveLength(10);
+    const guest = await connect();
+    const j = await emit<{ ok: boolean; error?: string }>(guest, 'room:join', { code: c.code, name: '后来者' });
+    expect(j.ok).toBe(false);
+    expect(j.error).toContain('已满');
+    guest.disconnect();
+    host.disconnect();
+  });
+
+  it('添加 AI：请求 20 个也只补到 10 人', async () => {
+    const host = await connect();
+    const c = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(host, 'room:create', { name: 'AI 房主' });
+    const me = c.seats[0];
+    const a = await emit<{ ok: boolean }>(host, 'room:addAI', { code: c.code, playerId: me.playerId, token: me.token, count: 20 });
+    expect(a.ok).toBe(true);
+    const list = await emit<{ ok: boolean; rooms: { code: string; seatCount: number }[] }>(host, 'lobby:roomsReq', {});
+    expect(list.rooms.find((x) => x.code === c.code)?.seatCount).toBe(10);
     host.disconnect();
   });
 });

@@ -5,6 +5,50 @@
 
 ---
 
+## 2026-11-23 · 入口身份修复 + 10 人上限 + 全局播报 V2
+
+### 修复
+- **V5.0 入口无法取名定身份**：默认电影感入口此前没有任何昵称输入框，桥接协议也没有 `name` 字段，游客建/入房间时昵称写死为 `棋手`，导致进游戏后「所有人是同一个人」（服务端 `playerId`/`token` 本来独立，问题在显示名）。现在创建/加入都先弹**房间设置**面板：昵称必填并记忆、未填则生成带随机后缀的默认名（如 `棋手4821`）；本机玩家数生成 `名字1/名字2/…` 独立身份；加入房间只填自己昵称、只持有自己那一个座位。经典入口能力（单设备多人 / AI 数量 / 天气）在新入口全部恢复。
+- 新增纯函数模块 `client/src/entrance-identity.ts`（`defaultName` / `resolveName` / `buildLocalNames`）与 6 条回归测试，集中昵称与本地身份构造逻辑。
+
+### 变更
+- **房间人数上限改为 10 人**（原 20）：新增共享常量 `shared/src/room-limits.ts`（`MAX_ROOM_SEATS` / `remainingSeats`）。`room:create`（本机人数超限在创建 Room 前拒绝，不留僵尸房）、`room:join`（≥10 拒绝）、`room:addAI`（钳制到剩余席位）三条路径统一校验；`Room.canAddSeat()` 供测试与后续复用。新入口与经典入口的本机人数 / AI 数量下拉框联动收紧，显示「共 N/10 人」。
+- **全局播报 V2（`ANNOUNCE_VERSION = 2`）**：
+  - **信息分级**：移动 / 攻击 / 技能 / 回血 / 躲藏列为重要信息（`high`，横幅必播、拥堵保留）；胜负 / 回合 / 阶段 / 顺序 / 未命中列为次要信息（`low`，只进抽屉）；淘汰 / 领域 / 复活 / 致命仍为最高规格重大瞬间。
+  - **时长调整**（`ANNOUNCE_TTL`）：`brief 1000→800`、`action 1500→1900`、`combat 1700→2200`、`major 2400→2600`、`spotlight 2200→2100`（ms）。
+  - **文案精简**：`ANNOUNCE_MAX_TEXT 64→48`，新增 `simplifyAnnounceText()`；如 `从 R1 移动到 R2→R1→R2`、`受到 1 点伤害（HP 3→2）→-1（3→2）`、`被淘汰，击杀者 A→A 淘汰 B`、`游戏结束：A 获得胜利！→A 获胜`。
+  - **类型差异化展示**：新增 `AnnounceKind`（`move/attack/skill/heal/hide/outcome/round/system`），`AnnounceItem` 带 `kind`；横幅与抽屉输出 `kind-*` class 与 `data-announce-kind`，各类有不同的形状/配色/动效（攻击红色尖角、技能紫色斜角、回血绿色胶囊、移动蓝色虚线滑入、躲藏灰色半透明、战果金色双线、回合小灰条）及类型短标签。
+  - 规则扩展点的 `AnnounceDraft` 也新增必填 `kind` 字段。
+
+### 验证
+- `npm run build`（服务端 tsc + 客户端 vite）通过。
+- `npm test`：**577 passed / 579**（Node v22.16.0）。新增：入口身份 6 条、10 人上限（纯逻辑 2 + socket 集成 3）、播报 V2 分类与类型展示用例。
+- jsdom 用例在 Node 22.13/22.14 下会因 `undici` 需要 `createZstdDecompress` 报错，升级到 Node ≥ 22.15 后恢复正常。
+- 系统 Chrome 跑 e2e：5 条中 3 条通过；另 2 条断言卡面 `.webp` 加载，因精简工作区不含 webp 二进制资源失败，与改动无关。
+- README / CHANGELOG 已同步更新三项改动。
+
+---
+
+## 2026-11-23 · V5.0 电影感入口上线为默认游客态（Issue #待填）
+
+### 变更
+- **默认游客态切换为电影感入口**：未登录访问根路径现在加载 V5.0 四段入口（开场竞技场 → 主菜单 → 作战室 → 选角 → 战场交接，实时 Three.js 低模角色 + 吹箫哥待机/点击回应），取代原先直接落到「拔典」卡桌首页。原型资产以同源 iframe 承载（`/entrance/prototypes/`），零改原型内部。
+- **`?entrance=classic` 回退开关**：入口页右上角提供「经典入口」按钮，或直接在 URL 加 `?entrance=classic` 回到原 Home（角色卡池 / 房间列表）。入口原型探索 `?proto=A|B|C` 不受影响。
+- **`?stage=<id>` 透传**：入口 URL 的地图参数转发给 iframe，可在 `v6-floating-ruins` / `demo-crystal-arena` / `map006-weather` 之间切换（天气版含四态天气 + 泥潭两态）。
+
+### 新增
+- **真实房间桥接**：选角「确认出战」后，把选中角色 ID 随 `postMessage` 交给宿主，宿主调用真实 `net.createRoom` / `joinRoom` 建/入房间并进入真实对局——选中角色带入战场；加入房间时弹邀请码输入。桥接只认同源消息，失败给出「切到经典入口」逃生口。
+- **`client/src/pages/Entrance.tsx` + `client/src/entrance.css`**：宿主组件，负责加载原型、挂桥、建/入房间与回退；不侵入 lobby/game 运行时。
+- **`client/public/entrance/`**：原型静态资产（HTML/CSS/Three.js bundle/角色立绘），随客户端构建产出。
+- **`scripts/verify-entrance-online.mjs`**：入口上线回归（默认入口、四段流程、选角切换、真实对局链路、stage 透传、经典回退、原型探索、报错 0）。
+
+### 验证
+- `npm test`：**560/560 PASS**（33 文件）；E2E 5 处首页入口改用 `?entrance=classic`，保持原有卡桌测试语义。
+- `scripts/verify-entrance-online.mjs`：12/12 PASS，页面报错 0；Playwright 真机截图目视复核选角页（3D 双角色 + 技能面板 + 11 角色标签 + 回退开关）无破图。
+- `npm run build:client` / `build:server` 均通过；`client/dist/entrance/` 资产路径完整。
+
+---
+
 ## 2026-11-23 · 入口视觉原型：可复用地图适配层 + MAP-006 天气适配（纯原型资产）
 
 ### 新增
