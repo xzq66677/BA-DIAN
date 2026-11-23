@@ -112,6 +112,22 @@ describe('悬浮遗迹风雨和导流机关', () => {
     }
   });
 
+  it('关闭天气的房间重开后仍关闭，旧配置默认开启', () => {
+    const room = new Room('OFF', { map: { id: 'floating-ruins', mechanics: { weather: false } }, turnTimeoutMs: 0, submitTimeoutMs: 0 });
+    const legacy = new Room('DEFAULT', { turnTimeoutMs: 0, submitTimeoutMs: 0 });
+    try {
+      for (const r of [room, legacy]) {
+        r.addSeat('A', 'default', 'local');
+        r.addSeat('B', 'default', 'local');
+        expect(r.start().ok).toBe(true);
+      }
+      expect(room.game!.snapshot().ruins).toBeUndefined();
+      expect(legacy.game!.snapshot().ruins).toBeDefined();
+      expect(room.restart({ autoStart: true }).ok).toBe(true);
+      expect(room.game!.snapshot().ruins).toBeUndefined();
+    } finally { room.dispose(); legacy.dispose(); }
+  });
+
   it('天气、泥潭预警和开闸的真实日志进入全局播报', () => {
     const room = new Room('RUIN', { seed: 1, turnTimeoutMs: 0, submitTimeoutMs: 0 });
     try {

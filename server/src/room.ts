@@ -15,6 +15,8 @@ import type { MatchInput, MatchSetup } from '../../shared/src/simulation-types.j
 import { Game } from '../../shared/src/engine.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
 import { buildAnnouncements, type AnnounceItem } from '../../shared/src/announce.js';
+import { MAX_ROOM_SEATS } from '../../shared/src/room-limits.js';
+import { parseMapConfig, type MapConfig } from '../../shared/src/map-config.js';
 import type {
   PlayerId, ActionRequest, Throw, GamePlayerConfig, RuleConfig, AiDifficulty,
   InteractionEvent, InteractionKind, ReplayFrame, ReplayRecord, ReplaySummary, ReplayPlayer,
@@ -40,6 +42,7 @@ export interface Seat {
 }
 
 export interface RoomConfig {
+  map: MapConfig;
   rules?: Partial<RuleConfig>;
   seed?: number;
   turnTimeoutMs: number;
@@ -122,6 +125,7 @@ export class Room {
       turnTimeoutMs: 45000,
       submitTimeoutMs: 30000,
       ...config,
+      map: parseMapConfig(config?.map),
       // 线上对局默认「二次判定 / 技能判定都由玩家亲自出拳」；显式传 serverRoll 时保留（自动化用例）
       rules: { secondJudgeMode: 'player', skillJudgeMode: 'player', ...(config?.rules ?? {}) },
     };
@@ -184,6 +188,11 @@ export class Room {
     return this.seats.filter((s) => s.type !== 'ai');
   }
 
+  /** 房间是否还有空位（服务端权威上限；socket 处理器在 addSeat 前统一调用） */
+  canAddSeat(): boolean {
+    return this.seats.length < MAX_ROOM_SEATS;
+  }
+
   /** 设置 AI 难度（房主） */
   setAiDifficulty(level: string): { ok: boolean; error?: string } {
     if (!AI_DIFFICULTIES.includes(level as AiDifficulty)) return { ok: false, error: '未知难度' };
@@ -203,7 +212,8 @@ export class Room {
     this.gameNo++;
     const setup: MatchSetup = {
       seed: usedSeed, players, rules: this.config.rules ?? {},
-      mapId: 'floatingRuins',
+      mapId: this.config.map.id === 'floating-ruins' && this.config.map.mechanics.weather
+        ? 'floatingRuins' : 'classic',
       // 续接上一局的日志序号，保证同一房间内 seq 单调递增（否则第二局日志会被当成重复丢弃）
       logSeqOffset: this.logSeqCursor,
     };
@@ -686,7 +696,7 @@ export class Room {
         connected: s.connected,
       })),
       chat: this.chat.slice(-50),
-      config: { submitTimeoutMs: this.config.submitTimeoutMs, turnTimeoutMs: this.config.turnTimeoutMs },
+      config: { submitTimeoutMs: this.config.submitTimeoutMs, turnTimeoutMs: this.config.turnTimeoutMs, map: this.config.map },
       aiDifficulty: this.aiDifficulty,
       interactions: this.interactions.slice(-30),
       interactionCounts: this.interactionCounts,

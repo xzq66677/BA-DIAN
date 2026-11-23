@@ -60,7 +60,7 @@ async function newPage(browser: Browser): Promise<Page> {
 describe('真实浏览器端到端', { timeout: 120000 }, () => {
   it('首页渲染：卡池立绘真实加载 + 房间列表容器', async () => {
     const page = await newPage(browser);
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await expect(page.getByText(/拔 典/)).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/角色卡池/)).toBeVisible();
 
@@ -77,7 +77,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
 
   it('单人开局（+2AI随机）→ 战场渲染 → 隐藏出拳 → AI 自动推进', async () => {
     const page = await newPage(browser);
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
 
     await page.locator('input[placeholder="输入昵称"]').fill('E2E勇者');
@@ -115,7 +115,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     const page = await newPage(browser);
     const jsErrors: string[] = [];
     page.on('pageerror', (e) => jsErrors.push(String(e)));
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
 
     // 单人开局：2 个随机 AI（对局必有攻击/伤害/移动事件）
@@ -184,7 +184,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
 
   it('大厅：添加指定角色AI + 房主改AI角色 + 聊天', async () => {
     const page = await newPage(browser);
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
 
     await page.locator('input[placeholder="输入昵称"]').fill('大厅测试员');
@@ -222,7 +222,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
 
   it('机制测试场：全部用例运行且全 PASS', async () => {
     const page = await newPage(browser);
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
     await page.getByRole('button', { name: /机制测试场/ }).click();
     await page.getByRole('button', { name: /运行全部/ }).waitFor({ timeout: 15000 });

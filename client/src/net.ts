@@ -5,6 +5,7 @@
 import { io, type Socket } from 'socket.io-client';
 import { PROTOCOL_VERSION, supportsProtocol } from '../../shared/src/protocol.js';
 import type { Identity, RoomListEntry, RoomUpdate } from '../../shared/src/protocol.js';
+import type { MapConfig } from '../../shared/src/map-config.js';
 import type { ActionRequest, AiDifficulty, InteractionKind, Throw } from '../../shared/src/types.js';
 
 export type { AnnounceItem } from '../../shared/src/announce.js';
@@ -133,8 +134,8 @@ class Net {
     });
   }
 
-  createRoom(name: string, localNames: string[], charId: string) {
-    return this.emit('room:create', { name, localPlayers: localNames, charId });
+  createRoom(name: string, localNames: string[], charId: string, map?: MapConfig) {
+    return this.emit('room:create', { name, localPlayers: localNames, charId, map });
   }
   joinRoom(code: string, name: string, charId: string) {
     return this.emit('room:join', { code, name, charId });

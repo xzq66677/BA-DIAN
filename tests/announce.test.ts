@@ -18,6 +18,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import {
   ANNOUNCE_MAX_ITEMS,
   ANNOUNCE_MAX_TEXT,
+  ANNOUNCE_TTL,
   buildAnnouncements,
   clampAnnounceText,
   condenseAnnounceQueue,
@@ -51,7 +52,7 @@ function log(
 function item(seq: number, priority: AnnounceItem['priority']): AnnounceItem {
   return {
     id: `a-${seq}`, seq, ts: NOW, round: 1, sub: 0,
-    icon: '·', text: `事件 ${seq}`, tone: 'info', priority, ttlMs: 1000, rule: 'test',
+    icon: '·', text: `事件 ${seq}`, tone: 'info', kind: 'system', priority, ttlMs: 1000, rule: 'test',
   };
 }
 
@@ -71,8 +72,9 @@ describe('全局播报 · 覆盖每个动作', () => {
     expect(items).toHaveLength(1);
     expect(items[0].rule).toBe('milk');
     expect(items[0].icon).toBe('🥛');
-    expect(items[0].text).toBe('张三 喝了一口牛奶，向全场发出嘲讽！');
+    expect(items[0].text).toBe('张三 喝奶嘲讽全场');
     expect(items[0].priority).toBe('normal');
+    expect(items[0].kind).toBe('skill');
     expect(items[0].ttlMs).toBeGreaterThan(0);
   });
 
@@ -83,7 +85,8 @@ describe('全局播报 · 覆盖每个动作', () => {
       log(3, 'action', '王五 执行行动：跳过', { pid: 'P3', fx: 'skip', label: '跳过' }),
     ]);
     expect(items.map((i) => i.icon)).toEqual(['⚔️', '✨', '⏭']);
-    expect(items[0].text).toContain('攻击 李四');
+    expect(items.map((i) => i.kind)).toEqual(['attack', 'skill', 'round']);
+    expect(items[0].text).toBe('张三 攻击 李四');
     expect(items[0].targetId).toBe('P2');
   });
 
@@ -97,8 +100,9 @@ describe('全局播报 · 覆盖每个动作', () => {
     // 每条日志最多一条播报，且 move/heal 由专用规则接管
     expect(items).toHaveLength(2);
     expect(items.map((i) => i.rule)).toEqual(['move', 'heal']);
-    expect(items[0].text).toBe('张三 从 R1 移动到 R2');
-    expect(items[1].text).toContain('回复 1');
+    expect(items.map((i) => i.kind)).toEqual(['move', 'heal']);
+    expect(items[0].text).toBe('张三 R1→R2');
+    expect(items[1].text).toBe('李四 +1 HP（2→3）');
   });
 
   it('damage：宣告 / 未命中 / 扣血 / 致命 四态文案与优先级', () => {
@@ -109,16 +113,19 @@ describe('全局播报 · 覆盖每个动作', () => {
       log(4, 'damage', '李四 受到 2 点伤害', { target: 'P2', source: 'P1', amount: 2, hpBefore: 2, hpAfter: 0, lethal: true }),
     ]);
     expect(items).toHaveLength(4);
+    expect(items.every((i) => i.kind === 'attack')).toBe(true);
     expect(items[0].text).toContain('出手');
-    expect(items[1].text).toBe('李四 躲开了张三 的攻击');
+    expect(items[1].text).toBe('李四 闪避 张三');
     expect(items[1].priority).toBe('low'); // 未命中只进抽屉，不抢横幅
-    expect(items[2].text).toContain('受到 1 点伤害（HP 3→2）');
+    expect(items[2].text).toBe('张三 → 李四 -1（3→2）');
+    expect(items[2].priority).toBe('high'); // 攻击命中 = 重要信息
     expect(items[3].text).toContain('致命');
     expect(items[3].priority).toBe('high');
     expect(items[3].tone).toBe('danger');
+    expect(items[3].ttlMs).toBeGreaterThan(items[2].ttlMs);
   });
 
-  it('淘汰 / 复活 / 领域 / 运势 / 终局：重大事件全为 high', () => {
+  it('淘汰 / 复活 / 领域 / 运势为 high；终局胜负降为次要且文案精简', () => {
     const items = build([
       log(1, 'eliminate', '💀 李四 被淘汰', { pid: 'P2', cause: 'hp', killer: 'P1' }),
       log(2, 'trigger', '💫 王五 消耗一条命（剩余 1 条）', { pid: 'P3', livesLeft: 2 }),
@@ -127,14 +134,20 @@ describe('全局播报 · 覆盖每个动作', () => {
       log(5, 'result', '🏆 游戏结束：张三 获得胜利！', undefined),
     ]);
     expect(items).toHaveLength(5);
-    expect(items.every((i) => i.priority === 'high')).toBe(true);
-    expect(items[0].text).toBe('李四 被淘汰，击杀者 张三');
+    expect(items.slice(0, 4).every((i) => i.priority === 'high')).toBe(true);
+    expect(items[0].text).toBe('张三 淘汰 李四');
+    expect(items[0].kind).toBe('outcome');
     expect(items[1].icon).toBe('✨');
     expect(items[2].icon).toBe('🌀');
     expect(items[3].icon).toBe('🎰');
     expect(items[4].icon).toBe('🏁');
     // 日志开头的 emoji 被剥掉，避免与播报图标重复
     expect(items[3].text.startsWith('今日勇者')).toBe(true);
+    // 胜负：次要信息，缩短时长且只进抽屉
+    expect(items[4].priority).toBe('low');
+    expect(items[4].kind).toBe('outcome');
+    expect(items[4].text).toBe('张三 获胜');
+    expect(items[4].ttlMs).toBeLessThan(items[0].ttlMs);
   });
 
   it('延迟事件：投掷与爆炸分别播报，并带房间', () => {
@@ -142,22 +155,23 @@ describe('全局播报 · 覆盖每个动作', () => {
       log(1, 'deferred', '💣 投掷', { pid: 'P1', room: 'R3', explodeRound: 4 }),
       log(2, 'deferred', '💥 爆炸', { room: 'R3', source: 'P1' }),
     ]);
-    expect(items[0].text).toContain('把大伊万丢向 R3');
+    expect(items[0].text).toBe('张三 投掷大伊万 → R3（4 回合爆）');
     expect(items[0].room).toBe('R3');
-    expect(items[1].text).toBe('大伊万在 R3 爆炸！');
+    expect(items[1].text).toBe('大伊万 R3 爆炸！');
   });
 
-  it('阶段 / 判定 / 顺序：低价值事件只进抽屉（low），仍然可见', () => {
+  it('阶段 / 判定 / 顺序：回合类信息统一为 low + 短时长，只进抽屉', () => {
     const items = build([
       log(1, 'phase', '等待 张三（无业游民，位于 R1）行动'),
       log(2, 'judge', '回合判定（张三[石头] vs 李四[剪刀]）：分出胜负'),
       log(3, 'order', '⭐ 行动顺序（输者先动）：李四 → 张三'),
     ]);
     expect(items).toHaveLength(3);
-    expect(items[0].priority).toBe('low');
+    expect(items.every((i) => i.kind === 'round')).toBe(true);
+    expect(items.every((i) => i.priority === 'low')).toBe(true);
     expect(items[0].text).not.toContain('⏱');
-    expect(items[2].priority).toBe('normal');
-    expect(items.filter(isBannerCandidate).length).toBe(1);
+    expect(items[2].text).toBe('行动顺序（输者先动）：李四 → 张三');
+    expect(items.filter(isBannerCandidate).length).toBe(0);
   });
 
   it('兜底：未知类型也一定有播报（保证「每个动作都可见」）', () => {
@@ -200,7 +214,7 @@ describe('全局播报 · 批次语义（所有人可见 + 反馈时间）', () 
       [log(1, 'move', 'X 从 A 移动到 B', { pid: 'PX', from: 'A', to: 'B' })],
       { now: NOW },
     );
-    expect(items[0].text).toBe('PX 从 A 移动到 B');
+    expect(items[0].text).toBe('PX A→B');
   });
 
   it('超过上限只保留最新一批（有界历史）', () => {
@@ -252,7 +266,7 @@ describe('全局播报 · 可复用接口（registerAnnounceRule）', () => {
       id: 'test-skill',
       summary: '测试技能',
       match: (log, nameOf) => (log.data?.testSkill === true
-        ? { icon: '🔥', text: `${nameOf(String(log.data.pid))} 点燃了战场`, tone: 'danger', priority: 'high', ttlMs: 3000 }
+        ? { icon: '🔥', text: `${nameOf(String(log.data.pid))} 点燃了战场`, tone: 'danger', kind: 'skill', priority: 'high', ttlMs: 3000 }
         : null),
     });
     expect(listAnnounceRules().length).toBe(before + 1);
@@ -269,7 +283,7 @@ describe('全局播报 · 可复用接口（registerAnnounceRule）', () => {
   });
 
   it('同一 id 重复注册只保留一条（热重载不会叠规则）', () => {
-    const rule = { id: 'dup-rule', match: () => ({ icon: '×', text: 'x', tone: 'info' as const, priority: 'low' as const, ttlMs: 100 }) };
+    const rule = { id: 'dup-rule', match: () => ({ icon: '×', text: 'x', tone: 'info' as const, kind: 'system' as const, priority: 'low' as const, ttlMs: 100 }) };
     registerAnnounceRule(rule);
     registerAnnounceRule(rule);
     expect(listAnnounceRules().filter((r) => r.id === 'dup-rule')).toHaveLength(1);
@@ -307,8 +321,50 @@ describe('全局播报 · 文本与时间格式化', () => {
   });
 
   it('fmtAnnounceTtl → 秒（保留一位小数）', () => {
-    expect(fmtAnnounceTtl(1700)).toBe('1.7s');
-    expect(fmtAnnounceTtl(2400)).toBe('2.4s');
+    expect(fmtAnnounceTtl(800)).toBe('0.8s');
+    expect(fmtAnnounceTtl(1900)).toBe('1.9s');
+    expect(fmtAnnounceTtl(2200)).toBe('2.2s');
+  });
+});
+
+describe('全局播报 · V2 分类（重要动作 vs 次要信息）', () => {
+  it('五类重要动作：独立 kind + high 优先级 + 增强时长', () => {
+    const items = build([
+      log(1, 'move', '移动', { pid: 'P1', from: 'R1', to: 'R2' }),
+      log(2, 'action', '攻击', { pid: 'P1', fx: 'attack', label: '攻击' }),
+      log(3, 'action', '技能', { pid: 'P2', fx: 'skill', label: '发动技能' }),
+      log(4, 'heal', '回复', { target: 'P2', amount: 1, hpBefore: 1, hpAfter: 2 }),
+      log(5, 'action', '躲藏', { pid: 'P3', fx: 'hide', label: '躲藏' }),
+    ]);
+    expect(items.map((i) => i.kind)).toEqual(['move', 'attack', 'skill', 'heal', 'hide']);
+    expect(items.every((i) => i.priority === 'high')).toBe(true);
+    expect(items.every((i) => i.ttlMs >= 1900)).toBe(true);
+    expect(items.every((i) => i.ttlMs > ANNOUNCE_TTL.brief)).toBe(true);
+  });
+
+  it('胜负与回合：low 优先级 + 短时长 + 不上横幅', () => {
+    const items = build([
+      log(1, 'result', '🏆 游戏结束：张三 获得胜利！'),
+      log(2, 'phase', '等待 张三 行动'),
+      log(3, 'judge', '判定：分出胜负'),
+      log(4, 'order', '行动顺序：李四 → 张三'),
+    ]);
+    expect(items.map((i) => i.kind)).toEqual(['outcome', 'round', 'round', 'round']);
+    expect(items.every((i) => i.priority === 'low')).toBe(true);
+    expect(items.every((i) => i.ttlMs === ANNOUNCE_TTL.brief)).toBe(true);
+    expect(items.filter(isBannerCandidate)).toHaveLength(0);
+  });
+
+  it('每条播报都带合法 kind（含兜底规则）', () => {
+    const items = build([
+      log(1, 'move', '移动', { pid: 'P1', from: 'R1', to: 'R2' }),
+      log(2, 'info', '未知事件'),
+      log(3, 'phase', '等待'),
+      log(4, 'error', '引擎异常'),
+    ]);
+    const valid = new Set(['move', 'attack', 'skill', 'heal', 'hide', 'outcome', 'round', 'system']);
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((i) => valid.has(i.kind))).toBe(true);
   });
 });
 

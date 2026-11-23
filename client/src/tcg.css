@@ -2727,6 +2727,21 @@
 .announce-line.tone-reward .al-icon { color: #ffd76a; }
 .announce-line.tone-combat .al-icon { color: #ffb27a; }
 .announce-line.tone-system .al-icon { color: #9ab; }
+/* 类型差异（V2）：重要动作=实线左框+图标底纹，次要信息=虚线/点线且更矮更小 */
+.announce-line .al-icon { border-radius: 3px; padding: 0 3px; }
+.announce-line.kind-attack { border-left-style: solid; border-left-color: #ff7a5f; background: rgba(255, 100, 70, 0.05); }
+.announce-line.kind-attack .al-icon { background: rgba(255, 100, 70, 0.14); }
+.announce-line.kind-skill { border-left-style: solid; border-left-color: #b98cff; background: rgba(170, 110, 255, 0.05); }
+.announce-line.kind-skill .al-icon { background: rgba(170, 110, 255, 0.14); }
+.announce-line.kind-heal { border-left-style: solid; border-left-color: #6fdc94; background: rgba(90, 220, 140, 0.05); }
+.announce-line.kind-heal .al-icon { background: rgba(90, 220, 140, 0.14); }
+.announce-line.kind-move { border-left-style: dashed; border-left-color: #7ebedc; background: rgba(110, 180, 215, 0.04); }
+.announce-line.kind-move .al-icon { background: rgba(110, 180, 215, 0.12); }
+.announce-line.kind-hide { border-left-style: dashed; border-left-color: #98a2ac; }
+.announce-line.kind-hide .al-icon { background: rgba(150, 160, 170, 0.12); }
+.announce-line.kind-outcome { border-left-style: double; border-left-width: 5px; border-left-color: #d8b04a; background: rgba(216, 176, 74, 0.07); }
+.announce-line.kind-round { border-left-style: dotted; border-left-color: #6f7885; font-size: 11px; padding-top: 2px; padding-bottom: 2px; }
+.announce-line.kind-system { border-left-style: solid; border-left-color: #8aa9bd; }
 /* 抽屉纵向锚点跟随顶栏实际高度：窄屏顶栏按钮会换行（390px 下高 93px），
    写死 top 会压住第二行按钮。--app-header-h 由 Game 页按 ResizeObserver 写到 :root。 */
 .announce-drawer { top: calc(var(--app-header-h, 50px) + 4px); }

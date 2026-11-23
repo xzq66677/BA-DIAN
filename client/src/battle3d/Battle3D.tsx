@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { BattleScene3D, type SnapLite } from './scene.js';
+import { BattleScene3D, setInsultGeneration, type SnapLite } from './scene.js';
 import { playMapEvent, projectMapSnapshot } from './map-playback.js';
 import { gllog } from './gllog.js';
 import { recordContextLost, markSessionDegraded, isSessionDegraded, clearSessionDegraded } from './gl-policy.js';
@@ -67,6 +67,8 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
 
   function present(scene: BattleScene3D, event?: BattleEvent, immediate = false, durationMs = 600) {
     if (!authority.current) return;
+    // 辱骂计数按战局代（gameNo）跨场景实例存续：2D/3D 切换会重建场景实例，换代（重开新局）才清零
+    setInsultGeneration(String(match.current ?? ''));
     const current = authority.current;
     const finale = ending.current && !playback.busy();
     const next = projectMapSnapshot(current, playback.remaining(), shown.current, event, finale);

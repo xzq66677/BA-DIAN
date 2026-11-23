@@ -15,19 +15,35 @@
  *     需要定制图标/优先级/文案时，用 `registerAnnounceRule()` 插一条规则即可，
  *     服务端与客户端都不需要改代码（详见 README「全局播报」）。
  *
+ * V2 升级（用户口径）：
+ *  - 移动 / 攻击 / 技能 / 回血 / 躲藏 = 重要信息：优先级提到 high、时长上调、各自独立视觉；
+ *  - 胜负 / 回合 / 阶段 = 次要信息：降为 low、时长缩短、只进抽屉不抢镜头；
+ *  - 文案精简（上限 64 → 48），并新增 `kind` 字段驱动前端差异化表现形式。
+ *
  * 纯函数、零外部依赖，可同时在 Node 服务端与浏览器客户端运行。
  */
 
-export const ANNOUNCE_VERSION = 1;
+export const ANNOUNCE_VERSION = 2;
 
 /** 播报色调：决定横幅/列表的配色（前端只认这几种，未知值降级为 info） */
 export type AnnounceTone = 'info' | 'action' | 'combat' | 'danger' | 'reward' | 'system';
 
 /**
+ * 播报类型：决定横幅 / 抽屉的**表现形式**（形状、配色、动画）。
+ * 与 tone（色调）、priority（重要性）互相独立：
+ *  - 五类动作 move / attack / skill / heal / hide = 重要信息（增强时长 + 独立视觉）
+ *  - outcome（胜负）/ round（回合）= 次要信息（缩短时长，只进抽屉）
+ *  - system = 系统 / 错误 / 兜底
+ */
+export type AnnounceKind =
+  | 'move' | 'attack' | 'skill' | 'heal' | 'hide'
+  | 'outcome' | 'round' | 'system';
+
+/**
  * 播报优先级：
- *  - high   ：淘汰 / 终局 / 领域 / 致命伤害 —— 横幅必播，拥堵时保留
- *  - normal ：普通动作 / 伤害 / 移动 / 回复 —— 横幅按序播放
- *  - low    ：阶段提示 / 未命中 / 系统信息 —— 只进播报抽屉，不抢镜头
+ *  - high   ：移动 / 攻击 / 技能 / 回血 / 躲藏 / 淘汰 / 致命 —— 横幅必播，拥堵时保留
+ *  - normal ：仪式动作 / 未致命的判定详情 —— 横幅按序播放
+ *  - low    ：胜负 / 回合 / 阶段 / 未命中 / 系统信息 —— 只进播报抽屉，不抢镜头
  */
 export type AnnouncePriority = 'high' | 'normal' | 'low';
 
@@ -40,21 +56,24 @@ export const ANNOUNCE_PRIORITY_RANK: Record<AnnouncePriority, number> = {
 /** 单批播报上限（有界历史：广播层与客户端都按此截断，防止刷屏拖垮长局） */
 export const ANNOUNCE_MAX_ITEMS = 80;
 
-/** 单条播报文本上限（横幅单行展示，超出截断；完整内容仍在战斗日志里） */
-export const ANNOUNCE_MAX_TEXT = 64;
+/** 单条播报文本上限（精简文案后从 64 收紧到 48；完整内容仍在战斗日志里） */
+export const ANNOUNCE_MAX_TEXT = 48;
 
-/** 各档建议展示时长（ms）。排队播放的总时长由队首逐条累计。 */
+/**
+ * 各档建议展示时长（ms）。排队播放的总时长由队首逐条累计。
+ * 2026-11 用户口径：五类动作「略微加强」，胜负与回合「短一点」。
+ */
 export const ANNOUNCE_TTL = {
-  /** 阶段 / 低价值提示 */
-  brief: 1000,
-  /** 普通动作 */
-  action: 1500,
-  /** 战斗结果（伤害 / 回复 / 移动） */
-  combat: 1700,
-  /** 重大事件（淘汰 / 领域 / 复活 / 终局） */
-  major: 2400,
-  /** 里程碑（喝牛奶 / 今日运势这类「全场都在看」的事件） */
-  spotlight: 2200,
+  /** 次要信息：胜负 / 回合 / 阶段 / 未命中 —— 只留档，快速掠过 */
+  brief: 800,
+  /** 重要动作基础档：移动 / 技能 / 回血 / 躲藏 / 攻击宣告 */
+  action: 1900,
+  /** 重要动作交战档：攻击命中 / 伤害 */
+  combat: 2200,
+  /** 重大瞬间：淘汰 / 领域 / 复活 / 致命 —— 保留最高规格 */
+  major: 2600,
+  /** 里程碑（喝牛奶这类仪式感事件） */
+  spotlight: 2100,
 } as const;
 
 /** 一条已成型、可直接渲染的播报 */
@@ -72,6 +91,8 @@ export interface AnnounceItem {
   /** 纯文本（不含图标；图标单独给 icon） */
   text: string;
   tone: AnnounceTone;
+  /** 信息类型：驱动前端差异化表现形式（形状 / 配色 / 动画） */
+  kind: AnnounceKind;
   priority: AnnouncePriority;
   /** 建议展示时长（ms） */
   ttlMs: number;
@@ -110,6 +131,7 @@ export interface AnnounceDraft {
   icon: string;
   text: string;
   tone: AnnounceTone;
+  kind: AnnounceKind;
   priority: AnnouncePriority;
   ttlMs: number;
   actorId?: string;
@@ -163,6 +185,21 @@ export function clampAnnounceText(text: string, max = ANNOUNCE_MAX_TEXT): string
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
+/** 引擎日志里常见的冗长句式 → 播报用的短句（只作用于原文播报类规则） */
+const SIMPLIFY_PAIRS: readonly (readonly [RegExp, string])[] = [
+  [/游戏结束[：:]\s*/u, ''],
+  [/获得胜利[！!。]?/u, '获胜'],
+  [/执行行动[：:]\s*/u, ''],
+  [/回合判定[（(]/u, '判定（'],
+];
+
+/** 精简引擎日志原文：剥图标 → 替换冗长句式 → 截断 */
+export function simplifyAnnounceText(text: string): string {
+  let t = stripLogIcon(text);
+  for (const [re, to] of SIMPLIFY_PAIRS) t = t.replace(re, to);
+  return clampAnnounceText(t);
+}
+
 /** 播报时间戳 → `HH:MM:SS`（本地时区；服务端 ts 与客户端时钟无关，展示的是房间时间线） */
 export function fmtAnnounceClock(ts: number): string {
   if (!Number.isFinite(ts) || ts <= 0) return '--:--:--';
@@ -198,8 +235,9 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (!pid) return null;
       return {
         icon: '🥛',
-        text: `${nameOf(pid)} 喝了一口牛奶，向全场发出嘲讽！`,
+        text: `${nameOf(pid)} 喝奶嘲讽全场`,
         tone: 'action',
+        kind: 'skill',
         priority: 'normal',
         ttlMs: ANNOUNCE_TTL.spotlight,
         actorId: pid,
@@ -215,13 +253,13 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (d.fortune !== true) return null;
       const pid = str(d.pid);
       const roll = num(d.roll);
-      const detail = log.text ? stripLogIcon(log.text) : '';
-      // 日志文本已含完整结果（含暴毙 / 面板转换），优先原样播报，保证与规则一致
-      const text = detail || `${nameOf(pid)} 抽取今日运势：掷出 ${roll ?? '?'}`;
+      // 日志文本已含完整结果（含暴毙 / 面板转换），优先精简后播报，保证与规则一致
+      const text = log.text || `${nameOf(pid)} 抽取今日运势：掷出 ${roll ?? '?'}`;
       return {
         icon: '🎰',
-        text: clampAnnounceText(text),
+        text: simplifyAnnounceText(text),
         tone: 'reward',
+        kind: 'skill',
         priority: 'high',
         ttlMs: ANNOUNCE_TTL.major,
         ...(pid ? { actorId: pid } : {}),
@@ -236,11 +274,12 @@ const BUILTIN_RULES: AnnounceRule[] = [
       const d = data(log);
       if (d.domain !== true) return null;
       const pid = str(d.pid);
-      const text = log.text ? stripLogIcon(log.text) : `${nameOf(pid)} 展开领域！`;
+      const text = log.text || `${nameOf(pid)} 展开领域！`;
       return {
         icon: '🌀',
-        text: clampAnnounceText(text),
+        text: simplifyAnnounceText(text),
         tone: 'danger',
+        kind: 'skill',
         priority: 'high',
         ttlMs: ANNOUNCE_TTL.major,
         ...(pid ? { actorId: pid } : {}),
@@ -258,8 +297,9 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (!pid || lives === undefined) return null;
       return {
         icon: '✨',
-        text: clampAnnounceText(log.text ? stripLogIcon(log.text) : `${nameOf(pid)} 复活（剩余 ${lives} 条命）`),
+        text: simplifyAnnounceText(log.text || `${nameOf(pid)} 复活（剩余 ${lives} 条命）`),
         tone: 'reward',
+        kind: 'skill',
         priority: 'high',
         ttlMs: ANNOUNCE_TTL.major,
         actorId: pid,
@@ -276,11 +316,12 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (!pid) return null;
       const killer = str(d.killer);
       const cause = str(d.cause);
-      const tail = killer ? `，击杀者 ${nameOf(killer)}` : cause ? `（${cause}）` : '';
+      // 「A 淘汰 B」一句讲完，取代旧版「B 被淘汰，击杀者 A」
       return {
         icon: '☠',
-        text: `${nameOf(pid)} 被淘汰${tail}`,
+        text: killer ? `${nameOf(killer)} 淘汰 ${nameOf(pid)}` : `${nameOf(pid)} 被淘汰${cause ? `（${cause}）` : ''}`,
         tone: 'danger',
+        kind: 'outcome',
         priority: 'high',
         ttlMs: ANNOUNCE_TTL.major,
         actorId: pid,
@@ -301,10 +342,11 @@ const BUILTIN_RULES: AnnounceRule[] = [
         const amount = num(d.amount);
         return {
           icon: '⚔️',
-          text: `${nameOf(source)} 向 ${nameOf(target)} 出手${amount !== undefined ? `（${amount} 点）` : ''}`,
+          text: `${nameOf(source)} → ${nameOf(target)} 出手${amount !== undefined ? ` ${amount}` : ''}`,
           tone: 'combat',
+          kind: 'attack',
           priority: 'normal',
-          ttlMs: ANNOUNCE_TTL.brief,
+          ttlMs: ANNOUNCE_TTL.action,
           actorId: source,
           targetId: target,
           ...(str(d.room) ? { room: str(d.room) } : {}),
@@ -315,8 +357,9 @@ const BUILTIN_RULES: AnnounceRule[] = [
         if (!target) return null;
         return {
           icon: '💨',
-          text: `${nameOf(target)} 躲开了${source ? `${nameOf(source)} 的` : ''}攻击`,
+          text: `${nameOf(target)} 闪避${source ? ` ${nameOf(source)}` : ''}`,
           tone: 'info',
+          kind: 'attack',
           priority: 'low',
           ttlMs: ANNOUNCE_TTL.brief,
           ...(source ? { actorId: source } : {}),
@@ -329,12 +372,13 @@ const BUILTIN_RULES: AnnounceRule[] = [
       const hpBefore = num(d.hpBefore);
       const hpAfter = num(d.hpAfter);
       const lethal = d.lethal === true || hpAfter === 0;
-      const hp = hpBefore !== undefined && hpAfter !== undefined ? `（HP ${hpBefore}→${hpAfter}）` : '';
+      const hp = hpBefore !== undefined && hpAfter !== undefined ? `（${hpBefore}→${hpAfter}）` : '';
       return {
         icon: lethal ? '💥' : '⚔️',
-        text: `${source ? `${nameOf(source)} → ` : ''}${nameOf(target)} 受到 ${amount} 点伤害${hp}${lethal ? '，致命！' : ''}`,
+        text: `${source ? `${nameOf(source)} → ` : ''}${nameOf(target)} -${amount}${hp}${lethal ? ' 致命' : ''}`,
         tone: lethal ? 'danger' : 'combat',
-        priority: lethal ? 'high' : 'normal',
+        kind: 'attack',
+        priority: 'high',
         ttlMs: lethal ? ANNOUNCE_TTL.major : ANNOUNCE_TTL.combat,
         ...(source ? { actorId: source } : {}),
         targetId: target,
@@ -353,15 +397,15 @@ const BUILTIN_RULES: AnnounceRule[] = [
       const amount = num(d.amount);
       const hpBefore = num(d.hpBefore);
       const hpAfter = num(d.hpAfter);
-      const hp = hpBefore !== undefined && hpAfter !== undefined ? `（HP ${hpBefore}→${hpAfter}）` : '';
+      const hp = hpBefore !== undefined && hpAfter !== undefined ? `（${hpBefore}→${hpAfter}）` : '';
+      const gain = amount !== undefined ? `+${amount} HP` : '回复';
       return {
         icon: '💚',
-        text: amount !== undefined
-          ? `${nameOf(target)} 回复 ${amount} 点${hp}`
-          : `${nameOf(target)} 回复${hp}`,
+        text: `${nameOf(target)} ${gain}${hp}`,
         tone: 'reward',
-        priority: 'normal',
-        ttlMs: ANNOUNCE_TTL.combat,
+        kind: 'heal',
+        priority: 'high',
+        ttlMs: ANNOUNCE_TTL.action,
         ...(str(d.source) ? { actorId: str(d.source) } : {}),
         targetId: target,
       };
@@ -379,10 +423,11 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (!pid || !from || !to) return null;
       return {
         icon: '🚶',
-        text: `${nameOf(pid)} 从 ${from} 移动到 ${to}`,
+        text: `${nameOf(pid)} ${from}→${to}`,
         tone: 'action',
-        priority: 'normal',
-        ttlMs: ANNOUNCE_TTL.combat,
+        kind: 'move',
+        priority: 'high',
+        ttlMs: ANNOUNCE_TTL.action,
         actorId: pid,
         room: to,
       };
@@ -400,8 +445,9 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (pid && room) {
         return {
           icon: '💣',
-          text: `${nameOf(pid)} 把大伊万丢向 ${room}（第 ${num(d.explodeRound) ?? '?'} 回合末爆炸）`,
+          text: `${nameOf(pid)} 投掷大伊万 → ${room}（${num(d.explodeRound) ?? '?'} 回合爆）`,
           tone: 'danger',
+          kind: 'skill',
           priority: 'high',
           ttlMs: ANNOUNCE_TTL.major,
           actorId: pid,
@@ -411,8 +457,9 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (room) {
         return {
           icon: '💥',
-          text: `大伊万在 ${room} 爆炸！`,
+          text: `大伊万 ${room} 爆炸！`,
           tone: 'danger',
+          kind: 'skill',
           priority: 'high',
           ttlMs: ANNOUNCE_TTL.major,
           ...(source ? { actorId: source } : {}),
@@ -430,9 +477,10 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (!log.text) return null;
       return {
         icon: '🎲',
-        text: clampAnnounceText(stripLogIcon(log.text)),
+        text: simplifyAnnounceText(log.text),
         tone: 'info',
-        priority: log.important ? 'normal' : 'low',
+        kind: 'round',
+        priority: 'low',
         ttlMs: ANNOUNCE_TTL.brief,
       };
     },
@@ -445,10 +493,11 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (!log.text) return null;
       return {
         icon: '🔀',
-        text: clampAnnounceText(stripLogIcon(log.text)),
+        text: simplifyAnnounceText(log.text),
         tone: 'system',
-        priority: 'normal',
-        ttlMs: ANNOUNCE_TTL.action,
+        kind: 'round',
+        priority: 'low',
+        ttlMs: ANNOUNCE_TTL.brief,
       };
     },
   },
@@ -460,10 +509,11 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (!log.text) return null;
       return {
         icon: '🏁',
-        text: clampAnnounceText(stripLogIcon(log.text)),
+        text: simplifyAnnounceText(log.text),
         tone: 'reward',
-        priority: 'high',
-        ttlMs: ANNOUNCE_TTL.major,
+        kind: 'outcome',
+        priority: 'low',
+        ttlMs: ANNOUNCE_TTL.brief,
       };
     },
   },
@@ -473,12 +523,14 @@ const BUILTIN_RULES: AnnounceRule[] = [
     match(log) {
       if (log.type !== 'trigger') return null;
       if (!log.text) return null;
+      const important = log.important === true;
       return {
         icon: '✨',
-        text: clampAnnounceText(stripLogIcon(log.text)),
+        text: simplifyAnnounceText(log.text),
         tone: 'action',
-        priority: log.important ? 'normal' : 'low',
-        ttlMs: ANNOUNCE_TTL.action,
+        kind: 'skill',
+        priority: important ? 'normal' : 'low',
+        ttlMs: important ? ANNOUNCE_TTL.action : ANNOUNCE_TTL.brief,
         ...(str(data(log).pid) ? { actorId: str(data(log).pid) } : {}),
       };
     },
@@ -499,13 +551,22 @@ const BUILTIN_RULES: AnnounceRule[] = [
       const label = str(d.label) ?? '行动';
       const target = str(d.targetId);
       const room = str(d.room);
-      const tail = room && fx === 'move' ? `（${room}）` : '';
+      // 五类重要动作各自独立表现；「跳过」归入次要的回合类
+      const isAttack = fx === 'attack' || fx === 'aim';
+      const kind: AnnounceKind = isAttack ? 'attack'
+        : fx === 'hide' || fx === 'seek' ? 'hide'
+          : fx === 'skip' ? 'round' : 'skill';
+      const secondary = kind === 'round';
+      // label 常自带目标名（如「攻击 李四」），此时不再追加「→ 李四」
+      const targetTail = target && !label.includes(nameOf(target)) ? ` → ${nameOf(target)}` : '';
       return {
         icon: FX_ICON[fx] ?? '✨',
-        text: `${nameOf(pid)} ${label}${target ? ` → ${nameOf(target)}` : ''}${tail}`,
-        tone: fx === 'attack' ? 'combat' : 'action',
-        priority: 'normal',
-        ttlMs: ANNOUNCE_TTL.action,
+        text: `${nameOf(pid)} ${label}${targetTail}`,
+        tone: isAttack ? 'combat' : 'action',
+        kind,
+        priority: secondary ? 'low' : 'high',
+        ttlMs: secondary ? ANNOUNCE_TTL.brief
+          : isAttack ? ANNOUNCE_TTL.combat : ANNOUNCE_TTL.action,
         actorId: pid,
         ...(target ? { targetId: target } : {}),
         ...(room ? { room } : {}),
@@ -520,8 +581,9 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (!log.text) return null;
       return {
         icon: '⏱️',
-        text: clampAnnounceText(stripLogIcon(log.text)),
+        text: simplifyAnnounceText(log.text),
         tone: 'system',
+        kind: 'round',
         priority: 'low',
         ttlMs: ANNOUNCE_TTL.brief,
       };
@@ -534,8 +596,9 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (log.type !== 'error') return null;
       return {
         icon: '❌',
-        text: clampAnnounceText(log.text ? stripLogIcon(log.text) : '引擎异常'),
+        text: simplifyAnnounceText(log.text || '引擎异常'),
         tone: 'danger',
+        kind: 'system',
         priority: 'high',
         ttlMs: ANNOUNCE_TTL.major,
       };
@@ -548,8 +611,9 @@ const BUILTIN_RULES: AnnounceRule[] = [
       if (!log.text) return null;
       return {
         icon: log.important ? '❗' : '·',
-        text: clampAnnounceText(stripLogIcon(log.text)),
+        text: simplifyAnnounceText(log.text),
         tone: log.important ? 'action' : 'info',
+        kind: 'system',
         priority: log.important ? 'normal' : 'low',
         ttlMs: ANNOUNCE_TTL.brief,
       };
@@ -568,7 +632,7 @@ let registry: AnnounceRule[] = [...BUILTIN_RULES];
  * const off = registerAnnounceRule({
  *   id: 'my-skill',
  *   summary: '我的新技能',
- *   match: (log, nameOf) => (log.data?.mySkill ? { icon: '🔥', text: '…', tone: 'danger', priority: 'high', ttlMs: 2000 } : null),
+ *   match: (log, nameOf) => (log.data?.mySkill ? { icon: '🔥', text: '…', tone: 'danger', kind: 'skill', priority: 'high', ttlMs: 2000 } : null),
  * });
  * // 不再需要时 off() 撤销（测试/热重载干净）
  * ```
@@ -647,6 +711,7 @@ export function buildAnnouncements(
       icon: m.icon,
       text: m.text,
       tone: m.tone,
+      kind: m.kind,
       priority: m.priority,
       ttlMs: m.ttlMs,
       rule: m.rule,

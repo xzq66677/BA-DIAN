@@ -4,6 +4,7 @@
  */
 
 export * from './types.js';
+export * from './room-limits.js';
 export * from './announce.js';
 export * from './rng.js';
 export * from './judge.js';

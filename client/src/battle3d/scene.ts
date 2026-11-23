@@ -18,6 +18,20 @@ import {
 import { gllog } from './gllog.js';
 import { B3D_RESTORE_WAIT_MS } from './gl-policy.js';
 
+// ── 大贱客辱骂演出计数 ──────────────────────────────────────
+// 2D/3D 视图切换会 dispose 并重建 BattleScene3D 实例，实例字段会丢计数；
+// 因此放模块级，按「战局代|行动者->目标」累计。战局代由 Battle3D 在每次
+// 演出前以当前 gameNo 调用 setInsultGeneration 同步，换代（重开新局）即清零。
+const insultSeen = new Map<string, number>();
+let insultGen = '';
+/** 同步辱骂计数的战局代（换代即清零；权威累计仍在服务端） */
+export function setInsultGeneration(gen: string): void {
+  if (gen !== insultGen) {
+    insultGen = gen;
+    insultSeen.clear();
+  }
+}
+
 // ── 对外数据契约（与 net.ts 的 GameSnapshot 字段对齐的最小子集） ──
 export type SnapPlayerLite = Pick<SnapPlayer,
   'id' | 'name' | 'charId' | 'charName' | 'hp' | 'maxHp' | 'room' | 'alive' | 'hidden' | 'invisible' | 'char'>;
@@ -918,6 +932,8 @@ export class BattleScene3D {
           const w = this.worldOf(pid)!;
           this.spawnFx(flashLightFx(w, 0xffc9a0, 2.4, 0.3), w.clone().setY(0.5), 500);
         }
+        // 大贱客·辱骂：戳指峰值给被指目标一次短促点名反馈（前两次累计，第三次由 eliminate 演出死亡）
+        if (e.charId === 'dajianke' && targetId) this.playInsultFeedback(e, targetId);
         break;
       }
       case 'heal': {
@@ -958,6 +974,34 @@ export class BattleScene3D {
       }
       default: break;
     }
+  }
+
+  /**
+   * 大贱客·辱骂目标反馈：对齐 attackSwing 戳指峰值（≈0.55 × 0.52s），被指者得到清楚短促的点名——
+   * 紫（精神/领域色）束线从大贱客指尖打向目标 + 目标脚下光圈 + 「被辱骂 n/3」浮字 + 镜头切向目标。
+   * 计数按本局真实 attack 事件本地累计（服务端在第三次结算时会清零快照计数，读快照会滞后一拍）；
+   * 前两次表达被点名与累计，第三次由既有 eliminate 演出播放死亡。
+   * 跨房沿用既有世界坐标 FX 与 focusPlayer 可见性规则，不区分房间。
+   */
+  private playInsultFeedback(actor: Entity, targetId: string): void {
+    this.addTween(actor, 0.3, () => { }, () => {
+      const target = this.entities.get(targetId);
+      const from = this.worldOf(actor.pid);
+      const to = this.worldOf(targetId);
+      if (!target || !from || !to) return;
+      from.y += 0.72; to.y += 0.72;
+      const key = `${insultGen}|${actor.pid}->${targetId}`;
+      const strike = (insultSeen.get(key) ?? 0) + 1;
+      insultSeen.set(key, strike);
+      if (!this.reduced) {
+        this.spawnFx(beamFx(from, to, STATE_COLORS.domain, 0.34, 0.03), new THREE.Vector3(), 520);
+        if (target.alive) {
+          this.spawnFx(ringBurst(STATE_COLORS.domain, 0.6, 0.42, { y: PLATFORM_H }), to.clone().setY(0), 560);
+          this.spawnFloat(to, `<span class="b3-ticker dom">被辱骂 ${strike}/3</span>`, 24);
+        }
+      }
+      this.focusPlayer('target', targetId);
+    });
   }
 
   /** 攻击宣告：转向目标 + 挥击预备 + 预警光束 */
@@ -1067,6 +1111,10 @@ export class BattleScene3D {
     const e = this.entities.get(pid);
     const w = this.worldOf(pid);
     if (!e || !w) return;
+    const insultPrefix = `${insultGen}|`;
+    for (const key of insultSeen.keys()) {
+      if (key.startsWith(insultPrefix) && key.endsWith(`->${pid}`)) insultSeen.delete(key);
+    }
     this.spawnFloat(w, '<span class="death-stamp b3-stamp">💀 淘汰</span>');
     if (!this.reduced) {
       this.spawnFx(ringBurst(0xe23d30, 1.4, 0.75, { y: PLATFORM_H + 0.1 }), w.clone().setY(0), 850);
@@ -1535,6 +1583,11 @@ export class BattleScene3D {
         t: e.pose.t, dur: e.pose.dur, room: e.curRoom, alive: e.alive, visible: e.rig.root.visible,
         x: (center.x + 1) * this.container.clientWidth / 2, y: (1 - center.y) * this.container.clientHeight / 2, z };
     });
+  }
+
+  /** E2E/取证探针：辱骂计数现状（key = 战局代|行动者->目标；模块级，跨场景实例存续） */
+  debugInsultCounts(): [string, number][] {
+    return [...insultSeen.entries()];
   }
 
   debugStats() {
