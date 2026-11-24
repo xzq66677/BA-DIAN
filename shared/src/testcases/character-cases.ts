@@ -108,6 +108,18 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
+    id: 'TC-C011c', name: '吹箫哥：同房间不能打「远程」', category: 'character', charId: 'chuixiao', seed: 214,
+    desc: '显式 ranged:true 指向同房间目标 → 拒绝（远程只能打异房间），不消耗行动、不掉血（Issue #65）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'chuixiao' }, 'B'], 214);
+      g.players['B'].room = 'R1'; // 同房间
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const r = g.submitAction('A', { type: 'attack', targetId: 'B', ranged: true });
+      const ok = !r.ok && (r.error || '').includes('异房间') && hpOf(g, 'B') === 2 && g.currentActor() === 'A';
+      return check(ok, '同房间远程被拒绝，B 满血，行动未消耗', `ok=${r.ok}, err=${r.error}, hp=${hpOf(g, 'B')}`, g);
+    }),
+  },
+  {
     id: 'TC-C012', name: '吹箫哥：无需瞄准即可攻击任意异房间目标', category: 'character', charId: 'chuixiao', seed: 212,
     desc: '直接攻击异房间的 C 命中（无需先瞄准）',
     run: () => run(() => {
@@ -185,6 +197,24 @@ export const CHARACTER_CASES: TestCase[] = [
 
       return check(judgeOk && plainCycle, '有领域→三人循环获得平局行动；无领域→平局回合翻页',
         `outcome=${rec?.outcome}, q=${withDomain.qualified.join(',')}, plainCycle=${plainCycle}`, withDomain);
+    }),
+  },
+  {
+    id: 'TC-C020b', name: '五条悟：同房间不能打「远程」（避免 1 伤变 2 伤）', category: 'character', charId: 'gojo', seed: 219,
+    desc: '领域生效时显式 ranged:true 指向同房间目标 → 拒绝；改走近战仍为 1 伤（Issue #65）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'gojo' }, 'B'], 219);
+      g.players['B'].hp = 4; g.players['B'].maxHp = 4;
+      g.players['B'].room = 'R1'; // 同房间
+      g.openDomain('A'); // 领域内远程免瞄准，最容易被用来「同房间远程」
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const rejected = g.submitAction('A', { type: 'attack', targetId: 'B', ranged: true });
+      const noDamage = hpOf(g, 'B') === 4 && g.currentActor() === 'A';
+      const melee = g.submitAction('A', { type: 'attack', targetId: 'B' });
+      const ok = !rejected.ok && (rejected.error || '').includes('异房间') && noDamage
+        && melee.ok && hpOf(g, 'B') === 3; // 近战 1 伤
+      return check(ok, '同房间远程被拒绝；近战 1 伤（4→3）',
+        `ok=${rejected.ok}, err=${rejected.error}, hp=${hpOf(g, 'B')}`, g);
     }),
   },
   {
