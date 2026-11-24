@@ -117,6 +117,37 @@ describe('游戏页 UI（TCG战场·真实引擎快照渲染）', () => {
     expect(text).toContain('A'); // 玩家名（卡面铭牌）
   });
 
+  it('血条显示数值，点击后查看实时公开状态且不显示判定历史', () => {
+    const { snap, logs } = buildSnapshot();
+    const target = snap.players.find((p) => p.id === 'B')!;
+    Object.assign(target, {
+      hidden: true,
+      invisible: true,
+      char: { ...target.char, domain: true, livesLeft: 2, attackOverride: 4, history: ['rock'] },
+    });
+    render(
+      <GamePage
+        lobby={LOBBY}
+        game={snap}
+        session={{ code: 'TEST', identities: [{ playerId: 'A', name: 'A', token: 't' }] }}
+        logs={logs}
+        onExit={() => {}}
+      />,
+    );
+    const hpBar = screen.getByRole('button', { name: /查看 B 的生命与状态/ });
+    expect(hpBar.textContent).toContain(`${target.hp}/${target.maxHp}`);
+    fireEvent.click(hpBar);
+    const dialog = screen.getByRole('dialog', { name: /B/ });
+    expect(dialog.textContent).toContain('躲藏');
+    expect(dialog.textContent).toContain('隐身');
+    expect(dialog.textContent).toContain('领域');
+    expect(dialog.textContent).toContain('剩余 2 条');
+    expect(dialog.textContent).toContain('攻击力 4');
+    expect(dialog.textContent).not.toContain('rock');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('出拳揭示台：判定结算后全员可见彼此出拳（斗地主式牌桌）', () => {
     // 三人循环平局回合翻页后：完整揭示台（上一轮拳种全员可见，跨回合保留）
     const g = makeGame([{ id: 'A', char: 'bagun' }, 'B', 'C'], 4242);

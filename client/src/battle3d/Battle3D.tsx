@@ -48,6 +48,7 @@ export interface Battle3DProps {
   automaticCamera: boolean;
   active: boolean;
   onPickPlayer: (pid: string) => void;
+  onShowStatus: (pid: string) => void;
   onPickRoom: (rid: string) => void;
 }
 
@@ -99,6 +100,7 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
     try {
       scene = new sceneModule.BattleScene3D(host, {
         onPickPlayer: (pid) => hooksRef.current.onPickPlayer(pid),
+        onShowStatus: (pid) => hooksRef.current.onShowStatus(pid),
         onPickRoom: (rid) => hooksRef.current.onPickRoom(rid),
         onContextLost: () => {
           const state = recordContextLost();

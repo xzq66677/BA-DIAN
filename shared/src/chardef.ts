@@ -149,7 +149,7 @@ export interface CharDef {
   attackDesc?: string;
   /** 是否具备远程攻击能力（默认角色不具备，仅近战） */
   rangedCapable?: boolean;
-  /** 远程攻击是否需要先瞄准 */
+  /** 远程攻击是否需要先瞄准（opt-in；默认 false，即免瞄准） */
   rangedNeedsAim?: boolean;
   /** 领域生效后远程免瞄准（五条悟） */
   aimExemptWhenDomain?: boolean;

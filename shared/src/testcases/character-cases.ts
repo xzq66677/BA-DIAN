@@ -213,7 +213,7 @@ export const CHARACTER_CASES: TestCase[] = [
   },
   {
     id: 'TC-C025', name: '老大爷：远程攻击默认免瞄准（用户确认规则）', category: 'character', charId: 'laodaye', seed: 225,
-    desc: '远程攻击（异房间）无需瞄准直接命中；仅 rangedNeedsAim 角色（吹箫哥/五条悟）需瞄准',
+    desc: '远程攻击（异房间）无需瞄准直接命中；仅显式 rangedNeedsAim 角色需要瞄准，当前为五条悟',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'laodaye' }, 'B'], 225);
       g.players['B'].hp = 3; g.players['B'].maxHp = 3;

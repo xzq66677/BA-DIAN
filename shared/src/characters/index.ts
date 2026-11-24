@@ -48,7 +48,7 @@ const bagun: CharDef = {
   ],
 };
 
-/** 2. 吹箫哥：仅能远程攻击，需瞄准吹箫，无法近战 */
+/** 2. 吹箫哥：仅能远程攻击，默认免瞄准，无法近战 */
 const chuixiao: CharDef = {
   id: 'chuixiao',
   aiStrategy: characterAi.chuixiao,
