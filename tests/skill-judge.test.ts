@@ -161,6 +161,31 @@ describe('混元形意太极：受伤时暂停、双方出拳、赢则反弹', (
     expect(g.logs.some((l) => l.text.includes('太极判定未成功'))).toBe(true);
   });
 
+  it('三段伤害分别挂起并按次序结算，其他目标照常扣血', () => {
+    const g = game2([{ id: 'A', char: 'wuliuqi' }, { id: 'B', char: 'mabaoguo' }, { id: 'C' }]);
+    g.players.B.room = g.players.A.room;
+    g.players.C.room = g.players.A.room;
+    const initialB = g.players.B.hp;
+    const initialC = g.players.C.hp;
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+
+    expect(g.submitAction('A', { type: 'attack', targetId: 'B' }).ok).toBe(true);
+    expect(g.skillJudgeView()?.kind).toBe('taiji');
+    expect(g.players.B.hp).toBe(initialB);
+    expect(g.players.C.hp).toBeLessThan(initialC);
+
+    const hitsOnB = () => g.logs.filter((entry) => entry.type === 'damage' && entry.data?.target === 'B'
+      && entry.data?.tag === 'wuliuqi-aoe');
+    for (let settled = 1; settled <= 3; settled++) {
+      driveJudge(g, 'B', 'A', [['scissors', 'rock']]);
+      expect(hitsOnB()).toHaveLength(settled);
+    }
+    expect(hitsOnB().map((entry) => entry.data?.segment)).toEqual([
+      { index: 1, total: 3 }, { index: 2, total: 3 }, { index: 3, total: 3 },
+    ]);
+    expect(g.skillJudgeView()).toBeNull();
+  });
+
   it('平局不反弹（不算赢）', () => {
     const g = game2([{ id: 'A' }, { id: 'B', char: 'mabaoguo' }]);
     g.players.A.room = g.players.B.room;
