@@ -4,7 +4,7 @@
  * 禁止在引擎中堆砌 if/else 硬编码角色逻辑。
  */
 
-import type { PlayerId, RoomId, ActionRequest, CharRuntimeState, DamageRequest, PlayerState, Throw } from './types.js';
+import type { PlayerId, RoomId, ActionRequest, CharRuntimeState, DamageRequest, PlayerState, SkillJudgeOptions, Throw } from './types.js';
 
 /** 前置声明引擎接口，避免循环导入（运行时由 engine.ts 实现） */
 export interface GameLike {
@@ -45,11 +45,6 @@ export interface GameLike {
    * 全部局数结束后回调 `resolve(wins, rounds)`（wins 为己方获胜局数）。
    */
   requestJudge(opts: import('./types.js').SkillJudgeOptions): void;
-  /**
-   * 发起判定并**挂起当前这次伤害**（太极用）：判定结束前不扣血。
-   * `resolve` 里请自行决定是否改写目标（反弹）并调用 `applyDamage(req)` 完成结算。
-   */
-  deferDamageJudge(req: DamageRequest, opts: import('./types.js').SkillJudgeOptions): void;
   addDeferred(ev: Omit<import('./types.js').DeferredEvent, 'id'>): void;
   /** 生成新的事件组标识（AOE/多段演出分组用；同一次行动的全部伤害共享同一组） */
   nextGroupId(): string;
@@ -164,8 +159,8 @@ export interface CharDef {
   dataMissing?: string[];
   /** 初始化角色运行状态 */
   init?(): Record<string, unknown>;
-  /** 伤害管线前钩子：可修改目标/取消（返回 'skip'）；damageHookStage 决定执行阶段 */
-  onBeforeDamage?(ctx: DamageHookCtx): DamageRequest | 'skip' | void;
+  /** 伤害钩子可修改 req、返回 'skip' 取消，或返回 deferTo 等待出拳后再结算。 */
+  onBeforeDamage?(ctx: DamageHookCtx): DamageRequest | 'skip' | { deferTo: SkillJudgeOptions } | void;
   /** 伤害钩子阶段：transfer=转移（先执行），defense=防御（后执行，仅对自身） */
   damageHookStage?: 'transfer' | 'defense';
   /** 死亡钩子 */
