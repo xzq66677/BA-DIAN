@@ -145,6 +145,8 @@ export interface CharDef {
   ignoreHide?: boolean;
   /** 攻击无视距离：可选定任意房间的目标（如大贱客辱骂，作者确认 2026-11-21） */
   attackAllRooms?: boolean;
+  /** 攻击改为「指定房间」而非指定目标（如伍六七：移动到该房间，下一回合末三刀） */
+  attackRoomHint?: boolean;
   /** 角色自定义攻击说明（客户端行动坞展示用；设置后覆盖默认文案） */
   attackDesc?: string;
   /** 是否具备远程攻击能力（默认角色不具备，仅近战） */

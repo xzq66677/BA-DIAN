@@ -411,57 +411,127 @@ export const CHARACTER_CASES: TestCase[] = [
 
   // ═══════════════ 20.5 伍六七 ═══════════════
   {
-    id: 'TC-C040', name: '伍六七：3段AOE独立结算', category: 'character', charId: 'wuliuqi', seed: 240,
-    desc: '同房间目标承受三段各1伤（HP 3→0 淘汰），日志记录每段结算',
+    id: 'TC-C040', name: '伍六七：攻击=前往房间蓄力，下一回合末砍出三刀', category: 'character', charId: 'wuliuqi', seed: 240,
+    desc: '攻击时立刻移动到目标房间，本回合无伤害；下一回合末三刀各 1 伤（不打自己）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B'], 240);
-      g.players['B'].room = 'R1';
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // A 赢
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      const moved = g.players['A'].room === 'R2';
+      const noDamageYet = hpOf(g, 'B') === 2;
+      // 下一回合：蓄力回合（即使 A 赢下判定也不能行动），回合末三刀落下
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
-      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const segLogs = g.logs.filter((l) => l.type === 'damage' && l.text.includes('第1/3段') && l.text.includes('B')).length;
-      const ok = !isAlive(g, 'B') && segLogs >= 1 && (3 - hpOf(g, 'B')) === 3;
-      return check(ok, 'B 承受3段×1伤被淘汰，每段有结算日志', `alive=${isAlive(g, 'B')}, seg1日志=${segLogs}`, g);
+      const seg1 = g.logs.some((l) => l.type === 'damage' && l.text.includes('B') && l.text.includes('第1/3段'));
+      const seg2 = g.logs.some((l) => l.type === 'damage' && l.text.includes('B') && l.text.includes('第2/3段'));
+      const ok = moved && noDamageYet && seg1 && seg2 && !isAlive(g, 'B') && hpOf(g, 'A') === 3;
+      return check(ok, '立即移动；本回合不掉血；下一回合末三刀击杀 B（A 自身不受伤）',
+        `moved=${moved}, before=${noDamageYet}, B alive=${isAlive(g, 'B')}, A hp=${hpOf(g, 'A')}`, g);
     }),
   },
   {
-    id: 'TC-C041', name: '伍六七：目标集合为攻击时所在房间快照，段间死亡不再受击', category: 'character', charId: 'wuliuqi', seed: 241,
-    desc: '房间内两名目标：第一段击杀一名，第二、三段不再对其结算',
+    id: 'TC-C041', name: '伍六七：刀落瞬间动态判定房间成员（走开的不挨、进来的挨）', category: 'character', charId: 'wuliuqi', seed: 241,
+    desc: '蓄力时 B 在房间但刀落前离开 → 不受击；C 刀落前进入 → 被三刀击杀',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B', 'C'], 241);
-      g.players['B'].room = 'R1'; g.players['C'].room = 'R1';
-      g.players['B'].hp = 1;
-      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]);
-      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const bSeg1 = g.logs.some((l) => l.text.includes('B') && l.text.includes('第1/3段'));
-      const bSeg2 = g.logs.some((l) => l.text.includes('B') && l.text.includes('第2/3段'));
-      const ok = !isAlive(g, 'B') && bSeg1 && !bSeg2 && hpOf(g, 'C') === 0; // C 承受全部3段
-      return check(ok, 'B 仅第1段结算（死亡），C 承受3段被淘汰',
-        `B alive=${isAlive(g, 'B')}, seg2=${bSeg2}, C hp=${hpOf(g, 'C')}`, g);
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // A 赢
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      g.players['B'].room = 'R3'; // 刀落前离开
+      g.players['C'].room = 'R2'; // 刀落前进入
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 蓄力回合
+      const ok = hpOf(g, 'B') === 2 && !isAlive(g, 'C');
+      return check(ok, 'B 已离开不受击；C 进入后吃满三刀',
+        `B hp=${hpOf(g, 'B')}, C alive=${isAlive(g, 'C')}`, g);
     }),
   },
   {
-    id: 'TC-C042', name: '伍六七：释放房间固定为攻击时所在房间（不会跟随移动）', category: 'character', charId: 'wuliuqi', seed: 242,
-    desc: 'A 在 R1 释放 → 仅 R1 内目标受击（异房间 D 不受影响）',
+    id: 'TC-C042', name: '伍六七：蓄力回合赢下判定也不能行动', category: 'character', charId: 'wuliuqi', seed: 242,
+    desc: '有刀待落的回合，伍六七被移出行动队列，日志提示蓄力中',
     run: () => run(() => {
-      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B', 'D'], 242);
-      g.players['B'].room = 'R1';
-      playThrows(g, [{ A: 'rock', B: 'scissors', D: 'scissors' }]);
-      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'D') === 2 && !isAlive(g, 'B');
-      return check(ok, 'R2 的 D 未受击，R1 的 B 被淘汰', `D hp=${hpOf(g, 'D')}, B alive=${isAlive(g, 'B')}`, g);
+      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B'], 242);
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // A 本应获得行动资格
+      const actingAgain = g.logs.some((l) => l.type === 'action' && l.round === 2 && l.text.includes('A'));
+      const chargeHint = g.logs.some((l) => l.text.includes('蓄力中不能进行其他行动'));
+      const ok = !actingAgain && chargeHint && !isAlive(g, 'B');
+      return check(ok, 'A 第二回合未行动，三刀照常落下',
+        `actingAgain=${actingAgain}, chargeHint=${chargeHint}, B alive=${isAlive(g, 'B')}`, g);
     }),
   },
   {
-    id: 'TC-C043', name: '伍六七：AOE命中躲藏目标', category: 'character', charId: 'wuliuqi', seed: 243,
-    desc: '躲藏的 B 在房间内仍被AOE命中（AOE不受躲藏限制）',
+    id: 'TC-C043', name: '伍六七：三刀命中躲藏/隐身目标', category: 'character', charId: 'wuliuqi', seed: 243,
+    desc: '躲藏+隐身的 B 在目标房间内仍被三刀击杀（AOE 不受躲藏限制）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B'], 243);
-      g.players['B'].room = 'R1';
+      g.players['B'].room = 'R2';
       g.players['B'].hidden = true;
+      g.players['B'].invisible = true;
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
-      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 0;
-      return check(ok, '躲藏的 B 被AOE淘汰', `B hp=${hpOf(g, 'B')}, alive=${isAlive(g, 'B')}`, g);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const ok = !isAlive(g, 'B');
+      return check(ok, '躲藏+隐身的 B 被三刀淘汰', `B alive=${isAlive(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C044', name: '伍六七：三刀不打自己', category: 'character', charId: 'wuliuqi', seed: 244,
+    desc: 'A 与目标同处一室：三刀只打 B，A 血量不变',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B'], 244);
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const ok = hpOf(g, 'A') === 3 && !isAlive(g, 'B');
+      return check(ok, 'A 血量不变，B 被三刀击杀', `A hp=${hpOf(g, 'A')}, B alive=${isAlive(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C045', name: '伍六七：五条悟复活后不吃同一批剩余刀', category: 'character', charId: 'wuliuqi', seed: 245,
+    desc: 'G 以 2 血被第一/二刀打死 → 消耗一条命满血复活；第三刀跳过复活后的 G',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, { id: 'G', char: 'gojo' }], 245);
+      g.players['G'].room = 'R2';
+      g.players['G'].hp = 2; // 2 血 2 条命
+      playThrows(g, [{ A: 'rock', G: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', G: 'scissors' }]);
+      const ok = isAlive(g, 'G') && hpOf(g, 'G') === 3 && g.charState('G').livesLeft === 1;
+      return check(ok, 'G 复活后为 3 血、剩余 1 条命（第三刀未再扣血）',
+        `alive=${isAlive(g, 'G')}, hp=${hpOf(g, 'G')}, lives=${g.charState('G').livesLeft}`, g);
+    }),
+  },
+  {
+    id: 'TC-C046', name: '伍六七：平局回合也落刀', category: 'character', charId: 'wuliuqi', seed: 246,
+    desc: '刀落回合全员同拳平局（无人行动），三刀仍然结算',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B'], 246);
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局
+      const ok = !isAlive(g, 'B');
+      return check(ok, '平局回合三刀照常落下，B 被淘汰', `phase=${g.phase}, B alive=${isAlive(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C047', name: '伍六七：三刀先于大伊万爆炸结算', category: 'character', charId: 'wuliuqi', seed: 247,
+    desc: '同一回合末同时有伍六七三刀与大伊万：三刀日志先出现（作者确认的结算顺序）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, { id: 'V', char: 'ivan-girl' }, 'B'], 247);
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors', V: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      // 手动排入一个同一回合末引爆的大伊万事件，验证排序
+      g.addDeferred({ kind: 'ivan', room: 'R2', source: 'V', explodeRound: g.roundNo, createdAtRound: g.roundNo });
+      playThrows(g, [{ A: 'rock', B: 'scissors', V: 'scissors' }]);
+      const slashIdx = g.logs.findIndex((l) => l.text.includes('三刀落于'));
+      const ivanIdx = g.logs.findIndex((l) => l.text.includes('💥 大伊万在'));
+      const ok = slashIdx >= 0 && (ivanIdx < 0 || slashIdx < ivanIdx);
+      return check(ok, `三刀先于大伊万（slash=${slashIdx}, ivan=${ivanIdx}）`, `slash=${slashIdx}, ivan=${ivanIdx}`, g);
     }),
   },
 
@@ -760,11 +830,11 @@ export const CHARACTER_CASES: TestCase[] = [
       // W 的房间 R2；让 D、B 都进入 R2
       g.players['D'].room = 'R2'; g.players['B'].room = 'R2';
       playThrows(g, [{ W: 'rock', D: 'scissors', B: 'scissors' }]); // W 胜
-      actQueue(g, { W: { type: 'attack', targetId: 'B' } });
-      // 段内顺序 [D,B]：D 直接承受（自己是目标不转移），B 的伤害转移至 D。
-      // 段1：D -2（hp1）；段2：D -1 死亡 → B 的伤害无转移对象 → B -1（hp2）；段3：B -1（hp1）
-      const ok = !isAlive(g, 'D') && hpOf(g, 'B') === 0 && hpOf(g, 'W') === 3;
-      return check(ok, '伤害全部流向大贱客直至其死亡；其后伤害落在 B（血量2耗尽）',
+      actQueue(g, { W: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ W: 'rock', D: 'scissors', B: 'scissors' }]); // 刀落回合
+      // 三刀属于「回合末瞬时爆发」：D 直接承受自身份额，B 的每一段都被 D 吸收（含 D 阵亡后的遗体吸收）
+      const ok = !isAlive(g, 'D') && hpOf(g, 'B') === 2 && hpOf(g, 'W') === 3;
+      return check(ok, '三刀全部由 D 承担（遗体也吸收），B 不受损；W 不受伤',
         `D=${hpOf(g, 'D')}, B=${hpOf(g, 'B')}, W=${hpOf(g, 'W')}`, g);
     }),
   },

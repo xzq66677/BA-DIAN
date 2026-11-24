@@ -58,7 +58,7 @@ export const CARD_META: Record<string, CardMeta> = {
   wuliuqi: {
     img: './cards/wuliuqi.webp', thumb: './cards/wuliuqi-thumb.webp', no: '05',
     skills: '【三段剪】',
-    mech: '一次行动打出三段范围伤害，每段独立结算；目标按出手瞬间所在房间锁定，房间此后再变也不改。',
+    mech: '攻击=立刻前往任意房间，下一回合末在该房间砍出三刀（1×3，不打自己；命中躲藏/隐身）。目标按刀落瞬间的房间成员动态判定，三刀先于大伊万爆炸；蓄力回合不能进行其他行动。',
     quote: '一刀三段，别急着倒，账要一笔一笔算。',
   },
   'ivan-girl': {

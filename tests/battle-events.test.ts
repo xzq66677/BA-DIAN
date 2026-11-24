@@ -148,14 +148,15 @@ describe('结构化事件：移动与回复', () => {
 });
 
 describe('结构化事件：AOE / 多段分组', () => {
-  it('伍六七 3 段 AOE：全部扣血事件共享 groupId 且段序完整', () => {
-    // A、B 同房间；A 胜（rock 胜 scissors），C 出 rock 与 A 平局无资格
+  it('伍六七三刀：全部扣血事件共享 groupId 且段序完整', () => {
+    // A、B 同房间；A 攻击指定房间（原地蓄力）→ 下一回合末三刀落下
     const g = makeGame([spec('A', 'wuliuqi'), spec('B', 'default', { hp: 3 })], 107);
     g.players.B.room = 'R1';
-    toActionPhase(g, { A: 'rock', B: 'scissors', C: 'rock' });
+    toActionPhase(g, { A: 'rock', B: 'scissors' });
     expect(g.phase).toBe('act');
-    const r = g.submitAction('A', { type: 'attack', targetId: 'B' });
+    const r = g.submitAction('A', { type: 'attack', room: 'R1' });
     expect(r.ok).toBe(true);
+    playThrows(g, [{ A: 'rock', B: 'rock' }]); // 刀落回合（平局也落刀）
 
     const dd = realDamageLogs(g);
     // 3 段 × 房间内 1 名目标（不含自己）= 3 条
@@ -169,15 +170,16 @@ describe('结构化事件：AOE / 多段分组', () => {
     expect(dd.every((l) => damageData(l).room === 'R1')).toBe(true);
   });
 
-  it('伍六七 AOE 多目标：同组事件覆盖房间内全部目标（含段间死亡剔除）', () => {
+  it('伍六七三刀多目标：同组事件覆盖刀落瞬间房间内的目标（含段间死亡剔除）', () => {
     const g = makeGame([spec('A', 'wuliuqi'), spec('B', 'default', { hp: 2 }), spec('C', 'default', { hp: 2 })], 117);
     g.players.B.room = 'R1';
     g.players.C.room = 'R1';
-    toActionPhase(g, { A: 'rock', B: 'scissors', C: 'rock' });
-    const r = g.submitAction('A', { type: 'attack', targetId: 'B' });
+    toActionPhase(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    const r = g.submitAction('A', { type: 'attack', room: 'R1' });
     expect(r.ok).toBe(true);
+    playThrows(g, [{ A: 'rock', B: 'rock', C: 'rock' }]); // 平局回合也落刀
     const dd = realDamageLogs(g);
-    // B、C 各 HP2：第 2 段后 HP 归零淘汰，第 3 段跳过死者 → 3+2=5 条（A 不含自己）
+    // B、C 各 HP2：第 2 段后 HP 归零淘汰，第 3 段跳过死者 → 2+2=4 条（A 不含自己）
     const targets = dd.map((l) => damageData(l).target);
     expect(targets.filter((t) => t === 'B').length).toBe(2);
     expect(targets.filter((t) => t === 'C').length).toBe(2);

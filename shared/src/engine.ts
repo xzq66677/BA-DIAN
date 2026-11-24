@@ -652,7 +652,15 @@ export class Game implements GameLike {
 
   private beginActionPhase(winners: PlayerId[]): void {
     this.orderPurpose = 'act';
-    const aliveWinners = winners.filter((pid) => this.players[pid].alive);
+    // 蓄力回合（本回合末有三刀要落）的伍六七不能进行其他行动：即使赢下判定也不入队列
+    const aliveWinners = winners.filter((pid) => {
+      if (!this.players[pid].alive) return false;
+      if (this.hasSlashDue(pid)) {
+        this.log('info', `🗡️ ${this.players[pid].name} 本回合末有刀要落，蓄力中不能进行其他行动`);
+        return false;
+      }
+      return true;
+    });
     // 只有一名资格者时无需排序：直接入队（不额外出拳、不产生空排序记录）
     if (aliveWinners.length === 1) {
       const only = aliveWinners[0];
@@ -1258,6 +1266,38 @@ export class Game implements GameLike {
     return this.deferred.some((d) => d.kind === 'ivan' && d.explodeRound <= this.roundNo);
   }
 
+  /** 本回合末是否有待落的三刀（伍六七蓄力回合不能进行其他行动） */
+  private hasSlashDue(pid: PlayerId): boolean {
+    return this.deferred.some((d) => d.kind === 'wuliuqi-slash' && d.source === pid && d.explodeRound <= this.roundNo);
+  }
+
+  /**
+   * 伍六七三刀：对「刀落瞬间」目标房间内的存活玩家逐段 1 伤（不打自己）。
+   * 同一批内被致死但消耗命数复活者（五条悟）不再吃剩余刀。
+   */
+  private resolveSlash(ev: DeferredEvent): void {
+    const source = ev.source;
+    const room = ev.room;
+    const excluded = new Set<PlayerId>();
+    if (source) excluded.add(source); // 不打自己
+    const gid = this.nextGroupId();
+    const names = this.roomMembers(room).filter((pid) => !excluded.has(pid)).map((pid) => this.players[pid].name);
+    this.log('deferred', `🗡️ 伍六七三刀落于 ${room}（本批目标：${names.join('、') || '无'}）`, { room, source: source ?? null, groupId: gid }, true);
+    for (let seg = 1; seg <= 3; seg++) {
+      const targets = this.roomMembers(room).filter((pid) => !excluded.has(pid) && this.players[pid].alive);
+      for (const pid of targets) {
+        if ((this.phase as GamePhase) === 'over') return;
+        const applied = this.applyDamage({
+          target: pid, amount: 1, source,
+          dtype: 'physical', aoe: true,
+          segment: { index: seg, total: 3 }, tag: 'wuliuqi-slash', groupId: gid,
+        });
+        // 本段致死但人还活着 = 消耗命数复活（五条悟）：剩余刀跳过该玩家
+        if (applied.lethal && this.players[pid]?.alive) excluded.add(pid);
+      }
+    }
+  }
+
   // ─── 回合末（延迟事件结算） ───────────────────────────────────
 
   private endRound(): void {
@@ -1277,14 +1317,23 @@ export class Game implements GameLike {
     }
     if ((this.phase as GamePhase) === 'over') return;
 
-    // 延迟事件（大伊万爆炸 / 通用延迟伤害）：动态判定结算时状态。
+    // 延迟事件：伍六七三刀 → 其他延迟伤害 → 大伊万爆炸（作者确认的结算顺序）。
     // settlingDeferred 期间淘汰不定胜负（同一发爆炸连杀两人时须统一判平局，见 checkWin）
-    const due = this.deferred.filter((d) => d.explodeRound <= this.roundNo);
+    const priority = (kind: string) => (kind === 'wuliuqi-slash' ? 0 : kind === 'ivan' ? 2 : 1);
+    const due = this.deferred
+      .filter((d) => d.explodeRound <= this.roundNo)
+      .sort((a, b) => priority(a.kind) - priority(b.kind));
     this.settlingDeferred = true;
     for (const ev of due) {
       // 大伊万只在「分出胜负」的回合末引爆：平局回合跳过（事件保留，顺延至下一个分出胜负回合）
       if (ev.kind === 'ivan' && !this.roundResolved) continue;
       this.deferred = this.deferred.filter((d) => d.id !== ev.id);
+      // 伍六七三刀：对刀落瞬间房间内的存活玩家逐段 1 伤（平局回合同样落刀）
+      if (ev.kind === 'wuliuqi-slash') {
+        this.resolveSlash(ev);
+        if ((this.phase as GamePhase) === 'over') break;
+        continue;
+      }
       if (ev.kind === 'damage' && ev.payload) {
         this.log('deferred', `延迟伤害结算：${String((ev.payload as { label?: string }).label || '')}`);
         this.applyDamage(ev.payload as DamageRequest & { label?: string });

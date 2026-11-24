@@ -161,21 +161,23 @@ describe('混元形意太极：受伤时暂停、双方出拳、赢则反弹', (
     expect(g.logs.some((l) => l.text.includes('太极判定未成功'))).toBe(true);
   });
 
-  it('三段伤害分别挂起并按次序结算，其他目标照常扣血', () => {
+  it('三刀逐段落于马保国：每段独立太极判定，其他目标照常扣血', () => {
     const g = game2([{ id: 'A', char: 'wuliuqi' }, { id: 'B', char: 'mabaoguo' }, { id: 'C' }]);
     g.players.B.room = g.players.A.room;
     g.players.C.room = g.players.A.room;
     const initialB = g.players.B.hp;
     const initialC = g.players.C.hp;
     throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    expect(g.submitAction('A', { type: 'attack', room: g.players.A.room }).ok).toBe(true);
 
-    expect(g.submitAction('A', { type: 'attack', targetId: 'B' }).ok).toBe(true);
+    // 刀落回合：A 赢下判定但蓄力中不能行动 → 回合末三刀落下，马保国每段各挂起一次判定
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
     expect(g.skillJudgeView()?.kind).toBe('taiji');
-    expect(g.players.B.hp).toBe(initialB);
-    expect(g.players.C.hp).toBeLessThan(initialC);
+    expect(g.players.B.hp).toBe(initialB); // 挂起未结算
+    expect(g.players.C.hp).toBeLessThan(initialC); // C 没有太极，第一段已落地
 
     const hitsOnB = () => g.logs.filter((entry) => entry.type === 'damage' && entry.data?.target === 'B'
-      && entry.data?.tag === 'wuliuqi-aoe');
+      && entry.data?.tag === 'wuliuqi-slash');
     for (let settled = 1; settled <= 3; settled++) {
       driveJudge(g, 'B', 'A', [['scissors', 'rock']]);
       expect(hitsOnB()).toHaveLength(settled);

@@ -222,7 +222,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     if (!actor) return [];
     const cd = CHARACTERS[actor.charId] || CHARACTERS['default'];
     const list: ActionOption[] = [
-      { key: 'attack', label: '攻击', desc: cd.attackDesc ?? `近战攻击同房间目标（伤害 ${atkOf(actor)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? ((cd.aimExemptWhenDomain && actor.char.domain === true) ? '（领域生效免瞄准）' : '（远程需先瞄准）') : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', targetHint: 'attack' },
+      { key: 'attack', label: '攻击', desc: cd.attackDesc ?? `近战攻击同房间目标（伤害 ${atkOf(actor)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? ((cd.aimExemptWhenDomain && actor.char.domain === true) ? '（领域生效免瞄准）' : '（远程需先瞄准）') : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', ...(cd.attackRoomHint ? { roomHint: true } : { targetHint: 'attack' as const }) },
       { key: 'move', label: '移动', desc: '移动到任意玩家的初始房间（移动后现身）', typeLabel: '基础', roomHint: true },
       { key: 'heal', label: '回复', desc: '回复至满血', typeLabel: '基础' },
       { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础' },
@@ -335,6 +335,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   // 技能内判定（马保国太极/五连鞭/不讲武德）：只有当前在等出拳的本机身份需要出拳
   const judge = game.judge ?? null;
   const judgePendingLocalIds = judge ? myIds.filter((i) => judge.waitingIds.includes(i.playerId)) : [];
+  // 伍六七三刀：下一回合末落于指定房间（回合末结算，先于大伊万爆炸）
+  const pendingSlashes = (game.deferred ?? []).filter((d) => d.kind === 'wuliuqi-slash');
   const livingCount = game.players.filter((p) => p.alive).length;
   const crowdedArena = game.roomIds.length > 10 || game.players.filter(p => p.alive && p.room === actor?.room).length > 6;
 
@@ -734,6 +736,9 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                 {game.phase === 'rps2' && <span className="tcg-chip">行动排序 · 子轮 {(game.orderSub ?? 0) + 1} · 仅资格者出拳（不剥夺资格）</span>}
                 {game.phase === 'judge' && judge && <span className="tcg-chip">⚡ {judge.label} · 第 {judge.round}/{judge.rounds} 局 · 双方各自出拳</span>}
                 {game.phase === 'trigger' && game.trigger && <span className="tcg-chip">🌀 暴走 · {namesOf(game, [game.trigger.actor])} 指定目标</span>}
+                {pendingSlashes.length > 0 && (
+                  <span className="tcg-chip">🗡️ 三刀 · {pendingSlashes.map((d) => `${d.room}（第 ${d.explodeRound} 回合末）`).join('，')}</span>
+                )}
               </div>
 
               {me && me.judgeStreak && me.judgeStreak.length > 0 && (
