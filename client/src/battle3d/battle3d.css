@@ -144,6 +144,11 @@
   cursor: grab;
 }
 .b3-host:active { cursor: grabbing; }
+.b3-loading {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
 .b3-canvas {
   position: absolute;
   inset: 0;
