@@ -744,3 +744,16 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | T-611 | 规则侵入性 | 零：只读 `LogEntry` 的 `type/text/data/important`，不动数值、结算顺序、隐藏出拳语义（提交阶段日志无拳种） |
 | T-612 | 兼容性 | 新增字段可选：旧客户端忽略 `announces`；旧服务端不发送时客户端按无播报降级；`useBattlePresentation` 第 5 参数可选，proto/存量测试零改动 |
 | T-613 | 遗留 | 横幅按 `ttlMs` 串行播放，超长局（一次广播几十条）仍会排队；已用「队首＋high」压缩策略缓解。真机上 3D 聚焦镜头与横幅层级（top 13%）需目视复验 |
+
+## 二十七轮 · 真人对 AI 慢速演出 + AI 找出来策略（Issue #61，2026-11-24）
+
+用户要求：真人和 AI 打时演出也要慢速；检查并优化 AI 对躲藏目标的「找出来」策略。先提 Issue 再 PR。
+
+| 编号 | 任务 | 状态 | 说明 |
+|---|---|---|---|
+| T-61.1 | 座位组成节奏策略 | DONE | 新增 `client/src/battle/pace-policy.ts`：`resolvePresentationPace(seats, search)` —— 真人/本机 + AI 混合局默认 `slow`；显式合法 `?pace=` 保留调试覆盖（`Object.hasOwn` 防原型键）；纯 AI/纯真人跟随 URL 或默认档。`Game.tsx` 以 `useMemo(lobby.seats)` 计算并传入 `useBattlePresentation` 第 6 参 |
+| T-61.2 | 队列档位可观测 | DONE | `QueueState` 新增 `pace`；构造/setPace/emitState 同步；`.battlefield` 输出 `data-pace`（常驻，不依赖演出队列），e2e 断言混合局为 `slow` |
+| T-61.3 | AI 找出来策略 | DONE | `server/src/ai.ts` 新增 `seekTargets`/`shouldSeekHidden`；三档难度在同房间只剩躲藏者时优先 seek（普通按残血、硬核按威胁排序），候选链兜底含 seek；`allowSeek=false`/隐身/异房间/已淘汰不产生 seek；无视躲藏（拔棍）、AOE/辱骂接管、纯远程、零攻击角色不浪费 seek |
+| T-61.4 | 角色特化修正 | DONE | `ai-strategies.ts`：`firstInRoom` 去掉难度门槛（硬核伍六七/大剑客可直接打躲藏者）；五条悟普通难度先过滤可见成员，不再盲打躲藏者 |
+| T-61.5 | 测试与验收 | DONE | `tests/pace.test.ts` +6（座位策略/覆盖/原型键/队列 pace 状态）；`tests/integration/ai-difficulty.test.ts` +10（三档 seek 首选/候选链/真实落地/规则关闭/隐身/异房间/淘汰/角色豁免/伍六七 AOE/五条悟）；e2e 混合局 `data-pace=slow` 断言 |
+| T-61.6 | 文档 | DONE | AGENTS.md「演出节奏与 AI 策略扩展点」、README 测试摘要、TASKS.md 登记 |

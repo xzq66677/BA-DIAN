@@ -68,11 +68,17 @@ MAP 链：`feat/map101-stone-refinement`、`feat/map102-labels-danger`、
 
 新增功能必须保留后续接入能力，不能把当前角色、状态、地图、道具或规则枚举写死：优先使用共享类型、数据配置、注册表、策略或适配器扩展；公共引擎与 UI 主流程不得堆叠具体业务名称分支。新增内容应能以最小改动注册/配置后生效，并补充对应扩展点测试；未知或旧版本数据必须安全降级，不得导致对局或页面崩溃。
 
+## 演出节奏与 AI 策略扩展点
+
+- `client/src/battle/pace-policy.ts`：演出档位由座位组成策略计算（真人/本机 + AI 混合局默认慢速），`resolvePresentationPace(seats, search)` 是唯一入口。新增座位类型或节奏策略在此扩展，不要在页面组件里写死档位；显式 `?pace=` 保留调试覆盖；`QueueState.pace` 对外可观测（`.battlefield` 的 `data-pace`）。
+- `server/src/ai.ts`：AI 决策返回按优先级排列的候选链，`Room.kickAI` 依次尝试直到引擎接受（最差跳过）。新增行动/状态时扩展候选链与 `seekTargets` / `shouldSeekHidden` 判定；角色特化走 `shared/src/characters/ai-strategies.ts` 的 `aiStrategy` 钩子，不要在通用策略里堆角色名分支。
+- 后续新增「躲藏类」负面状态（隐身变体等）时：先在规则层定义能否被「找出来」解除，再同步 `seekTargets` 过滤与三档难度测试，避免 AI 对不可解除目标浪费行动。
+
 ## 常用命令
 
 ```bash
 npm install          # 安装依赖（Node >= 20，验证用 v24）
-npm test             # 591 项测试（含真实 Chromium E2E）
+npm test             # 615 项测试（含真实 Chromium E2E）
 npm run build        # tsc + vite 构建
 npm run dev:server   # 游戏服务 :3100
 npm start            # 启动服务（systemd: badian）

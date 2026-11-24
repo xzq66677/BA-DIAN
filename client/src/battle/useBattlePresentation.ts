@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BattleEventQueue, paceFromLocation, type QueueState, type Speed } from './queue.js';
+import { BattleEventQueue, DEFAULT_PACE, paceFromLocation, type PaceProfile, type QueueState, type Speed } from './queue.js';
 import type { BattleEvent, LogLike } from './events.js';
 import { sfx, type SfxKind } from '../audio/sfx.js';
 import { condenseAnnounceQueue, type AnnounceItem } from '../../../shared/src/announce.js';
@@ -127,6 +127,7 @@ function reducedMotionPreferred(): boolean {
  * @param announces 全局播报增量（服务端权威，App 层累积后传入）。
  *        按 seq 去重、队列逐条播放；首次收到只推进游标（重连补发不回放历史横幅）。
  *        不传时不产生横幅（演出层不自行猜测内容，避免与服务端播报不一致）。
+ * @param pace 演出节奏档位（可选）：由房间座位组成策略计算；不传时回退 URL/默认档。
  */
 export function useBattlePresentation(
   logs: LogLike[],
@@ -134,9 +135,10 @@ export function useBattlePresentation(
   gamePhase?: 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over',
   resync?: { cursor: number },
   announces?: AnnounceItem[],
+  pace?: PaceProfile,
 ): BattlePresentation {
   const [pres, setPres] = useState<PresentationState>(EMPTY_PRESENTATION);
-  const [queueState, setQueueState] = useState<QueueState>({ playing: false, depth: 0, mode: 'normal', speed: 1 });
+  const [queueState, setQueueState] = useState<QueueState>({ playing: false, depth: 0, mode: 'normal', speed: 1, pace: pace?.id ?? DEFAULT_PACE });
   const queueRef = useRef<BattleEventQueue | null>(null);
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const listenersRef = useRef(new Set<(signal: PresentationSignal) => void>());
@@ -178,7 +180,7 @@ export function useBattlePresentation(
       onEventStart: (e, durationMs) => applyEventRef.current(e, durationMs),
       onFlush: () => flushRef.current(),
       onState: (s) => { modeRef.current = s.mode; setQueueState(s); },
-    }, paceFromLocation());
+    }, pace ?? paceFromLocation());
   }
   const queue = queueRef.current;
 
@@ -384,6 +386,10 @@ export function useBattlePresentation(
     mq.addEventListener?.('change', handler);
     return () => mq.removeEventListener?.('change', handler);
   }, [queue]);
+
+  useEffect(() => {
+    if (pace) queue.setPace(pace);
+  }, [queue, pace]);
 
   // 局号变化（重开新局）：清空队列与全部叠加层
   useLayoutEffect(() => {

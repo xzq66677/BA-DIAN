@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { Game } from '../../shared/src/engine.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
 import { aiDecideAction, aiDecideActions, aiThrow } from '../../server/src/room.js';
-import type { AiDifficulty, Throw } from '../../shared/src/types.js';
+import type { ActionRequest, AiDifficulty, Throw } from '../../shared/src/types.js';
 
 const ROSTER = ['default', 'bagun', 'chuixiao', 'gojo', 'mabaoguo', 'wuliuqi', 'ivan-girl', 'hero-today', 'dajianke', 'dapihuai'];
 
@@ -122,6 +122,86 @@ describe('AI 难度：行动策略', () => {
     const g = makeAiGame(3, 3);
     const chain = aiDecideActions(g, 'AI1', 'hard');
     expect(chain[chain.length - 1]).toEqual({ type: 'skip' });
+  });
+});
+
+describe('AI 难度：躲藏目标找出来（Issue #61）', () => {
+  /** 出生各占一间房；把 AI2 拉到 AI1 房间并设为躲藏 */
+  function hideSetup(seed: number, chars: string[] = ['default', 'default']): Game {
+    const g = makeAiGame(seed, 2, chars);
+    g.players.AI2.room = 'R1';
+    g.players.AI2.hidden = true;
+    return g;
+  }
+  const noSeek = (g: Game, d: AiDifficulty) =>
+    expect(aiDecideActions(g, 'AI1', d).some((a) => a.type === 'seek'), `难度 ${d} 不该产生找出来`).toBe(false);
+
+  it('普通/硬核：同房间只剩躲藏者 → 首选找出来', () => {
+    for (const d of ['normal', 'hard'] as AiDifficulty[]) {
+      const g = hideSetup(101);
+      expect(aiDecideAction(g, 'AI1', d)).toEqual({ type: 'seek', targetId: 'AI2' });
+    }
+  });
+
+  it('休闲：候选链包含找出来（随机首选被拒时仍能落地）', () => {
+    const g = hideSetup(102);
+    const chain = aiDecideActions(g, 'AI1', 'easy');
+    expect(chain.some((a) => a.type === 'seek' && a.targetId === 'AI2')).toBe(true);
+  });
+
+  it('找出来真实落地：按候选链提交后引擎接受且目标现身', () => {
+    const g = hideSetup(103);
+    g.phase = 'act';
+    g.queue = ['AI1'];
+    g.actIndex = 0;
+    let accepted: ActionRequest | undefined;
+    for (const act of aiDecideActions(g, 'AI1', 'normal')) {
+      if (g.submitAction('AI1', act).ok) { accepted = act; break; }
+    }
+    expect(accepted).toEqual({ type: 'seek', targetId: 'AI2' });
+    expect(g.players.AI2.hidden).toBe(false);
+  });
+
+  it('规则关闭 allowSeek → 三档都不产生找出来', () => {
+    const g = hideSetup(104);
+    g.rules.allowSeek = false;
+    for (const d of ['easy', 'normal', 'hard'] as AiDifficulty[]) noSeek(g, d);
+  });
+
+  it('隐身（含躲藏+隐身）无法靠找出来解除 → 不浪费行动', () => {
+    const g = hideSetup(105);
+    g.players.AI2.invisible = true;
+    for (const d of ['easy', 'normal', 'hard'] as AiDifficulty[]) noSeek(g, d);
+  });
+
+  it('异房间躲藏者不会被找（找出来只限同房间）', () => {
+    const g = makeAiGame(106, 2, ['default', 'default']);
+    g.players.AI2.hidden = true; // 留在出生房 R2
+    for (const d of ['easy', 'normal', 'hard'] as AiDifficulty[]) noSeek(g, d);
+  });
+
+  it('已淘汰的躲藏者不产生找出来', () => {
+    const g = hideSetup(107);
+    g.players.AI2.alive = false;
+    for (const d of ['easy', 'normal', 'hard'] as AiDifficulty[]) noSeek(g, d);
+  });
+
+  it('无视躲藏（拔棍）与纯远程（吹箫哥）不浪费找出来', () => {
+    for (const chars of [['bagun', 'default'], ['chuixiao', 'default']]) {
+      const g = hideSetup(108, chars);
+      for (const d of ['easy', 'normal', 'hard'] as AiDifficulty[]) noSeek(g, d);
+    }
+  });
+
+  it('硬核伍六七直接 AOE 打躲藏者（无需找出来）', () => {
+    const g = hideSetup(109, ['wuliuqi', 'default']);
+    expect(aiDecideAction(g, 'AI1', 'hard')).toEqual({ type: 'attack', targetId: 'AI2' });
+  });
+
+  it('普通五条悟（领域已开）不再盲打躲藏者，改为找出来', () => {
+    const g = hideSetup(110, ['gojo', 'default']);
+    g.players.AI1.char.domain = true;
+    expect(aiDecideAction(g, 'AI1', 'normal')).toEqual({ type: 'seek', targetId: 'AI2' });
   });
 });
 

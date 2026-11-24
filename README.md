@@ -22,7 +22,7 @@
 # 1. 安装依赖
 npm install
 
-# 2. 全量自动化测试（599 用例，需 Node ≥ 22.15；见下方「测试」）
+# 2. 全量自动化测试（615 用例，需 Node ≥ 22.15；见下方「测试」）
 npm test
 
 # 3. 构建（服务端 tsc + 客户端 vite）
@@ -88,6 +88,8 @@ npm run dev:client    # vite dev 客户端 :5173（代理到 :3100）
 | 🤖 硬核 | 统计全场**已结算**出拳的频率分布，出最可能反制的手势（30% 概率扰动，避免被读死） | 威胁值排序（血量/攻击力/是否可秒）选目标，优先补刀收人头，技能与站位都按收益最大化 |
 
 关键约束：AI 只在 `roundEnd` 之后、或自己出手时读取**已经结算并公开**的判定历史，因此难度提升不破坏隐藏出拳的公平性。所有随机数取自 `shared/src/rng.ts` 的座位随机流，固定种子下 AI 行为完全可复现（回放/测试同源）。
+
+**对躲藏目标的「找出来」（Issue #61）**：同房间只剩躲藏者时，三档 AI 都会优先 `seek` 把目标找出来（普通按残血、硬核按威胁值排序），而不是空过或盲目移动；候选链兜底也含 `seek`，休闲档随机首选被拒时仍能落地。规则关闭 `allowSeek`、目标隐身（seek 无法解除）、异房间或已淘汰时不产生 `seek`；无视躲藏（拔棍）、AOE/辱骂接管攻击、纯远程与零攻击角色不浪费找出来——硬核伍六七/大剑客可直接打躲藏者，五条悟普通难度不再盲打躲藏目标。判定逻辑集中在 `server/src/ai.ts` 的 `seekTargets` / `shouldSeekHidden`，角色特化走 `aiStrategy` 钩子。
 
 ## 局外功能对规则的影响
 
@@ -168,6 +170,7 @@ const off = registerAnnounceRule({
 一条链路：**引擎日志 → `parseBattleEvent` → `assembleClusters` 分簇 → `BattleEventQueue` 按档位时长逐条播 → 3D 特效/受击动画**。
 
 - **四档可在运行时切换**：URL 加 `?pace=current` / `relaxed` / `cinematic` / `slow`（未知值回退默认）。默认档由 `DEFAULT_PACE` 一行决定，当前为 `slow`（慢速）。
+- **座位组成策略（Issue #61）**：`resolvePresentationPace(seats, search)`（`client/src/battle/pace-policy.ts`）按房间座位计算档位——**真人/本机玩家 + AI 混合局强制 `slow`**，保证人机对局也看得清每一击；纯 AI / 纯真人局跟随 URL 或默认档。显式合法 `?pace=` 仍是最优先的调试覆盖。档位经 `QueueState.pace` 暴露到 `.battlefield` 的 `data-pace`，便于验收与调试。
 - **所有数字集中在一处**：`PACE_PROFILES`（`client/src/battle/queue.ts`）——每种事件的基础时长、`fast` 压缩时长、簇间呼吸间隔、多段伤害/致命伤害停留、拥堵阈值，改档即可整体变快变慢，不用翻代码。
 - **拥堵判定改看「条数」**：AI 由服务端 `kickAI()` 同步批量驱动，一次广播就带来**一整轮 AI 行动**（十几到几十条）。原先按「估算播放时长 > 9s」判积压，6~10 人局天然超标 → 每一批都被压成 `fast` 档 260ms/条，这才是「AI 太快」的根因。现在主判据是待播条数（`fastPendingEvents 60` / `turboPendingEvents 160`），正常回合按原速播，只有真正的洪水（重连补发、整局回放）才压缩。
 - **演出预算对得上动画长度**：基线「一次攻击」= 行动 340 + 出手 200 + 伤害 640 = **1180ms**，而 3D 受击动画 `HIT_MS` 1250ms、出手 `FX_MS` 1400ms——动画还没播完就被下一条盖掉，观感自然偏急。各档把单次攻击拉到 1.18s / 1.71s / 2.18s / 2.71s，恢复「动作走完再下一条」。
@@ -186,6 +189,7 @@ API：
 | `PACE_PROFILES` | 四档完整参数表（含 `base` / `fastMs` / `gapMs` / 阈值） |
 | `DEFAULT_PACE` | 默认档位 id（改手感只改这一行） |
 | `resolvePace(raw)` / `paceFromLocation()` | `?pace=` 解析（未知值安全回退） |
+| `resolvePresentationPace(seats, search)` | 座位组成策略：人机混合局默认慢速，显式 `?pace=` 优先（`pace-policy.ts`） |
 | `queue.setPace(profile)` | 局内即时切换（只影响后续事件） |
 | `eventMs(e, mode, speed, reduced, pace)` | 单事件时长（导出供分析脚本/测试复用） |
 
@@ -312,9 +316,10 @@ scripts/
 
 ```bash
 npm test
-# 37 个测试文件 / 599 用例（Node ≥ 22.15），含真实 Chromium E2E。
-# 2026-11-24 验证：599/599 通过，npm run build 通过。
-# 近期回归：pace 演出节奏、房间人数上限、入口身份、播报 V2、生命状态白名单、
+# 37 个测试文件 / 615 用例（Node ≥ 22.15），含真实 Chromium E2E。
+# 2026-11-24 验证：615/615 通过，npm run build 通过。
+# 近期回归：真人对 AI 慢速演出（座位组成策略）、AI 找出来策略、pace 演出节奏、
+#           房间人数上限、入口身份、播报 V2、生命状态白名单、
 #           2D 血条交互、3D 名牌点击分流及双模式真实 Chromium 验收。
 # WebGL 相关 e2e 需要可用的浏览器渲染环境；无 GPU 的无头环境可能无法运行。
 ```

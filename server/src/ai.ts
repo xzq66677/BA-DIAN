@@ -34,6 +34,24 @@ function threatOf(g: Game, pid: PlayerId): number {
   return atk * 2 + p.hp;
 }
 
+/** 同房间可被「找出来」的躲藏目标；隐身无法靠 seek 解除，不浪费行动。 */
+function seekTargets(g: Game, pid: PlayerId): PlayerId[] {
+  if (!g.rules.allowSeek) return [];
+  const me = g.players[pid];
+  return g.roomMembers(me.room).filter((id) =>
+    id !== pid && g.players[id].alive && g.players[id].hidden && !g.players[id].invisible);
+}
+
+/** 可无视躲藏、AOE/辱骂接管攻击、纯远程或零攻击角色不需要找出来。 */
+function shouldSeekHidden(g: Game, pid: PlayerId): boolean {
+  const cd = g.charDef(pid);
+  if (cd.ignoreHide || cd.onAttackAction) return false;
+  if (cd.attackType === 'ranged' || cd.attackType === 'none') return false;
+  const atk = cd.meleeDamage ?? cd.attack ?? g.rules.defaultAttack;
+  if (atk <= 0) return false;
+  return seekTargets(g, pid).length > 0;
+}
+
 /** 简单可解释的 AI 行动策略（普通难度，保留原行为以便回归） */
 export function aiDecideAction(g: Game, pid: PlayerId, difficulty: AiDifficulty = 'normal'): ActionRequest {
   return aiDecideActions(g, pid, difficulty)[0];
@@ -56,6 +74,9 @@ export function aiDecideActions(g: Game, pid: PlayerId, difficulty: AiDifficulty
   const me = g.players[pid];
   const sameRoom = g.roomMembers(me.room).filter((p) => p !== pid && !g.players[p].hidden && !g.players[p].invisible);
   for (const t of sameRoom) push({ type: 'attack', targetId: t });
+  if (shouldSeekHidden(g, pid)) {
+    for (const t of seekTargets(g, pid)) push({ type: 'seek', targetId: t });
+  }
   if (me.hp < me.maxHp) push({ type: 'heal' });
   const otherRoom = g.roomIds.find((r) => r !== me.room && !g.isMoveBlocked(pid, r) && g.roomMembers(r).length > 0);
   if (otherRoom) push({ type: 'move', room: otherRoom });
@@ -69,6 +90,7 @@ function easyDecide(g: Game, pid: PlayerId): ActionRequest {
   const me = g.players[pid];
   const members = g.roomMembers(me.room).filter((p) => p !== pid);
   const visible = members.filter((m) => !(g.players[m].hidden || g.players[m].invisible));
+  const hidden = seekTargets(g, pid);
   const roll = g.rng.next();
   if (roll < 0.18 && g.rules.allowHide && !me.hidden) return { type: 'hide' };
   if (roll < 0.28) return { type: 'skip' };
@@ -77,6 +99,9 @@ function easyDecide(g: Game, pid: PlayerId): ActionRequest {
     return { type: 'attack', targetId: g.rng.pick(visible) };
   }
   if (visible.length > 0) return { type: 'attack', targetId: visible[0] };
+  if (hidden.length > 0 && shouldSeekHidden(g, pid) && roll < 0.65) {
+    return { type: 'seek', targetId: g.rng.pick(hidden) };
+  }
   const rooms = g.roomIds.filter((r) => r !== me.room && !g.isMoveBlocked(pid, r));
   if (rooms.length > 0) return { type: 'move', room: g.rng.pick(rooms) };
   return { type: 'skip' };
@@ -99,16 +124,21 @@ function normalDecide(g: Game, pid: PlayerId): ActionRequest {
   });
   if (specialized) return specialized;
 
-  // 通用策略：同房间有目标 → 优先攻击可击杀目标（目标血量≤我的攻击力），否则攻击血量最低者；
-  // 满血且无目标 → 移向人多房间；否则回复/躲藏
-  if (members.length > 0) {
-    const visible = members.filter((m) => !(g.players[m].hidden || g.players[m].invisible));
+  // 通用策略：同房间有可见目标 → 优先攻击可击杀目标，否则攻击血量最低者；
+  // 只剩躲藏者 → 找出来；满血且无目标 → 移向人多房间；否则回复/躲藏
+  const visible = members.filter((m) => !(g.players[m].hidden || g.players[m].invisible));
+  if (visible.length > 0) {
     const myAtk = cd.meleeDamage ?? cd.attack ?? g.rules.defaultAttack;
     const killable = visible
       .filter((m) => g.players[m].hp <= myAtk)
       .sort((a, b) => g.players[a].hp - g.players[b].hp)[0];
     const target = killable || visible.sort((a, b) => g.players[a].hp - g.players[b].hp)[0];
     if (target) return { type: 'attack', targetId: target };
+  }
+  const hidden = seekTargets(g, pid);
+  if (visible.length === 0 && hidden.length > 0 && shouldSeekHidden(g, pid)) {
+    const target = hidden.sort((a, b) => g.players[a].hp - g.players[b].hp)[0];
+    return { type: 'seek', targetId: target };
   }
   if (me.hp < me.maxHp) return { type: 'heal' };
   const roomScores = g.roomIds
@@ -181,6 +211,13 @@ function hardDecide(g: Game, pid: PlayerId): ActionRequest {
   if (visibleSame.length > 0) {
     const target = visibleSame.sort((a, b) => threatOf(g, b) - threatOf(g, a))[0];
     return { type: 'attack', targetId: target };
+  }
+
+  // 4b) 同房间只剩躲藏者：找出来解锁下一回合攻击（隐身/无视躲藏角色除外）
+  const hidden = seekTargets(g, pid);
+  if (hidden.length > 0 && shouldSeekHidden(g, pid)) {
+    const target = hidden.sort((a, b) => threatOf(g, b) - threatOf(g, a))[0];
+    return { type: 'seek', targetId: target };
   }
 
   // 5) 房间空了：补血后主动找人（优先人多且有残血的房间）
