@@ -3,7 +3,7 @@ import {
   net, type LobbyState, type GameSnapshot, type SnapPlayer,
   type PlayerStats, type InteractionEvent, type InteractionKind, type AnnounceItem,
 } from '../net.js';
-import type { ActionRequest } from '../../../shared/src/types.js';
+import type { ActionRequest, JudgeStep } from '../../../shared/src/types.js';
 import type { SessionInfo } from '../App.js';
 import { CHARACTERS } from '../../../shared/src/characters/index.js';
 import { canOpenSluice, mudBlocksEntry, RUINS_WEATHER_NAME } from '../../../shared/src/floating-ruins.js';
@@ -66,6 +66,21 @@ function atkOf(p: SnapPlayer): string {
   if (typeof override === 'number') return fmtHp(override);
   const v = cd.meleeDamage ?? cd.attack ?? 1;
   return fmtHp(v);
+}
+
+/**
+ * 连判进度提示：按最近两次判定结果推断「下一次判定会引发暴走还是自爆」。
+ * 纯数据驱动（快照里的 judgeStreak），不含角色名分支。
+ */
+function judgeStreakHint(streak: readonly JudgeStep[]): string {
+  const label = (s: JudgeStep) => (s === 'win' ? '赢' : s === 'tie' ? '平' : '输');
+  if (streak.length === 0) return '';
+  if (streak.length === 1) return '还需 2 次判定';
+  const a = streak[streak.length - 2];
+  const b = streak[streak.length - 1];
+  if (a === b) return `再来一个「${label(a)}」→ 自爆`;
+  const missing = (['win', 'tie', 'lose'] as const).find((x) => x !== a && x !== b)!;
+  return `再来一个「${label(missing)}」→ 暴走`;
 }
 
 function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBackToLobby }: {
@@ -717,6 +732,23 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                 {game.phase === 'rps2' && <span className="tcg-chip">行动排序 · 子轮 {(game.orderSub ?? 0) + 1} · 仅资格者出拳（不剥夺资格）</span>}
                 {game.phase === 'judge' && judge && <span className="tcg-chip">⚡ {judge.label} · 第 {judge.round}/{judge.rounds} 局 · 双方各自出拳</span>}
               </div>
+
+              {me && me.judgeStreak && me.judgeStreak.length > 0 && (
+                <div className="judge-streak" role="status" aria-label="连判进度">
+                  <span className="js-label">🌀 连判</span>
+                  <span className="js-slots">
+                    {[0, 1, 2].map((i) => {
+                      const step = me.judgeStreak![i];
+                      return (
+                        <span key={i} className={`js-slot${step ? ` is-${step}` : ' is-empty'}`}>
+                          {step === 'win' ? '赢' : step === 'tie' ? '平' : step === 'lose' ? '输' : '·'}
+                        </span>
+                      );
+                    })}
+                  </span>
+                  <span className="js-hint">{judgeStreakHint(me.judgeStreak)}</span>
+                </div>
+              )}
 
               {game.phase === 'judge' && judge && (
                 judgePendingLocalIds.length > 0

@@ -113,7 +113,8 @@ export function resolveDamage(game: GameLike, stats: Record<PlayerId, PlayerStat
   // 6. 淘汰判定
   if (tp.hp <= 0) {
     applied.lethal = true;
-    game.eliminate(tp.id, req.tag || 'damage', req.source);
+    // ignoreLives：秒杀类精神攻击无视命数（不触发五条悟式「消耗一条命复活」）
+    game.eliminate(tp.id, req.tag || 'damage', req.source, { ignoreLives: req.ignoreLives });
   }
   return applied;
 }

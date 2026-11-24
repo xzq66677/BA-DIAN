@@ -339,6 +339,9 @@ export class Game implements GameLike {
 
   appendJudgeHistory(pid: PlayerId, step: JudgeStep, stage: 'rps1' | 'rps2', sub: number): void {
     this.histories[pid].push(step);
+    // 已淘汰的玩家不再触发判定钩子：同一子轮内先阵亡者（如被另一名大屁孩暴走秒杀）
+    // 仍会被追加历史，但不能再以「尸体」身份触发暴走/自爆等角色结算。
+    if (!this.players[pid]?.alive) return;
     // 分发给该玩家角色的 onJudgeAppend 钩子（如大屁孩）
     const cd = this.charDef(pid);
     if (cd.onJudgeAppend) {
@@ -936,13 +939,15 @@ export class Game implements GameLike {
 
   // ─── 淘汰与胜负 ──────────────────────────────────────────────
 
-  eliminate(pid: PlayerId, cause: string, killer?: PlayerId): void {
+  eliminate(pid: PlayerId, cause: string, killer?: PlayerId, opts?: { ignoreLives?: boolean }): void {
     const p = this.players[pid];
     if (!p || !p.alive) return;
 
-    // 命数机制（如五条悟2条命）：致死时消耗一条命并满血复活；被房主踢出/主动退出不触发
+    // 命数机制（如五条悟2条命）：致死时消耗一条命并满血复活；被房主踢出/主动退出不触发。
+    // 秒杀类精神攻击（ignoreLives，如大屁孩暴走）无视命数：直接淘汰，不消耗命数、不复活。
     const livesLeft = typeof p.char.livesLeft === 'number' ? (p.char.livesLeft as number) : 1;
-    if (livesLeft > 1 && cause !== 'kicked' && cause !== 'left') {
+    const ignoreLives = opts?.ignoreLives === true;
+    if (!ignoreLives && livesLeft > 1 && cause !== 'kicked' && cause !== 'left') {
       p.char.livesLeft = livesLeft - 1;
       p.hp = p.maxHp;
       p.hidden = false;

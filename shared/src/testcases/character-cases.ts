@@ -895,24 +895,20 @@ export const CHARACTER_CASES: TestCase[] = [
 
   // ═══════════════ 20.9 大屁孩 ═══════════════
   {
-    id: 'TC-C080', name: '大屁孩：三不同结果（赢平输）暴走精神攻击', category: 'character', charId: 'dapihuai', seed: 280,
-    desc: '判定历史出现 赢/平/输 任意排列的连续三项 → 暴走随机精神攻击',
+    id: 'TC-C080', name: '大屁孩：三不同结果（赢平输）暴走精神攻击·秒杀', category: 'character', charId: 'dapihuai', seed: 280,
+    desc: '判定历史出现 赢/平/输 任意排列的连续三项 → 暴走：随机一名玩家被精神攻击秒杀（血量20、攻击0）',
     run: () => run(() => {
       const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A', 'B'], 280);
-      // 构造历史：第一子轮三人循环（P 记 tie），第二子轮 P 输，第三子轮 P 赢
-      g.judgeHistory('P').push('win', 'tie');
-      playThrows(g, [{ P: 'rock', A: 'scissors', B: 'paper' }]); // 循环 → P 追加 tie → [win,tie,tie]? 
-      // 直接构造：追加 tie 后检查——需要 win,tie,lose / 任意排列
-      const g2 = makeGame([{ id: 'P', char: 'dapihuai' }, 'A', 'B'], 280);
-      g2.judgeHistory('P').push('win', 'lose');
-      const targetHpBefore = Math.min(g2.players['A'].hp, g2.players['B'].hp); // 默认角色血量2
-      playThrows(g2, [{ P: 'rock', A: 'rock', B: 'rock' }]); // 全同拳 → P 追加 tie → [win,lose,tie] 三不同 → 暴走
-      const berserk = g2.logs.some((l) => l.text.includes('暴走'));
-      const someoneHurt = g2.players['A'].hp < 2 || g2.players['B'].hp < 2;
-      const histReset = g2.judgeHistory('P').length === 0;
-      const ok = berserk && someoneHurt && histReset && targetHpBefore === 2;
-      return check(ok, '三不同 → 暴走精神攻击（1伤），历史重置',
-        `berserk=${berserk}, hurt=${someoneHurt}, reset=${histReset}, A=${g2.players['A'].hp}, B=${g2.players['B'].hp}`, g2);
+      g.judgeHistory('P').push('win', 'lose');
+      playThrows(g, [{ P: 'rock', A: 'rock', B: 'rock' }]); // 平 → [win,lose,tie] 三不同 → 暴走
+      const berserk = g.logs.some((l) => l.text.includes('暴走'));
+      const instakill = g.logs.some((l) => l.text.includes('精神攻击（秒杀'));
+      const deadCount = [g.players.A, g.players.B].filter((p) => !p.alive).length;
+      const histReset = g.judgeHistory('P').length === 0;
+      const statsOk = g.charDef('P').hp === 20 && g.charDef('P').attack === 0 && g.players.P.maxHp === 20;
+      const ok = berserk && instakill && deadCount === 1 && histReset && statsOk;
+      return check(ok, '三不同 → 暴走秒杀一名随机对手；血量20/攻击0；历史重置',
+        `berserk=${berserk}, instakill=${instakill}, dead=${deadCount}, reset=${histReset}, hp=${g.players.P.maxHp}`, g);
     }),
   },
   {
@@ -962,17 +958,118 @@ export const CHARACTER_CASES: TestCase[] = [
   },
   {
     id: 'TC-C084', name: '大屁孩：暴走目标随机但确定（种子复现）', category: 'character', charId: 'dapihuai', seed: 284,
-    desc: '同种子同序列 → 暴走目标一致',
+    desc: '同种子同序列 → 暴走目标一致（秒杀同一名对手）',
     run: () => run(() => {
       const play = () => {
         const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A', 'B'], 284);
         g.judgeHistory('P').push('win', 'lose');
         playThrows(g, [{ P: 'rock', A: 'rock', B: 'rock' }]);
-        return g.logs.filter((l) => l.text.includes('暴走：对随机玩家')).map((l) => l.text).join('|') + `|A=${g.players['A'].hp},B=${g.players['B'].hp}`;
+        const hit = g.logs.find((l) => l.text.includes('暴走：对随机玩家'))?.text ?? '';
+        const alive = `${g.players['A'].alive ? 'A' : ''}${g.players['B'].alive ? 'B' : ''}`;
+        return `${hit}|存活=${alive}`;
       };
       const r1 = play(); const r2 = play();
-      const ok = r1 === r2 && r1.length > 0;
-      return check(ok, '暴走目标可复现', `${r1} / ${r2}`, undefined);
+      const ok = r1 === r2 && r1.length > 0 && r1.includes('秒杀');
+      return check(ok, '暴走目标与秒杀结果可复现', `${r1} / ${r2}`, undefined);
+    }),
+  },
+  {
+    id: 'TC-C088', name: '大屁孩：阵亡后不再触发暴走（尸体不参与结算）', category: 'character', charId: 'dapihuai', seed: 285,
+    desc: '同一子轮里先被另一名大屁孩暴走秒杀，其后的判定历史追加不得再触发暴走',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P1', char: 'dapihuai' }, { id: 'P2', char: 'dapihuai' }], 285);
+      g.judgeHistory('P1').push('win', 'lose');
+      g.judgeHistory('P2').push('win', 'lose');
+      playThrows(g, [{ P1: 'rock', P2: 'rock' }]); // 同拳 → 两人都记 tie → 各自三不同
+      const berserkLogs = g.logs.filter((l) => l.text.includes('→ 暴走'));
+      const p2Dead = !g.players.P2.alive;
+      const p2Berserk = berserkLogs.some((l) => l.text.includes('P2'));
+      const ok = berserkLogs.length === 1 && berserkLogs[0].text.includes('P1') && p2Dead && !p2Berserk;
+      return check(ok, 'P1 暴走秒杀 P2；P2 阵亡后不再以尸体身份暴走',
+        `暴走触发=${berserkLogs.length}, p2Dead=${p2Dead}, p2Berserk=${p2Berserk}`, g);
+    }),
+  },
+  {
+    id: 'TC-C089', name: '大屁孩：暴走秒杀无视命数（五条悟不消耗命数复活）', category: 'character', charId: 'dapihuai', seed: 286,
+    desc: '暴走为精神攻击·秒杀：目标直接淘汰，不触发五条悟的「消耗一条命满血复活」',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P', char: 'dapihuai' }, { id: 'G', char: 'gojo' }], 286);
+      g.judgeHistory('P').push('win', 'lose');
+      playThrows(g, [{ P: 'rock', G: 'rock' }]); // 同拳 → P 记 tie → 三不同 → 暴走秒杀 G
+      const dead = !isAlive(g, 'G');
+      const livesIntact = g.charState('G').livesLeft === 2;
+      const revived = g.logs.some((l) => l.text.includes('消耗一条命'));
+      const instakill = g.logs.some((l) => l.text.includes('精神攻击（秒杀'));
+      const ok = dead && livesIntact && !revived && instakill;
+      return check(ok, 'G 直接淘汰、命数仍为 2、无复活日志',
+        `dead=${dead}, lives=${g.charState('G').livesLeft}, revived=${revived}, instakill=${instakill}`, g);
+    }),
+  },
+  // ═══════════════ 精神攻击（独立词条）：无视躲藏 / 无视命数 ═══════════════
+  {
+    id: 'TC-C090', name: '精神攻击·辱骂：无视命数（五条悟不复活）', category: 'character', charId: 'dajianke', seed: 293,
+    desc: '辱骂累计 3 次改为精神攻击结算：目标直接淘汰，不触发五条悟式命数复活',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'D', char: 'dajianke' }, { id: 'G', char: 'gojo' }], 293);
+      for (let i = 0; i < 3 && !g.isOver(); i++) {
+        playThrows(g, [{ D: 'rock', G: 'scissors' }]); // D 胜获得资格
+        actQueue(g, { D: { type: 'attack', targetId: 'G' } });
+      }
+      const dead = !isAlive(g, 'G');
+      const lives = g.charState('G').livesLeft;
+      const revived = g.logs.some((l) => l.text.includes('消耗一条命'));
+      const mentalKill = g.logs.some((l) => l.text.includes('精神攻击击杀'));
+      const ok = dead && lives === 2 && !revived && mentalKill;
+      return check(ok, 'G 直接淘汰、命数仍为 2、无复活日志',
+        `dead=${dead}, lives=${lives}, revived=${revived}, mentalKill=${mentalKill}`, g);
+    }),
+  },
+  {
+    id: 'TC-C091', name: '精神攻击·辱骂：无视躲藏与隐身', category: 'character', charId: 'dajianke', seed: 294,
+    desc: '躲藏且隐身的对手仍被辱骂锁定，累计 3 次精神击杀',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'D', char: 'dajianke' }, 'B'], 294);
+      g.players['B'].room = 'R1';
+      g.players['B'].hidden = true;
+      g.players['B'].invisible = true;
+      for (let i = 0; i < 3 && !g.isOver(); i++) {
+        playThrows(g, [{ D: 'rock', B: 'scissors' }]);
+        actQueue(g, { D: { type: 'attack', targetId: 'B' } });
+      }
+      const ok = !isAlive(g, 'B');
+      return check(ok, '躲藏+隐身的 B 仍被精神攻击击杀', `alive=${isAlive(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C092', name: '精神攻击·不讲武德：无视命数（五条悟不复活）', category: 'character', charId: 'mabaoguo', seed: 295,
+    desc: '击杀马保国后被「不讲武德」带走：直接淘汰，不触发命数复活（种子扫描找到判定成功的一局）',
+    run: () => run(() => {
+      let g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B', char: 'mabaoguo' }], 1);
+      let found = false;
+      for (let seed = 1; seed <= 120 && !found; seed++) {
+        g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B', char: 'mabaoguo' }], seed);
+        g.players['B'].hp = 1;
+        g.eliminate('B', 'test', 'A'); // 直接淘汰马保国（绕过太极），触发不讲武德判定
+        found = !g.players['A'].alive;
+      }
+      const lives = g.charState('A').livesLeft;
+      const revived = g.logs.some((l) => l.text.includes('消耗一条命'));
+      const ok = found && !isAlive(g, 'A') && lives === 2 && !revived;
+      return check(ok, '不讲武德带走五条悟：直接淘汰、命数仍为 2、无复活日志',
+        `found=${found}, lives=${lives}, revived=${revived}`, g);
+    }),
+  },
+  {
+    id: 'TC-C093', name: '精神攻击·暴走：无视躲藏与隐身', category: 'character', charId: 'dapihuai', seed: 296,
+    desc: '躲藏+隐身的对手仍被暴走精神秒杀',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A'], 296);
+      g.players['A'].hidden = true;
+      g.players['A'].invisible = true;
+      g.judgeHistory('P').push('win', 'lose');
+      playThrows(g, [{ P: 'rock', A: 'rock' }]);
+      const ok = !isAlive(g, 'A');
+      return check(ok, '躲藏+隐身的 A 仍被暴走击杀', `alive=${isAlive(g, 'A')}`, g);
     }),
   },
 ];

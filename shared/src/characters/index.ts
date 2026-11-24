@@ -8,6 +8,7 @@
 
 import { characterAi } from './ai-strategies.js';
 import type { CharDef } from '../chardef.js';
+import { mentalKill } from '../mental.js';
 import { fmtNum } from '../types.js';
 
 /** 默认角色：无业游民（无被动，未选上角色者默认此角色）。血量2——速查表原稿+用户卡面确认 */
@@ -199,16 +200,10 @@ const mabaoguo: CharDef = {
       if (wins >= 3) {
         const kp = game.players[killer];
         if (!kp || !kp.alive) return;
-        // 精神攻击：伤害 = 击杀者当前血量（等效即死），noReflect 避免被其自身太极反弹
-        game.log('trigger', `⚡ 不讲武德成功（${wins}/5局）！精神攻击带走 ${kp.name}`, undefined, true);
-        game.applyDamage({
-          target: killer,
-          amount: kp.hp,
-          source: victim,
-          dtype: 'mental',
-          tag: 'bujiangwude',
-          bypassHide: true,
-          noReflect: true,
+        // 精神攻击（独立词条）：无视躲藏/命数；noReflect —— 不可被太极反弹
+        mentalKill(game, {
+          target: killer, source: victim, tag: 'bujiangwude', noReflect: true,
+          note: `⚡ 不讲武德成功（${wins}/5局）！精神攻击带走 ${kp.name}（无视躲藏/命数，不可反弹）`,
         });
       } else {
         game.log('trigger', `⚡ 不讲武德失败（${wins}/5局），${game.players[killer].name} 存活`, undefined, true);
@@ -465,44 +460,48 @@ const dajianke: CharDef = {
     const n = st.insults[targetId];
     game.log('damage', `${game.players[actor].name} 辱骂 ${tp.name}（精神攻击，累计 ${n}/3）`, undefined, true);
     if (n >= 3) {
-      game.log('trigger', `💀 ${tp.name} 被辱骂累计3次，精神致死！`, undefined, true);
-      game.eliminate(targetId, 'insult', actor);
       st.insults[targetId] = 0; // 状态重置
+      // 精神攻击（独立词条）：无视躲藏/隐身与命数，可被太极判定反弹
+      mentalKill(game, {
+        target: targetId, source: actor, tag: 'insult',
+        note: `💀 ${game.players[actor].name} 辱骂累计 3 次，${tp.name} 被精神攻击击杀（无视躲藏/命数）`,
+      });
     }
     return { ok: true };
   },
 };
 
-/** 9. 大屁孩：判定历史三不同→暴走精神攻击；三同→自爆；跨回合记忆 */
+/** 9. 大屁孩：判定历史三不同→暴走（精神攻击·秒杀）；三同→自爆；跨回合记忆 */
 const dapihuai: CharDef = {
   id: 'dapihuai',
   name: '大屁孩',
-  desc: '连续三次判定结果出现三种不同情况（赢平输任意组合）→ 暴走：随机一名玩家受到精神攻击；连续三次相同（赢赢赢/平平平/输输输）→ 自爆。判定历史跨回合记忆。',
-  hp: 3,
-  attack: 1,
+  desc: '血量20、攻击0：唯一的输出是判定被动。连续三次判定出现三种不同结果（赢平输任意组合）→ 暴走：随机一名其他玩家被精神攻击**秒杀**；连续三次相同（赢赢赢/平平平/输输输）→ 自爆。判定历史跨回合记忆，触发后清零。',
+  hp: 20,
+  attack: 0,
   attackType: 'melee',
   onJudgeAppend: (ctx) => {
     const { game, player, stage } = ctx;
+    if (!game.getPlayer(player).alive) return; // 双重保险：阵亡者不触发
     const h = game.judgeHistory(player);
     if (h.length < 3) return;
     const last3 = h.slice(-3);
     const distinct = new Set(last3);
     if (distinct.size === 3) {
       game.judgeHistory(player).length = 0; // 触发后重置历史
-      game.log('trigger', `🌀 大屁孩判定历史 [${last3.join(',')}] 三种不同结果 → 暴走！（${stage}判定阶段）`, undefined, true);
+      game.log('trigger', `🌀 ${game.getPlayer(player).name} 判定历史 [${last3.join(',')}] 三种不同结果 → 暴走！（${stage}判定阶段）`, undefined, true);
       const others = game.aliveIds().filter((pid) => pid !== player);
       if (others.length === 0) return;
       const target = game.rng.pick(others);
-      game.log('damage', `🌀 大屁孩暴走：对随机玩家 ${game.players[target].name} 发动精神攻击（伤害 ${fmtNum(game.rules.berserkDamage)}）`, undefined, true);
-      game.applyDamage({
-        target, amount: game.rules.berserkDamage,
-        source: player, dtype: 'mental', bypassHide: true, tag: 'berserk',
+      // 精神攻击（独立词条）：无视躲藏/隐身与命数；太极仍可判定反弹并反杀
+      mentalKill(game, {
+        target, source: player, tag: 'berserk',
+        note: `🌀 大屁孩暴走：对随机玩家 ${game.players[target].name} 发动精神攻击（秒杀·无视躲藏/命数）`,
       });
       return;
     }
     if (distinct.size === 1) {
       game.judgeHistory(player).length = 0;
-      game.log('trigger', `💥 大屁孩判定历史 [${last3.join(',')}] 三连相同结果 → 自爆！（${stage}判定阶段）`, undefined, true);
+      game.log('trigger', `💥 ${game.getPlayer(player).name} 判定历史 [${last3.join(',')}] 三连相同结果 → 自爆！（${stage}判定阶段）`, undefined, true);
       game.eliminate(player, 'selfdestruct');
     }
   },

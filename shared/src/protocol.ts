@@ -2,7 +2,7 @@ import type { AnnounceItem } from './announce.js';
 import type { RuinsConditions } from './floating-ruins.js';
 import type { MapConfig } from './map-config.js';
 import type {
-  AiDifficulty, DeferredEvent, GamePhase, InteractionEvent, JudgeRoundRecord,
+  AiDifficulty, DeferredEvent, GamePhase, InteractionEvent, JudgeRoundRecord, JudgeStep,
   LogEntry, PlayerState, PlayerStats, ReplaySummary, RevealInfo, SkillJudgeView,
 } from './types.js';
 
@@ -18,7 +18,14 @@ export function supportsReplayFormat(version: unknown): boolean {
   return version === undefined || version === REPLAY_FORMAT_VERSION;
 }
 
-export type SnapPlayer = PlayerState & { charName: string };
+export type SnapPlayer = PlayerState & {
+  charName: string;
+  /**
+   * 公开的「连判」进度：该玩家最近至多 3 次已结算的回合判定结果（赢/平/输）。
+   * 只来自已经揭示的判定历史，不含任何未结算的出拳或私有状态。
+   */
+  judgeStreak?: JudgeStep[];
+};
 export type SnapLog = LogEntry;
 export type RoomState = 'lobby' | 'playing' | 'over';
 export interface ChatMessage { name: string; text: string; ts: number }

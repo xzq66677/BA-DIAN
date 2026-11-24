@@ -114,6 +114,11 @@ export interface DamageRequest {
   ignoreHide?: boolean;
   /** 精神类锁定无视躲藏（如大贱客辱骂） */
   bypassHide?: boolean;
+  /**
+   * 无视命数：本次伤害致死不触发「消耗一条命满血复活」（五条悟式命数），直接淘汰。
+   * 用于秒杀类精神攻击（如大屁孩暴走）。
+   */
+  ignoreLives?: boolean;
   /** 不触发「受伤判定反弹」类被动（大伊万爆炸、肉山坐） */
   noReflect?: boolean;
   /** 已是反弹伤害（终止反弹链） */
@@ -435,8 +440,6 @@ export interface RuleConfig {
   defaultMaxHp: number;
   /** 默认攻击力 */
   defaultAttack: number;
-  /** 大屁孩暴走精神攻击伤害（资料未给数值，可配置） */
-  berserkDamage: number;
   /**
    * 技能内判定（马保国太极 / 闪电五连鞭 / 不讲武德等）的出拳方式：
    * - `player`（默认，线上对局）：**双方玩家亲自出拳**，对局暂停进入 `judge` 阶段，
@@ -453,7 +456,6 @@ export const DEFAULT_RULES: RuleConfig = {
   secondJudgeMode: 'player',
   defaultMaxHp: 3,
   defaultAttack: 1,
-  berserkDamage: 1,
   skillJudgeMode: 'player',
 };
 

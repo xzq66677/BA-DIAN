@@ -750,6 +750,36 @@
   align-items: center;
   gap: 8px;
 }
+/* 连判进度（如大屁孩）：行动坞标题下方一行，纯数据驱动（快照 judgeStreak） */
+.judge-streak {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 10px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(126, 200, 255, 0.35);
+  background: linear-gradient(90deg, rgba(30, 48, 68, 0.92), rgba(18, 28, 40, 0.92));
+  font-size: 12px;
+  color: #cfe3f5;
+}
+.judge-streak .js-label { color: var(--gold-2); letter-spacing: 1px; }
+.judge-streak .js-slots { display: inline-flex; gap: 4px; }
+.judge-streak .js-slot {
+  min-width: 22px;
+  text-align: center;
+  padding: 1px 5px;
+  border-radius: 6px;
+  border: 1px solid rgba(207, 227, 245, 0.35);
+  background: rgba(12, 20, 30, 0.8);
+  line-height: 18px;
+}
+.judge-streak .js-slot.is-win { color: #ffd76a; border-color: rgba(255, 215, 106, 0.6); }
+.judge-streak .js-slot.is-tie { color: #b9c7d6; border-color: rgba(185, 199, 214, 0.5); }
+.judge-streak .js-slot.is-lose { color: #ff9b8a; border-color: rgba(255, 155, 138, 0.55); }
+.judge-streak .js-slot.is-empty { color: #55656f; border-style: dashed; }
+.judge-streak .js-hint { margin-left: auto; color: #9fb4c6; font-size: 11px; }
 .scard-row {
   display: flex;
   gap: 10px;

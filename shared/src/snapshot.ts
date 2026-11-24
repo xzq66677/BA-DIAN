@@ -9,7 +9,8 @@ export function serializeSnapshot(game: Game, mapFields?: Pick<GameSnapshot, 'ru
       id: p.id, name: p.name, charId: p.charId, charName: game.charName(pid),
       hp: p.hp, maxHp: p.maxHp, room: p.room, originRoom: p.originRoom,
       alive: p.alive, type: p.type, hidden: p.hidden, invisible: p.invisible,
-      char: { ...p.char }, // 判定历史单独剥离
+      char: { ...p.char }, // 判定历史（完整记录）单独剥离，只下发最近 3 条公开结果
+      judgeStreak: game.judgeHistory(pid).slice(-3),
     };
   });
   return {

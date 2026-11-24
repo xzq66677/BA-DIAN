@@ -53,7 +53,9 @@ over ◀──checkWin── roundEnd（延迟事件：ivan/damage）◀──�
 3. defense 阶段钩子（马保国太极：种子判定→改目标为来源并标记 `reflected`）；
 4. 结算（instakill 秒杀 / 数值扣血，浮点精确到 0.25）；
 5. 附加效果（已转移的伤害剥离 effects）；
-6. HP≤0 → `eliminate`（移出房间、清状态、死亡钩子链深度保护、checkWin）。
+6. HP≤0 → `eliminate`（移出房间、清状态、死亡钩子链深度保护、checkWin；`ignoreLives` 时不消耗命数）。
+
+**精神攻击（独立词条）**：`shared/src/mental.ts` 的 `mentalKill()` 是唯一入口（`dtype: mental` + `bypassHide` + `ignoreLives`，伤害=目标当前血量）。角色实现只调用它，不要手拼 `applyDamage` 字段或绕过管线直接 `eliminate`——这样躲藏/命数/转移/反弹四条语义才能保持同源。
 
 ### 5. 角色系统（配置与基础规则分离）
 - `CharDef`：基础面板（hp/attack/attackType/ rangedCapable/ rangedNeedsAim…）+ 钩子（onBeforeDamage + damageHookStage、onDeath、onRoundEnd、onJudgeAppend、validateAttack、onAttackAction、dynamicDamage）+ 技能 `actions` + 领域标记。
