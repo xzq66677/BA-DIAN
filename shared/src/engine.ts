@@ -129,8 +129,9 @@ export class Game implements GameLike {
   private eventGroupSeq = 0;
   /**
    * 本回合的回合级判定是否已分出胜负。
-   * 平局（同拳/三人循环）算一个完整回合但不分胜负 → false；
-   * 分出胜负（含领域 tieWin、含胜者全灭无人行动）→ true。回合翻页时重置。
+   * 平局（同拳/三人循环）算一个完整回合但不分胜负 → false；**领域只让持有者在平局回合行动，
+   * 不会把平局变成胜负**，因此这类回合同样是 false。
+   * 分出胜负（含胜者全灭无人行动）→ true。回合翻页时重置。
    * 大伊万等延迟事件据此只在「分出胜负的回合」末引爆。
    */
   private roundResolved = false;
@@ -236,6 +237,7 @@ export class Game implements GameLike {
    * - 无人持有 → 成为持有者；
    * - 他人持有 → **覆盖**旧领域（旧持有者 domain 置 false，日志记录覆盖）；
    * - 自己已持有 → 幂等（技能 validate 会先拦截重复展开）。
+   * - **被覆盖后可以再次展开**：原持有者 domain 已置 false，再展开即覆盖当前持有者（用户确认 2026-11-24）。
    *
    * 领域一旦生成即持续保留，不因回合推进 / 判定重来 / 普通胜负被清除。
    */
@@ -243,7 +245,7 @@ export class Game implements GameLike {
     const p = this.players[pid];
     if (!p || !p.alive) return { ok: false, error: '玩家不存在或已淘汰' };
     const cd = this.charDef(pid);
-    if (!cd.domainTieWin) return { ok: false, error: '该角色没有领域' };
+    if (!cd.domainActsOnTie) return { ok: false, error: '该角色没有领域' };
     const prev = this.domainHolder;
     if (prev === pid && p.char.domain === true) return { ok: true }; // 幂等，不重复写日志
     if (prev && prev !== pid) {
@@ -262,7 +264,10 @@ export class Game implements GameLike {
   }
 
   /**
-   * 领域平局算胜：返回本子轮生效的领域持有者（无则 null）。
+   * 领域平局行动：返回本子轮可行动的领域持有者（无则 null）。
+   *
+   * 语义（用户确认 2026-11-24）：领域**不改变平局结果**，只是让持有者获得
+   * 「平局回合的行动资格」——判定仍是平局（大伊万顺延、大屁孩记平都不受影响）。
    *
    * 判定顺序：
    *  1. 权威来源是 domainHolder（全场唯一，由 openDomain 维护覆盖关系）；
@@ -270,7 +275,7 @@ export class Game implements GameLike {
    *  3. 兼容直接写入 char.domain 的场景（测试/工具）：归一为唯一持有者，
    *     多人同时为 true 时保留座次靠前者，避免出现"永久对冲"。
    */
-  tieWinHolder(candidates: PlayerId[]): PlayerId | null {
+  drawActorHolder(candidates: PlayerId[]): PlayerId | null {
     const holder = this.domainHolder;
     if (holder) {
       const hp = this.players[holder];
@@ -280,7 +285,7 @@ export class Game implements GameLike {
         if (hp) hp.char.domain = false;
         this.domainHolder = null;
         this.log('trigger', '🌀 领域消失：持有者已淘汰或领域状态被清除', undefined, true);
-      } else if (this.charDef(holder).domainTieWin && candidates.includes(holder)) {
+      } else if (this.charDef(holder).domainActsOnTie && candidates.includes(holder)) {
         return holder;
       } else {
         // 持有者不在本子轮候选（理论上不会发生，防御性处理）
@@ -290,7 +295,7 @@ export class Game implements GameLike {
 
     // 兼容路径：从未调用 openDomain 就直接置位 char.domain
     const manual = candidates.filter((pid) =>
-      this.players[pid]?.alive && this.charDef(pid).domainTieWin && this.charState(pid).domain === true);
+      this.players[pid]?.alive && this.charDef(pid).domainActsOnTie && this.charState(pid).domain === true);
     if (manual.length === 0) return null;
     const keep = manual[0];
     for (const pid of manual) {
@@ -374,8 +379,8 @@ export class Game implements GameLike {
   private resolveJudgeSubRound(): void {
     if (this.phase !== 'rps1') return;
     const entrants = this.aliveIds();
-    const tieWin = (cands: PlayerId[]) => this.tieWinHolder(cands);
-    const outcome = resolveSubRound(this.pendingThrows, entrants, tieWin);
+    const drawActor = (cands: PlayerId[]) => this.drawActorHolder(cands);
+    const outcome = resolveSubRound(this.pendingThrows, entrants, drawActor);
     const rec: JudgeRoundRecord = {
       stage: 'rps1', sub: this.subRound, round: this.roundNo,
       throws: { ...this.pendingThrows },
@@ -396,9 +401,6 @@ export class Game implements GameLike {
     // 下一回合重新进行一轮完整的回合判定（不再有「同回合内重判子轮」的概念）。
     if (outcome.status === 'cycle') {
       this.log('judge', `回合判定（${throwsDesc}）：三人循环，平局——本回合无人获得行动资格，回合结束`);
-      if (this.domainHolder) {
-        this.log('judge', `领域说明：三人循环不属于「平局」，${this.players[this.domainHolder].name} 的领域本回合不触发`);
-      }
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
       this.roundSummary.push('回合判定平局（三人循环）');
       this.roundResolved = false;
@@ -408,7 +410,7 @@ export class Game implements GameLike {
     if (outcome.status === 'alltie') {
       this.log('judge', `回合判定（${throwsDesc}）：同拳平局——本回合无人获得行动资格，回合结束`);
       if (this.domainHolder) {
-        this.log('judge', `领域说明：${this.players[this.domainHolder].name} 的领域本回合未生效（不在本回合候选或不具备平局算胜）`);
+        this.log('judge', `领域说明：${this.players[this.domainHolder].name} 的领域本回合未生效（不在本回合候选或不具备平局行动）`);
       }
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
       this.roundSummary.push('回合判定平局（同拳平局）');
@@ -416,13 +418,25 @@ export class Game implements GameLike {
       this.endRoundAfterJudge();
       return;
     }
-    if (outcome.status === 'tieWin') {
-      this.log('judge', `回合判定（${throwsDesc}）：平局，但${this.players[outcome.winners[0]].name}领域生效判胜`);
+    // 领域平局行动：判定结果仍是平局（大伊万顺延、判定历史记平），
+    // 只有领域持有者获得本回合的行动资格，行动完照常进入回合末。
+    if (outcome.status === 'tieAct') {
+      const holder = outcome.winners[0];
+      const holderName = this.players[holder]?.name ?? holder;
+      this.log('judge', `回合判定（${throwsDesc}）：平局——${holderName} 的领域生效，本回合仍是平局，但其获得平局回合的行动资格`);
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
-    } else {
-      this.log('judge', `回合判定（${throwsDesc}）：分出胜负`);
-      appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
+      this.roundSummary.push(`回合判定平局（${holderName} 领域行动）`);
+      this.roundResolved = false;
+      if ((this.phase as GamePhase) === 'over') return;
+      if (!this.players[holder]?.alive) {
+        this.endRoundAfterJudge();
+        return;
+      }
+      this.beginActionPhase([holder]);
+      return;
     }
+    this.log('judge', `回合判定（${throwsDesc}）：分出胜负`);
+    appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
     this.roundResolved = true;
 
     if ((this.phase as GamePhase) === 'over') return; // 判定过程中可能触发自爆等导致终局
@@ -471,7 +485,7 @@ export class Game implements GameLike {
     for (const pid of entrants) {
       const st = this.stats[pid];
       if (!st) continue;
-      if (outcome.status === 'cycle' || outcome.status === 'alltie') st.throwTie++;
+      if (outcome.status === 'cycle' || outcome.status === 'alltie' || outcome.status === 'tieAct') st.throwTie++;
       else if (win.has(pid)) st.throwWin++;
       else if (lose.has(pid)) st.throwLose++;
       else st.throwTie++;
@@ -543,8 +557,9 @@ export class Game implements GameLike {
       const l = (r.losers ?? []).filter((pid) => this.players[pid]?.alive).map(nameOf).join('、');
       if (r.outcome === 'resolved') {
         this.log('judge', `行动排序（子轮${r.sub}）：${w} 胜出 → ${l} 优先行动`);
-      } else if (r.outcome === 'tieWin') {
-        this.log('judge', `行动排序（子轮${r.sub}）：平局，${w} 领域生效判胜 → 其余优先行动`);
+      } else if (r.outcome === 'tieAct' || r.outcome === 'tieWin') {
+        // tieWin 仅用于兼容旧回放数据；新对局的二次判定不会产生领域结果（不传 drawActor）
+        this.log('judge', `行动排序（子轮${r.sub}）：平局，${w} 领域生效 → 其余优先行动`);
       } else {
         this.log('judge', `行动排序（子轮${r.sub}）：${r.outcome === 'cycle' ? '三人循环' : '同拳平局'}，重新排序`);
       }
@@ -1011,7 +1026,10 @@ export class Game implements GameLike {
     // 可能为 1，若当场定胜负会错误产生「幸存者」（其随后也会被同一发炸死，应为平局）。
     // endRound 的延迟事件结算会把 due 伊万移除并在循环结束后复位 settlingDeferred，
     // 因此 endRound 末尾的最终 checkWin 到达此处时两项条件必为 false，最终判定正常执行。
-    if (this.settlingDeferred || this.hasArmedIvan()) return false;
+    if (this.settlingDeferred) return false;
+    // 只在本回合**已分出胜负**时为炸弹让路：平局回合的炸弹会顺延、本回合不会引爆，
+    // 若此时仍让路，「只剩 1 人 + 待爆炸弹 + 连续平局」会让对局永远无法终局（AI 自动对局回归暴露）。
+    if (this.hasArmedIvan() && this.roundResolved) return false;
     const alive = this.aliveIds();
     // 待判定的「不讲武德」可能带走最后一名幸存者（如击杀马保国者）：先让判定结算完再定胜负，
     // 否则会先判胜、判定被 phase==='over' 短路（守旧行为：双方同时死亡 → 平局）。

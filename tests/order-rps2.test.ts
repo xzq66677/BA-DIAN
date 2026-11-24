@@ -149,17 +149,17 @@ describe('二次判定：资格者亲自出拳', () => {
 });
 
 describe('二次判定：领域与角色判定历史不参与', () => {
-  it('领域持有者平局不再判胜：同拳就是平局，同组重掷', () => {
+  it('领域持有者平局不参与排序：同拳就是平局，同组重掷', () => {
     const g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B' }, { id: 'C' }]);
     g.openDomain('A'); // 五条悟领域
     expect(g.domainHolder).toBe('A');
     throwRound(g, { A: 'rock', B: 'rock', C: 'scissors' }); // A/B 获得资格
 
-    submitOrder(g, { A: 'rock', B: 'rock' }); // 若领域生效应为 tieWin；新规则应 alltie
+    submitOrder(g, { A: 'rock', B: 'rock' }); // 若领域生效应为 tieAct；二次判定不传领域，应 alltie
     const rps2 = g.judgeRecords.filter((r) => r.stage === 'rps2');
     expect(rps2).toHaveLength(1);
     expect(rps2[0].outcome).toBe('alltie');
-    expect(rps2.some((r) => r.outcome === 'tieWin')).toBe(false);
+    expect(rps2.some((r) => r.outcome === 'tieAct' || r.outcome === 'tieWin')).toBe(false);
     expect(g.phase).toBe('rps2');
     expect(g.orderSub).toBe(1);
   });

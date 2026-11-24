@@ -118,6 +118,16 @@ describe('AI 难度：行动策略', () => {
     expect(seen.size).toBeGreaterThanOrEqual(2);
   });
 
+  it('同房间只剩躲藏对手时会找出来（不会互相看不见一直空过）', () => {
+    for (const d of ['normal', 'hard'] as AiDifficulty[]) {
+      const g = makeAiGame(1234, 3);
+      g.players.AI2.room = g.players.AI1.room;
+      g.players.AI2.hidden = true;
+      g.players.AI3.room = 'R4';
+      expect(aiDecideAction(g, 'AI1', d)).toEqual({ type: 'seek', targetId: 'AI2' });
+    }
+  });
+
   it('候选链最后一档是跳过（保证不会卡住对局）', () => {
     const g = makeAiGame(3, 3);
     const chain = aiDecideActions(g, 'AI1', 'hard');

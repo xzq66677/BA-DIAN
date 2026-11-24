@@ -120,14 +120,19 @@ export const CHARACTER_CASES: TestCase[] = [
 
   // ═══════════════ 20.3 五条悟 ═══════════════
   {
-    id: 'TC-C020', name: '五条悟：近战3伤', category: 'character', charId: 'gojo', seed: 220,
-    desc: '同房间近战 → 3伤害',
+    id: 'TC-C020', name: '五条悟：近战1伤（领域内也是1伤）', category: 'character', charId: 'gojo', seed: 220,
+    desc: '同房间近战 → 1伤害；展开领域后近战伤害仍为1（2026-11-24 用户确认：近战始终为1伤）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'gojo' }, 'B'], 220);
+      g.players['B'].hp = 4; g.players['B'].maxHp = 4;
       g.players['B'].room = 'R1';
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 0 && !isAlive(g, 'B');
-      return check(ok, 'B HP 3-3=0，被淘汰', `hp=${hpOf(g, 'B')}, alive=${isAlive(g, 'B')}`, g);
+      const melee1 = hpOf(g, 'B') === 3 && isAlive(g, 'B');
+      g.openDomain('A');
+      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
+      const meleeInDomain = hpOf(g, 'B') === 2;
+      return check(melee1 && meleeInDomain, 'B HP 4→3→2，领域内近战仍1伤',
+        `s1=${melee1}, s2=${meleeInDomain}(hp=${hpOf(g, 'B')})`, g);
     }),
   },
   {
@@ -149,14 +154,37 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C022', name: '五条悟：领域展开后平局算五条悟胜', category: 'character', charId: 'gojo', seed: 222,
-    desc: '五条悟领域生效，判定子轮全员同拳 → 五条悟直接判胜',
+    id: 'TC-C022', name: '五条悟：领域让其在平局回合行动（平局不变）', category: 'character', charId: 'gojo', seed: 222,
+    desc: '五条悟领域生效，判定子轮全员同拳 → 平局不变，五条悟获得平局回合的行动资格',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'gojo' }, 'B'], 222);
       g.charState('A').domain = true;
-      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局 → 领域判胜
-      const ok = g.phase === 'act' && g.qualified.length === 1 && g.qualified[0] === 'A';
-      return check(ok, '平局子轮中五条悟获行动资格', `phase=${g.phase}, q=${g.qualified.join(',')}`, g);
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局 → 领域让五条悟在平局回合行动
+      const rec = g.judgeRecords.find((r) => r.stage === 'rps1');
+      const ok = g.phase === 'act' && g.qualified.length === 1 && g.qualified[0] === 'A'
+        && rec?.outcome === 'tieAct' && g.judgeHistory('A').at(-1) === 'tie';
+      return check(ok, '平局回合中五条悟获行动资格，判定仍记平',
+        `phase=${g.phase}, q=${g.qualified.join(',')}, outcome=${rec?.outcome}`, g);
+    }),
+  },
+  {
+    id: 'TC-C022b', name: '五条悟：领域平局包含三人循环', category: 'character', charId: 'gojo', seed: 228,
+    desc: '三拳齐全（三人循环）同样算平局 → 领域持有者获得平局行动资格；无领域时仍是平局回合（2026-11-24 用户确认）',
+    run: () => run(() => {
+      const withDomain = makeGame([{ id: 'A', char: 'gojo' }, 'B', 'C'], 228);
+      withDomain.openDomain('A');
+      playThrows(withDomain, [{ A: 'rock', B: 'paper', C: 'scissors' }]);
+      const rec = withDomain.judgeRecords.find((r) => r.stage === 'rps1');
+      const judgeOk = rec?.outcome === 'tieAct' && withDomain.qualified.length === 1 && withDomain.qualified[0] === 'A'
+        && withDomain.judgeHistory('A').at(-1) === 'tie';
+
+      const plain = makeGame([{ id: 'A', char: 'gojo' }, 'B', 'C'], 228);
+      playThrows(plain, [{ A: 'rock', B: 'paper', C: 'scissors' }]);
+      const plainCycle = plain.revealInfo()?.outcome === 'cycle'
+        && plain.roundNo === 2 && plain.qualified.length === 0;
+
+      return check(judgeOk && plainCycle, '有领域→三人循环获得平局行动；无领域→平局回合翻页',
+        `outcome=${rec?.outcome}, q=${withDomain.qualified.join(',')}, plainCycle=${plainCycle}`, withDomain);
     }),
   },
   {
@@ -181,7 +209,7 @@ export const CHARACTER_CASES: TestCase[] = [
   },
   {
     id: 'TC-C023', name: '领域覆盖：后展开者覆盖先展开者，平局算后展开者胜', category: 'character', charId: 'gojo', seed: 223,
-    desc: '用户确认（2026-11-20）：领域为全场唯一场地状态，后展开覆盖先展开；平局判当前持有者胜',
+    desc: '用户确认（2026-11-20）：领域为全场唯一场地状态，后展开覆盖先展开；平局回合由当前持有者行动（平局不变）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B', char: 'laodaye' }], 223);
       g.openDomain('A');
@@ -189,10 +217,10 @@ export const CHARACTER_CASES: TestCase[] = [
       g.openDomain('B'); // 老大爷后展开 → 覆盖五条悟领域
       const covered = g.domainHolder === 'B' && g.charState('A').domain === false && g.charState('B').domain === true;
       const coverLog = g.logs.some((l) => l.text.includes('领域覆盖'));
-      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 同拳平局 → 当前持有者 B 判胜
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 同拳平局 → 当前持有者 B 在平局回合行动
       const ok = firstOk && covered && coverLog && g.phase === 'act'
         && g.qualified.length === 1 && g.qualified[0] === 'B';
-      return check(ok, '五条悟领域被覆盖并失效，老大爷领域生效并平局判胜',
+      return check(ok, '五条悟领域被覆盖并失效，老大爷领域生效并获得平局行动资格',
         `firstOk=${firstOk}, covered=${covered}, log=${coverLog}, phase=${g.phase}, q=${g.qualified.join(',')}`, g);
     }),
   },
@@ -209,6 +237,22 @@ export const CHARACTER_CASES: TestCase[] = [
       const ok = opened && !r.ok && (r.error || '').includes('领域已展开') && g.domainHolder === 'A' && g.currentActor() === 'A';
       return check(ok, '重复展开被拒绝，领域持有者不变，行动未消耗',
         `opened=${opened}, ok=${r.ok}, error=${r.error}, holder=${g.domainHolder}`, g);
+    }),
+  },
+  {
+    id: 'TC-C023c', name: '领域：被覆盖后可再次展开夺回（反复展开）', category: 'character', charId: 'gojo', seed: 229,
+    desc: '五条悟领域被老大爷覆盖后，可以再次展开反向覆盖夺回；夺回后平局仍判五条悟胜（2026-11-24 用户确认）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B', char: 'laodaye' }], 229);
+      g.openDomain('A');
+      g.openDomain('B');
+      const covered = g.domainHolder === 'B' && g.charState('A').domain === false;
+      g.openDomain('A');
+      const back = g.domainHolder === 'A' && g.charState('A').domain === true && g.charState('B').domain === false;
+      playThrows(g, [{ A: 'rock', B: 'rock' }]);
+      const ok = covered && back && g.phase === 'act' && g.qualified.length === 1 && g.qualified[0] === 'A';
+      return check(ok, '被覆盖→再次展开夺回→平局仍判五条悟胜',
+        `covered=${covered}, back=${back}, q=${g.qualified.join(',')}`, g);
     }),
   },
   {

@@ -39,7 +39,8 @@ function verdictText(game: GameSnapshot, rv: RevealInfo): string {
     switch (rv.outcome) {
       case 'cycle': return '三人循环 → 同组重新出拳（排序内部重判，不消耗回合）';
       case 'alltie': return '同拳平局 → 同组重新出拳（排序内部重判，不消耗回合）';
-      case 'tieWin': return `${namesOf(game, rv.winners)} 领域判胜 → 其余优先行动`;
+      case 'tieAct':
+      case 'tieWin': return `${namesOf(game, rv.winners)} 领域生效 → 其余优先行动`;
       default: {
         const w = namesOf(game, rv.winners);
         const l = namesOf(game, rv.losers);
@@ -50,7 +51,8 @@ function verdictText(game: GameSnapshot, rv: RevealInfo): string {
   switch (rv.outcome) {
     case 'cycle': return '三人循环 → 平局回合，下回合全员重新出拳';
     case 'alltie': return '全员同拳平局 → 平局回合，下回合重新出拳';
-    case 'tieWin': return `领域生效：${namesOf(game, rv.winners)} 平局判胜`;
+    case 'tieAct':
+    case 'tieWin': return `领域生效：${namesOf(game, rv.winners)} 获得平局回合的行动资格（本回合仍是平局）`;
     default: {
       const w = namesOf(game, rv.winners);
       const l = rv.losers.length > 0 ? `${namesOf(game, rv.losers)} 无资格` : '';

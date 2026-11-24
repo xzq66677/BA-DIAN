@@ -27,8 +27,8 @@ export const CARD_META: Record<string, CardMeta> = {
   },
   laodaye: {
     img: './cards/laodaye.webp', thumb: './cards/laodaye-thumb.webp', no: '58',
-    skills: '【近3远2】·【领域展开】·【平局归我】·【对冲】',
-    mech: '近战3伤、远程2伤（默认免瞄准）；领域展开后平局算老大爷赢，近战5伤、远程3伤，与五条悟形成领域对冲。血量3、攻击3。（完全体领域内远程必中，未实装）',
+    skills: '【近3远2】·【领域展开】·【平局行动】',
+    mech: '近战3伤、远程2伤（默认免瞄准）；领域展开后平局回合可行动（平局结果不变），强化后近战5伤、远程3伤。领域全场唯一，与五条悟的领域互相覆盖（后展开者生效，被覆盖后可再展开夺回）。血量3、攻击3。（完全体领域内远程必中，未实装）',
     quote: '年轻，进了这圈平局归我，近战还得再添两分。',
   },
   bagun: {
@@ -45,9 +45,9 @@ export const CARD_META: Record<string, CardMeta> = {
   },
   gojo: {
     img: './cards/gojo.webp', thumb: './cards/gojo-thumb.webp', no: '03',
-    skills: '【无量】·【领域展开】',
-    mech: '2条命：首次致死消耗一条命并满血复活。近战伤害3；远程需瞄准、伤害2。领域展开后远程免瞄准，且平局判五条悟胜；另有领域对冲。',
-    quote: '平局？在我领域里，平局也算我赢。',
+    skills: '【无量空处】·【领域展开】',
+    mech: '2条命：首次致死消耗一条命并满血复活。近战1伤；远程2伤、需瞄准。领域展开（无量空处）后远程免瞄准，且判定平局（同拳或三种不同出拳的三人循环）时五条悟可在该平局回合行动——平局仍是平局。领域全场唯一，后展开覆盖先展开，被覆盖后可再次展开夺回。',
+    quote: '平局？在我领域里，平局也归我出手。',
   },
   mabaoguo: {
     img: './cards/mabaoguo.webp', thumb: './cards/mabaoguo-thumb.webp', no: '04',

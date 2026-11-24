@@ -1,6 +1,6 @@
 /**
  * 拔典 · 角色注册表
- * 9 个首轮验证角色 + 老大爷（用于领域对冲测试）+ 默认角色（无业游民）
+ * 9 个首轮验证角色 + 老大爷（领域覆盖验证用）+ 默认角色（无业游民）
  *
  * 数据来源：docs/角色速查表-原始数据.md（拔典1/拔典2 OCR 整理表）
  * OCR 存疑或资料缺失处均在 desc/dataMissing 中标注，并写入 docs/GAME_RULES.md 规则假设。
@@ -60,50 +60,50 @@ const chuixiao: CharDef = {
   rangedCapable: true,
 };
 
-/** 3. 五条悟：近战3伤；远程需瞄准2伤；领域展开后远程免瞄准、平局算胜；存在领域对冲 */
+/** 3. 五条悟：近战1伤；远程需瞄准2伤；领域展开后远程免瞄准、平局回合获得行动资格（平局仍是平局）；领域全场唯一，后展开覆盖 */
 const gojo: CharDef = {
   id: 'gojo',
   aiStrategy: characterAi.gojo,
   name: '五条悟',
-  desc: '血量3、2条命（首次致死消耗一条命满血复活）。近战3伤；远程2伤需瞄准。领域展开后：远程免瞄准、判定平局算五条悟胜。存在领域对冲（多名领域持有者效果抵消）。',
+  desc: '血量3、2条命（首次致死消耗一条命满血复活）。近战1伤；远程2伤需瞄准。领域展开（无量空处）后：远程免瞄准；判定平局（同拳或三拳循环）时五条悟可在平局回合行动（平局结果不变）。领域全场唯一，后展开覆盖先展开，被覆盖后可再次展开。',
   hp: 3,
   lives: 2,
-  attack: 3,
-  meleeDamage: 3,
+  attack: 1,
+  meleeDamage: 1,
   rangedDamage: 2,
   attackType: 'both',
   rangedCapable: true,
   rangedNeedsAim: true,
   aimExemptWhenDomain: true,
-  domainTieWin: true,
+  domainActsOnTie: true,
   init: () => ({ domain: false }),
   actions: [
     {
       name: 'domain',
       label: '领域展开',
-      desc: '展开领域（持续生效，全场唯一）：远程攻击免瞄准；判定平局时算五条悟胜。他人的领域会覆盖本领域；本领域也可覆盖他人（后展开者生效）。',
+      desc: '展开领域·无量空处（持续生效，全场唯一）：远程攻击免瞄准；判定平局（含三种不同出拳的三拳循环）时五条悟获得该平局回合的行动资格，但平局仍然是平局（不改变胜负）。他人的领域会覆盖本领域；被覆盖后可再次展开夺回（后展开者生效）。',
       targetHint: 'none',
       validate: (ctx) => ctx.game.charState(ctx.actor).domain ? '领域已展开' : null,
       execute: (ctx) => {
         ctx.game.openDomain(ctx.actor);
-        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！远程免瞄准，平局算其胜（领域持续保留，直至被覆盖）`, { pid: ctx.actor, domain: true }, true);
+        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！远程免瞄准，平局回合可行动（领域持续保留，直至被覆盖）`, { pid: ctx.actor, domain: true }, true);
       },
     },
   ],
 };
 
-/** 3b. 老大爷：与五条悟同体系（近3远2；领域内近5远3，平局算胜），用于领域对冲验证 */
+/** 3b. 老大爷：与五条悟同体系（近3远2；领域内近5远3，平局回合获得行动资格） */
 const laodaye: CharDef = {
   id: 'laodaye',
   name: '老大爷',
-  desc: '血量3。近战3伤远程2伤；领域展开后平局算老大爷赢、近战5伤远程3伤。与五条悟等领域对冲。',
+  desc: '血量3。近战3伤远程2伤；领域展开后平局回合可行动（平局结果不变）、近战5伤远程3伤。领域全场唯一，与五条悟的领域互相覆盖（后展开者生效）。',
   hp: 3,
   attack: 3,
   meleeDamage: 3,
   rangedDamage: 2,
   attackType: 'both',
   rangedCapable: true,
-  domainTieWin: true,
+  domainActsOnTie: true,
   init: () => ({ domain: false, boosted: false }),
   dynamicDamage: ({ game, actor, ranged }) => {
     const st = game.charState(actor);
@@ -114,12 +114,12 @@ const laodaye: CharDef = {
     {
       name: 'domain',
       label: '领域展开',
-      desc: '展开领域（全场唯一）：平局算老大爷胜；领域内近战5伤远程3伤。后展开的领域会覆盖先展开的领域。',
+      desc: '展开领域（全场唯一）：平局回合可行动（平局结果不变）；领域内近战5伤远程3伤。后展开的领域会覆盖先展开的领域。',
       targetHint: 'none',
       validate: (ctx) => ctx.game.charState(ctx.actor).domain ? '领域已展开' : null,
       execute: (ctx) => {
         ctx.game.openDomain(ctx.actor);
-        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！近战5伤远程3伤，平局算其胜`, { pid: ctx.actor, domain: true }, true);
+        ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！近战5伤远程3伤，平局回合可行动`, { pid: ctx.actor, domain: true }, true);
       },
     },
     {

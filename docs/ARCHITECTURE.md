@@ -86,7 +86,7 @@ over ◀──checkWin── roundEnd（延迟事件：ivan/damage）◀──�
 - **HP 条**：CSS 过渡（延迟 0.26s + 0.42s 缓动）让斩击先落下、血条随后平滑变化；宽度始终来自真实快照值。
 
 ### 8. 机制测试场
-- `shared/src/testcases` 为唯一测试数据源：103 个用例（编号 TC-E/TC-C/TC-X）。
+- `shared/src/testcases` 为唯一测试数据源：113 个用例（编号 TC-E/TC-C/TC-X）。
 - vitest 从同一数据源跑自动化回归；网页测试场（Arena 页）在浏览器内直接运行同一份用例 → PASS/FAIL、预期 vs 实际、完整结算日志、种子复现。测试场不是另一个模拟器。
 
 ## 通信协议摘要

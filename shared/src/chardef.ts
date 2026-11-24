@@ -175,8 +175,8 @@ export interface CharDef {
   onAttackAction?(ctx: CharActionContext, targetId: PlayerId, ranged: boolean): import('./types.js').ActionResult;
   /** 附加行动（技能） */
   actions?: CharActionDef[];
-  /** 领域平局算胜标记（五条悟等） */
-  domainTieWin?: boolean;
+  /** 领域标记：展开后「平局回合」获得行动资格（五条悟等）。只给行动权，不改变平局结果 */
+  domainActsOnTie?: boolean;
 }
 
 export const BASE_ATTACK_TYPE: CharDef['attackType'] = 'both';
