@@ -185,10 +185,10 @@ const mabaoguo: CharDef = {
     // player 模式：挂起伤害，等双方各出一拳后结算（补结算时不再进入本钩子）
     req.judgeResolved = true;
     game.log('trigger', `⚡ 马保国混元形意太极：${game.players[source].name} 的伤害进入判定（双方出拳）`, undefined, true);
-    game.deferDamageJudge(req, {
+    return { deferTo: {
       kind: 'taiji', owner: self, opponent: source, rounds: 1, label: '太极判定',
-      resolve: (wins) => settle(wins),
-    });
+      resolve: settle,
+    } };
   },
   onDeath: (ctx) => {
     const { game, player, killer, cause } = ctx;
