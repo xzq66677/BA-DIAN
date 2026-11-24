@@ -43,11 +43,57 @@ export interface QueueState {
  * 只有积压的演出时长超过预算才压缩。过载时**丢弃最旧的簇**（快照始终呈现真实状态），
  * 新到的事件（往往是刚发生的行动/淘汰）永不丢弃。
  */
-const FAST_BACKLOG_MS = 9000;
-const TURBO_BACKLOG_MS = 22000;
+/**
+ * 演出节奏档位（Pace）。
+ *
+ * 为什么单独成表：AI 由服务端 `kickAI()` 同步批量驱动，一次广播就可能带来
+ * 「一整个 AI 回合」的事件；客户端只能靠时长预算（backlog）决定是否压缩。
+ * 时长与阈值散落在代码里时，调一次「AI 太快」要改十几处，还会牵动拥堵判定。
+ * 现在所有数字集中在 `PACE_PROFILES`，一处改档即可整体变快/变慢。
+ *
+ * 切换方式：URL 加 `?pace=relaxed`（或 cinematic / slow / current），
+ * 也可以直接改 `DEFAULT_PACE`。默认值即线上表现，改默认 = 改默认手感。
+ */
+export type PaceId = 'current' | 'relaxed' | 'cinematic' | 'slow';
 
-/** normal 模式下的基础演出时长（ms），实际按 speed 缩放 */
-const BASE_MS: Record<string, number> = {
+export interface PaceProfile {
+  id: PaceId;
+  label: string;
+  /** 面板/文档用的口径说明 */
+  note: string;
+  /** normal 模式各事件基础时长（ms），实际再按 speed 缩放 */
+  base: Record<string, number>;
+  /** fast（拥堵压缩）模式下的时长 */
+  fastMs: number;
+  fastMajorMs: number;
+  fastReducedMs: number;
+  /** prefers-reduced-motion 下的时长上限 */
+  reducedCapMs: number;
+  /** 多段伤害的段间时长 */
+  damageSegmentMs: number;
+  /** 致命伤害停留（衔接淘汰演出） */
+  damageLethalMs: number;
+  /** 簇之间的呼吸间隔 */
+  gapMs: number;
+  fastGapMs: number;
+  /** 积压超过该值 → 压缩为 fast（次要判据：主要看待播条数） */
+  fastBacklogMs: number;
+  /** 积压超过该值 → 丢弃旧积压 */
+  turboBacklogMs: number;
+  /**
+   * 待播事件数达到该值 → 压缩为 fast。
+   *
+   * 为什么用「条数」而不是「时长」当主判据：AI 由服务端批量驱动，一次广播就带来
+   * 一整轮 AI 行动（十几到几十条），按用户人数不同本就该有不同体量。用时长判据时，
+   * 6~10 人的 AI 回合天然超过 9s 预算，于是**每一批 AI 动作都被判为积压**、一律压到
+   * 260ms/条 —— 这正是「AI 演出太快、看不清」的根因。改看条数后，正常回合按原速播，
+   * 只有真正的洪水（重连补发/整局回放）才压缩。
+   */
+  fastPendingEvents: number;
+  turboPendingEvents: number;
+}
+
+const BASE_CURRENT: Record<string, number> = {
   action: 340,
   area: 380,
   attackDecl: 200,
@@ -67,28 +113,127 @@ const BASE_MS: Record<string, number> = {
   ivanBoom: 1100,
 };
 
-/** fast 模式下的压缩时长（ms，与速度无关，保证跟上节奏；仍可辨识） */
-const FAST_MS = 260;
+/** 按比例放大基础时长（阈值也要同步放宽，否则更慢的时长会更容易触发压缩） */
+function scaleBase(base: Record<string, number>, k: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k2, v] of Object.entries(base)) out[k2] = Math.round(v * k);
+  return out;
+}
 
-function eventMs(e: BattleEvent, mode: QueueMode, speed: Speed, reduced: boolean): number {
-  if (mode === 'fast') return reduced ? 155 : isMajorEvent(e) ? 320 : FAST_MS;
-  let base = BASE_MS[e.kind] ?? 300;
+export const PACE_PROFILES: Record<PaceId, PaceProfile> = {
+  current: {
+    id: 'current',
+    label: '现有速度（1×）',
+    note: 'V2 线上表现，未改动基线。',
+    base: BASE_CURRENT,
+    fastMs: 260,
+    fastMajorMs: 320,
+    fastReducedMs: 155,
+    reducedCapMs: 240,
+    damageSegmentMs: 430,
+    damageLethalMs: 900,
+    gapMs: 160,
+    fastGapMs: 60,
+    fastBacklogMs: 30000,
+    turboBacklogMs: 60000,
+    fastPendingEvents: 60,
+    turboPendingEvents: 160,
+  },
+  relaxed: {
+    id: 'relaxed',
+    label: '舒缓（1.45×）',
+    note: '一次攻击 ≈1.7s，够看清「谁打谁、掉多少血」；推荐默认。',
+    base: scaleBase(BASE_CURRENT, 1.45),
+    fastMs: 380,
+    fastMajorMs: 480,
+    fastReducedMs: 200,
+    reducedCapMs: 300,
+    damageSegmentMs: 600,
+    damageLethalMs: 1200,
+    gapMs: 220,
+    fastGapMs: 90,
+    fastBacklogMs: 34000,
+    turboBacklogMs: 68000,
+    fastPendingEvents: 60,
+    turboPendingEvents: 160,
+  },
+  cinematic: {
+    id: 'cinematic',
+    label: '从容（1.85×）',
+    note: '一次攻击 ≈2.2s，带明显停顿，适合大屏/观战。',
+    base: scaleBase(BASE_CURRENT, 1.85),
+    fastMs: 460,
+    fastMajorMs: 600,
+    fastReducedMs: 240,
+    reducedCapMs: 380,
+    damageSegmentMs: 780,
+    damageLethalMs: 1550,
+    gapMs: 280,
+    fastGapMs: 120,
+    fastBacklogMs: 38000,
+    turboBacklogMs: 76000,
+    fastPendingEvents: 56,
+    turboPendingEvents: 150,
+  },
+  slow: {
+    id: 'slow',
+    label: '慢速（2.3×）',
+    note: '一次攻击 ≈2.7s，逐帧可读，回合会明显变长。',
+    base: scaleBase(BASE_CURRENT, 2.3),
+    fastMs: 560,
+    fastMajorMs: 760,
+    fastReducedMs: 300,
+    reducedCapMs: 460,
+    damageSegmentMs: 1000,
+    damageLethalMs: 1950,
+    gapMs: 360,
+    fastGapMs: 150,
+    fastBacklogMs: 44000,
+    turboBacklogMs: 88000,
+    fastPendingEvents: 50,
+    turboPendingEvents: 140,
+  },
+};
+
+/** 默认档位（改这一行 = 改全局手感） */
+export const DEFAULT_PACE: PaceId = 'slow';
+
+/** 从 `?pace=` 读取档位（未知值回退默认；SSR/测试环境安全） */
+export function resolvePace(raw?: string | null): PaceProfile {
+  const id = (raw ?? '').trim() as PaceId;
+  return PACE_PROFILES[id] ?? PACE_PROFILES[DEFAULT_PACE];
+}
+
+export function paceFromLocation(): PaceProfile {
+  if (typeof window === 'undefined' || !window.location) return PACE_PROFILES[DEFAULT_PACE];
+  try {
+    return resolvePace(new URLSearchParams(window.location.search).get('pace'));
+  } catch {
+    return PACE_PROFILES[DEFAULT_PACE];
+  }
+}
+
+export function eventMs(e: BattleEvent, mode: QueueMode, speed: Speed, reduced: boolean, pace: PaceProfile): number {
+  if (mode === 'fast') {
+    return reduced ? pace.fastReducedMs : isMajorEvent(e) ? pace.fastMajorMs : pace.fastMs;
+  }
+  let base = pace.base[e.kind] ?? Math.round(300 * (pace.base.action / BASE_CURRENT.action));
   // 多段伤害段间紧凑（总时长仍覆盖斩击动画）
-  if (e.kind === 'damage' && e.segment && e.segment.total > 1) base = 430;
+  if (e.kind === 'damage' && e.segment && e.segment.total > 1) base = pace.damageSegmentMs;
   // 致命伤害衔接淘汰演出，停留更久
-  if (e.kind === 'damage' && e.lethal) base = 900;
-  if (reduced) base = Math.min(base, 240);
+  if (e.kind === 'damage' && e.lethal) base = pace.damageLethalMs;
+  if (reduced) base = Math.min(base, pace.reducedCapMs);
   return Math.round(base / speed);
 }
 
 /** 估算一批簇按正常节奏播完所需时长（拥堵判定用；1× 全速估算） */
-function estimateMs(clusters: EventCluster[]): number {
+export function estimateMs(clusters: EventCluster[], pace: PaceProfile): number {
   let total = 0;
   for (const c of clusters) {
-    if (c.lead) total += BASE_MS[c.lead.kind] ?? 300;
+    if (c.lead) total += pace.base[c.lead.kind] ?? 300;
     for (const e of c.events) {
       if (c.mode === 'fast' && droppableInFast(e)) continue;
-      total += BASE_MS[e.kind] ?? 300;
+      total += pace.base[e.kind] ?? 300;
       if (e.kind === 'damage' && e.lethal) total += 260;
     }
   }
@@ -136,11 +281,22 @@ export class BattleEventQueue {
   private speed: Speed = 1;
   private reduced = false;
   private disposed = false;
+  private pace: PaceProfile;
   private cb: QueueCallbacks;
   private state: QueueState = { playing: false, depth: 0, mode: 'normal', speed: 1 };
 
-  constructor(cb: QueueCallbacks = {}) {
+  constructor(cb: QueueCallbacks = {}, pace: PaceProfile = PACE_PROFILES.current) {
     this.cb = cb;
+    this.pace = pace;
+  }
+
+  /** 切换节奏档位（局内可即时生效：只影响后续事件，已在播的这条走完） */
+  setPace(pace: PaceProfile): void {
+    this.pace = pace;
+  }
+
+  getPace(): PaceProfile {
+    return this.pace;
   }
 
   /** 是否仍有演出进行中（含正在播放的簇与待播队列） */
@@ -202,9 +358,11 @@ export class BattleEventQueue {
     batch.push(...assembleClusters(events));
     if (!batch.length) return;
     // 积压时长（按 1× 正常节奏估算，含正在播放的簇剩余部分）
-    const backlog = estimateMs(this.current ? [this.current, ...this.clusters] : this.clusters) + estimateMs(batch);
+    const backlog = estimateMs(this.current ? [this.current, ...this.clusters] : this.clusters, this.pace) + estimateMs(batch, this.pace);
+    // 待播条数：与房间人数无关的「东西太多」判据（主判据，见 fastPendingEvents 注释）
+    const pendingCount = this.pendingEvents() + batch.reduce((n, c) => n + c.events.length + (c.lead ? 1 : 0), 0);
     let mode: QueueMode = 'normal';
-    if (backlog >= TURBO_BACKLOG_MS) {
+    if (pendingCount >= this.pace.turboPendingEvents || backlog >= this.pace.turboBacklogMs) {
       // 严重积压（如整局快速打完、慢设备跟不上）：丢弃全部旧积压，
       // 只保留正在播放的簇，新批次以 fast 压缩入队 —— 最新事件仍然有演出，
       // 被丢弃的旧事件其结果已由快照呈现，无信息丢失。
@@ -212,7 +370,7 @@ export class BattleEventQueue {
       // 被丢弃的普通事件其结果已由快照呈现，但重大事件的过程演出不可再现
       this.clusters = this.clusters.filter(clusterHasMajor);
       mode = 'fast';
-    } else if (backlog > FAST_BACKLOG_MS) {
+    } else if (pendingCount >= this.pace.fastPendingEvents || backlog > this.pace.fastBacklogMs) {
       mode = 'fast';
     }
     for (const c of batch) {
@@ -226,7 +384,7 @@ export class BattleEventQueue {
     this.clusters.push(...batch);
     // 保留上限：入队后积压仍然过大（如一次性收到整局日志）→ 继续丢，保证能追上；
     // 丢弃顺序：优先非重大簇，重大簇耗尽后才丢最旧（避免 S 级演出被积压挤掉）
-    while (this.clusters.length > 1 && estimateMs(this.clusters) > TURBO_BACKLOG_MS * 0.5) {
+    while (this.clusters.length > 1 && estimateMs(this.clusters, this.pace) > this.pace.turboBacklogMs * 0.5) {
       const dropIdx = this.clusters.findIndex((c) => !clusterHasMajor(c));
       if (dropIdx >= 0) {
         this.clusters.splice(dropIdx, 1);
@@ -355,7 +513,7 @@ export class BattleEventQueue {
       // 本簇播完 → 下一簇（微小间隔让两组动作有呼吸感）
       this.current = null;
       if (this.clusters.length > 0) {
-        const gap = this.reduced ? 30 : Math.round((mode === 'fast' ? 60 : 160) / this.speed);
+        const gap = this.reduced ? 30 : Math.round((mode === 'fast' ? this.pace.fastGapMs : this.pace.gapMs) / this.speed);
         this.schedule(gap);
       } else {
         this.emitState();
@@ -367,7 +525,7 @@ export class BattleEventQueue {
       this.playCluster(cluster, mode, index + 1);
       return;
     }
-    const wait = eventMs(e, mode, this.speed, this.reduced);
+    const wait = eventMs(e, mode, this.speed, this.reduced, this.pace);
     this.cb.onEventStart?.(e, wait);
     this.stopTimer();
     this.timer = setTimeout(() => {
