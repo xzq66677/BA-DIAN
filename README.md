@@ -22,7 +22,7 @@
 # 1. 安装依赖
 npm install
 
-# 2. 全量自动化测试（591 用例，需 Node ≥ 22.15；见下方「测试」）
+# 2. 全量自动化测试（599 用例，需 Node ≥ 22.15；见下方「测试」）
 npm test
 
 # 3. 构建（服务端 tsc + 客户端 vite）
@@ -161,6 +161,36 @@ const off = registerAnnounceRule({
 
 协议层：`room:update` 新增 `announces?: AnnounceItem[]`，与 `newLogs` 同批、所有座位完全一致；断线重连随 `catchUp` 补发最近 300 条日志对应的播报。旧客户端忽略该字段即可；旧服务端不发送时客户端按「无播报」安全降级。
 
+## 战斗演出节奏（Pace）
+
+> 反馈：AI 行动「太快、看不清」。演出时长原本散落在 `queue.ts` 与 `useBattlePresentation.ts` 十几处，调一次要改很多地方，所以抽成**档位表**。
+
+一条链路：**引擎日志 → `parseBattleEvent` → `assembleClusters` 分簇 → `BattleEventQueue` 按档位时长逐条播 → 3D 特效/受击动画**。
+
+- **四档可在运行时切换**：URL 加 `?pace=current` / `relaxed` / `cinematic` / `slow`（未知值回退默认）。默认档由 `DEFAULT_PACE` 一行决定，当前为 `slow`（慢速）。
+- **所有数字集中在一处**：`PACE_PROFILES`（`client/src/battle/queue.ts`）——每种事件的基础时长、`fast` 压缩时长、簇间呼吸间隔、多段伤害/致命伤害停留、拥堵阈值，改档即可整体变快变慢，不用翻代码。
+- **拥堵判定改看「条数」**：AI 由服务端 `kickAI()` 同步批量驱动，一次广播就带来**一整轮 AI 行动**（十几到几十条）。原先按「估算播放时长 > 9s」判积压，6~10 人局天然超标 → 每一批都被压成 `fast` 档 260ms/条，这才是「AI 太快」的根因。现在主判据是待播条数（`fastPendingEvents 60` / `turboPendingEvents 160`），正常回合按原速播，只有真正的洪水（重连补发、整局回放）才压缩。
+- **演出预算对得上动画长度**：基线「一次攻击」= 行动 340 + 出手 200 + 伤害 640 = **1180ms**，而 3D 受击动画 `HIT_MS` 1250ms、出手 `FX_MS` 1400ms——动画还没播完就被下一条盖掉，观感自然偏急。各档把单次攻击拉到 1.18s / 1.71s / 2.18s / 2.71s，恢复「动作走完再下一条」。
+
+| 档位 | `?pace=` | 缩放 | 单次攻击 | 18 条 AI 行动整段 | 适用 |
+|---|---|---|---|---|---|
+| 现有速度 | `current` | 1.00× | 1.18s | 8.8s | 原线上表现（对照基线） |
+| 舒缓 | `relaxed` | 1.45× | 1.71s | 12.7s | 手机/普通对局，一眼看清「谁打谁、掉多少血」 |
+| 从容 | `cinematic` | 1.85× | 2.18s | 16.2s | 大屏、旁观、直播 |
+| **慢速（默认）** | `slow` | 2.30× | 2.71s | 20.2s | 逐帧讲解/复盘 |
+
+API：
+
+| 符号 | 用途 |
+|---|---|
+| `PACE_PROFILES` | 四档完整参数表（含 `base` / `fastMs` / `gapMs` / 阈值） |
+| `DEFAULT_PACE` | 默认档位 id（改手感只改这一行） |
+| `resolvePace(raw)` / `paceFromLocation()` | `?pace=` 解析（未知值安全回退） |
+| `queue.setPace(profile)` | 局内即时切换（只影响后续事件） |
+| `eventMs(e, mode, speed, reduced, pace)` | 单事件时长（导出供分析脚本/测试复用） |
+
+节奏对照材料（同一场真实对局、四档各录一条 + 并排对比）见交付目录 `pace/`。
+
 ## 更新线上版本
 
 **自动**：推送到 `main` 后，服务器每 2 分钟自动拉取、构建、重启（systemd `badian-autodeploy.timer`）。
@@ -282,9 +312,11 @@ scripts/
 
 ```bash
 npm test
-# 36 个测试文件 / 591 用例（Node ≥ 22.15），含真实 Chromium E2E。
-# 2026-11-24 验证：591/591 通过，npm run build 通过。
-# 血量显示回归：状态白名单、2D 血条交互、3D 名牌点击分流及双模式浏览器验收。
+# 37 个测试文件 / 599 用例（Node ≥ 22.15），含真实 Chromium E2E。
+# 2026-11-24 验证：599/599 通过，npm run build 通过。
+# 近期回归：pace 演出节奏、房间人数上限、入口身份、播报 V2、生命状态白名单、
+#           2D 血条交互、3D 名牌点击分流及双模式真实 Chromium 验收。
+# WebGL 相关 e2e 需要可用的浏览器渲染环境；无 GPU 的无头环境可能无法运行。
 ```
 
 > **Node 版本**：jsdom 用例依赖 `undici` 的 `node:zlib.createZstdDecompress`，需 **Node ≥ 22.15**（开发验证使用 v22.16.0）。Node 22.13/22.14 下纯逻辑测试正常，但 jsdom 用例会报 `Cannot read properties of undefined (reading 'bind')`。

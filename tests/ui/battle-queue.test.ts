@@ -6,16 +6,29 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { BattleEventQueue, assembleClusters } from '../../client/src/battle/queue.js';
+import { BattleEventQueue, assembleClusters, PACE_PROFILES, type PaceProfile } from '../../client/src/battle/queue.js';
 import { parseBattleEvent, type LogLike, type BattleEvent } from '../../client/src/battle/events.js';
 import type { QueueState } from '../../client/src/battle/queue.js';
+
+/**
+ * 拥堵判定的「小号」档位：把条数/时长阈值缩到几十条量级，
+ * 好在单测里几秒内跑出「压缩 / 丢弃旧积压」的效果。
+ * 压缩逻辑与线上完全一致，只是阈值数值不同（阈值本身只是数据）。
+ */
+const CROWD_PACE: PaceProfile = {
+  ...PACE_PROFILES.current,
+  fastPendingEvents: 8,
+  turboPendingEvents: 18,
+  fastBacklogMs: 2500,
+  turboBacklogMs: 5000,
+};
 
 function log(seq: number, type: string, data?: Record<string, unknown>, important = false): LogLike {
   return { seq, type, text: `t${seq}`, important, data };
 }
 
 /** 收集事件启动序列 */
-function collect() {
+function collect(pace?: PaceProfile) {
   const started: BattleEvent[] = [];
   const flushes: number[] = [];
   const states: QueueState[] = [];
@@ -23,7 +36,7 @@ function collect() {
     onEventStart: (e) => started.push(e),
     onFlush: () => flushes.push(Date.now()),
     onState: (s) => states.push({ ...s }),
-  });
+  }, pace);
   return { q, started, flushes, states };
 }
 
@@ -278,7 +291,7 @@ describe('队列播放', () => {
   });
 
   it('拥堵自动压缩：超过阈值进入 fast（丢弃低重要度事件）', { timeout: 30000 }, async () => {
-    const { q, started, states } = collect();
+    const { q, started, states } = collect(CROWD_PACE);
     const logs: LogLike[] = [];
     let seq = 0;
     for (let i = 0; i < 10; i++) {
@@ -296,7 +309,7 @@ describe('队列播放', () => {
   });
 
   it('极端拥堵保留重大簇：淘汰/复活/大伊万不被积压丢弃（Phase D）', { timeout: 30000 }, async () => {
-    const { q, started } = collect();
+    const { q, started } = collect(CROWD_PACE);
     const logs: LogLike[] = [];
     let seq = 0;
     // 大量普通伤害积压（> turbo 阈值）+ 夹杂一次淘汰与一次复活
@@ -314,7 +327,7 @@ describe('队列播放', () => {
   });
 
   it('极端拥堵保留致命一击簇（lethal damage 不被丢弃）', { timeout: 30000 }, async () => {
-    const { q, started } = collect();
+    const { q, started } = collect(CROWD_PACE);
     const logs: LogLike[] = [];
     let seq = 0;
     for (let i = 0; i < 20; i++) {
@@ -329,7 +342,7 @@ describe('队列播放', () => {
   });
 
   it('极端拥堵：丢弃最旧积压、保留最新事件（最新事件不丢演出）', { timeout: 30000 }, async () => {
-    const { q, started, flushes } = collect();
+    const { q, started, flushes } = collect(CROWD_PACE);
     const logs: LogLike[] = [];
     let seq = 0;
     for (let i = 0; i < 20; i++) {

@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BattleEventQueue, type QueueState, type Speed } from './queue.js';
+import { BattleEventQueue, paceFromLocation, type QueueState, type Speed } from './queue.js';
 import type { BattleEvent, LogLike } from './events.js';
 import { sfx, type SfxKind } from '../audio/sfx.js';
 import { condenseAnnounceQueue, type AnnounceItem } from '../../../shared/src/announce.js';
@@ -178,7 +178,7 @@ export function useBattlePresentation(
       onEventStart: (e, durationMs) => applyEventRef.current(e, durationMs),
       onFlush: () => flushRef.current(),
       onState: (s) => { modeRef.current = s.mode; setQueueState(s); },
-    });
+    }, paceFromLocation());
   }
   const queue = queueRef.current;
 
