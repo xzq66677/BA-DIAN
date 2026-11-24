@@ -13,8 +13,7 @@ import {
   type ActionResult, type GamePlayerConfig, type RuleConfig, type CharRuntimeState,
   type RevealInfo, type PlayerStats, emptyStats,
   type SkillJudgeOptions, type SkillJudgeView, type SkillJudgeRoundRecord,
-  type BattleFxKind, type AttackDeclEventData, type DamageEventData,
-  type HealEventData, type MoveEventData, type EliminateEventData, type ReviveEventData,
+  type BattleFxKind, type HealEventData, type EliminateEventData, type ReviveEventData,
   type ActionEventData,
   DEFAULT_RULES, fmtNum,
 } from './types.js';
@@ -22,6 +21,8 @@ import { PROTOCOL_VERSION, type GameSnapshot } from './protocol.js';
 import { RNG, randomThrow } from './rng.js';
 import type { RuinsConditions } from './floating-ruins.js';
 import { MAPS, type BattleMap, type MapId } from './maps.js';
+import { BASE_ACTIONS } from './base-actions.js';
+import { resolveDamage } from './damage.js';
 import { serializeSnapshot } from './snapshot.js';
 import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats } from './judge.js';
 import type { CharDef, GameLike, CharActionContext } from './chardef.js';
@@ -98,8 +99,6 @@ export class Game implements GameLike {
   private activeJudge: ActiveJudge | null = null;
   /** 判定结束后从哪里继续（行动后 / 回合末） */
   private judgeResume: 'afterAction' | 'endRound' | null = null;
-  /** 被判定挂起的伤害请求（太极：判定结束前不结算） */
-  private deferredDamage = new WeakSet<DamageRequest>();
   /** 判定计数（仅用于日志/标识） */
   private judgeSeq = 0;
   histories: Record<PlayerId, JudgeStep[]> = {};
@@ -677,17 +676,11 @@ export class Game implements GameLike {
   // ─── 技能内判定：双方亲自出拳（马保国太极 / 五连鞭 / 不讲武德） ───
   //
   // 设计：角色钩子只负责「发起判定」，引擎负责暂停对局收拳、逐局结算、结束后再回调结算效果。
-  // 太极是反应型（在别人的行动里触发），所以它的伤害会被挂起（deferredDamage），
+  // 太极是反应型（在别人的行动里触发），所以它的伤害会被挂起，
   // 等判定结束再补结算——这样不需要把伤害管线改成异步。
 
   /** 发起一次技能内判定（player 模式）：引擎在安全点暂停对局收拳 */
   requestJudge(opts: SkillJudgeOptions): void {
-    this.judgeQueue.push(opts);
-  }
-
-  /** 发起判定并挂起这次伤害（太极）：判定结束前不扣血 */
-  deferDamageJudge(req: DamageRequest, opts: SkillJudgeOptions): void {
-    this.deferredDamage.add(req);
     this.judgeQueue.push(opts);
   }
 
@@ -893,37 +886,8 @@ export class Game implements GameLike {
     return this.submitAction(pid, { type: 'skip' });
   }
 
-  private static readonly baseActions = new Map<string, {
-    label: (game: Game, req: ActionRequest) => string;
-    execute: (game: Game, pid: PlayerId, req: ActionRequest) => ActionResult;
-  }>([
-    ['move', {
-      label: (_, req) => `移动到 ${req.room}`,
-      execute: (game, pid, req) => game.actMove(pid, req),
-    }],
-    ['attack', {
-      label: (game, req) => `攻击 ${req.targetId ? game.players[req.targetId].name : '?'}`,
-      execute: (game, pid, req) => game.actAttack(pid, req),
-    }],
-    ['heal', { label: () => '回复', execute: (game, pid, req) => game.actHeal(pid, req) }],
-    ['hide', { label: () => '躲藏', execute: (game, pid, req) => game.actHide(pid, req) }],
-    ['seek', {
-      label: (game, req) => `找出来（${req.targetId ? game.players[req.targetId].name : '?'}）`,
-      execute: (game, pid, req) => game.actSeek(pid, req),
-    }],
-    ['aim', {
-      label: (game, req) => `瞄准（${req.targetId ? game.players[req.targetId].name : '?'}）`,
-      execute: (game, pid, req) => game.actAim(pid, req),
-    }],
-    ['milk', { label: () => '喝牛奶（嘲讽）', execute: (game, pid) => game.actMilk(pid) }],
-    ['skip', {
-      label: () => '跳过',
-      execute: (game) => game.rules.allowSkip ? { ok: true } : { ok: false, error: '本局不允许跳过' },
-    }],
-  ]);
-
   private actionLabel(req: ActionRequest): string {
-    const base = Game.baseActions.get(req.type);
+    const base = BASE_ACTIONS.get(req.type);
     if (base) return base.label(this, req);
     const mapAction = this.map.actions?.get(req.type);
     if (mapAction) return mapAction.label;
@@ -932,8 +896,8 @@ export class Game implements GameLike {
   }
 
   private executeAction(pid: PlayerId, req: ActionRequest): ActionResult {
-    const base = Game.baseActions.get(req.type);
-    if (base) return base.execute(this, pid, req);
+    const base = BASE_ACTIONS.get(req.type);
+    if (base) return base.execute(this, pid, req, this.map);
     const mapAction = this.map.actions?.get(req.type);
     if (mapAction) {
       const { note, ...result } = mapAction.execute(this.players[pid], req);
@@ -949,245 +913,10 @@ export class Game implements GameLike {
     return { ok: true };
   }
 
-  private actMove(pid: PlayerId, req: ActionRequest): ActionResult {
-    const p = this.players[pid];
-    const room = req.room as RoomId;
-    if (!room || !this.roomIds.includes(room)) return { ok: false, error: `非法目标房间：${room}` };
-    const movementError = this.map.movementError?.(p.room, room);
-    if (movementError) return { ok: false, error: movementError };
-    const from = p.room;
-    p.room = room;
-    if (p.hidden) {
-      p.hidden = false;
-      this.log('state', `${p.name} 移动后现身（离开躲藏）`);
-    }
-    const moveData: MoveEventData = { pid, from, to: room };
-    this.log('move', `${p.name} 从 ${from} 移动到 ${room}`, { ...moveData }, true);
-    return { ok: true };
-  }
-
-  private actAttack(pid: PlayerId, req: ActionRequest): ActionResult {
-    const cd = this.charDef(pid);
-    const targetId = req.targetId;
-    if (!targetId || !this.players[targetId]) return { ok: false, error: '目标不存在' };
-    const tp = this.players[targetId];
-    if (!tp.alive) return { ok: false, error: '目标已淘汰' };
-    if (targetId === pid && !cd.allowSelfAttack) return { ok: false, error: '默认不允许攻击自己' };
-
-    // 角色完全接管攻击（如伍六七AOE、大贱客辱骂）
-    if (cd.onAttackAction) {
-      return cd.onAttackAction({ game: this, actor: pid, params: req }, targetId, !!req.ranged);
-    }
-
-    const sameRoom = this.isSameRoom(pid, targetId);
-    const ranged = req.ranged ?? !sameRoom;
-    const at = cd.attackType || 'both';
-    // 远程能力：默认角色仅近战；远程需要角色具备 rangedCapable（吹箫哥/五条悟/老大爷等）
-    if (ranged && !cd.rangedCapable) return { ok: false, error: '该角色无法远程攻击' };
-    if (!ranged && (at === 'ranged' || at === 'none')) return { ok: false, error: '该角色无法近战攻击' };
-
-    // 瞄准要求
-    if (ranged && cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && this.charState(pid).domain === true)) {
-      const aim = this.charState(pid).aim;
-      if (aim !== targetId) return { ok: false, error: '需要先瞄准该目标（使用「瞄准」行动）' };
-      this.charState(pid).aim = undefined;
-    }
-
-    if (cd.validateAttack) {
-      const err = cd.validateAttack({ game: this, actor: pid, target: targetId, ranged });
-      if (err) return { ok: false, error: err };
-    }
-
-    // 躲藏目标校验（指向性攻击无法锁定躲藏者）
-    if ((tp.hidden || tp.invisible) && !cd.ignoreHide) {
-      return { ok: false, error: '目标正在躲藏/隐身，无法锁定（AOE 或无视躲避的攻击除外）' };
-    }
-
-    const amount = cd.dynamicDamage?.({ game: this, actor: pid, ranged })
-      ?? (ranged
-        ? (cd.rangedDamage ?? cd.attack ?? this.rules.defaultAttack)
-        : (cd.meleeDamage ?? cd.attack ?? this.rules.defaultAttack));
-    const decl: AttackDeclEventData = { declared: true, source: pid, target: targetId, amount, ranged, room: tp.room };
-    this.log('damage', `${this.players[pid].name} ${ranged ? '远程' : '近战'}攻击 ${tp.name}（伤害 ${fmtNum(amount)}）`, { ...decl }, true);
-    this.applyDamage({
-      target: targetId,
-      amount,
-      source: pid,
-      dtype: cd.attackDtype || 'physical',
-      ignoreHide: cd.ignoreHide,
-    });
-    return { ok: true };
-  }
-
-  private actHeal(pid: PlayerId, _req: ActionRequest): ActionResult {
-    const p = this.players[pid];
-    const before = p.hp;
-    p.hp = p.maxHp;
-    const data: HealEventData = {
-      target: pid,
-      amount: Math.round((p.hp - before) * 10000) / 10000,
-      hpBefore: before, hpAfter: p.hp,
-    };
-    this.log('heal', `${p.name} 回复：${fmtNum(before)} → ${fmtNum(p.hp)}（满血）`, { ...data }, true);
-    return { ok: true };
-  }
-
-  private actHide(pid: PlayerId, _req: ActionRequest): ActionResult {
-    const p = this.players[pid];
-    if (!this.rules.allowHide) return { ok: false, error: '本局不允许躲藏' };
-    if (p.hidden) return { ok: false, error: '已在躲藏状态' };
-    p.hidden = true;
-    this.log('state', `${p.name} 进入躲藏（指向性攻击无法锁定，AOE 与无视躲避攻击仍可命中）`);
-    return { ok: true };
-  }
-
-  private actSeek(pid: PlayerId, req: ActionRequest): ActionResult {
-    const targetId = req.targetId;
-    if (!this.rules.allowSeek) return { ok: false, error: '本局不允许找出来' };
-    if (!targetId || !this.players[targetId] || !this.players[targetId].alive) return { ok: false, error: '目标不存在或已淘汰' };
-    if (!this.isSameRoom(pid, targetId)) return { ok: false, error: '只能找出同房间内躲藏的玩家' };
-    const tp = this.players[targetId];
-    if (!tp.hidden) return { ok: false, error: '目标未躲藏' };
-    tp.hidden = false;
-    this.log('state', `${this.players[pid].name} 将 ${tp.name} 找了出来（现身）`);
-    return { ok: true };
-  }
-
-  /** 瞄准（基础行动）：远程需瞄准的角色使用 */
-  private actAim(pid: PlayerId, req: ActionRequest): ActionResult {
-    const cd = this.charDef(pid);
-    if (!cd.rangedNeedsAim) return { ok: false, error: '该角色无需瞄准' };
-    const targetId = req.targetId;
-    if (!targetId || !this.players[targetId] || !this.players[targetId].alive) return { ok: false, error: '瞄准目标不存在或已淘汰' };
-    if (targetId === pid) return { ok: false, error: '不能瞄准自己' };
-    this.charState(pid).aim = targetId;
-    this.log('state', `${this.players[pid].name} 瞄准了 ${this.players[targetId].name}`);
-    return { ok: true };
-  }
-
-  /** 喝牛奶：嘲讽性质，无实际作用（用户确认） */
-  private actMilk(pid: PlayerId): ActionResult {
-    this.log('action', `${this.players[pid].name} 喝了一口牛奶，向在场所有人发出嘲讽 🥛（无实际效果）`, undefined, true);
-    return { ok: true };
-  }
-
   // ─── 伤害管线 ────────────────────────────────────────────────
 
   applyDamage(req: DamageRequest): AppliedDamage {
-    const applied: AppliedDamage = {
-      target: req.target, finalTarget: req.target, amount: req.amount,
-      lethal: false, missed: false, reflected: false, transferred: false,
-    };
-
-    // 1. 转移阶段钩子（大贱客吸引全场伤害）
-    // 转移阶段钩子不按存活预过滤（如大贱客阵亡后在回合末结算窗口内继续吸收同批爆发伤害），
-    // 阵亡语义由钩子自行处理；防御阶段钩子仍仅分发存活角色
-    const transferHooks = this.playerIds
-      .map((pid) => ({ pid, cd: this.charDef(pid) }))
-      .filter(({ cd }) => cd.onBeforeDamage && cd.damageHookStage === 'transfer');
-    for (const { pid, cd } of transferHooks) {
-      const r = cd.onBeforeDamage!({ game: this, req, owner: pid });
-      if (r === 'skip') {
-        const cancelData: DamageEventData = {
-          target: req.target, source: req.source, missed: true,
-          dtype: req.dtype, tag: req.tag, aoe: req.aoe,
-          ...(req.groupId ? { groupId: req.groupId } : {}),
-        };
-        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`, { ...cancelData });
-        applied.missed = true;
-        return applied;
-      }
-    }
-
-    let tp = this.players[req.target];
-    if (!tp || !tp.alive) {
-      applied.missed = true;
-      return applied;
-    }
-    applied.transferred = !!req.transferred;
-    applied.finalTarget = req.target;
-
-    // 2. 躲避判定：指向性攻击无法命中躲藏/隐身目标
-    if ((tp.hidden || tp.invisible) && !req.aoe && !req.ignoreHide && !req.bypassHide) {
-      const missData: DamageEventData = {
-        target: tp.id, source: req.source, missed: true,
-        dtype: req.dtype, tag: req.tag, aoe: req.aoe, room: tp.room,
-        ...(req.groupId ? { groupId: req.groupId } : {}),
-      };
-      this.log('state', `${tp.name} 处于躲藏/隐身，${req.source ? this.players[req.source].name + ' 的' : ''}攻击未命中`, { ...missData });
-      applied.missed = true;
-      return applied;
-    }
-
-    // 3. 防御阶段钩子（马保国太极反弹等）——按座次顺序分派全部存活角色的防御钩子
-    const defenseHooks = this.aliveIds()
-      .map((pid) => ({ pid, cd: this.charDef(pid) }))
-      .filter(({ cd }) => cd.onBeforeDamage && (!cd.damageHookStage || cd.damageHookStage === 'defense'));
-    for (const { pid, cd } of defenseHooks) {
-      const r = cd.onBeforeDamage!({ game: this, req, owner: pid });
-      if (r === 'skip') {
-        const cancelData2: DamageEventData = {
-          target: req.target, source: req.source, missed: true,
-          dtype: req.dtype, tag: req.tag, aoe: req.aoe,
-          ...(req.groupId ? { groupId: req.groupId } : {}),
-        };
-        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`, { ...cancelData2 });
-        applied.missed = true;
-        return applied;
-      }
-      tp = this.players[req.target];
-      if (!tp || !tp.alive) {
-        applied.missed = true;
-        return applied;
-      }
-    }
-    // 判定挂起（太极）：本次伤害暂不结算，等双方出拳后由角色回调补结算
-    if (this.deferredDamage.has(req)) {
-      this.deferredDamage.delete(req);
-      applied.deferred = true;
-      applied.finalTarget = req.target;
-      this.log('state', `${this.players[req.target]?.name ?? req.target} 的伤害结算挂起，等待判定出拳`,
-        { pendingJudge: true, target: req.target, source: req.source ?? null }, true);
-      return applied;
-    }
-    applied.reflected = !!req.reflected;
-    applied.finalTarget = req.target;
-
-    // 4. 结算
-    const before = tp.hp;
-    tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
-    const dmgData: DamageEventData = {
-      target: tp.id, source: req.source, amount: req.amount,
-      hpBefore: before, hpAfter: tp.hp, lethal: tp.hp <= 0,
-      dtype: req.dtype, tag: req.tag, segment: req.segment,
-      aoe: req.aoe, room: tp.room,
-      reflected: !!req.reflected, transferred: !!req.transferred,
-      ...(req.groupId ? { groupId: req.groupId } : {}),
-    };
-    this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, { ...dmgData }, true);
-
-    // 战绩：实际掉血量
-    const dealt = Math.max(0, before - tp.hp);
-    if (this.stats[tp.id]) this.stats[tp.id].damageTaken += dealt;
-    if (req.source && req.source !== tp.id && this.stats[req.source]) this.stats[req.source].damageDealt += dealt;
-
-    // 5. 附加效果（转移伤害不随转移）
-    if (req.effects && req.effects.length > 0 && !req.transferred) {
-      this.applyDamageEffects(tp.id, req.effects);
-    }
-
-    // 6. 淘汰判定
-    if (tp.hp <= 0) {
-      applied.lethal = true;
-      this.eliminate(tp.id, req.tag || 'damage', req.source);
-    }
-    return applied;
-  }
-
-  private applyDamageEffects(target: PlayerId, effects: { kind: string }[]): void {
-    for (const ef of effects) {
-      this.log('state', `${this.players[target].name} 获得效果：${ef.kind}`);
-    }
+    return resolveDamage(this, this.stats, req);
   }
 
   // ─── 淘汰与胜负 ──────────────────────────────────────────────

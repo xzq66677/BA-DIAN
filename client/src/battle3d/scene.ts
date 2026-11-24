@@ -3,12 +3,14 @@
 import * as THREE from 'three';
 import { TABLE, createRuinsMap, defaultPose, stableMembers, type RoomAnchor } from './layout.js';
 import { CameraDirector, type Shot } from './camera-director.js';
-import { RUINS_COLORS, buildBridge, createRuinsEnvironment, island } from './ruins.js';
+import { RUINS_COLORS, buildBridge, createRuinsEnvironment } from './ruins.js';
 import { createRuinsWeather } from './ruins-weather.js';
 import type { GameSnapshot, SnapPlayer } from '../../../shared/src/protocol.js';
 import type { DeferredEvent } from '../../../shared/src/types.js';
 import type { RuinsConditions } from '../../../shared/src/floating-ruins.js';
-import { roomVisual, STATE_COLORS } from './palette.js';
+import { GOLD, STATE_COLORS } from './palette.js';
+import { buildRoomView, releaseRoomObject, type RoomView } from './room-view.js';
+import { positionOverlay, type FloatingLabel } from './scene-overlay.js';
 import { cardMeta } from '../cards.js';
 import { createCharacterAsset, releaseMeshes, type CharacterRig } from './characters/index.js';
 import {
@@ -94,28 +96,6 @@ interface Entity {
   plateCount: number;
 }
 
-interface Room {
-  rid: string;
-  anchor: RoomAnchor;
-  slots: Map<string, number>;
-  bridge: THREE.Group | null;
-  pulse: { kind: 'aoe' | 'blast' | 'hit' | 'heal'; until: number } | null;
-  group: THREE.Group;
-  beacon: THREE.Mesh;            // 状态灯球（远处可读）
-  beaconMat: THREE.MeshBasicMaterial;
-  edgeGlow: THREE.Mesh;          // 台面边缘发光环
-  edgeMat: THREE.MeshBasicMaterial;
-  dome: THREE.Mesh | null;       // 领域穹顶
-  label: HTMLDivElement;
-  labelCount: HTMLSpanElement;
-  labelPending: HTMLSpanElement;
-  labelMud: HTMLSpanElement;
-  pos: THREE.Vector3;
-  yaw: number;
-  pendingIvan: boolean;
-  bombMarker: THREE.Group | null;
-}
-
 // Presentation commands can arrive after the authoritative life transition.
 function canAct(e: Entity): boolean {
   return e.alive && !e.deadPose && e.pose.kind !== 'revive';
@@ -123,7 +103,6 @@ function canAct(e: Entity): boolean {
 
 interface Tween { owner?: Entity; el: number; dur: number; fn: (t: number) => void; done?: () => void; dead?: boolean }
 
-const GOLD = 0xd8b04a;
 const BG = RUINS_COLORS.sky;
 const PLATFORM_H = TABLE.roomHeight;
 const ROOM_EFFECTS = { aoe: 0xff5478, blast: 0xff943c, hit: 0xff5159, heal: 0x70d7b0 };
@@ -138,7 +117,7 @@ export class BattleScene3D {
   private hooks: SceneHooks;
 
   private entities = new Map<string, Entity>();
-  private rooms = new Map<string, Room>();
+  private rooms = new Map<string, RoomView>();
   private fxList: { fx: FxInstance; start: number }[] = [];
   private tweens: Tween[] = [];
   private raf = 0;
@@ -155,7 +134,7 @@ export class BattleScene3D {
   private map = createRuinsMap([]);
   private topologyKey = '';
   private contextTimer: number | undefined;
-  private readonly floatEnds = new Map<HTMLDivElement, number>();
+  private readonly floatLabels = new Map<HTMLDivElement, FloatingLabel>();
 
   // 相机
   private aspect = 1.5;
@@ -264,9 +243,8 @@ export class BattleScene3D {
       room.pos.set(anchor.center.x, 0, anchor.center.z);
       room.group.position.copy(room.pos);
       room.group.rotation.y = anchor.yaw;
-      room.yaw = anchor.yaw;
       if (room.bridge) {
-        this.releaseRoomObject(room.bridge);
+        releaseRoomObject(room.bridge);
       }
       const radius = Math.hypot(anchor.center.x, anchor.center.z);
       let destination = core;
@@ -279,8 +257,7 @@ export class BattleScene3D {
         if (nearest) {
           destination = nearest.center;
           destinationRadius = nearest.radius;
-          room.yaw = Math.atan2(destination.x - anchor.center.x, destination.z - anchor.center.z);
-          room.group.rotation.y = room.yaw;
+          room.group.rotation.y = Math.atan2(destination.x - anchor.center.x, destination.z - anchor.center.z);
         }
       }
       room.bridge = buildBridge(anchor, destination, destinationRadius);
@@ -292,250 +269,18 @@ export class BattleScene3D {
     this.resize();
   }
 
-  private releaseRoomObject(object: THREE.Object3D): void {
-    object.traverse(node => { if (node instanceof THREE.InstancedMesh) node.dispose(); });
-    releaseMeshes(object);
-    object.removeFromParent();
-  }
-
-  private ensureRoom(anchor: RoomAnchor): Room {
-    const rid = anchor.id;
-    const existing = this.rooms.get(rid);
+  private ensureRoom(anchor: RoomAnchor): RoomView {
+    const existing = this.rooms.get(anchor.id);
     if (existing) return existing;
-    const vis = roomVisual(rid);
-    const group = new THREE.Group();
-    group.userData.room = rid;
-    const { center: pos0, yaw } = anchor;
-    group.position.set(pos0.x, 0, pos0.z);
-    group.rotation.y = yaw;
-    group.add(island(anchor.radius, pos0.x + pos0.z, 2.55));
-
-    // 石台主体（六棱柱，有厚度）
-    const baseMat = new THREE.MeshStandardMaterial({ color: RUINS_COLORS.ashlar, roughness: 0.9, flatShading: true });
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(TABLE.roomRadius, TABLE.roomRadius * 1.02, PLATFORM_H, 6), baseMat);
-    base.position.y = PLATFORM_H / 2;
-    base.rotation.y = Math.PI / 6;
-    base.userData = { room: rid };
-    group.add(base);
-    // 台面（主题地面色）
-    const topMat = new THREE.MeshStandardMaterial({ color: 0x666a75, roughness: 0.9, flatShading: true });
-    topMat.color.lerp(new THREE.Color(vis.base), 0.44);
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(TABLE.roomRadius * 0.94, TABLE.roomRadius * 0.94, 0.14, 6), topMat);
-    top.position.y = PLATFORM_H + 0.02;
-    top.rotation.y = Math.PI / 6;
-    group.add(top);
-    const inlay = new THREE.Mesh(
-      new THREE.TorusGeometry(anchor.radius * 0.64, 0.018, 3, 6),
-      new THREE.MeshBasicMaterial({ color: RUINS_COLORS.bronze, transparent: true, opacity: 0.45 }),
-    );
-    inlay.rotation.set(-Math.PI / 2, 0, Math.PI / 6);
-    inlay.position.y = anchor.floor + 0.006;
-    group.add(inlay);
-    // 台面边缘发光描边（状态主视觉之一）
-    const edgeMat = new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: 0.4 });
-    const edgeGlow = new THREE.Mesh(new THREE.TorusGeometry(TABLE.roomRadius * 0.97, 0.035, 6, 6), edgeMat);
-    edgeGlow.rotation.x = Math.PI / 2;
-    edgeGlow.rotation.z = Math.PI / 6;
-    edgeGlow.position.y = PLATFORM_H + 0.1;
-    group.add(edgeGlow);
-
-    // 入口台阶（面向桌心，即本地 +Z）
-    const stepMat = new THREE.MeshStandardMaterial({ color: 0x3a4149, roughness: 0.85, flatShading: true });
-    const step1 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.34, 0.62), stepMat);
-    step1.position.set(0, 0.83, TABLE.roomRadius * 0.9);
-    const step2 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.18, 0.62), stepMat);
-    step2.position.set(0, 0.60, TABLE.roomRadius * 0.9 + 0.35);
-    group.add(step1, step2);
-
-    // Instanced boundary posts keep the playable floor open.
-    const postGeo = new THREE.CylinderGeometry(0.095, 0.145, 0.55, 5);
-    const postMat = new THREE.MeshStandardMaterial({ color: 0x596373, roughness: 0.83 });
-    const posts = new THREE.InstancedMesh(postGeo, postMat, 6);
-    const caps = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.09, 0.12, 0.115, 5),
-      new THREE.MeshStandardMaterial({ color: RUINS_COLORS.bronze, roughness: 0.57, metalness: 0.28 }), 6);
-    const matrix = new THREE.Matrix4();
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2 + Math.PI / 6;
-      const x = Math.cos(angle) * anchor.radius * 0.91;
-      const z = Math.sin(angle) * anchor.radius * 0.91;
-      posts.setMatrixAt(i, matrix.makeTranslation(x, anchor.floor + 0.21, z));
-      caps.setMatrixAt(i, matrix.makeTranslation(x, anchor.floor + 0.51, z));
-    }
-    group.add(posts, caps);
-
-    // 状态灯塔（远处可读的事件/状态指示）
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.085, 0.73, 6), postMat);
-    pole.position.set(-TABLE.roomRadius * 0.8, PLATFORM_H + 0.41, -TABLE.roomRadius * 0.55);
-    const beaconMat = new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: 0.9 });
-    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), beaconMat);
-    beacon.position.set(-TABLE.roomRadius * 0.8, PLATFORM_H + 0.80, -TABLE.roomRadius * 0.55);
-    group.add(pole, beacon);
-
-    // 全尺寸主题图腾（平台后半部）
-    const totem = this.buildTotem(vis.totem, vis.prop);
-    totem.position.set(0, anchor.floor, -TABLE.roomRadius * 0.68);
-    totem.scale.setScalar(0.61);
-    group.add(totem);
-
-    this.scene.add(group);
-
-    const r: Room = {
-      rid, anchor, slots: new Map(), bridge: null, pulse: null,
-      group, beacon, beaconMat, edgeGlow, edgeMat, dome: null,
-      label: this.buildRoomLabel(rid, vis.icon),
-      labelCount: null as unknown as HTMLSpanElement,
-      labelPending: null as unknown as HTMLSpanElement,
-      labelMud: null as unknown as HTMLSpanElement,
-      pos: new THREE.Vector3(pos0.x, 0, pos0.z),
-      yaw, pendingIvan: false, bombMarker: null,
-    };
-    r.labelCount = r.label.querySelector('.b3-rl-count')!;
-    r.labelPending = r.label.querySelector('.b3-rl-pending')!;
-    r.labelMud = r.label.querySelector('.b3-rl-mud')!;
-    this.rooms.set(rid, r);
-    return r;
-  }
-
-  private buildTotem(kind: string, color: number): THREE.Group {
-    const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.78, flatShading: true });
-    const matDark = new THREE.MeshStandardMaterial({ color: 0x322c26, roughness: 0.85, flatShading: true });
-    const matSnow = new THREE.MeshStandardMaterial({ color: 0xdfe6ee, roughness: 0.9, flatShading: true });
-    const put = (o: THREE.Object3D, x: number, y: number, z: number, s = 1) => {
-      o.position.set(x, y, z);
-      o.scale.setScalar(s);
-      g.add(o);
-    };
-    switch (kind) {
-      case 'mountain': {
-        const mk = (h: number, r: number) => new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), mat);
-        const cap = (r: number) => new THREE.Mesh(new THREE.ConeGeometry(r * 0.4, 0.3, 6), matSnow);
-        const m1 = mk(2.0, 0.85); put(m1, -0.9, 1.0, -0.3, 1);
-        put(cap(0.85), -0.9, 1.85, -0.3, 1);
-        const m2 = mk(2.5, 1.0); put(m2, 0.35, 1.25, -0.5, 1);
-        put(cap(1.0), 0.35, 2.35, -0.5, 1);
-        const m3 = mk(1.4, 0.65); put(m3, 1.35, 0.7, -0.1, 1);
-        put(cap(0.65), 1.35, 1.32, -0.1, 1);
-        break;
-      }
-      case 'forest': {
-        const tree = (s: number) => {
-          const t = new THREE.Group();
-          const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.5, 6), matDark);
-          trunk.position.y = 0.25;
-          const c1 = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.7, 7), mat);
-          c1.position.y = 0.75;
-          const c2 = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.55, 7), mat);
-          c2.position.y = 1.2;
-          t.add(trunk, c1, c2);
-          t.scale.setScalar(s);
-          return t;
-        };
-        put(tree(1.25), -1.0, 0, -0.45);
-        put(tree(1.0), -0.15, 0, -0.75);
-        put(tree(1.15), 0.85, 0, -0.35);
-        put(tree(0.8), 0.3, 0, -0.15);
-        break;
-      }
-      case 'village': {
-        const house = (s: number) => {
-          const h = new THREE.Group();
-          const base = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.6, 0.7), mat);
-          base.position.y = 0.3;
-          const roof = new THREE.Mesh(new THREE.ConeGeometry(0.72, 0.5, 4), matDark);
-          roof.position.y = 0.85;
-          roof.rotation.y = Math.PI / 4;
-          const door = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.36, 0.05), matDark);
-          door.position.set(0, 0.18, 0.36);
-          h.add(base, roof, door);
-          h.scale.setScalar(s);
-          return h;
-        };
-        put(house(1.1), -0.75, 0, -0.35);
-        put(house(0.9), 0.7, 0, -0.5);
-        break;
-      }
-      case 'castle': {
-        const tower = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 2.1, 10), mat);
-        body.position.y = 1.05;
-        const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.44, 0.3, 10), matDark);
-        crown.position.y = 2.2;
-        const roof = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.55, 10), matDark);
-        roof.position.y = 2.6;
-        for (let i = 0; i < 5; i++) {
-          const ang = (i / 5) * Math.PI * 2;
-          const mer = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.12), mat);
-          mer.position.set(Math.cos(ang) * 0.42, 2.42, Math.sin(ang) * 0.42);
-          tower.add(mer);
-        }
-        const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 5), matDark);
-        flagPole.position.y = 3.0;
-        const flag = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, 0.02), new THREE.MeshBasicMaterial({ color: GOLD, transparent: true, opacity: 0.9 }));
-        flag.position.set(0.15, 3.15, 0);
-        tower.add(body, crown, roof, flagPole, flag);
-        put(tower, 0.35, 0, -0.55);
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.3), mat);
-        put(wall, -0.65, 0.35, -0.35);
-        break;
-      }
-      case 'volcano': {
-        const cone = new THREE.Mesh(new THREE.ConeGeometry(1.15, 1.9, 7), matDark);
-        put(cone, 0, 0.95, -0.35);
-        const lavaMat = new THREE.MeshBasicMaterial({ color: 0xff6030, transparent: true, opacity: 0.95 });
-        const lava = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.16, 9), lavaMat);
-        put(lava, 0, 1.85, -0.35);
-        lava.name = 'lava';
-        const rock1 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.24), mat);
-        put(rock1, 0.95, 0.16, 0.1);
-        const rock2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.17), mat);
-        put(rock2, -1.0, 0.12, 0.25);
-        break;
-      }
-      case 'water': {
-        const pond = new THREE.Mesh(
-          new THREE.CylinderGeometry(1.05, 1.05, 0.1, 20),
-          new THREE.MeshStandardMaterial({ color, roughness: 0.25, metalness: 0.35, transparent: true, opacity: 0.85 }),
-        );
-        put(pond, 0, 0.05, -0.4);
-        pond.name = 'pond';
-        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22), matDark);
-        put(rock, 0.85, 0.12, 0.15);
-        const reed = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.5, 5), matDark);
-        put(reed, -0.7, 0.25, 0.1);
-        break;
-      }
-    }
-    return g;
-  }
-
-  private buildRoomLabel(rid: string, icon: string): HTMLDivElement {
-    const el = document.createElement('div');
-    el.className = 'b3-roomlabel';
-    el.dataset.room = rid;
-    el.setAttribute('role', 'button');
-    el.setAttribute('aria-label', `房间 ${rid}`);
-    el.tabIndex = -1;
-    el.innerHTML = `
-      <span class="b3-rl-icon">${icon}</span>
-      <span class="b3-rl-name"></span>
-      <span class="b3-rl-count">0 人</span>
-      <span class="b3-rl-mud" hidden></span>
-      <span class="b3-rl-pending"></span>`;
-    el.querySelector('.b3-rl-name')!.textContent = rid;
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (this.roomPickMode && rid !== this.blockedRoom) this.hooks.onPickRoom(rid);
+    const room = buildRoomView(anchor, {
+      canPick: (rid) => this.roomPickMode && rid !== this.blockedRoom,
+      pick: (rid) => this.hooks.onPickRoom(rid),
+      hover: (rid) => { this.hoveredRoom = rid; },
     });
-    el.addEventListener('keydown', (e) => {
-      if (!this.roomPickMode || rid === this.blockedRoom || (e.key !== 'Enter' && e.key !== ' ')) return;
-      e.preventDefault();
-      this.hooks.onPickRoom(rid);
-    });
-    el.addEventListener('pointerenter', () => { this.hoveredRoom = rid; });
-    el.addEventListener('pointerleave', () => { this.hoveredRoom = ''; });
-    this.overlay.appendChild(el);
-    return el;
+    this.scene.add(room.group);
+    this.overlay.appendChild(room.label);
+    this.rooms.set(room.rid, room);
+    return room;
   }
 
   // ── 角色实体：程序化人形 ───────────────────────────────────
@@ -636,7 +381,7 @@ export class BattleScene3D {
     this.entities.delete(e.pid);
   }
 
-  private reconcileSlots(room: Room, players: SnapPlayerLite[]): void {
+  private reconcileSlots(room: RoomView, players: SnapPlayerLite[]): void {
     const occupants = stableMembers(players.filter(p => p.room === room.rid));
     const ids = new Set(occupants.map(p => p.id));
     for (const [pid, index] of room.slots) {
@@ -652,7 +397,7 @@ export class BattleScene3D {
     }
   }
 
-  private spawnFor(pid: string, room: Room) {
+  private spawnFor(pid: string, room: RoomView) {
     return room.anchor.spawns[room.slots.get(pid) ?? 0];
   }
 
@@ -678,8 +423,8 @@ export class BattleScene3D {
     for (const p of players.values()) this.syncEntity(this.ensureEntity(p), p, snap, immediate, moveSeconds);
     for (const [rid, room] of this.rooms) {
       if (this.map.rooms.has(rid)) continue;
-      this.releaseRoomObject(room.group);
-      if (room.bridge) this.releaseRoomObject(room.bridge);
+      releaseRoomObject(room.group);
+      if (room.bridge) releaseRoomObject(room.bridge);
       room.label.remove();
       this.rooms.delete(rid);
     }
@@ -715,7 +460,7 @@ export class BattleScene3D {
         room.group.add(dome);
         room.dome = dome;
       } else if (!domainHere && room.dome) {
-        this.releaseRoomObject(room.dome);
+        releaseRoomObject(room.dome);
         room.dome = null;
       }
       // 待爆炸弹浮标
@@ -729,7 +474,7 @@ export class BattleScene3D {
         room.group.add(g);
         room.bombMarker = g;
       } else if (!pending && room.bombMarker) {
-        this.releaseRoomObject(room.bombMarker);
+        releaseRoomObject(room.bombMarker);
         room.bombMarker = null;
       }
       room.group.visible = true;
@@ -741,7 +486,7 @@ export class BattleScene3D {
     }
   }
 
-  private paintRoom(room: Room): void {
+  private paintRoom(room: RoomView): void {
     const pickable = this.roomPickMode && this.blockedRoom !== room.rid;
     const selected = pickable && this.selectedRoom === room.rid;
     const hovered = pickable && this.hoveredRoom === room.rid;
@@ -1145,7 +890,7 @@ export class BattleScene3D {
    * 快照房间迁移与演出 playWalk 共用：起终点的世界坐标都以房间当前布局为准，
    * 终态与快照一致，仅过程是视觉过渡。
    */
-  private startWalkTo(e: Entity, toRoom: Room, slot: { x: number; z: number }, worldFrom: THREE.Vector3, dur: number): THREE.Vector3 {
+  private startWalkTo(e: Entity, toRoom: RoomView, slot: { x: number; z: number }, worldFrom: THREE.Vector3, dur: number): THREE.Vector3 {
     const worldTo = new THREE.Vector3(slot.x, PLATFORM_H + 0.1, slot.z);
     toRoom.group.localToWorld(worldTo);
     // 控制点：起点→终点中点向桌心收，形成绕行弧线
@@ -1223,7 +968,7 @@ export class BattleScene3D {
     this.director.request('area', ids.join(','), this.elapsed, () => ({ x: sum.x / anchors.length, z: sum.z / anchors.length }));
   }
 
-  private pulseRoom(rid: string, kind: NonNullable<Room['pulse']>['kind'], seconds: number): void {
+  private pulseRoom(rid: string, kind: NonNullable<RoomView['pulse']>['kind'], seconds: number): void {
     const room = this.rooms.get(rid);
     if (!room || (room.pulse && (room.pulse.kind === 'blast' || room.pulse.kind === 'aoe') && kind === 'hit')) return;
     room.pulse = { kind, until: this.elapsed + seconds };
@@ -1257,152 +1002,17 @@ export class BattleScene3D {
     wrap.style.top = `${yOffset}px`;
     wrap.innerHTML = html;
     this.floats.appendChild(wrap);
-    (wrap as unknown as { _world?: THREE.Vector3 })._world = worldPos.clone();
-    this.floatEnds.set(wrap, this.elapsed + 1.7);
+    this.floatLabels.set(wrap, { world: worldPos.clone(), until: this.elapsed + 1.7 });
   }
 
   private updateOverlay(): void {
-    const w = this.container.clientWidth;
-    const h = this.container.clientHeight;
-    const proj = (v: THREE.Vector3) => v.clone().project(this.camera);
-    // 先定位房间标签（名牌避让需要标签的屏幕位置）。
-    // 近侧房间（靠近镜头一侧）的标签放平台下方（门牌位）：俯视相机下头顶锚点
-    // 与角色几乎重合，标签若留在朝向桌心一侧（角色上方 35px）必然压住名牌；
-    // 平台下方是岩层空地，无角色无名牌，天然不冲突。
-    const labelAt = new Map<string, { x: number; y: number; wide: boolean }>();
-    for (const r of this.rooms.values()) {
-      const lp = new THREE.Vector3(r.anchor.label.x, r.anchor.floor + 0.07, r.anchor.label.z);
-      const p = proj(lp);
-      let x = (p.x * 0.5 + 0.5) * w;
-      let y = (-p.y * 0.5 + 0.5) * h;
-      if (r.pos.z > this.lookCur.z + 2) {
-        // proj 返回 NDC（-1..1），需换算成像素再取平台下方门牌位
-        const floorNdcY = proj(new THREE.Vector3(r.pos.x, PLATFORM_H, r.pos.z)).y;
-        const floorPx = (-floorNdcY * 0.5 + 0.5) * h;
-        y = Math.min(h - 34, floorPx + 30);
-        x = Math.max(44, Math.min(w - 44, x));
-      } else {
-        const nearEdge = r.pos.z > this.lookCur.z + 2 && Math.abs(r.pos.x) < 3;
-        if (nearEdge) x += (w < 600 ? 83 : 76);
-      }
-      const half = r.pendingIvan ? Math.min(114, w * 0.28) : 40;
-      const labelX = Math.max(half, Math.min(w - half, x));
-      r.label.style.transform = `translate(-50%,-50%) translate(${labelX.toFixed(1)}px,${y.toFixed(1)}px)`;
-      r.label.style.display = p.z > 1 || p.z < -1 ? 'none' : '';
-      labelAt.set(r.rid, { x: labelX, y, wide: r.pendingIvan });
-    }
-
-    // MAP-102 名牌布局：按房间分批。同房间成员按屏幕 x 排序（左右序与站位对应）；
-    // ≤4 人逐个锚定各自头顶（保持与角色的位置关联，重叠时横向让位）；
-    // 5 人以上收拢为房间锚定的列阵并向上生长（远离角色站立面），
-    // >6 人切换紧凑档。已淘汰成员的名牌始终保留（只压缩，不隐藏）。
-    interface PlatePos { e: Entity; x: number; y: number; visible: boolean }
-    const byRoom = new Map<string, PlatePos[]>();
-    for (const e of this.entities.values()) {
-      const world = new THREE.Vector3();
-      e.group.getWorldPosition(world);
-      world.y += PLATFORM_H + e.rig.headHeight() + 0.55;
-      const p = proj(world);
-      const item: PlatePos = {
-        e, x: (p.x * 0.5 + 0.5) * w, y: (-p.y * 0.5 + 0.5) * h,
-        visible: p.z <= 1 && p.z >= -1,
-      };
-      const list = byRoom.get(e.curRoom);
-      if (list) list.push(item); else byRoom.set(e.curRoom, [item]);
-    }
-    const pad = 46;
-    for (const [rid, list] of byRoom) {
-      const room = this.rooms.get(rid);
-      const label = labelAt.get(rid);
-      // 自身房标签的屏幕矩形（单步避让用）。跨房间标签不做链式避让：
-      // 标签沿屏幕中轴对角分布，逐个上推会连锁把名牌推到屏幕顶部；
-      // 残余重叠由标签 z8 置顶兜底（小胶囊浮在名牌上始终可读）。
-      const ownLabel = label ? { x: label.x, y: label.y, hw: label.wide ? 140 : 52, hh: label.wide ? 24 : 14 } : null;
-      const sorted = list.slice().sort((a, b) => a.x - b.x || a.e.plateSlot - b.e.plateSlot);
-      const count = sorted.length;
-      const dense = count > 6;
-      if (count <= 4) {
-        let lastX = -Infinity;
-        let lastY = -Infinity;
-        for (const m of sorted) {
-          if (!m.visible) continue;
-          // 轻量避让：与前一名牌重叠向右让位；压到自己房标签时向上让一步
-          if (lastX > -Infinity && Math.abs(m.x - lastX) < (dense ? 70 : 96) && Math.abs(m.y - lastY) < 46) {
-            m.x = lastX + (dense ? 70 : 96);
-          }
-          if (ownLabel && Math.abs(m.x - ownLabel.x) < ownLabel.hw + 50 && m.y > ownLabel.y - ownLabel.hh && m.y - 56 < ownLabel.y + ownLabel.hh) {
-            m.y = ownLabel.y - ownLabel.hh - 60;
-          }
-          m.x = Math.max(pad, Math.min(w - pad, m.x));
-          m.y = Math.max(30, m.y);
-          lastX = m.x;
-          lastY = m.y;
-        }
-      } else {
-        const cols = 3;
-        const spacing = w < 620 ? 66 : dense ? 76 : 100;
-        const rowH = dense ? 28 : 46;
-        const plateH = dense ? 42 : 58;
-        const plateHW = dense ? 38 : 52;
-        const center = room ? proj(room.pos) : null;
-        const anchorX = center ? (center.x * 0.5 + 0.5) * w : sorted[Math.floor(count / 2)].x;
-        const visibleTop = Math.min(...sorted.filter(m => m.visible).map(m => m.y));
-        const topY = Number.isFinite(visibleTop) ? visibleTop : sorted[0].y;
-        // 标签在头顶上方（近侧房）：整组从标签上方起步，避免盖住标签
-        const groupTop = ownLabel && ownLabel.y < topY ? Math.min(topY, ownLabel.y - 30) : topY;
-        const halfRow = ((cols - 1) * spacing) / 2;
-        const originX = Math.max(pad + halfRow, Math.min(w - pad - halfRow, anchorX));
-        // 逐行检测与自身房标签的相交：命中则整行上移一步（列对齐不变），
-        // 并保持行序单调（上行不高于上一行 - 行距）
-        const rowY: number[] = [];
-        for (let row = 0; row * cols < count; row++) {
-          let y = groupTop - 8 - row * rowH;
-          if (ownLabel) {
-            for (let col = 0; col < cols && row * cols + col < count; col++) {
-              const cx = originX + (col - (cols - 1) / 2) * spacing;
-              if (Math.abs(cx - ownLabel.x) < ownLabel.hw + plateHW && y > ownLabel.y - ownLabel.hh && y - plateH < ownLabel.y + ownLabel.hh) {
-                y = Math.min(y, ownLabel.y - ownLabel.hh - plateH - 4);
-              }
-            }
-          }
-          if (row > 0) y = Math.min(y, rowY[row - 1] - rowH);
-          rowY.push(Math.max(30, y));
-        }
-        sorted.forEach((m, i) => {
-          const col = i % cols;
-          const row = Math.floor(i / cols);
-          m.x = originX + (col - (cols - 1) / 2) * spacing;
-          m.y = rowY[row] ?? groupTop - 8;
-        });
-      }
-      for (const m of sorted) {
-        const e = m.e;
-        e.plate.classList.toggle('is-dense', dense);
-        const t = this.targetablePids.has(e.pid) && e.alive;
-        const acting = this.lastSnapshot?.currentActor === e.pid && e.alive;
-        const priority = t || acting || this.selectedPlayer === e.pid || this.myIds.includes(e.pid);
-        e.plate.classList.toggle('is-priority', priority && dense);
-        e.plate.style.transform = `translate(-50%,-100%) translate(${m.x.toFixed(1)}px,${m.y.toFixed(1)}px) scale(var(--dead-scale, 1))`;
-        // 已淘汰成员不再隐藏名牌：压缩灰章保留「谁已出局」的信息
-        e.plate.style.display = m.visible ? '' : 'none';
-        e.plate.classList.toggle('is-targetable', t);
-        e.plate.classList.toggle('is-selected', t && this.selectedPlayer === e.pid);
-        e.plate.classList.toggle('is-acting', acting);
-        e.plate.classList.toggle('is-dead', !e.alive);
-        // 行动者/可选目标/选中者名牌浮到最上层
-        e.plate.style.zIndex = priority ? '6' : e.alive ? '4' : '3';
-        const ring = e.ring.material as THREE.MeshBasicMaterial;
-        ring.color.setHex(this.selectedPlayer === e.pid && t ? 0x67e9f5 : acting ? GOLD : STATE_COLORS.targetable);
-        ring.opacity = t ? 0.78 : acting ? 0.96 : 0;
-        e.ring.scale.setScalar(t ? 1.2 : 1);
-      }
-    }
-    for (const wrap of Array.from(this.floats.children) as HTMLDivElement[]) {
-      const wp = (wrap as unknown as { _world?: THREE.Vector3 })._world;
-      if (!wp) continue;
-      const p = proj(wp);
-      wrap.style.transform = `translate(-50%,-50%) translate(${((p.x * 0.5 + 0.5) * w).toFixed(1)}px,${((-p.y * 0.5 + 0.5) * h).toFixed(1)}px)`;
-    }
+    positionOverlay({
+      camera: this.camera, lookZ: this.lookCur.z,
+      w: this.container.clientWidth, h: this.container.clientHeight,
+      rooms: this.rooms, entities: this.entities, floatLabels: this.floatLabels,
+      currentActor: this.lastSnapshot?.currentActor,
+      targetablePids: this.targetablePids, selectedPlayer: this.selectedPlayer, myIds: this.myIds,
+    });
   }
 
   // ── 交互 ──────────────────────────────────────────────────
@@ -1547,8 +1157,8 @@ export class BattleScene3D {
     this.shakeAmp = 0;
     this.hitStopUntil = 0;
     for (const fx of this.fxList.slice()) this.removeFx(fx);
-    for (const node of this.floatEnds.keys()) node.remove();
-    this.floatEnds.clear();
+    for (const node of this.floatLabels.keys()) node.remove();
+    this.floatLabels.clear();
     this.tweens.length = 0;
     for (const e of this.entities.values()) {
       if (newGame) { this.removeEntity(e); continue; }
@@ -1642,10 +1252,10 @@ export class BattleScene3D {
     this.realElapsed += dt;
     this.elapsed += dt;
     const poseDt = this.realElapsed < this.hitStopUntil ? dt * 0.15 : dt;
-    for (const [node, until] of this.floatEnds) {
+    for (const [node, { until }] of this.floatLabels) {
       if (this.elapsed < until) continue;
       node.remove();
-      this.floatEnds.delete(node);
+      this.floatLabels.delete(node);
     }
     const snap = this.lastSnapshot;
     // 补间
@@ -1876,10 +1486,10 @@ export class BattleScene3D {
     window.removeEventListener('resize', this.resize);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.resetPresentation(true);
-    this.releaseRoomObject(this.environment.root);
+    releaseRoomObject(this.environment.root);
     for (const room of this.rooms.values()) {
-      this.releaseRoomObject(room.group);
-      if (room.bridge) this.releaseRoomObject(room.bridge);
+      releaseRoomObject(room.group);
+      if (room.bridge) releaseRoomObject(room.bridge);
     }
     this.scene.clear();
     this.rooms.clear();

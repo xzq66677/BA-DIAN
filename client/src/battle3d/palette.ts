@@ -1,3 +1,5 @@
+export const GOLD = 0xd8b04a;
+
 /**
  * 拔典 3D 战场 · 视觉元数据（纯数据 + 纯辅助函数，可在 jsdom 单测）
  *
