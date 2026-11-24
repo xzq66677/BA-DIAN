@@ -268,7 +268,11 @@ export interface JudgeRoundRecord {
   /** 该判定所属回合号（rps2 排序判定与回合判定同回合；平局回合的记录随翻页保留在 lastReveal） */
   round?: number;
   throws: Partial<Record<PlayerId, Throw>>;
-  outcome: 'cycle' | 'alltie' | 'resolved' | 'tieWin';
+  /**
+   * - `tieAct`：平局（同拳 / 三人循环）且领域持有者获得**平局回合的行动资格**；
+   *   判定结果仍是平局，不改变胜负（`tieWin` 为旧数据保留值，新对局不再产生）。
+   */
+  outcome: 'cycle' | 'alltie' | 'resolved' | 'tieAct' | 'tieWin';
   winners?: PlayerId[];
   losers?: PlayerId[];
 }

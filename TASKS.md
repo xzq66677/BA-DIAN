@@ -9,7 +9,7 @@
 | 编号 | 未完成事项 | 状态 | 剩余工作及来源 |
 |---|---|---|---|
 | T-13 / #43 | 本地多人无法攻击 1P、单人局 AI 五连鞭要求玩家代判 | TODO（P0） | 复现两个场景，核对目标选择和判定参与者，确认是否同源。 [Issue #43](https://github.com/xzq66677/BA-DIAN/issues/43) |
-| T-11 / #23 | 完善五条悟技能和机制 | IN_PROGRESS（MMR12345） | 核对领域规则、数值与特殊技能。 [Issue #23](https://github.com/xzq66677/BA-DIAN/issues/23) |
+| T-11 / #23 | 完善五条悟技能和机制 | IN_PROGRESS（MMR12345） | 2026-11-24 已定案并落地：近战始终 1 伤、领域平局含三人循环、**领域只给平局回合行动权（不把平局改判为胜）**、无量=领域展开、被覆盖后可再展开；「血量≥20 叠伤×2」「完全体领域远程必中」暂缓（见 CHANGELOG 2026-11-24）。 [Issue #23](https://github.com/xzq66677/BA-DIAN/issues/23) |
 | T-12 / #31 | 完善精神攻击定义与逻辑 | TODO（P1） | 统一核对大贱客、大屁孩、马保国的精神攻击语义及太极反弹优先级。 [Issue #31](https://github.com/xzq66677/BA-DIAN/issues/31) |
 | T-10 / #16 | 完善躲藏机制 | TODO（P1） | 确认目标锁定、解除条件、范围伤害及无视躲藏例外。 [Issue #16](https://github.com/xzq66677/BA-DIAN/issues/16) |
 | #28 | 落地每局最多 10 人并确认代判规则 | TODO（P1） | 2026-11-23 用户确认最多 10 人。云端 `main` 的加入房间与添加 AI 仍按 20 人判断，待统一服务端容量、前端选项及规则文档。代判起始人数与适用判定待决定。 [服务端实现](https://github.com/xzq66677/BA-DIAN/blob/b1fa2d0b801e164afc712fee717b749a844cdb91/server/src/index.ts#L167-L241) · [Issue #28](https://github.com/xzq66677/BA-DIAN/issues/28) |

@@ -215,8 +215,9 @@ export default function ReplayViewer({ code, onClose, autoOpenId }: {
                     <span className="rp-rv-verdict">
                       {frame.reveal.outcome === 'cycle' ? '三人循环·平局回合'
                         : frame.reveal.outcome === 'alltie' ? '同拳平局·平局回合'
-                          : frame.reveal.outcome === 'tieWin' ? '领域判胜'
-                            : '分出胜负'}
+                          : frame.reveal.outcome === 'tieAct' ? '平局回合·领域行动'
+                            : frame.reveal.outcome === 'tieWin' ? '平局回合·领域行动（旧数据）'
+                              : '分出胜负'}
                     </span>
                   </div>
                 )}

@@ -1,12 +1,13 @@
 /**
  * 领域（场地状态）规则测试
  *
- * 规则要点（2026-11-20 用户确认）：
- *  1. 平局（全员同拳）时，若恰有一名领域持有者生效，则判其胜（tieWin）；
+ * 规则要点（2026-11-20 用户确认；平局语义 2026-11-24 修订）：
+ *  1. 平局（**全员同拳或三拳循环/三人循环**）时，领域**不改变平局结果**，
+ *     只让持有者获得「平局回合的行动资格」（`tieAct`）；判定历史/战绩仍记平；
  *  2. 领域是全场唯一的场地状态：后展开的领域**覆盖**先展开的，原持有者失效；
  *  3. 领域一旦生成即持续保留，不因回合推进 / 判定重来 / 普通胜负被清除；
- *  4. 只有"被其他领域覆盖"或"持有者退场"才失效；
- *  5. 无领域、多人循环、正常两组出拳等既有结果不受影响。
+ *  4. 只有"被其他领域覆盖"或"持有者退场"才失效；被覆盖后可以再次展开夺回；
+ *  5. 无领域、正常两组出拳等既有结果不受影响。
  */
 
 import { describe, it, expect } from 'vitest';
@@ -20,14 +21,35 @@ const throws = (g: Game, m: Record<string, Throw>) => {
   }
 };
 
-describe('领域：平局判胜', () => {
-  it('全员同拳 → 领域持有者判胜并获行动资格', () => {
+describe('领域：平局行动（不改变平局结果）', () => {
+  it('全员同拳 → 持有者获得平局行动资格，但判定仍是平局', () => {
     const g = makeGame([{ id: 'A', char: 'gojo' }, 'B'], 11);
     g.openDomain('A');
     throws(g, { A: 'rock', B: 'rock' });
     expect(g.phase).toBe('act');
     expect(g.qualified).toEqual(['A']);
-    expect(g.judgeRecords.some((r) => r.outcome === 'tieWin')).toBe(true);
+    expect(g.judgeRecords.some((r) => r.outcome === 'tieAct')).toBe(true);
+    // 判定历史与战绩都记平（大屁孩只看自己的输赢/平局）
+    expect(g.judgeHistory('A').at(-1)).toBe('tie');
+    expect(g.judgeHistory('B').at(-1)).toBe('tie');
+    expect(g.stats['A'].throwTie).toBe(1);
+    expect(g.stats['A'].throwWin).toBe(0);
+    // 行动结束照常翻页，不产生胜者
+    g.submitAction('A', { type: 'skip' });
+    expect(g.roundNo).toBe(2);
+    expect(g.isOver()).toBe(false);
+  });
+
+  it('领域平局回合不引爆大伊万（平局顺延规则不变）', () => {
+    const g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'I', char: 'ivan-girl' }], 17);
+    g.openDomain('A');
+    g.addDeferred({ kind: 'ivan', room: 'R1', explodeRound: 1, source: 'I', createdAtRound: 1 });
+    throws(g, { A: 'rock', I: 'rock' }); // 平局 + 领域 → A 行动，但回合仍未分胜负
+    expect(g.phase).toBe('act');
+    g.submitAction('A', { type: 'skip' });
+    expect(g.logs.some((l) => l.text.includes('爆炸'))).toBe(false);
+    expect(g.deferred.length).toBe(1);
+    expect(g.roundNo).toBe(2);
   });
 
   it('未展开领域时同拳平局 → 平局回合结束（不误判胜）', () => {
@@ -38,14 +60,25 @@ describe('领域：平局判胜', () => {
     expect(g.qualified).toEqual([]);
   });
 
-  it('三人循环不是平局：领域不触发，平局回合结束进入下一回合', () => {
+  it('三人循环也算平局：持有者获得平局行动资格（2026-11-24 修订）', () => {
     const g = makeGame([{ id: 'A', char: 'gojo' }, 'B', 'C'], 13);
     g.openDomain('A');
+    throws(g, { A: 'rock', B: 'paper', C: 'scissors' });
+    expect(g.phase).toBe('act');
+    expect(g.qualified).toEqual(['A']);
+    const cycle = g.judgeRecords.find((r) => r.stage === 'rps1');
+    expect(cycle?.outcome).toBe('tieAct');
+    expect(cycle?.winners).toEqual(['A']);
+    expect(g.judgeHistory('A').at(-1)).toBe('tie');
+  });
+
+  it('未展开领域时三人循环仍是平局回合翻页（不误判胜）', () => {
+    const g = makeGame([{ id: 'A', char: 'gojo' }, 'B', 'C'], 16);
     throws(g, { A: 'rock', B: 'paper', C: 'scissors' });
     expect(g.phase).toBe('rps1');
     expect(g.roundNo).toBe(2);
     expect(g.qualified).toEqual([]);
-    expect(g.logs.some((l) => l.text.includes('三人循环不属于「平局」'))).toBe(true);
+    expect(g.revealInfo()?.outcome).toBe('cycle');
   });
 
   it('两组出拳有明确胜负时领域不介入（正常判定不受影响）', () => {
@@ -53,7 +86,7 @@ describe('领域：平局判胜', () => {
     g.openDomain('A');
     throws(g, { A: 'rock', B: 'scissors', C: 'scissors' }); // A 胜
     expect(g.qualified).toEqual(['A']);
-    expect(g.judgeRecords.some((r) => r.outcome === 'tieWin')).toBe(false);
+    expect(g.judgeRecords.some((r) => r.outcome === 'tieAct')).toBe(false);
   });
 
   it('领域持有者已淘汰时不判胜（无覆盖方的失效场景）', () => {
@@ -146,14 +179,20 @@ describe('领域：持续性', () => {
     expect(g.charState('A').domain).toBe(true);
   });
 
-  it('平局回合翻页不清除领域', () => {
-    const g = makeGame([{ id: 'A', char: 'gojo' }, 'B', 'C'], 32);
-    // 三拳循环 → 平局回合翻页，领域仍在（但循环不触发判胜）
+  it('被覆盖后可以再次展开夺回（反复展开，2026-11-24 确认）', () => {
+    const g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B', char: 'laodaye' }], 32);
     g.openDomain('A');
-    throws(g, { A: 'rock', B: 'paper', C: 'scissors' });
-    expect(g.roundNo).toBe(2);
-    expect(g.charState('A').domain).toBe(true);
+    g.openDomain('B'); // 老大爷后展开 → 覆盖五条悟
+    expect(g.domainHolder).toBe('B');
+    expect(g.charState('A').domain).toBe(false);
+    g.openDomain('A'); // 五条悟被覆盖后再次展开 → 反向覆盖夺回
     expect(g.domainHolder).toBe('A');
+    expect(g.charState('A').domain).toBe(true);
+    expect(g.charState('B').domain).toBe(false);
+    expect(g.logs.filter((l) => l.text.includes('领域覆盖')).length).toBe(2);
+    // 夺回后平局仍判五条悟胜
+    throws(g, { A: 'rock', B: 'rock' });
+    expect(g.qualified).toEqual(['A']);
   });
 
   it('普通胜负判定与行动阶段不清除领域', () => {

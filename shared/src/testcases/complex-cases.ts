@@ -113,14 +113,14 @@ export const COMPLEX_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-X007', name: '角色规则覆盖：领域平局算胜覆盖默认平局规则', category: 'complex', seed: 306,
-    desc: '五条悟领域生效时，平局子轮不再重判而是直接判胜',
+    id: 'TC-X007', name: '角色规则覆盖：领域让持有者在平局回合行动（不改判胜负）', category: 'complex', seed: 306,
+    desc: '五条悟领域生效时，平局子轮仍是平局（不判胜、不重判），持有者获得该平局回合的行动资格',
     run: () => run(() => {
       const g = makeGame([{ id: 'G', char: 'gojo' }, 'B'], 306);
       g.charState('G').domain = true;
       playThrows(g, [{ G: 'paper', B: 'paper' }]);
-      const ok = g.phase === 'act' && g.qualified[0] === 'G' && g.judgeRecords.some((r) => r.outcome === 'tieWin');
-      return check(ok, '平局被领域覆盖为胜（tieWin）', `phase=${g.phase}, outcome记录=${g.judgeRecords.map(r=>r.outcome).join(',')}`, g);
+      const ok = g.phase === 'act' && g.qualified[0] === 'G' && g.judgeRecords.some((r) => r.outcome === 'tieAct');
+      return check(ok, '平局不变，领域持有者获得平局行动资格（tieAct）', `phase=${g.phase}, outcome记录=${g.judgeRecords.map(r=>r.outcome).join(',')}`, g);
     }),
   },
   {
