@@ -1,5 +1,5 @@
 # 伍六七 · wuliuqi-v1 · 角色记录（2026-11-21）
 
-规格：charId `wuliuqi`，血3攻1，攻击=3 段 AOE（每段对攻击时所在房间 1 伤）。剪影：暗银紧身衣+右手大剪刀（挥剪时双刃开合）+头巾垂角。资产：`characters/wuliuqi.ts`；站高 1.362。接入：models 注册；AOE 每段为独立 damage 事件（segment.index/total 已在场景 dmg-float 显示，既有逻辑）。测试：资产全套（scissors 挂点断言）通过。视觉：39 帧归档 batch2。迭代：① 剪刀初版刃长 .3 贴脸 → 收短至 .26 前倾 .55 → 复测Readable。UNVERIFIED：盲测/真机/三段连续帧。未提交未部署。
+规格：charId `wuliuqi`，血3攻1，攻击=前往任意房间，下一回合末在该房间砍三刀（1×3，不打自己；刀落瞬间动态判定房内其他存活者；先于大伊万爆炸；蓄力回合不能行动）。剪影：暗银紧身衣+右手大剪刀（挥剪时双刃开合）+头巾垂角。资产：`characters/wuliuqi.ts`；站高 1.362。接入：models 注册；AOE 每段为独立 damage 事件（segment.index/total 已在场景 dmg-float 显示，既有逻辑）。测试：资产全套（scissors 挂点断言）通过。视觉：39 帧归档 batch2。迭代：① 剪刀初版刃长 .3 贴脸 → 收短至 .26 前倾 .55 → 复测Readable。UNVERIFIED：盲测/真机/三段连续帧。未提交未部署。
 
 **实战对局证据（2026-11-21 补）**：本批两局未随机抽中 wuliuqi；资产/姿态/隔离渲染已 VERIFIED，真实对局入场帧待后续对局抽中时补录。

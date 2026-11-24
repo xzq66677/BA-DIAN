@@ -45,4 +45,12 @@ export const characterAi = {
     if (game.roundNo === 1 && me.hp <= 1 && st.fortuneUsed !== true) return { type: 'rollFortune' };
   },
   firstInRoom,
+  wuliuqi({ game, pid }) {
+    // 三刀是延迟 AOE：优先选「其他存活玩家最多」的房间蓄力（含原地）
+    const best = game.roomIds
+      .map((room) => ({ room, count: game.roomMembers(room).filter((p) => p !== pid && game.players[p].alive).length }))
+      .sort((a, b) => b.count - a.count)[0];
+    if (!best) return { type: 'skip' };
+    return { type: 'attack', room: best.room };
+  },
 } satisfies Record<string, Strategy>;

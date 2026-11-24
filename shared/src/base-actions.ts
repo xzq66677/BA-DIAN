@@ -51,8 +51,34 @@ function actMove(game: GameLike, pid: PlayerId, req: ActionRequest, map: BattleM
   return { ok: true };
 }
 
-function actAttack(game: GameLike, pid: PlayerId, req: ActionRequest): ActionResult {
+function actAttack(game: GameLike, pid: PlayerId, req: ActionRequest, map: BattleMap): ActionResult {
   const cd = game.charDef(pid);
+
+  // 指定房间的攻击（伍六七）：立刻移动到目标房间，并在下一回合末于该房间砍出三刀。
+  // 刀落结算在回合末（见 engine.endRound），先于大伊万爆炸；蓄力回合本人不能行动。
+  if (cd.attackRoomHint) {
+    const room = req.room;
+    if (!room || !game.roomIds.includes(room)) return { ok: false, error: `非法目标房间：${room}` };
+    const p = game.getPlayer(pid);
+    if (p.room !== room) {
+      const movementError = map.movementError?.(p.room, room);
+      if (movementError) return { ok: false, error: movementError };
+      const from = p.room;
+      p.room = room;
+      if (p.hidden) {
+        p.hidden = false;
+        game.log('state', `${p.name} 移动后现身（离开躲藏）`);
+      }
+      game.log('move', `${p.name} 从 ${from} 移动到 ${room}（准备三刀）`, { pid, from, to: room }, true);
+    }
+    game.addDeferred({
+      kind: 'wuliuqi-slash', room, source: pid,
+      explodeRound: game.roundNo + 1, createdAtRound: game.roundNo,
+    });
+    game.log('action', `🗡️ ${p.name} 在 ${room} 蓄力：下一回合末将在此房间砍出三刀`, { pid, room }, true);
+    return { ok: true };
+  }
+
   const targetId = req.targetId;
   if (!targetId || !game.players[targetId]) return { ok: false, error: '目标不存在' };
   const tp = game.players[targetId];

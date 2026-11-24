@@ -210,9 +210,9 @@ describe('AI 难度：躲藏目标找出来（Issue #61）', () => {
     }
   });
 
-  it('硬核伍六七直接 AOE 打躲藏者（无需找出来）', () => {
+  it('硬核伍六七直接指定房间蓄力（无需找出来，刀落时躲藏无效）', () => {
     const g = hideSetup(109, ['wuliuqi', 'default']);
-    expect(aiDecideAction(g, 'AI1', 'hard')).toEqual({ type: 'attack', targetId: 'AI2' });
+    expect(aiDecideAction(g, 'AI1', 'hard')).toEqual({ type: 'attack', room: g.players.AI2.room });
   });
 
   it('普通五条悟（领域已开）不再盲打躲藏者，改为找出来', () => {

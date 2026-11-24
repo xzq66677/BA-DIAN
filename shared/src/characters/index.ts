@@ -283,48 +283,17 @@ const mabaoguo: CharDef = {
   ],
 };
 
-/** 5. 伍六七（五六七）：3段AOE，每段对攻击时所在房间所有玩家造成1伤，段独立结算 */
+/** 5. 伍六七（五六七）：攻击=前往任意房间，下一回合末在该房间砍出三刀（1×3 AOE，不打自己） */
 const wuliuqi: CharDef = {
   id: 'wuliuqi',
-  aiStrategy: characterAi.firstInRoom,
+  aiStrategy: characterAi.wuliuqi,
   name: '伍六七',
-  desc: '血量3。攻击为3段AOE：每段对攻击发动时所在房间内所有玩家（默认不含自己）造成1伤；释放房间固定为攻击时所在房间；每段独立结算。',
+  desc: '血量3。攻击：立刻前往任意指定房间（可原地），下一回合末在该房间砍出三刀——每刀对刀落瞬间房间内所有其他存活玩家造成1伤（AOE 命中躲藏/隐身，不打自己），三刀独立结算、同一批内被命数复活者不再吃剩余刀；刀落排在所有行动之后、大伊万爆炸之前（平局回合同样落刀）。蓄力回合无论是否赢下判定，伍六七都不能进行其他行动。',
   hp: 3,
   attack: 1,
-  attackType: 'both',
-  init: () => ({ hitSelf: false }),
-  onAttackAction: (ctx, targetId) => {
-    const game = ctx.game;
-    const actor = ctx.actor;
-    if (!game.isSameRoom(actor, targetId)) {
-      return { ok: false, error: '伍六七的AOE以当前房间为释放房间，需指定同房间目标确认释放' };
-    }
-    const st = game.charState(actor);
-    const room = game.getPlayer(actor).room;
-    const targets = game.roomMembers(room).filter((pid) => {
-      if (pid === actor && st.hitSelf !== true) return false;
-      return true;
-    });
-    game.log('damage', `⚔️ 伍六七释放三段AOE！释放房间 ${room}（攻击时固定），目标：${targets.map((pid) => game.players[pid].name).join('、') || '无'}`, undefined, true);
-    const aoeGroup = game.nextGroupId();
-    for (let seg = 1; seg <= 3; seg++) {
-      for (const pid of targets) {
-        if (!game.players[pid].alive) continue; // 每段独立结算，段间死亡不再受击
-        game.applyDamage({
-          target: pid,
-          amount: 1,
-          source: actor,
-          dtype: 'physical',
-          aoe: true,
-          segment: { index: seg, total: 3 },
-          tag: 'wuliuqi-aoe',
-          groupId: aoeGroup,
-        });
-        if (game.isOver()) return { ok: true };
-      }
-    }
-    return { ok: true };
-  },
+  attackType: 'melee',
+  attackDesc: '前往任意房间，下一回合末在该房间砍出三刀（1×3，不打自己）',
+  attackRoomHint: true,
 };
 
 /** 6. 卖大伊万的小女孩：掷大伊万至任意房间（含自己），投掷后第一个分出胜负回合末爆炸（平局回合顺延），动态判定成员 */
