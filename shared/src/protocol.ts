@@ -2,7 +2,7 @@ import type { AnnounceItem } from './announce.js';
 import type { RuinsConditions } from './floating-ruins.js';
 import type { MapConfig } from './map-config.js';
 import type {
-  AiDifficulty, DeferredEvent, GamePhase, InteractionEvent, JudgeRoundRecord,
+  AiDifficulty, DeferredEvent, GamePhase, InteractionEvent, JudgeRoundRecord, JudgeStep,
   LogEntry, PlayerState, PlayerStats, ReplaySummary, RevealInfo, SkillJudgeView,
 } from './types.js';
 
@@ -18,7 +18,14 @@ export function supportsReplayFormat(version: unknown): boolean {
   return version === undefined || version === REPLAY_FORMAT_VERSION;
 }
 
-export type SnapPlayer = PlayerState & { charName: string };
+export type SnapPlayer = PlayerState & {
+  charName: string;
+  /**
+   * 公开的「连判」进度：该玩家最近至多 3 次已结算的回合判定结果（赢/平/输）。
+   * 只来自已经揭示的判定历史，不含任何未结算的出拳或私有状态。
+   */
+  judgeStreak?: JudgeStep[];
+};
 export type SnapLog = LogEntry;
 export type RoomState = 'lobby' | 'playing' | 'over';
 export interface ChatMessage { name: string; text: string; ts: number }
@@ -93,6 +100,13 @@ export interface GameSnapshot {
   orderSubmittedIds?: string[];
   orderResult?: string[];
   orderSub?: number;
+  /** 二次判定用途：行动排序（默认）/ 暴走权排序（多名大屁孩同时暴走） */
+  orderPurpose?: 'act' | 'berserk';
+  /**
+   * 回合前触发（大屁孩）：当前等待谁指定暴走目标、后面还有哪些持有者。
+   * null/缺省表示当前没有待结算的回合前触发。
+   */
+  trigger?: { kind: 'berserk'; actor: string; queue: string[] } | null;
   /** 局内战绩（每人一份） */
   stats?: Record<string, PlayerStats>;
   /** 领域持有者（全场唯一；null 表示当前无领域生效） */

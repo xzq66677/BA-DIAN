@@ -9,7 +9,8 @@ export function serializeSnapshot(game: Game, mapFields?: Pick<GameSnapshot, 'ru
       id: p.id, name: p.name, charId: p.charId, charName: game.charName(pid),
       hp: p.hp, maxHp: p.maxHp, room: p.room, originRoom: p.originRoom,
       alive: p.alive, type: p.type, hidden: p.hidden, invisible: p.invisible,
-      char: { ...p.char }, // 判定历史单独剥离
+      char: { ...p.char }, // 判定历史（完整记录）单独剥离，只下发最近 3 条公开结果
+      judgeStreak: game.judgeHistory(pid).slice(-3),
     };
   });
   return {
@@ -40,6 +41,10 @@ export function serializeSnapshot(game: Game, mapFields?: Pick<GameSnapshot, 'ru
     orderSubmittedIds: [...game.orderSubmittedIds],
     orderResult: [...game.orderOrder],
     orderSub: game.orderSub,
+    /** 二次判定用途（行动排序 / 暴走权排序） */
+    orderPurpose: game.orderPurposeKind(),
+    /** 回合前触发（大屁孩暴走）：等待谁指定目标、后续持有者 */
+    trigger: game.triggerView(),
     /** 局内战绩（每人一份，纯统计） */
     stats: Object.fromEntries(game.playerIds.map((pid) => [pid, { ...game.stats[pid] }])),
     /** 领域持有者（全场唯一；null 表示当前无领域生效） */

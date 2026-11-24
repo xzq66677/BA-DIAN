@@ -32,14 +32,17 @@
 
 ### 2. 阶段状态机
 ```
-rps1 ──全部提交──▶ 回合判定 ──平局/三人循环──▶ 平局回合（回合末翻页，下一回合重判）
-  │                    └─分出胜负─▶ rps2（资格者亲自出拳，逐子轮递归排序）──▶ act（队列逐个行动）
-  │                                                                          │
-  │        judge（马保国技能判定：双方逐局亲自出拳、AI 即刻代出）◀───────────┘
+rps1 ──全部提交──▶ 回合判定 ──平局/三人循环──▶ trigger（回合前触发：大屁孩暴走/自爆）──▶ roundEnd ──▶ 下一回合
+  │                    └─分出胜负─▶ trigger ──▶ rps2（资格者亲自出拳，逐子轮递归排序）──▶ act（队列逐个行动）
+  │                                                                                      │
+  │        judge（马保国技能判定 / 太极反弹：双方逐局亲自出拳、AI 即刻代出）◀─────────────┘
   │           └─ 判定结束才补结算：太极挂起的伤害 / 五连鞭伤害 / 不讲武德精神攻击 → 继续 act
   ▼
 over ◀──checkWin── roundEnd（延迟事件：ivan/damage）◀──队列耗尽──┘
 ```
+
+- **trigger 阶段**（回合最前）：大屁孩的暴走/自爆在这里统一结算；暴走由本人指定任意其他存活玩家；多名大屁孩同时暴走时先用 rps2 排序决定暴走权顺序（`orderPurpose: 'berserk'`，快照 `trigger` 字段）。
+- **判定中断与恢复**：判定结算途中（判定历史入史 → 暴走 → 伤害 → 太极挂起 / 不讲武德排队）排入的技能判定必须**立刻暂停当前收尾**，等判定全部结束再继续（`judgeResumeHook`）；否则会出现「平局卡死」或「行动先于判定」。`applyDamage` 的 `instakill` 让精神攻击在**结算时**按目标当前血量计算，判定挂起期间回血无法抵消。
 
 ### 3. 隐藏提交
 - 出拳值仅存于服务端 `pendingThrows`；快照 `snapshot()` 不包含未揭示拳种，只广播 `submittedIds`（已提交者名单）。
@@ -53,7 +56,9 @@ over ◀──checkWin── roundEnd（延迟事件：ivan/damage）◀──�
 3. defense 阶段钩子（马保国太极：种子判定→改目标为来源并标记 `reflected`）；
 4. 结算（instakill 秒杀 / 数值扣血，浮点精确到 0.25）；
 5. 附加效果（已转移的伤害剥离 effects）；
-6. HP≤0 → `eliminate`（移出房间、清状态、死亡钩子链深度保护、checkWin）。
+6. HP≤0 → `eliminate`（移出房间、清状态、死亡钩子链深度保护、checkWin；`ignoreLives` 时不消耗命数）。
+
+**精神攻击（独立词条）**：`shared/src/mental.ts` 的 `mentalKill()` 是唯一入口（`dtype: mental` + `bypassHide` + `ignoreLives`，伤害=目标当前血量）。角色实现只调用它，不要手拼 `applyDamage` 字段或绕过管线直接 `eliminate`——这样躲藏/命数/转移/反弹四条语义才能保持同源。
 
 ### 5. 角色系统（配置与基础规则分离）
 - `CharDef`：基础面板（hp/attack/attackType/ rangedCapable/ rangedNeedsAim…）+ 钩子（onBeforeDamage + damageHookStage、onDeath、onRoundEnd、onJudgeAppend、validateAttack、onAttackAction、dynamicDamage）+ 技能 `actions` + 领域标记。

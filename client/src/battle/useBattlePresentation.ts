@@ -132,7 +132,7 @@ function reducedMotionPreferred(): boolean {
 export function useBattlePresentation(
   logs: LogLike[],
   gameNo?: number,
-  gamePhase?: 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over',
+  gamePhase?: 'rps1' | 'rps2' | 'trigger' | 'act' | 'judge' | 'roundEnd' | 'over',
   resync?: { cursor: number },
   announces?: AnnounceItem[],
   pace?: PaceProfile,

@@ -30,7 +30,7 @@ export interface GameLike {
   isSameRoom(a: PlayerId, b: PlayerId): boolean;
   isOver(): boolean;
   applyDamage(req: DamageRequest): import('./types.js').AppliedDamage;
-  eliminate(pid: PlayerId, cause: string, killer?: PlayerId): void;
+  eliminate(pid: PlayerId, cause: string, killer?: PlayerId, opts?: { ignoreLives?: boolean }): void;
   heal(pid: PlayerId, amount: number): void;
   checkWin(): boolean;
   appendJudgeHistory(pid: PlayerId, step: import('./types.js').JudgeStep, stage: 'rps1' | 'rps2', sub: number): void;

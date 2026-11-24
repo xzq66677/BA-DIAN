@@ -52,7 +52,7 @@ export const CARD_META: Record<string, CardMeta> = {
   mabaoguo: {
     img: './cards/mabaoguo.webp', thumb: './cards/mabaoguo-thumb.webp', no: '04',
     skills: '【混元形意太极】·【闪电五连鞭】',
-    mech: '普攻1。受到伤害时判定，判定赢则原伤反弹；闪电五连鞭5场判定按胜次扣血；不讲武德死后5局赢3带走对面。',
+    mech: '普攻1。受到伤害时判定，判定赢则原伤反弹；闪电五连鞭5场判定按胜次扣血；不讲武德死后5局赢3以精神攻击（无视躲藏/命数，不可反弹）带走对面。',
     quote: '年轻人不讲武德，来骗来偷袭，这伤原样还你。',
   },
   wuliuqi: {
@@ -76,13 +76,13 @@ export const CARD_META: Record<string, CardMeta> = {
   dajianke: {
     img: './cards/dajianke.webp', thumb: './cards/dajianke-thumb.webp', no: '08',
     skills: '【转嫁】·【嘴臭】',
-    mech: '精神攻击。被动只转移伤害，含范围与延迟伤害，不转状态与控制；精神伤害不转。辱骂无视距离与躲藏，同一目标累计三次致死。',
+    mech: '被动只转移伤害（含范围与延迟伤害，不转状态与控制；精神伤害不转）。辱骂是精神攻击：无视距离、躲藏与命数，同一目标累计三次直接击杀。',
     quote: '伤害你替我挨，附加状态你自己留着。',
   },
   dapihuai: {
     img: './cards/dapihuai.webp', thumb: './cards/dapihuai-thumb.webp', no: '09',
     skills: '【连判】·【暴走】·【自爆】',
-    mech: '跨回合记住每次判定结果：连续三次不同结果触发暴走精神攻击；连续三次相同结果触发自爆。',
+    mech: '血量20、攻击0。跨回合记住每次判定：连续三次不同 → 回合最前暴走，本人指定任意玩家（精神攻击·秒杀·无视躲藏/命数）；连续三次相同 → 回合最前自爆。多人同时暴走先二次判定排序。',
     quote: '赢赢赢我炸，赢平输我更炸。',
   },
 };

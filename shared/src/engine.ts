@@ -23,8 +23,9 @@ import type { RuinsConditions } from './floating-ruins.js';
 import { MAPS, type BattleMap, type MapId } from './maps.js';
 import { BASE_ACTIONS } from './base-actions.js';
 import { resolveDamage } from './damage.js';
+import { mentalKill } from './mental.js';
 import { serializeSnapshot } from './snapshot.js';
-import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats } from './judge.js';
+import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats, type SubRoundOutcome } from './judge.js';
 import type { CharDef, GameLike, CharActionContext } from './chardef.js';
 
 /** 引擎内部的「进行中判定」状态（带逐局进度） */
@@ -99,6 +100,20 @@ export class Game implements GameLike {
   private activeJudge: ActiveJudge | null = null;
   /** 判定结束后从哪里继续（行动后 / 回合末） */
   private judgeResume: 'afterAction' | 'endRound' | null = null;
+  /**
+   * 判定中断恢复钩子：判定结算途中（判定历史入史 → 暴走 → 伤害 → 太极挂起 / 不讲武德排队）
+   * 可能排入新的技能判定，此时把「当前流程的收尾」存成闭包，等判定全部结束后再执行。
+   */
+  private judgeResumeHook: (() => void) | null = null;
+  /**
+   * 回合前触发（大屁孩「暴走 / 自爆」）：判定结束后、行动阶段开始前统一结算。
+   * triggerQueue 为已排好序的暴走权持有者；triggerActor 为当前要选择目标的人。
+   */
+  private triggerQueue: PlayerId[] = [];
+  private triggerActor: PlayerId | null = null;
+  private triggerResume: (() => void) | null = null;
+  /** 当前二次判定的用途：行动排序 / 暴走权排序 */
+  private orderPurpose: 'act' | 'berserk' = 'act';
   /** 判定计数（仅用于日志/标识） */
   private judgeSeq = 0;
   histories: Record<PlayerId, JudgeStep[]> = {};
@@ -339,6 +354,9 @@ export class Game implements GameLike {
 
   appendJudgeHistory(pid: PlayerId, step: JudgeStep, stage: 'rps1' | 'rps2', sub: number): void {
     this.histories[pid].push(step);
+    // 已淘汰的玩家不再触发判定钩子：同一子轮内先阵亡者（如被另一名大屁孩暴走秒杀）
+    // 仍会被追加历史，但不能再以「尸体」身份触发暴走/自爆等角色结算。
+    if (!this.players[pid]?.alive) return;
     // 分发给该玩家角色的 onJudgeAppend 钩子（如大屁孩）
     const cd = this.charDef(pid);
     if (cd.onJudgeAppend) {
@@ -404,7 +422,11 @@ export class Game implements GameLike {
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
       this.roundSummary.push('回合判定平局（三人循环）');
       this.roundResolved = false;
-      this.endRoundAfterJudge();
+      // 判定历史入史可能触发大屁孩暴走/自爆 → 伤害 → 太极挂起 / 不讲武德排队：
+      // 先把判定结算完，再结算回合前触发，最后收尾（否则平局会停在 rps1 卡死）。
+      const next = () => this.continueAfterJudge(() => this.endRoundAfterJudge());
+      if (this.pauseForPendingJudges(next)) return;
+      next();
       return;
     }
     if (outcome.status === 'alltie') {
@@ -415,7 +437,9 @@ export class Game implements GameLike {
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
       this.roundSummary.push('回合判定平局（同拳平局）');
       this.roundResolved = false;
-      this.endRoundAfterJudge();
+      const next2 = () => this.continueAfterJudge(() => this.endRoundAfterJudge());
+      if (this.pauseForPendingJudges(next2)) return;
+      next2();
       return;
     }
     // 领域平局行动：判定结果仍是平局（大伊万顺延、判定历史记平），
@@ -427,18 +451,29 @@ export class Game implements GameLike {
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
       this.roundSummary.push(`回合判定平局（${holderName} 领域行动）`);
       this.roundResolved = false;
-      if ((this.phase as GamePhase) === 'over') return;
-      if (!this.players[holder]?.alive) {
-        this.endRoundAfterJudge();
-        return;
-      }
-      this.beginActionPhase([holder]);
+      const tail = () => this.continueAfterJudge(() => {
+        if ((this.phase as GamePhase) === 'over') return;
+        if (!this.players[holder]?.alive) {
+          this.endRoundAfterJudge();
+          return;
+        }
+        this.beginActionPhase([holder]);
+      });
+      if (this.pauseForPendingJudges(tail)) return;
+      tail();
       return;
     }
     this.log('judge', `回合判定（${throwsDesc}）：分出胜负`);
     appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
     this.roundResolved = true;
 
+    const tail = () => this.continueAfterJudge(() => this.finishResolvedJudge(outcome));
+    if (this.pauseForPendingJudges(tail)) return;
+    tail();
+  }
+
+  /** 分出胜负后的收尾：公告资格 → 终局判定 → 进入行动阶段 */
+  private finishResolvedJudge(outcome: SubRoundOutcome): void {
     if ((this.phase as GamePhase) === 'over') return; // 判定过程中可能触发自爆等导致终局
 
     // 胜者获得行动资格（过滤判定过程中死亡者）
@@ -457,6 +492,127 @@ export class Game implements GameLike {
     }
 
     this.beginActionPhase(winnersAlive);
+  }
+
+  // ─── 回合前触发（大屁孩：暴走 / 自爆） ───────────────────────
+
+  /** 判定已结算完毕：先结算回合前触发（暴走/自爆），再执行 next（行动阶段 / 回合收尾） */
+  private continueAfterJudge(next: () => void): void {
+    this.triggerResume = next;
+    this.runRoundTriggers();
+  }
+
+  /**
+   * 结算本回合标记的暴走/自爆。顺序：
+   *  1. 自爆先结算（自身淘汰、不伤他人）；
+   *  2. 存活的暴走持有者：1 人直接选目标；≥2 人先做二次判定决定暴走权顺序。
+   * 触发结算期间可能排入技能判定（暴走被太极挂起 / 击杀马保国触发不讲武德），
+   * 一律先暂停，等判定结束再继续。
+   */
+  private runRoundTriggers(): void {
+    if (this.phase === 'over') { this.triggerResume = null; return; }
+    const boom = this.aliveIds().filter((pid) => (this.charState(pid) as { pendingTrigger?: string }).pendingTrigger === 'selfdestruct');
+    for (const pid of boom) {
+      (this.charState(pid) as { pendingTrigger?: string | null }).pendingTrigger = null;
+      this.log('trigger', `💥 ${this.players[pid].name} 自爆！`, { pid, trigger: 'selfdestruct' }, true);
+      this.roundSummary.push(`${this.players[pid].name} 自爆`);
+      this.eliminate(pid, 'selfdestruct');
+      if ((this.phase as GamePhase) === 'over') { this.triggerResume = null; return; }
+      if (this.judgeQueue.length > 0 && this.pauseForPendingJudges(() => this.runRoundTriggers())) return;
+    }
+    const berserk = this.aliveIds().filter((pid) => (this.charState(pid) as { pendingTrigger?: string }).pendingTrigger === 'berserk');
+    if (berserk.length === 0) { this.finishTriggers(); return; }
+    if (berserk.length === 1) { this.startTriggerSelection([berserk[0]]); return; }
+    this.beginBerserkOrder(berserk);
+  }
+
+  /** 进入「暴走选择目标」阶段：按给定顺序逐个等待持有者指定目标 */
+  private startTriggerSelection(order: PlayerId[]): void {
+    this.triggerQueue = [...order];
+    this.triggerActor = null;
+    this.phase = 'trigger';
+    this.nextTriggerActor();
+  }
+
+  private nextTriggerActor(): void {
+    if (this.phase === 'over') { this.triggerResume = null; return; }
+    this.triggerActor = null;
+    while (this.triggerQueue.length > 0) {
+      const pid = this.triggerQueue.shift()!;
+      if (!this.players[pid]?.alive) continue;
+      if ((this.charState(pid) as { pendingTrigger?: string }).pendingTrigger !== 'berserk') continue;
+      this.triggerActor = pid;
+      this.phase = 'trigger';
+      this.log('phase', `🌀 ${this.players[pid].name} 获得暴走权：选择任意一名其他玩家释放精神攻击`, undefined, true);
+      return;
+    }
+    this.finishTriggers();
+  }
+
+  private finishTriggers(): void {
+    this.triggerActor = null;
+    const next = this.triggerResume;
+    this.triggerResume = null;
+    if (this.phase === 'over') return;
+    next?.();
+  }
+
+  /** 暴走权：持有者指定任意一名其他存活玩家（任意房间；无视躲藏/命数） */
+  submitBerserk(pid: PlayerId, targetId: PlayerId): ActionResult {
+    if (this.phase !== 'trigger' || this.triggerActor !== pid) {
+      return { ok: false, error: '当前不是你的暴走选择时机' };
+    }
+    const tp = this.players[targetId];
+    if (!tp || !tp.alive) return { ok: false, error: '目标不存在或已淘汰' };
+    if (targetId === pid) return { ok: false, error: '不能对自己释放暴走' };
+    (this.charState(pid) as { pendingTrigger?: string | null }).pendingTrigger = null;
+    this.log('trigger', `🌀 ${this.players[pid].name} 暴走：对 ${tp.name} 发动精神攻击（秒杀·无视躲藏/命数）`, { pid, target: targetId, trigger: 'berserk' }, true);
+    this.roundSummary.push(`${this.players[pid].name} 暴走 ${tp.name}`);
+    this.triggerActor = null;
+    mentalKill(this, { target: targetId, source: pid, tag: 'berserk' });
+    if ((this.phase as GamePhase) === 'over') { this.triggerResume = null; return { ok: true }; }
+    if (this.judgeQueue.length > 0 && this.pauseForPendingJudges(() => this.nextTriggerActor())) return { ok: true };
+    this.nextTriggerActor();
+    return { ok: true };
+  }
+
+  /** 多名大屁孩同时暴走：先做二次判定（与行动排序同一套规则：输者先）决定暴走权顺序 */
+  private beginBerserkOrder(pids: PlayerId[]): void {
+    const orderLabel = (order: PlayerId[]) =>
+      `⭐ 暴走顺序（二次判定胜负决定，输者先暴走）：${order.map((pid) => this.players[pid].name).join(' → ')}`;
+    // 服务端代掷模式（自动化用例 / 机制测试场）：直接按种子结算排序
+    if (this.rules.secondJudgeMode === 'serverRoll') {
+      const { order, rounds } = resolveActionOrder([...pids], (group) => rollThrows(group, this.rng));
+      this.judgeRecords.push(...rounds);
+      for (const r of rounds) r.round = this.roundNo;
+      if (rounds.length > 0) this.lastReveal = rounds[rounds.length - 1];
+      const aliveOrder = order.filter((pid) => this.players[pid].alive);
+      this.log('order', orderLabel(aliveOrder), undefined, true);
+      this.startTriggerSelection(aliveOrder);
+      return;
+    }
+    this.orderPurpose = 'berserk';
+    this.phase = 'rps2';
+    this.orderQueue = [[...pids]];
+    this.orderOrder = [];
+    this.orderGroup = [];
+    this.orderPending = {};
+    this.orderSubmittedIds = [];
+    this.orderSub = 0;
+    this.log('phase', `—— 第 ${this.roundNo} 回合 · 暴走权排序判定（多名大屁孩同时暴走）——`, undefined, true);
+    this.log('info', `暴走权：${pids.map((pid) => this.players[pid].name).join('、')} 进行二次判定，输者先获得暴走权`);
+    this.startOrderSubRound();
+  }
+
+  /** 当前回合前触发视图（供服务端驱动 AI / 快照下发） */
+  triggerView(): { kind: 'berserk'; actor: PlayerId; queue: PlayerId[] } | null {
+    if (this.phase !== 'trigger' || !this.triggerActor) return null;
+    return { kind: 'berserk', actor: this.triggerActor, queue: [...this.triggerQueue] };
+  }
+
+  /** 二次判定用途（行动排序 / 暴走权排序），供快照与 UI 标注 */
+  orderPurposeKind(): 'act' | 'berserk' {
+    return this.orderPurpose;
   }
 
   /**
@@ -495,6 +651,7 @@ export class Game implements GameLike {
   // ─── 二次判定与行动队列 ───────────────────────────────────────
 
   private beginActionPhase(winners: PlayerId[]): void {
+    this.orderPurpose = 'act';
     const aliveWinners = winners.filter((pid) => this.players[pid].alive);
     // 只有一名资格者时无需排序：直接入队（不额外出拳、不产生空排序记录）
     if (aliveWinners.length === 1) {
@@ -680,6 +837,13 @@ export class Game implements GameLike {
     this.orderPending = {};
     this.orderSubmittedIds = [];
     const aliveOrder = this.orderOrder.filter((pid) => this.players[pid].alive);
+    // 暴走权排序：按同一套规则（输者先）给出顺序后，进入「选择暴走目标」阶段
+    if (this.orderPurpose === 'berserk') {
+      this.orderPurpose = 'act';
+      this.log('order', `⭐ 暴走顺序（二次判定胜负决定，输者先暴走）：${aliveOrder.map((pid) => this.players[pid].name).join(' → ')}`, undefined, true);
+      this.startTriggerSelection(aliveOrder);
+      return;
+    }
     this.qualified = aliveOrder;
     this.queue = aliveOrder;
     this.actIndex = 0;
@@ -716,6 +880,19 @@ export class Game implements GameLike {
   private enterJudgeIfPending(resume: 'afterAction' | 'endRound'): boolean {
     if (this.judgeQueue.length === 0) return false;
     this.judgeResume = resume;
+    this.judgeResumeHook = null;
+    return this.startNextJudge();
+  }
+
+  /**
+   * 判定结算途中排入判定时暂停当前收尾流程：把 tail 存为恢复钩子并启动判定。
+   * 返回 true 表示调用方应立即 return（对局暂停在 judge 阶段）。
+   */
+  private pauseForPendingJudges(tail: () => void): boolean {
+    if (this.phase === 'over') return false;
+    if (this.judgeQueue.length === 0) return false;
+    this.judgeResume = null;
+    this.judgeResumeHook = tail;
     return this.startNextJudge();
   }
 
@@ -802,6 +979,15 @@ export class Game implements GameLike {
 
   /** 判定全部结束后继续对局 */
   private resumeAfterJudges(): void {
+    // 判定途中被打断的收尾流程优先恢复（如平局收尾 / 行动阶段开始）
+    const hook = this.judgeResumeHook;
+    if (hook) {
+      this.judgeResumeHook = null;
+      this.judgeResume = null;
+      if (this.phase === 'over') return;
+      hook();
+      return;
+    }
     const resume = this.judgeResume;
     this.judgeResume = null;
     if (this.phase === 'over') return;
@@ -936,13 +1122,15 @@ export class Game implements GameLike {
 
   // ─── 淘汰与胜负 ──────────────────────────────────────────────
 
-  eliminate(pid: PlayerId, cause: string, killer?: PlayerId): void {
+  eliminate(pid: PlayerId, cause: string, killer?: PlayerId, opts?: { ignoreLives?: boolean }): void {
     const p = this.players[pid];
     if (!p || !p.alive) return;
 
-    // 命数机制（如五条悟2条命）：致死时消耗一条命并满血复活；被房主踢出/主动退出不触发
+    // 命数机制（如五条悟2条命）：致死时消耗一条命并满血复活；被房主踢出/主动退出不触发。
+    // 秒杀类精神攻击（ignoreLives，如大屁孩暴走）无视命数：直接淘汰，不消耗命数、不复活。
     const livesLeft = typeof p.char.livesLeft === 'number' ? (p.char.livesLeft as number) : 1;
-    if (livesLeft > 1 && cause !== 'kicked' && cause !== 'left') {
+    const ignoreLives = opts?.ignoreLives === true;
+    if (!ignoreLives && livesLeft > 1 && cause !== 'kicked' && cause !== 'left') {
       p.char.livesLeft = livesLeft - 1;
       p.hp = p.maxHp;
       p.hidden = false;
@@ -1156,6 +1344,11 @@ export class Game implements GameLike {
     this.judgeQueue = [];
     this.activeJudge = null;
     this.judgeResume = null;
+    this.judgeResumeHook = null;
+    this.triggerQueue = [];
+    this.triggerActor = null;
+    this.triggerResume = null;
+    this.orderPurpose = 'act';
     this.judgeRecords = [];
     this.entrantOrder = this.aliveIds();
     this.roundSummary = [];

@@ -190,6 +190,9 @@ class Net {
   submitAction(code: string, playerId: string, token: string, action: ActionRequest) {
     return this.emit('game:action', { code, playerId, token, action });
   }
+  submitBerserk(code: string, playerId: string, token: string, targetId: string) {
+    return this.emit('game:berserk', { code, playerId, token, targetId });
+  }
 }
 
 export const net = new Net();

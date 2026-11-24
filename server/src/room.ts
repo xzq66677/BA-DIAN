@@ -24,9 +24,9 @@ import type {
 } from '../../shared/src/types.js';
 import { randomThrow } from '../../shared/src/rng.js';
 
-import { aiDecideActions, aiThrow } from './ai.js';
+import { aiDecideActions, aiThrow, aiBerserkTarget } from './ai.js';
 export type { ChatMessage, RoomState } from '../../shared/src/protocol.js';
-export { aiDecideAction, aiDecideActions, aiThrow } from './ai.js';
+export { aiDecideAction, aiDecideActions, aiThrow, aiBerserkTarget } from './ai.js';
 
 export interface Seat {
   playerId: PlayerId;
@@ -248,6 +248,14 @@ export class Room {
     return r;
   }
 
+  /** 大屁孩暴走：持有者在「回合最靠前」的触发阶段指定任意一名其他存活玩家 */
+  submitBerserk(playerId: PlayerId, targetId: PlayerId): { ok: boolean; error?: string } {
+    const r = this.applyMatchInput({ kind: 'berserk', source: 'player', playerId, targetId });
+    if (!r.ok) return r;
+    this.afterGameMutation();
+    return r;
+  }
+
   private applyMatchInput(input: MatchInput) {
     return this.matchRecorder?.apply(input) ?? { ok: false, error: '游戏未开始' };
   }
@@ -369,6 +377,18 @@ export class Room {
           this.applyMatchInput({ kind: 'throw', source: 'ai', playerId: pid, value: t });
           this.captureFrame();
         }
+        continue;
+      }
+      if (g.phase === 'trigger') {
+        // 大屁孩暴走：AI 自动选目标（优先血量最低的非大屁孩），真人自己选
+        const view = g.triggerView();
+        if (!view) break;
+        const seat = this.seatOf(view.actor);
+        if (seat && seat.type !== 'ai') break;
+        const target = aiBerserkTarget(g, view.actor);
+        if (!target) break;
+        this.applyMatchInput({ kind: 'berserk', source: 'ai', playerId: view.actor, targetId: target });
+        this.captureFrame();
         continue;
       }
       if (g.phase === 'judge') {

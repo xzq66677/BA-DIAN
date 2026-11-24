@@ -16,6 +16,8 @@ function applyInput(game: Game, input: MatchInput): ActionResult {
       return game.submitThrow(input.playerId, input.value);
     case 'action':
       return game.submitAction(input.playerId, input.action);
+    case 'berserk':
+      return game.submitBerserk(input.playerId, input.targetId);
     case 'throwTimeout':
       if (game.phase === 'rps1') game.forceFillThrows();
       else if (game.phase === 'rps2') game.forceFillOrderThrows();
