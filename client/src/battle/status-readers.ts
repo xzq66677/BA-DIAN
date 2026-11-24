@@ -34,11 +34,7 @@ const readDomain: PlayerStatusReader = (p) => {
   const items: PlayerStatusItem[] = [];
   if (p.char.domain === true) items.push({
     key: 'domain', icon: '✨', label: '领域', value: '生效中',
-    detail: '判定平局算其胜；后展开的领域会覆盖先展开的领域。', tone: 'good',
-  });
-  if (p.char.boosted === true) items.push({
-    key: 'boosted', icon: '⚡', label: '领域强化', value: '生效中',
-    detail: '老大爷领域内近战 5 伤、远程 3 伤。', tone: 'good',
+    detail: '平局回合可行动（平局结果不变）；老大爷领域内近战 5 伤、远程 3 伤。后展开的领域会覆盖先展开的领域。', tone: 'good',
   });
   if (typeof p.char.livesLeft === 'number' && p.char.livesLeft > 1) items.push({
     key: 'lives', icon: '💫', label: '复活次数', value: `剩余 ${p.char.livesLeft} 条`,

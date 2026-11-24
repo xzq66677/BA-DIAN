@@ -246,3 +246,24 @@ describe('AI 难度：整局回归', { timeout: 180000 }, () => {
     expect(r.over).toBe(true);
   });
 });
+
+describe('AI 角色策略：老大爷', () => {
+  it('无领域先开领域；有领域后改用完全体攻击（近战/远程）', () => {
+    const g = makeAiGame(501, 2, ['laodaye', 'default']);
+    g.players.AI2.room = 'R1';
+    g.submitThrow('AI1', 'rock');
+    g.submitThrow('AI2', 'scissors');
+    expect(g.phase).toBe('act');
+    expect(aiDecideAction(g, 'AI1', 'hard')).toEqual({ type: 'domain' });
+
+    g.openDomain('AI1');
+    const melee = aiDecideAction(g, 'AI1', 'hard');
+    expect(melee?.type).toBe('attack');
+    expect(melee?.ranged).toBe(false);
+
+    g.players.AI2.room = 'R2';
+    const ranged = aiDecideAction(g, 'AI1', 'hard');
+    expect(ranged?.type).toBe('attack');
+    expect(ranged?.ranged).toBe(true);
+  });
+});

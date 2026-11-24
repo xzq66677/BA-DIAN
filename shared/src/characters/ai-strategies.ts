@@ -34,6 +34,13 @@ export const characterAi = {
     }
     return firstInRoom(ctx);
   },
+  laodaye({ game, pid, st, alive }) {
+    // 领域一开即完全体（近5/远3），且平局可行动：先开领域，再用强化伤害攻击
+    if (st.domain !== true) return { type: 'domain' };
+    const target = alive.find((p) => p !== pid && !(game.players[p].hidden || game.players[p].invisible));
+    if (target) return { type: 'attack', targetId: target, ranged: !game.isSameRoom(pid, target) };
+    return undefined;
+  },
   ivan({ game, me, difficulty }) {
     const best = game.roomIds.filter((room) => room !== me.room)
       .map((room) => ({ room, count: game.roomMembers(room).length }))

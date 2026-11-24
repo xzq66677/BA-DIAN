@@ -22,11 +22,11 @@ describe('角色公开状态', () => {
     const p = player({
       hidden: true,
       invisible: true,
-      char: { domain: true, boosted: true, livesLeft: 2, attackOverride: 4.5, aim: 'B' },
+      char: { domain: true, livesLeft: 2, attackOverride: 4.5, aim: 'B' },
     });
     const items = playerStatusItems(p, [player(), player({ id: 'B', name: '目标 B' })]);
     expect(items.map((item) => item.key)).toEqual(expect.arrayContaining([
-      'alive', 'hidden', 'invisible', 'domain', 'boosted', 'lives', 'aim', 'attack-override',
+      'alive', 'hidden', 'invisible', 'domain', 'lives', 'aim', 'attack-override',
     ]));
     expect(items.find((item) => item.key === 'aim')?.value).toBe('目标 B');
     expect(items.find((item) => item.key === 'attack-override')?.value).toBe('攻击力 4.5');

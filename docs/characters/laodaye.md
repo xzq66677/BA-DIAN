@@ -4,8 +4,8 @@
 
 ## 1. 需求分析（规格）
 
-- **charId**：`laodaye`（shared/src/characters/index.ts）。能力：近3远2；领域展开（平局回合可行动，不改变平局结果）、领域强化（近5远3）；领域全场唯一，与五条悟互相覆盖（后展开者生效，被覆盖后可再展开）。
-- **必需动作**：idle / walk / attackSwing（近战）/ cast（领域展开、强化走 skillAura+cast）/ flinch / dead / reviveRise（血量3无复生，但接口保留）/ drink / crouch / cheer。
+- **charId**：`laodaye`（shared/src/characters/index.ts）。能力：**血量 1.5**、近3远2（默认免瞄准）；领域展开（平局回合可行动，不改变平局结果；**领域内近5远3，无需额外强化动作**）；领域全场唯一，与五条悟互相覆盖（后展开者生效，被覆盖后可再展开）。
+- **必需动作**：idle / walk / attackSwing（近战）/ cast（领域展开、强化走 skillAura+cast）/ flinch / dead / reviveRise（血量1.5无复生，但接口保留）/ drink / crouch / cheer。
 - **剪影信号**：宽檐斗笠 + 长白须 + 佝偻背 + 褐色宽袖短褂；领域系微光玉坠（cast 脉冲）。
 - **非目标**：不改领域规则表现（穹顶/光柱是场景层）；不做强化专属姿态（走 cast + 玉坠脉冲）。
 - **基线**：legacy Humanoid（palette：褐 0x6b5540 / 米 0xd8cbb0 / 斗笠 / scale 1）。

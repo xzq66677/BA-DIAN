@@ -298,17 +298,24 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C024', name: '老大爷：领域内强化伤害近5远3', category: 'character', charId: 'laodaye', seed: 224,
-    desc: '老大爷展开领域并强化后近战造成5伤',
+    id: 'TC-C024', name: '老大爷：领域展开即完全体（近战5/远程3，血量1.5）', category: 'character', charId: 'laodaye', seed: 224,
+    desc: '基础近战3/远程2；展开领域后近战5、远程3；血量上限为1.5（作者 2026-11-24 确认）',
     run: () => run(() => {
-      const g = makeGame([{ id: 'A', char: 'laodaye' }, { id: 'B', char: 'laodaye' }], 224);
+      const g = makeGame([{ id: 'A', char: 'laodaye' }, 'B'], 224);
       g.players['B'].room = 'R1';
-      g.players['B'].hp = 6; g.players['B'].maxHp = 6;
-      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'domain' } });
-      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'boostAttack' } });
+      g.players['B'].hp = 10; g.players['B'].maxHp = 10;
+      const hpOk = g.players['A'].hp === 1.5 && g.players['A'].maxHp === 1.5;
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 1;
-      return check(ok, 'B HP 6-5=1', `hp=${hpOf(g, 'B')}`, g);
+      const base = hpOf(g, 'B') === 7; // 10 - 3（基础近战）
+      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'domain' } }); // 展开即完全体
+      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
+      const melee = hpOf(g, 'B') === 2; // 7 - 5
+      g.players['B'].room = 'R2';
+      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B', ranged: true } });
+      const ranged = !isAlive(g, 'B') || hpOf(g, 'B') === 0; // 2 - 3 → 淘汰
+      const ok = hpOk && base && melee && ranged;
+      return check(ok, '血量1.5；基础近战3、领域后近战5/远程3（无需额外强化动作）',
+        `hp=${g.players['A'].hp}/${g.players['A'].maxHp}, base=${base}, melee=${melee}, ranged=${ranged}`, g);
     }),
   },
 

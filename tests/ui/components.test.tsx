@@ -248,11 +248,10 @@ const lobbyFor = (charId: string) => ({
   config: { submitTimeoutMs: 30000, turnTimeoutMs: 30000 },
 });
 
-describe('自身技能不需要选目标（领域展开 / 抽取今日运势 / 领域强化）', () => {
+describe('自身技能不需要选目标（领域展开 / 抽取今日运势）', () => {
   it.each([
     ['hero-today', '抽取今日运势'],
     ['gojo', '领域展开'],
-    ['laodaye', '领域强化'],
   ])('%s 的「%s」选中后可直接确认发动，不出现目标提示', (charId, label) => {
     const snap = buildActSnapshot(charId);
     expect(snap.phase).toBe('act');
