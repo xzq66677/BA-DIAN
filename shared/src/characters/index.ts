@@ -96,19 +96,21 @@ const gojo: CharDef = {
 /** 3b. 老大爷：与五条悟同体系（近3远2；领域内近5远3，平局回合获得行动资格） */
 const laodaye: CharDef = {
   id: 'laodaye',
+  aiStrategy: characterAi.laodaye,
   name: '老大爷',
-  desc: '血量3。近战3伤远程2伤；领域展开后平局回合可行动（平局结果不变）、近战5伤远程3伤。领域全场唯一，与五条悟的领域互相覆盖（后展开者生效）。',
-  hp: 3,
+  desc: '血量1.5。近战3伤远程2伤（默认免瞄准）；领域展开后近战5伤远程3伤，且平局回合可行动（平局结果不变）。领域全场唯一，与五条悟的领域互相覆盖（后展开者生效，被覆盖后可再展开夺回）。',
+  hp: 1.5,
   attack: 3,
   meleeDamage: 3,
   rangedDamage: 2,
   attackType: 'both',
   rangedCapable: true,
   domainActsOnTie: true,
-  init: () => ({ domain: false, boosted: false }),
+  init: () => ({ domain: false }),
+  /** 领域一开即进入完全体：近战 5 / 远程 3（无需额外强化动作） */
   dynamicDamage: ({ game, actor, ranged }) => {
     const st = game.charState(actor);
-    if (st.domain === true && st.boosted === true) return ranged ? 3 : 5;
+    if (st.domain === true) return ranged ? 3 : 5;
     return undefined;
   },
   actions: [
@@ -121,18 +123,6 @@ const laodaye: CharDef = {
       execute: (ctx) => {
         ctx.game.openDomain(ctx.actor);
         ctx.game.log('trigger', `✨ ${ctx.game.getPlayer(ctx.actor).name} 展开领域！近战5伤远程3伤，平局回合可行动`, { pid: ctx.actor, domain: true }, true);
-      },
-    },
-    {
-      name: 'boostAttack',
-      label: '领域强化',
-      desc: '领域内近战5伤/远程3伤（开关）。',
-      targetHint: 'none',
-      validate: (ctx) => ctx.game.charState(ctx.actor).domain ? null : '需先展开领域',
-      execute: (ctx) => {
-        const st = ctx.game.charState(ctx.actor);
-        st.boosted = !st.boosted;
-        ctx.game.log('trigger', `${ctx.game.getPlayer(ctx.actor).name} ${st.boosted ? '强化' : '取消强化'}领域攻击（近5/远3）`, undefined, true);
       },
     },
   ],
