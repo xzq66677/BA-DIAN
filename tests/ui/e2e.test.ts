@@ -182,6 +182,38 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     await page.close();
   });
 
+  it('2D 对局不下载 Three.js，切换 3D 后再加载战场', async () => {
+    const page = await newPage(browser);
+    try {
+      const threeRequests = new Set<string>();
+      page.on('request', (request) => {
+        const asset = new URL(request.url()).pathname;
+        if (/\/assets\/three-(?:core-|webgl-)?[^/]+\.js$/.test(asset)) threeRequests.add(asset);
+      });
+      await page.goto(baseUrl + '/?entrance=classic&r=2d', { waitUntil: 'domcontentloaded' });
+      await page.locator('input[placeholder="输入昵称"]').fill('渲染切换测试');
+      await page.locator('select').nth(2).selectOption('1');
+      await page.getByRole('button', { name: /单人开局/ }).click();
+
+      const switchTo3d = page.getByRole('button', { name: '3D', exact: true });
+      await expect(switchTo3d).toBeVisible();
+      expect(threeRequests.size).toBe(0);
+
+      await switchTo3d.click();
+      await expect(page.getByTestId('battle3d').locator('canvas')).toBeVisible({ timeout: 15000 });
+      expect(Array.from(threeRequests)).toEqual(expect.arrayContaining([
+        expect.stringContaining('/three-core-'), expect.stringContaining('/three-webgl-'),
+      ]));
+      await expect(page.locator('.b3-roomlabel').first()).toBeVisible();
+
+      await page.getByRole('button', { name: '2D', exact: true }).click();
+      await expect(page.getByTestId('battle3d')).toHaveCount(0);
+      await expect(switchTo3d).toBeVisible();
+    } finally {
+      await page.close();
+    }
+  });
+
   it('大厅：添加指定角色AI + 房主改AI角色 + 聊天', async () => {
     const page = await newPage(browser);
     await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
