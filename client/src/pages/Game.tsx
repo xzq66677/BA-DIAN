@@ -15,6 +15,7 @@ import {
   type PresentationState,
 } from '../battle/useBattlePresentation.js';
 import { useCardRoomFlip } from '../battle/flip.js';
+import { formatHp as fmtHp, PlayerStatusList, PlayerStatusModal } from '../battle/player-status.js';
 import { sfx } from '../audio/sfx.js';
 import { Battle3D, detectWebGL, preferredRenderer, setPreferredRenderer } from '../battle3d/Battle3D.js';
 import { clearSessionDegraded } from '../battle3d/gl-policy.js';
@@ -55,10 +56,6 @@ export default function GamePage({ lobby, game, session, logs, announces, resync
 }) {
   if (!game) return <div className="tcg-app"><div className="tcg-panel" style={{ margin: 20 }}>等待游戏状态…</div></div>;
   return <GameInner lobby={lobby} game={game} session={session} logs={logs} announces={announces} resync={resync} onExit={onExit} onBackToLobby={onBackToLobby} />;
-}
-
-function fmtHp(n: number): string {
-  return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
 }
 
 function atkOf(p: SnapPlayer): string {
@@ -169,9 +166,11 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   // 移动演出的 FLIP 卡片飞行动画（跟随快照房间变化，不依赖队列时序）
   useCardRoomFlip(game.players, reducedMotion, '.bt-room-cards .ccard[data-pid], .bt-mine-cards .ccard[data-pid]', 'flip-flying');
 
-  // 角色详情弹层
+  // 角色详情 / 血量状态弹层
   const [detailId, setDetailId] = useState<string | null>(null);
   const detailPlayer = detailId ? game.players.find((p) => p.id === detailId) : null;
+  const [statusId, setStatusId] = useState<string | null>(null);
+  const statusPlayer = statusId ? game.players.find((p) => p.id === statusId) : null;
   // 胜负判定弹层（新对局自动复位）
   const [winDismissed, setWinDismissed] = useState(false);
   useEffect(() => { if (game.phase !== 'over') setWinDismissed(false); }, [game.phase]);
@@ -398,6 +397,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     // raf/WebGL 上下文）；failed 是 WebGL 层面的失败（上下文丢失未恢复等）
     active: rendererMode === '3d' && webglOk,
     onPickPlayer: pickTargetOrDetail,
+    onShowStatus: (pid) => setStatusId(pid),
     onPickRoom: (rid) => setSelRoom(rid),
   });
   const use3d = rendererMode === '3d' && webglOk && !battle3d.failed;
@@ -602,6 +602,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                 selActionHint={!!selAction?.targetHint}
                 validTargets={validTargets}
                 pickTargetOrDetail={pickTargetOrDetail}
+                onShowStatus={setStatusId}
                 interactCounts={interactCounts}
                 throwAt={game.phase !== 'over' ? throwAt : undefined}
               />
@@ -661,6 +662,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                     gotCount={interactCounts[p.id]?.got ?? 0}
                     onInteract={game.phase !== 'over' && p.alive && p.id !== meId ? () => throwAt(p.id, 'tomato') : undefined}
                     onClick={() => pickTargetOrDetail(p.id)}
+                    onShowStatus={() => setStatusId(p.id)}
                   />
                 ))}
               </div>
@@ -880,9 +882,14 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         </section>
       </div>
 
+      {statusPlayer && (
+        <PlayerStatusModal p={statusPlayer} players={game.players} onClose={() => setStatusId(null)} />
+      )}
+
       {detailPlayer && (
         <CardDetail
           p={detailPlayer}
+          players={game.players}
           onClose={() => setDetailId(null)}
           canKick={isHost && detailPlayer.id !== meId && detailPlayer.alive}
           onKick={() => kickPlayer(detailPlayer.id, detailPlayer.name)}
@@ -976,7 +983,7 @@ function hiddenSameRoomCount(game: GameSnapshot, meId: string): number {
 
 const ROOM_TOTEM: Record<string, string> = { R1: '🏔', R2: '🌲', R3: '🏘', R4: '🏰', R5: '🌋', R6: '🌊' };
 
-function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTargets, pickTargetOrDetail, interactCounts, throwAt, fx, hits, heals, misses, deaths, revives }: {
+function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTargets, pickTargetOrDetail, onShowStatus, interactCounts, throwAt, fx, hits, heals, misses, deaths, revives }: {
   rid: string;
   /** 弧形位置（0..n），用于错落变换 */
   pos: number;
@@ -988,6 +995,7 @@ function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTarge
   selActionHint: boolean;
   validTargets: SnapPlayer[];
   pickTargetOrDetail: (pid: string) => void;
+  onShowStatus: (pid: string) => void;
   interactCounts: Record<string, { given: number; got: number }>;
   throwAt?: (targetId: string, kind: 'tomato') => void;
   fx: Record<string, FxView>;
@@ -1041,6 +1049,7 @@ function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTarge
             gotCount={interactCounts[p.id]?.got ?? 0}
             onInteract={throwAt && p.alive && !myIds.some((i) => i.playerId === p.id) ? () => throwAt(p.id, 'tomato') : undefined}
             onClick={() => pickTargetOrDetail(p.id)}
+            onShowStatus={() => onShowStatus(p.id)}
           />
         ))}
       </div>
@@ -1088,7 +1097,7 @@ const FX_ICON: Record<string, string> = {
   aim: '🎯', hide: '🙈', seek: '🔍', skip: '⏭️',
 };
 
-function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx, hit, heal, miss, death, revive, isWinner, gotCount, onInteract, onClick }: {
+function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx, hit, heal, miss, death, revive, isWinner, gotCount, onInteract, onClick, onShowStatus }: {
   p: SnapPlayer;
   game: GameSnapshot;
   isMine: boolean;
@@ -1107,6 +1116,7 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
   gotCount?: number;
   onInteract?: () => void;
   onClick: () => void;
+  onShowStatus: () => void;
 }) {
   const meta = cardMeta(p.charId);
   const acting = game.currentActor === p.id;
@@ -1147,9 +1157,16 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
           <span className="ccard-hp">❤ {fmtHp(p.hp)}/{fmtHp(p.maxHp)}</span>
           <span className="ccard-atk">⚔ {atkOf(p)}</span>
         </div>
-        <div className={`ccard-hpbar ${dead ? 'empty' : ''}`} aria-hidden>
-          <div className={`ccard-hpbar-fill ${heal ? 'rising' : ''}`} style={{ width: `${hpPct}%` }} />
-        </div>
+        <button
+          type="button"
+          className={`ccard-hpbar ${dead ? 'empty' : ''}`}
+          aria-label={`查看 ${p.name} 的生命与状态（${fmtHp(p.hp)}/${fmtHp(p.maxHp)}）`}
+          title="点击查看生命与角色状态"
+          onClick={(event) => { event.stopPropagation(); onShowStatus(); }}
+        >
+          <span className={`ccard-hpbar-fill ${heal ? 'rising' : ''}`} style={{ width: `${hpPct}%` }} />
+          <span className="ccard-hp-text">{fmtHp(p.hp)}/{fmtHp(p.maxHp)}</span>
+        </button>
       </div>
       <div className="ccard-badges">
         {acting && !dead && <span className="cbadge cbadge-acting">行动中</span>}
@@ -1216,8 +1233,9 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
 
 // ── 卡牌详情弹层 ─────────────────────────────────────────
 
-function CardDetail({ p, onClose, canKick, onKick, stats, onInteract, gotCount }: {
+function CardDetail({ p, players, onClose, canKick, onKick, stats, onInteract, gotCount }: {
   p: SnapPlayer;
+  players: SnapPlayer[];
   onClose: () => void;
   canKick?: boolean;
   onKick?: () => void;
@@ -1234,12 +1252,9 @@ function CardDetail({ p, onClose, canKick, onKick, stats, onInteract, gotCount }
         <div className="cd-skills">{meta?.skills || '无特殊技能'}</div>
         <div className="cd-mech">{meta?.mech || '无被动（原稿：未选上角色者默认此角色）。血量3，攻击1。'}</div>
         {meta?.quote && <div className="cd-quote">「{meta.quote}」</div>}
-        <div style={{ marginTop: 12, fontSize: 13, color: '#6b5a3a' }}>
-          当前状态：HP {fmtHp(p.hp)}/{fmtHp(p.maxHp)} · 房间 {p.room} · {p.alive ? (p.hidden ? '躲藏中' : p.invisible ? '隐身中' : '存活') : '已淘汰'}
+        <div style={{ marginTop: 12 }}>
+          <PlayerStatusList p={p} players={players} />
         </div>
-        {p.char?.domain === true && p.alive && (
-          <div className="cd-domain">✨ 领域生效中：判定平局算其胜（持续保留，直至被其他领域覆盖）</div>
-        )}
         {stats && (
           <div className="cd-stats">
             <span>🎴 出拳胜/负/平 <b>{stats.throwWin}/{stats.throwLose}/{stats.throwTie}</b></span>

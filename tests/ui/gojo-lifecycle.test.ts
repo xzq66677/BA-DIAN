@@ -47,6 +47,8 @@ function resources(root: THREE.Object3D) {
 
 let host: HTMLDivElement;
 let scene: BattleScene3D;
+let pickPlayer: ReturnType<typeof vi.fn>;
+let showStatus: ReturnType<typeof vi.fn>;
 const sync = (...players: SnapPlayerLite[]) => scene.syncSnapshot({ players, roomIds: ['R1', 'R2'],
   phase: 'act', currentActor: null, winner: null });
 // Read the entity created by syncSnapshot; never construct one or advance its pose by hand.
@@ -60,7 +62,9 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   host = document.createElement('div');
   document.body.append(host);
-  scene = new BattleScene3D(host, { onPickPlayer() {}, onPickRoom() {} });
+  pickPlayer = vi.fn();
+  showStatus = vi.fn();
+  scene = new BattleScene3D(host, { onPickPlayer: pickPlayer, onShowStatus: showStatus, onPickRoom() {} });
 });
 
 afterEach(() => {
@@ -73,6 +77,26 @@ afterEach(() => {
 });
 
 describe('Gojo entity lifecycle', () => {
+  it('shows live HP values and routes nameplate and health-bar clicks separately', () => {
+    const p = player('G');
+    sync(p);
+    const plate = entity('G').plate;
+    const hpBar = plate.querySelector('.b3-hpbar') as HTMLButtonElement;
+    const pick = plate.querySelector('.b3-pick') as HTMLButtonElement;
+    expect(hpBar.textContent).toContain('3/3');
+    expect(hpBar.getAttribute('aria-label')).toContain('查看 G 的生命与状态（3/3）');
+
+    sync({ ...p, hp: 1 });
+    expect(hpBar.textContent).toContain('1/3');
+    hpBar.click();
+    expect(showStatus).toHaveBeenCalledWith('G');
+    expect(pickPlayer).not.toHaveBeenCalled();
+
+    pick.click();
+    expect(pickPlayer).toHaveBeenCalledWith('G');
+    expect(showStatus).toHaveBeenCalledTimes(1);
+  });
+
   // 核心生命周期在每名专属角色上跑一遍（gojo 是基线，其余按 DEDICATED 扩展）
   it.each(['gojo', 'laodaye'] as const)('%s: drives attacks and room movement on the mounted rig, returning to idle', (char) => {
     const p = player('G', char);

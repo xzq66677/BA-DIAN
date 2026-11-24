@@ -214,6 +214,40 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     }
   });
 
+  it('2D/3D 血条显示数值并打开相同的角色状态详情', async () => {
+    const page = await newPage(browser);
+    const jsErrors: string[] = [];
+    page.on('pageerror', (error) => jsErrors.push(String(error)));
+    try {
+      await page.goto(baseUrl + '/?entrance=classic&r=2d', { waitUntil: 'domcontentloaded' });
+      await page.locator('input[placeholder="输入昵称"]').fill('血条状态测试');
+      await page.locator('select').nth(2).selectOption('2');
+      await page.getByRole('button', { name: /单人开局/ }).click();
+      await page.getByText(/行动坞/).waitFor({ timeout: 20000 });
+
+      const hp2d = page.locator('.ccard-hpbar').first();
+      await expect(hp2d).toBeVisible();
+      await expect(hp2d).toHaveText(/\d+(?:\.\d+)?\/\d+(?:\.\d+)?/);
+      await hp2d.click();
+      await expect(page.getByRole('dialog', { name: /血条状态测试|AI/ })).toBeVisible();
+      await expect(page.getByText('仅显示当前公开快照，不包含未揭示出拳或判定历史。')).toBeVisible();
+      await page.getByRole('button', { name: '关闭状态详情' }).click();
+
+      await page.getByRole('button', { name: '3D', exact: true }).click();
+      const hp3d = page.locator('.b3-hpbar').first();
+      await expect(hp3d).toBeVisible({ timeout: 15000 });
+      await expect(hp3d).toHaveText(/\d+(?:\.\d+)?\/\d+(?:\.\d+)?/);
+      await hp3d.click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByLabel('角色状态')).toBeVisible();
+      await page.getByRole('button', { name: '关闭状态详情' }).click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      expect(jsErrors).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
   it('大厅：添加指定角色AI + 房主改AI角色 + 聊天', async () => {
     const page = await newPage(browser);
     await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });

@@ -46,6 +46,7 @@ export type SnapLite = Pick<GameSnapshot, 'roomIds' | 'currentActor' | 'phase' |
 
 export interface SceneHooks {
   onPickPlayer: (pid: string) => void;
+  onShowStatus?: (pid: string) => void;
   onPickRoom: (rid: string) => void;
   /** WebGL 上下文丢失且恢复窗口内未恢复（上下文已死）→ 调用方应回退 2D 牌桌 */
   onContextLost?: () => void;
@@ -73,7 +74,10 @@ interface Entity {
   ring: THREE.Mesh;            // 脚下状态环
   blob: THREE.Mesh;            // 接地阴影
   plate: HTMLDivElement;       // 名牌（覆盖层）
-  hpFill: HTMLDivElement;
+  pickButton: HTMLButtonElement;
+  hpButton: HTMLButtonElement;
+  hpFill: HTMLSpanElement;
+  hpText: HTMLSpanElement;
   badges: HTMLDivElement;
   nameEl: HTMLDivElement;
   avatar: HTMLDivElement;
@@ -326,24 +330,27 @@ export class BattleScene3D {
     const plate = document.createElement('div');
     plate.className = 'b3-plate';
     plate.dataset.pid = p.id;
-    plate.setAttribute('role', 'button');
-    plate.tabIndex = 0;
     plate.innerHTML = `
-      <div class="b3-av"></div>
-      <div class="b3-nm"><span class="b3-nm-text"></span></div>
-      <div class="b3-hpbar"><div class="b3-hp-fill"></div></div>
+      <button class="b3-pick" type="button">
+        <span class="b3-av"></span>
+        <span class="b3-nm"><span class="b3-nm-text"></span></span>
+      </button>
+      <button class="b3-hpbar" type="button" title="点击查看生命与角色状态">
+        <span class="b3-hp-fill"></span><span class="b3-hp-text"></span>
+      </button>
       <div class="b3-badges"></div>`;
-    plate.addEventListener('click', (ev) => {
+    const pickButton = plate.querySelector('.b3-pick') as HTMLButtonElement;
+    const hpButton = plate.querySelector('.b3-hpbar') as HTMLButtonElement;
+    pickButton.addEventListener('click', (ev) => {
       ev.stopPropagation();
       this.hooks.onPickPlayer(p.id);
     });
-    plate.addEventListener('keydown', event => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      event.preventDefault();
-      this.hooks.onPickPlayer(p.id);
+    hpButton.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      this.hooks.onShowStatus?.(p.id);
     });
     this.overlay.appendChild(plate);
-    const e_avatarHost = plate.querySelector('.b3-av') as HTMLDivElement;
+    const e_avatarHost = plate.querySelector('.b3-av') as HTMLSpanElement;
 
     const meta = cardMeta(p.charId);
     if (meta?.img) {
@@ -357,7 +364,10 @@ export class BattleScene3D {
 
     e = {
       pid: p.id, charId: p.charId, asset, appearance, group, rig, ring, blob, plate,
+      pickButton,
+      hpButton,
       hpFill: plate.querySelector('.b3-hp-fill')!,
+      hpText: plate.querySelector('.b3-hp-text')!,
       badges: plate.querySelector('.b3-badges')!,
       nameEl: plate.querySelector('.b3-nm-text')!,
       avatar: plate.querySelector('.b3-av')!,
@@ -525,10 +535,12 @@ export class BattleScene3D {
     e.plateCount = memberIds.length;
     // 名牌
     e.nameEl.textContent = p.name;
-    e.plate.setAttribute('aria-label', `${p.name}，${p.room}，生命 ${p.hp}/${p.maxHp}`);
+    e.pickButton.setAttribute('aria-label', `${p.name}，${p.room}，生命 ${fmtN(p.hp)}/${fmtN(p.maxHp)}，点击选择或查看详情`);
+    e.hpButton.setAttribute('aria-label', `查看 ${p.name} 的生命与状态（${fmtN(p.hp)}/${fmtN(p.maxHp)}）`);
     const hpPct = Math.max(0, Math.min(100, (p.hp / Math.max(1, p.maxHp)) * 100));
     e.shownHp = p.hp;
     e.plate.dataset.hp = String(p.hp);
+    e.hpText.textContent = `${fmtN(p.hp)}/${fmtN(p.maxHp)}`;
     e.hpFill.style.width = `${hpPct}%`;
     e.hpFill.style.background = hpPct > 50 ? 'linear-gradient(90deg,#63d97e,#8ce6a0)' : hpPct > 25 ? 'linear-gradient(90deg,#e2a23c,#f0c060)' : 'linear-gradient(90deg,#e23d30,#ff6a5c)';
     this.renderBadges(e, p, snap);
