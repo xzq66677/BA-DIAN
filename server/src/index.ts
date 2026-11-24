@@ -442,6 +442,16 @@ io.on('connection', (socket: Socket) => {
     ack?.(r.ok ? { ok: true } : r);
   });
 
+  socket.on('game:berserk', (data: { code: string; playerId: PlayerId; token: string; targetId: PlayerId }, ack?: (r: unknown) => void) => {
+    const room = getRoom(data.code || '');
+    if (!room || !room.game) { ack?.({ ok: false, error: '对局不存在' }); return; }
+    const seat = currentSeat(room, data.playerId, data.token);
+    if (!seat) { ack?.({ ok: false, error: '身份验证失败' }); return; }
+    if (!data.targetId) { ack?.({ ok: false, error: '缺少暴走目标' }); return; }
+    const r = room.submitBerserk(data.playerId, data.targetId);
+    ack?.(r.ok ? { ok: true } : r);
+  });
+
   socket.on('game:state', (data: { code: string }, ack?: (r: unknown) => void) => {
     const room = getRoom(data.code || '');
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }

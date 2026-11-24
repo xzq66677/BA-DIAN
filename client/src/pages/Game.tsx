@@ -103,6 +103,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   const [selTarget, setSelTarget] = useState('');
   const [selRoom, setSelRoom] = useState('');
   const [actMsg, setActMsg] = useState('');
+  const [berserkMsg, setBerserkMsg] = useState('');
 
   // 战绩面板 / 回放
   const [statsOpen, setStatsOpen] = useState(false);
@@ -318,6 +319,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         return j ? `${j.label} · 第 ${j.round}/${j.rounds} 局 · 已出拳 ${j.submittedIds.length}/${j.submittedIds.length + j.waitingIds.length}` : '技能判定';
       }
       case 'act': return '行动阶段';
+      case 'trigger': return game.trigger ? `暴走触发 · ${namesOf(game, [game.trigger.actor])} 选择目标` : '回合前触发结算';
       case 'roundEnd': return '回合末结算';
       case 'over': return '游戏结束';
     }
@@ -731,6 +733,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                 {game.phase === 'rps1' && <span className="tcg-chip">存活 {livingCount} 人 · 全员出拳后统一揭示</span>}
                 {game.phase === 'rps2' && <span className="tcg-chip">行动排序 · 子轮 {(game.orderSub ?? 0) + 1} · 仅资格者出拳（不剥夺资格）</span>}
                 {game.phase === 'judge' && judge && <span className="tcg-chip">⚡ {judge.label} · 第 {judge.round}/{judge.rounds} 局 · 双方各自出拳</span>}
+                {game.phase === 'trigger' && game.trigger && <span className="tcg-chip">🌀 暴走 · {namesOf(game, [game.trigger.actor])} 指定目标</span>}
               </div>
 
               {me && me.judgeStreak && me.judgeStreak.length > 0 && (
@@ -775,11 +778,44 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                       {(() => {
                         const rest = orderGroup.filter((id) => !orderSubmittedIds.includes(id));
                         return rest.length > 0
-                          ? `⏳ 等待 ${namesOf(game, rest)} 出拳（排序判定，输者先动；领域与角色判定不参与）…`
+                          ? `⏳ 等待 ${namesOf(game, rest)} 出拳（${game.orderPurpose === 'berserk' ? '暴走权排序' : '排序判定'}，输者先${game.orderPurpose === 'berserk' ? '暴走' : '动'}；领域与角色判定不参与）…`
                           : '✅ 本机身份已完成排序出拳，等待判定结果…';
                       })()}
                     </div>
               )}
+
+              {game.phase === 'trigger' && game.trigger && (() => {
+                const trig = game.trigger!;
+                const mine = myIds.find((i) => i.playerId === trig.actor);
+                const targets = game.players.filter((p) => p.alive && p.id !== trig.actor);
+                return (
+                  <div className="privacy-veil">
+                    <p>🌀 暴走（回合最前）· {namesOf(game, [trig.actor])} 指定目标</p>
+                    {mine ? (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 10 }}>
+                        {targets.map((p) => (
+                          <button
+                            key={p.id}
+                            className="tcg-btn"
+                            onClick={async () => {
+                              setBerserkMsg('');
+                              const r = await net.submitBerserk(lobby.code, mine.playerId, mine.token, p.id) as { ok: boolean; error?: string };
+                              if (!r.ok) setBerserkMsg(r.error || '暴走释放失败');
+                            }}
+                          >
+                            {p.name}（{p.charName} · {fmtHp(p.hp)} HP · {p.room}）
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="pv-hint tcg-chip" style={{ display: 'inline-block', marginTop: 8 }}>
+                        ⏳ 等待 {namesOf(game, [trig.actor])} 选择暴走目标…
+                      </p>
+                    )}
+                    {berserkMsg && <div className="error-text">{berserkMsg}</div>}
+                  </div>
+                );
+              })()}
 
               {game.phase === 'rps1' && (
                 pendingLocalIds.length > 0

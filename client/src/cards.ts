@@ -82,7 +82,7 @@ export const CARD_META: Record<string, CardMeta> = {
   dapihuai: {
     img: './cards/dapihuai.webp', thumb: './cards/dapihuai-thumb.webp', no: '09',
     skills: '【连判】·【暴走】·【自爆】',
-    mech: '血量20、攻击0，输出全看判定：跨回合记住每次结果，连续三次不同触发暴走（精神攻击·秒杀·无视躲藏/命数）；连续三次相同触发自爆。',
+    mech: '血量20、攻击0。跨回合记住每次判定：连续三次不同 → 回合最前暴走，本人指定任意玩家（精神攻击·秒杀·无视躲藏/命数）；连续三次相同 → 回合最前自爆。多人同时暴走先二次判定排序。',
     quote: '赢赢赢我炸，赢平输我更炸。',
   },
 };

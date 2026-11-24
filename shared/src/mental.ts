@@ -24,6 +24,7 @@ export const MENTAL_KILL_FLAGS = {
   dtype: 'mental',
   bypassHide: true,
   ignoreLives: true,
+  instakill: true, // 结算时按目标当前血量 → 判定挂起期间回血也救不回来
 } as const;
 
 export interface MentalKillInput {

@@ -6,6 +6,7 @@ export const SIMULATION_VERSION = 1;
 export type MatchInput =
   | { kind: 'throw'; playerId: PlayerId; value: Throw; source: 'player' | 'ai' | 'departure' }
   | { kind: 'action'; playerId: PlayerId; action: ActionRequest; source: 'player' | 'ai' }
+  | { kind: 'berserk'; playerId: PlayerId; targetId: PlayerId; source: 'player' | 'ai' }
   | { kind: 'throwTimeout' }
   | { kind: 'actionTimeout'; playerId: PlayerId }
   | { kind: 'remove'; ids: PlayerId[]; reason: 'left' | 'kicked' | 'removed'; host?: PlayerId };

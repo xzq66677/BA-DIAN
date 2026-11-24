@@ -235,3 +235,13 @@ function hardDecide(g: Game, pid: PlayerId): ActionRequest {
   if (g.rules.allowHide && !me.hidden) return { type: 'hide' };
   return { type: 'skip' };
 }
+
+/**
+ * 大屁孩暴走选目标（回合最前触发）：优先血量最低的其他存活玩家，同血量按座次。
+ * AI 与自动化对局回归共用；返回 null 表示没有可选目标。
+ */
+export function aiBerserkTarget(g: Game, pid: PlayerId): PlayerId | null {
+  const others = g.aliveIds().filter((p) => p !== pid);
+  if (others.length === 0) return null;
+  return others.sort((a, b) => (g.players[a].hp - g.players[b].hp) || (g.playerIds.indexOf(a) - g.playerIds.indexOf(b)))[0];
+}

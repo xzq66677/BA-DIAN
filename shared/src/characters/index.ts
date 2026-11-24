@@ -160,26 +160,34 @@ const mabaoguo: CharDef = {
     if (!game.players[req.source] || !game.players[req.source].alive) return;
 
     const source = req.source;
+    // 精神攻击（秒杀）反弹 = 反杀：来源改为马保国、保留秒杀/无视命数语义，
+    // 结算时按对方当前血量计伤害（不能用马保国的血量当伤害值）。
+    const mental = req.dtype === 'mental' || req.instakill === true;
+    const reflect = () => {
+      req.target = source;
+      req.reflected = true;
+      req.transferred = false;
+      if (mental) {
+        req.source = self;
+        req.instakill = true;
+        req.ignoreLives = true;
+        game.log('trigger', `⚡ 太极判定成功！精神攻击被反弹 → 反杀 ${game.players[source].name}（无视命数）`, undefined, true);
+      } else {
+        game.log('trigger', `⚡ 太极判定成功！原伤 ${fmtNum(req.amount)} 反弹给 ${game.players[source].name}`, undefined, true);
+      }
+    };
     const settle = (wins: number) => {
       if (wins > 0) {
-        game.log('trigger', `⚡ 太极判定成功！原伤 ${fmtNum(req.amount)} 反弹给 ${game.players[source].name}`, undefined, true);
-        req.target = source;
-        req.reflected = true;
-        req.transferred = false;
+        reflect();
       } else {
-        game.log('trigger', `⚡ 太极判定未成功，${game.players[self].name} 正常承受 ${fmtNum(req.amount)} 伤害`, undefined, true);
+        game.log('trigger', `⚡ 太极判定未成功，${game.players[self].name} 正常承受${req.instakill ? '（秒杀）' : ` ${fmtNum(req.amount)}`} 伤害`, undefined, true);
       }
       game.applyDamage(req);
     };
 
     if (game.rules.skillJudgeMode === 'serverRoll') {
       game.log('trigger', `⚡ 马保国混元形意太极：${game.players[source].name} 的伤害需进行判定`, undefined, true);
-      if (game.rollJudge(self, source, '太极判定') === 'win') {
-        game.log('trigger', `⚡ 太极判定成功！原伤 ${fmtNum(req.amount)} 反弹给 ${game.players[source].name}`, undefined, true);
-        req.target = source;
-        req.reflected = true;
-        req.transferred = false;
-      }
+      if (game.rollJudge(self, source, '太极判定') === 'win') reflect();
       return;
     }
 
@@ -471,38 +479,34 @@ const dajianke: CharDef = {
   },
 };
 
-/** 9. 大屁孩：判定历史三不同→暴走（精神攻击·秒杀）；三同→自爆；跨回合记忆 */
+/** 9. 大屁孩：判定历史三不同→暴走（回合前结算、本人指定目标）；三同→自爆；跨回合记忆 */
 const dapihuai: CharDef = {
   id: 'dapihuai',
   name: '大屁孩',
-  desc: '血量20、攻击0：唯一的输出是判定被动。连续三次判定出现三种不同结果（赢平输任意组合）→ 暴走：随机一名其他玩家被精神攻击**秒杀**；连续三次相同（赢赢赢/平平平/输输输）→ 自爆。判定历史跨回合记忆，触发后清零。',
+  desc: '血量20、攻击0：唯一的输出是判定被动。连续三次判定出现三种不同结果（赢平输任意组合）→ 暴走：**回合最靠前**结算，由本人指定任意一名其他玩家，对其释放精神攻击（秒杀·无视躲藏/命数）；连续三次相同（赢赢赢/平平平/输输输）→ 自爆（同样在回合最靠前结算）。多名大屁孩同时暴走时，先做二次判定决定暴走权顺序。判定历史跨回合记忆，触发后清零。',
   hp: 20,
   attack: 0,
   attackType: 'melee',
+  init: () => ({ pendingTrigger: null }),
   onJudgeAppend: (ctx) => {
-    const { game, player, stage } = ctx;
+    const { game, player } = ctx;
     if (!game.getPlayer(player).alive) return; // 双重保险：阵亡者不触发
+    const st = game.charState(player) as { pendingTrigger?: 'berserk' | 'selfdestruct' | null };
+    if (st.pendingTrigger) return; // 本回合已标记，等待回合前统一结算
     const h = game.judgeHistory(player);
     if (h.length < 3) return;
     const last3 = h.slice(-3);
     const distinct = new Set(last3);
     if (distinct.size === 3) {
       game.judgeHistory(player).length = 0; // 触发后重置历史
-      game.log('trigger', `🌀 ${game.getPlayer(player).name} 判定历史 [${last3.join(',')}] 三种不同结果 → 暴走！（${stage}判定阶段）`, undefined, true);
-      const others = game.aliveIds().filter((pid) => pid !== player);
-      if (others.length === 0) return;
-      const target = game.rng.pick(others);
-      // 精神攻击（独立词条）：无视躲藏/隐身与命数；太极仍可判定反弹并反杀
-      mentalKill(game, {
-        target, source: player, tag: 'berserk',
-        note: `🌀 大屁孩暴走：对随机玩家 ${game.players[target].name} 发动精神攻击（秒杀·无视躲藏/命数）`,
-      });
+      st.pendingTrigger = 'berserk';
+      game.log('trigger', `🌀 ${game.getPlayer(player).name} 判定历史 [${last3.join(',')}] 三种不同结果 → 暴走待结算（回合最靠前，本人指定目标）`, { pid: player, trigger: 'berserk' }, true);
       return;
     }
     if (distinct.size === 1) {
       game.judgeHistory(player).length = 0;
-      game.log('trigger', `💥 ${game.getPlayer(player).name} 判定历史 [${last3.join(',')}] 三连相同结果 → 自爆！（${stage}判定阶段）`, undefined, true);
-      game.eliminate(player, 'selfdestruct');
+      st.pendingTrigger = 'selfdestruct';
+      game.log('trigger', `💥 ${game.getPlayer(player).name} 判定历史 [${last3.join(',')}] 三连相同结果 → 自爆待结算（回合最靠前）`, { pid: player, trigger: 'selfdestruct' }, true);
     }
   },
 };

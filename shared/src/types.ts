@@ -24,7 +24,7 @@ export type PlayerType = 'human' | 'ai' | 'local';
  * - `roundEnd`：回合末结算（延迟事件）
  * - `over`：终局
  */
-export type GamePhase = 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over';
+export type GamePhase = 'rps1' | 'rps2' | 'trigger' | 'act' | 'judge' | 'roundEnd' | 'over';
 
 export interface CharRuntimeState {
   [key: string]: unknown;
@@ -119,6 +119,11 @@ export interface DamageRequest {
    * 用于秒杀类精神攻击（如大屁孩暴走）。
    */
   ignoreLives?: boolean;
+  /**
+   * 秒杀：结算时按目标**当前血量**计算伤害（而不是发起时的 amount），
+   * 因此判定挂起期间目标回血也无法抵消。用于精神攻击。
+   */
+  instakill?: boolean;
   /** 不触发「受伤判定反弹」类被动（大伊万爆炸、肉山坐） */
   noReflect?: boolean;
   /** 已是反弹伤害（终止反弹链） */
@@ -205,6 +210,8 @@ export interface DamageEventData {
   hpAfter?: number;
   /** 致命伤害（后续会有 eliminate 事件衔接） */
   lethal?: boolean;
+  /** 秒杀类伤害（按结算时目标当前血量结算） */
+  instakill?: boolean;
   dtype?: 'physical' | 'mental' | 'special';
   tag?: string;
   segment?: { index: number; total: number };

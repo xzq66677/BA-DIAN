@@ -89,16 +89,20 @@ export function resolveDamage(game: GameLike, stats: Record<PlayerId, PlayerStat
 
   // 4. 结算
   const before = tp.hp;
-  tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
+  // 秒杀（instakill）：结算时按目标当前血量，避免判定挂起期间回血抵消（精神攻击）
+  const amount = req.instakill ? tp.hp : req.amount;
+  applied.amount = amount;
+  tp.hp = Math.max(0, Math.round((tp.hp - amount) * 10000) / 10000);
   const dmgData: DamageEventData = {
-    target: tp.id, source: req.source, amount: req.amount,
+    target: tp.id, source: req.source, amount,
     hpBefore: before, hpAfter: tp.hp, lethal: tp.hp <= 0,
     dtype: req.dtype, tag: req.tag, segment: req.segment,
     aoe: req.aoe, room: tp.room,
     reflected: !!req.reflected, transferred: !!req.transferred,
+    ...(req.instakill ? { instakill: true } : {}),
     ...(req.groupId ? { groupId: req.groupId } : {}),
   };
-  game.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${game.players[req.source].name}）` : ''}`, { ...dmgData }, true);
+  game.log('damage', `${tp.name} 受到 ${fmtNum(amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.instakill ? '·秒杀' : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${game.players[req.source].name}）` : ''}`, { ...dmgData }, true);
 
   // 战绩：实际掉血量
   const dealt = Math.max(0, before - tp.hp);

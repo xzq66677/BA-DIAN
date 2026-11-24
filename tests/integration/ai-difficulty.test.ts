@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { Game } from '../../shared/src/engine.js';
 import { CHARACTERS } from '../../shared/src/characters/index.js';
-import { aiDecideAction, aiDecideActions, aiThrow } from '../../server/src/room.js';
+import { aiDecideAction, aiDecideActions, aiThrow, aiBerserkTarget } from '../../server/src/room.js';
 import type { ActionRequest, AiDifficulty, Throw } from '../../shared/src/types.js';
 
 const ROSTER = ['default', 'bagun', 'chuixiao', 'gojo', 'mabaoguo', 'wuliuqi', 'ivan-girl', 'hero-today', 'dajianke', 'dapihuai'];
@@ -32,6 +32,13 @@ function playGame(seed: number, difficulty: AiDifficulty, count = 4, maxRounds =
       for (const pid of g.aliveIds()) {
         if (!g.submittedIds.includes(pid)) g.submitThrow(pid, aiThrow(g, pid, difficulty));
       }
+    } else if (g.phase === 'trigger') {
+      // 大屁孩暴走（回合最前）：AI 自动选目标
+      const view = g.triggerView();
+      if (!view) break;
+      const target = aiBerserkTarget(g, view.actor);
+      if (!target) break;
+      g.submitBerserk(view.actor, target);
     } else if (g.phase === 'act') {
       const cur = g.currentActor();
       if (!cur) break;

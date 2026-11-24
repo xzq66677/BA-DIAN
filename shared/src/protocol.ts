@@ -100,6 +100,13 @@ export interface GameSnapshot {
   orderSubmittedIds?: string[];
   orderResult?: string[];
   orderSub?: number;
+  /** 二次判定用途：行动排序（默认）/ 暴走权排序（多名大屁孩同时暴走） */
+  orderPurpose?: 'act' | 'berserk';
+  /**
+   * 回合前触发（大屁孩）：当前等待谁指定暴走目标、后面还有哪些持有者。
+   * null/缺省表示当前没有待结算的回合前触发。
+   */
+  trigger?: { kind: 'berserk'; actor: string; queue: string[] } | null;
   /** 局内战绩（每人一份） */
   stats?: Record<string, PlayerStats>;
   /** 领域持有者（全场唯一；null 表示当前无领域生效） */
