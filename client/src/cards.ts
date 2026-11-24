@@ -70,7 +70,7 @@ export const CARD_META: Record<string, CardMeta> = {
   'hero-today': {
     img: './cards/hero-today.webp', thumb: './cards/hero-today-thumb.webp', no: '07',
     skills: '【今日运势】',
-    mech: '初始3血攻击2。技能「抽取今日运势」：掷0-9——0/1暴毙；2/3血1攻1；4/5血3攻1；6血4攻2；7血5攻3；8血6攻4；9血6攻6。仅第一回合可用，每局限一次。',
+    mech: '初始3血攻击1。技能「抽取今日运势」：掷0-9——0/1暴毙；2/3血1攻1；4/5血3攻1；6血4攻2；7血5攻3；8血6攻4；9血6攻6。变身即满血（当前血量=新上限），并给出运势反馈；不限回合，全局一次。',
     quote: '今天勇不勇，第一回合见分晓。',
   },
   dajianke: {

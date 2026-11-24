@@ -685,18 +685,18 @@ export const CHARACTER_CASES: TestCase[] = [
 
   // ═══════════════ 20.7 今日勇者（随机数代表） ═══════════════
   {
-    id: 'TC-C060', name: '今日勇者：基础面板（3血2攻）与运势技能入口', category: 'character', charId: 'hero-today', seed: 260,
-    desc: '初始血量3攻击2；拥有「抽取今日运势」技能（用户确认规则）',
+    id: 'TC-C060', name: '今日勇者：基础面板（3血1攻）与运势技能入口', category: 'character', charId: 'hero-today', seed: 260,
+    desc: '初始血量3攻击1；拥有「抽取今日运势」技能（用户确认规则）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], 260);
       g.players['B'].hp = 3; g.players['B'].maxHp = 3;
-      const okInit = g.players['A'].hp === 3 && g.players['A'].maxHp === 3;
+      const okInit = g.players['A'].hp === 3 && g.players['A'].maxHp === 3 && g.charDef('A').attack === 1;
       const hasAction = g.charDef('A').actions?.some((a) => a.name === 'rollFortune') === true;
       g.players['B'].room = 'R1';
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const okAtk = hpOf(g, 'B') === 1; // 基础攻击2
-      return check(okInit && okAtk && hasAction, '初始3血2攻确认，普攻2伤，运势技能已注册',
+      const okAtk = hpOf(g, 'B') === 2; // 基础攻击1
+      return check(okInit && okAtk && hasAction, '初始3血1攻确认，普攻1伤，运势技能已注册',
         `hpA=${g.players['A'].hp}, B=${hpOf(g, 'B')}, hasRollFortune=${hasAction}`, g);
     }),
   },
@@ -711,10 +711,11 @@ export const CHARACTER_CASES: TestCase[] = [
       actQueue(g, { A: { type: 'rollFortune' } });
       const rolled = g.players['A'].hp === 6 && g.players['A'].maxHp === 6
         && g.charState('A').attackOverride === 6;
+      const feedback = g.logs.some((l) => l.text.includes('抽中 9 点') && l.text.includes('中头奖了'));
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
       const okAtk = hpOf(g, 'B') === 0; // 6-6=0
-      return check(rolled && okAtk, '掷出9 → 血6攻6，普攻造成6伤淘汰B',
+      return check(rolled && okAtk && feedback, '掷出9 → 血6攻6（满血），反馈「中头奖」，普攻6伤淘汰B',
         `面板=${rolled}(A hp=${g.players['A'].hp}), B=${hpOf(g, 'B')}`, g);
     }),
   },
@@ -727,7 +728,7 @@ export const CHARACTER_CASES: TestCase[] = [
       actQueue(g, { A: { type: 'rollFortune' } });
       const dead = !isAlive(g, 'A');
       const over = g.isOver() && g.winner === 'B';
-      const causeLogged = g.logs.some((l) => l.text.includes('运势极凶'));
+      const causeLogged = g.logs.some((l) => l.text.includes('抽中 0 点') && l.text.includes('运势极凶'));
       return check(dead && over && causeLogged, '掷出0 → A 暴毙，B 获胜',
         `A alive=${isAlive(g, 'A')}, winner=${g.winner}, log=${causeLogged}`, g);
     }),
@@ -779,11 +780,33 @@ export const CHARACTER_CASES: TestCase[] = [
       actQueue(g, { A: { type: 'rollFortune' } });
       const rolled = g.players['A'].hp === 4 && g.players['A'].maxHp === 4
         && g.charState('A').attackOverride === 2;
+      const feedback = g.logs.some((l) => l.text.includes('抽中 6 点') && l.text.includes('小有斩获'));
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
       const okAtk = hpOf(g, 'B') === 2; // 4-2=2
-      return check(rolled && okAtk, '掷出6 → 血4攻2，普攻造成2伤',
+      return check(rolled && okAtk && feedback, '掷出6 → 血4攻2（满血），反馈「小有斩获」，普攻2伤',
         `面板=${rolled}(A hp=${g.players['A'].hp}), B=${hpOf(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C067', name: '今日勇者：变身即满血（当前血量=新上限）与运势反馈', category: 'character', charId: 'hero-today', seed: 12,
+    desc: '掷2/3 → 血1攻1（当前=上限），反馈「时运不济」；掷8 → 血6攻4，反馈「鸿运当头」',
+    run: () => run(() => {
+      const play = (seed: number) => {
+        const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], seed);
+        playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+        actQueue(g, { A: { type: 'rollFortune' } });
+        return g;
+      };
+      const low = play(12); // 掷2 → 血1攻1
+      const lowFull = low.players['A'].hp === low.players['A'].maxHp && low.players['A'].maxHp === 1;
+      const lowMsg = low.logs.some((l) => l.text.includes('抽中 2 点') && l.text.includes('时运不济'));
+      const high = play(30); // 掷8 → 血6攻4
+      const highFull = high.players['A'].hp === high.players['A'].maxHp && high.players['A'].maxHp === 6;
+      const highMsg = high.logs.some((l) => l.text.includes('抽中 8 点') && l.text.includes('鸿运当头'));
+      const ok = lowFull && lowMsg && highFull && highMsg;
+      return check(ok, '变身后面板满血（当前血量=上限），并给出对应运势反馈',
+        `low=${low.players['A'].hp}/${low.players['A'].maxHp}, high=${high.players['A'].hp}/${high.players['A'].maxHp}`, low);
     }),
   },
   {

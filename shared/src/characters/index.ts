@@ -339,12 +339,12 @@ const jinriyongzhe: CharDef = {
   id: 'hero-today',
   aiStrategy: characterAi.hero,
   name: '今日勇者',
-  desc: '血量3攻击2（初始面板）。技能「抽取今日运势」：掷 0-9 随机数——0/1 直接暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。全局仅可使用一次，不限回合。',
+  desc: '血量3攻击1（初始面板）。技能「抽取今日运势」：掷 0-9 随机数——0/1 直接暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。转换时当前血量与上限同时变为掷出值（满血），并给出运势反馈。全局仅可使用一次，不限回合。',
   hp: 3,
-  attack: 2,
+  attack: 1,
   attackType: 'melee',
   init: () => ({ attackOverride: undefined as number | undefined, fortuneUsed: false }),
-  /** 运势转换后的攻击力覆盖（仅近战；未抽取时用基础攻击2） */
+  /** 运势转换后的攻击力覆盖（仅近战；未抽取时用基础攻击1） */
   dynamicDamage: ({ game, actor, ranged }) => {
     const st = game.charState(actor);
     if (!ranged && typeof st.attackOverride === 'number') return st.attackOverride;
@@ -354,7 +354,7 @@ const jinriyongzhe: CharDef = {
     {
       name: 'rollFortune',
       label: '抽取今日运势',
-      desc: '掷 0-9 随机数转换面板：0/1 暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。全局仅可使用一次，不限回合。',
+      desc: '掷 0-9 随机数转换面板：0/1 暴毙；2/3→血1攻1；4/5→血3攻1；6→血4攻2；7→血5攻3；8→血6攻4；9→血6攻6。转换时血量与上限同时变为掷出值（满血），并给出运势反馈。全局仅可使用一次，不限回合。',
       targetHint: 'none',
       validate: (ctx) => {
         if (ctx.game.charState(ctx.actor).fortuneUsed === true) return '「抽取今日运势」全局仅限使用一次';
@@ -375,16 +375,26 @@ const jinriyongzhe: CharDef = {
           { hp: 6, atk: 6 },
         ];
         const r = table[n];
+        // 运势反馈（玩家可见的语气文案）
+        const feedback = r.death
+          ? '运势极凶，当场暴毙！'
+          : n === 9 ? '中头奖了，今日勇者势不可挡！'
+          : n === 8 ? '鸿运当头，气势如虹！'
+          : n === 7 ? '运势不错，渐入佳境。'
+          : n === 6 ? '小有斩获，渐入佳境。'
+          : n === 5 || n === 4 ? '平平无奇，凑合能用。'
+          : '时运不济，聊胜于无…';
         if (r.death) {
-          game.log('trigger', `🎰 今日勇者抽取运势：掷出 ${n} —— 运势极凶，当场暴毙！`, { pid: ctx.actor, fortune: true, roll: n }, true);
+          game.log('trigger', `🎰 今日勇者抽取运势：抽中 ${n} 点 —— ${feedback}`, { pid: ctx.actor, fortune: true, roll: n, feedback, jackpot: false }, true);
           game.eliminate(ctx.actor, 'fortune-death');
           return;
         }
         const before = me.hp;
+        const atkBefore = game.charDef(ctx.actor).attack;
         me.maxHp = r.hp!;
-        me.hp = r.hp!;
+        me.hp = r.hp!; // 当前血量直接变为新上限（满血）
         game.charState(ctx.actor).attackOverride = r.atk!;
-        game.log('trigger', `🎰 今日勇者抽取运势：掷出 ${n} —— 面板转换：血量 ${before}→${r.hp}，攻击→${r.atk}`, { pid: ctx.actor, fortune: true, roll: n }, true);
+        game.log('trigger', `🎰 今日勇者抽取运势：抽中 ${n} 点 —— ${feedback} 面板转换：血量 ${before}→${r.hp}（满血），攻击 ${atkBefore}→${r.atk}`, { pid: ctx.actor, fortune: true, roll: n, feedback, jackpot: n === 9 }, true);
       },
     },
   ],
