@@ -15,7 +15,8 @@ import {
   type PresentationState,
 } from '../battle/useBattlePresentation.js';
 import { useCardRoomFlip } from '../battle/flip.js';
-import { formatHp as fmtHp, PlayerStatusList, PlayerStatusModal } from '../battle/player-status.js';
+import { PlayerStatusList, PlayerStatusModal } from '../battle/player-status.js';
+import { formatHp as fmtHp } from '../battle/status-types.js';
 import { sfx } from '../audio/sfx.js';
 import { Battle3D, detectWebGL, preferredRenderer, setPreferredRenderer } from '../battle3d/Battle3D.js';
 import { clearSessionDegraded } from '../battle3d/gl-policy.js';

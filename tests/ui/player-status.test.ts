@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import type { SnapPlayer } from '../../shared/src/protocol.js';
-import { formatHp, playerStatusItems } from '../../client/src/battle/player-status.js';
+import { PLAYER_STATUS_READERS, playerStatusItems } from '../../client/src/battle/status-readers.js';
+import { formatHp } from '../../client/src/battle/status-types.js';
 
 function player(overrides: Partial<SnapPlayer> = {}): SnapPlayer {
   return {
@@ -29,6 +30,8 @@ describe('角色公开状态', () => {
     ]));
     expect(items.find((item) => item.key === 'aim')?.value).toBe('目标 B');
     expect(items.find((item) => item.key === 'attack-override')?.value).toBe('攻击力 4.5');
+    expect(PLAYER_STATUS_READERS.length).toBeGreaterThan(0);
+    expect(new Set(items.map((item) => item.key)).size).toBe(items.length);
   });
 
   it('淘汰后不展示仅存活时生效的状态', () => {

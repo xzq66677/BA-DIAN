@@ -47,11 +47,28 @@ MAP 链：`feat/map101-stone-refinement`、`feat/map102-labels-danger`、
 不要用 `git ls-files` 来判断 3D 是否存在于早期快照——直接读文件系统。
 基于现有 3D 代码继续开发，**不要从 V3.0 基线重做**。
 
+## 角色公开状态与后续负面状态接口
+
+状态展示按“引擎数据 → 公开快照 → 状态读取器 → 通用 UI”分层，后续新增燃烧、中毒、减速等状态时不要修改血条或弹窗组件：
+
+- `shared/src/types.ts`：定义权威运行时状态与公开状态类型。持续效果必须包含生效、回合推进、到期/移除、死亡清理的生命周期，不能只存展示字段。
+- `shared/src/snapshot.ts`：只序列化公开状态。推荐使用 `PlayerState.effects?: PublicStatusEffect[]`，公开字段限 `kind`、`severity`、`remainingRounds`、`stacks` 和必要的公开来源；`pendingThrows`、判定历史、内部钩子与未公开目标不得进入快照。
+- `client/src/battle/status-types.ts`：统一 `PlayerStatusItem`、`PlayerStatusReader` 与数值格式；读取器是后续状态的唯一扩展接口。
+- `client/src/battle/status-readers.ts`：维护公开状态白名单与 `PLAYER_STATUS_READERS`。每个读取器返回稳定且全局唯一的 `key`，并明确 `tone`、`value`、`detail`；不得遍历或直接渲染 `char` 的未知字段。
+- `client/src/battle/player-status.tsx`：只负责 2D/3D 共用展示、弹窗与无障碍交互，不允许按具体状态名写分支。
+
+新增负面状态的完成标准：
+
+1. 在共享类型与引擎中实现权威效果及结算测试，在 `snapshot.ts` 增加最小公开投影。
+2. 在 `status-readers.ts` 新增读取器并注册到 `PLAYER_STATUS_READERS`；已有 UI 无需改动。
+3. 补充读取器测试，覆盖生效、层数/剩余回合、到期、淘汰清理和私有字段不泄漏。
+4. 运行 `npm test` 与 `npm run build`；只有交互层级变化时才需要追加 Chromium E2E。
+
 ## 常用命令
 
 ```bash
 npm install          # 安装依赖（Node >= 20，验证用 v24）
-npm test             # 约 185 项测试
+npm test             # 591 项测试（含真实 Chromium E2E）
 npm run build        # tsc + vite 构建
 npm run dev:server   # 游戏服务 :3100
 npm start            # 启动服务（systemd: badian）
