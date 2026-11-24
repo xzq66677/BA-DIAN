@@ -15,6 +15,7 @@ import {
   type PresentationState,
 } from '../battle/useBattlePresentation.js';
 import { useCardRoomFlip } from '../battle/flip.js';
+import { resolvePresentationPace } from '../battle/pace-policy.js';
 import { PlayerStatusList, PlayerStatusModal } from '../battle/player-status.js';
 import { formatHp as fmtHp } from '../battle/status-types.js';
 import { sfx } from '../audio/sfx.js';
@@ -162,7 +163,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   // ── 战斗演出（BattleEventQueue）：全部由服务端结构化事件驱动，
   //    不再用快照 HP 差分猜测伤害；快照仍是显示权威，叠加层只做视觉。
   //    终局延迟呈现：规则立即结算（快照 over），终局弹层等最后关键演出播完再登场。 ──
-  const { pres, queue: queueState, api: presApi, finaleWaiting } = useBattlePresentation(logs, lobby.gameNo, game.phase, resync, announces);
+  const presentationPace = useMemo(() => resolvePresentationPace(lobby.seats), [lobby.seats]);
+  const { pres, queue: queueState, api: presApi, finaleWaiting } = useBattlePresentation(logs, lobby.gameNo, game.phase, resync, announces, presentationPace);
   const reducedMotion = useReducedMotion();
   // 移动演出的 FLIP 卡片飞行动画（跟随快照房间变化，不依赖队列时序）
   useCardRoomFlip(game.players, reducedMotion, '.bt-room-cards .ccard[data-pid], .bt-mine-cards .ccard[data-pid]', 'flip-flying');
@@ -552,7 +554,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
 
       <div className={`tcg-main ${logOpen ? '' : 'no-log'}`}>
         {/* ── 战场主体：3D 战场（WebGL 可用时默认）或沉浸牌桌 2D 回退 ── */}
-        <section className={`battlefield ${use3d ? 'bt3d-stage' : 'bt-table'} anim-in ${game.phase === 'over' ? 'is-over' : ''}`}>
+        <section className={`battlefield ${use3d ? 'bt3d-stage' : 'bt-table'} anim-in ${game.phase === 'over' ? 'is-over' : ''}`} data-pace={queueState.pace}>
           {/* 全局播报：所有公开动作的战场中央横幅（服务端权威，带时间戳与停留时长） */}
           {pres.globalAnnounce && <GlobalAnnounceBanner item={pres.globalAnnounce} />}
           {(queueState.playing || queueState.depth > 0 || finaleWaiting || finaleCameraPending) && (

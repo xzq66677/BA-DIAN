@@ -18,6 +18,7 @@ import {
   BattleEventQueue, type Speed,
 } from '../client/src/battle/queue.js';
 import { parseBattleEvent, type LogLike } from '../client/src/battle/events.js';
+import { resolvePresentationPace } from '../client/src/battle/pace-policy.js';
 
 /** 造一批「一次 AI 回合」形态的日志：攻击/伤害/移动/回复交替 */
 function aiBurst(rounds: number, seqStart = 1): LogLike[] {
@@ -105,5 +106,55 @@ describe('演出节奏档位', () => {
     const clusters = assembleClusters(events as never);
     const leadCount = clusters.filter((c) => c.lead).length;
     expect(leadCount).toBe(9); // 3 轮 × 3 个 action 簇首
+  });
+});
+
+describe('座位组成节奏策略（Issue #61）', () => {
+  const mixed = [{ type: 'human' }, { type: 'ai' }, { type: 'ai' }];
+  const localMixed = [{ type: 'local' }, { type: 'ai' }];
+  const pureAi = [{ type: 'ai' }, { type: 'ai' }];
+  const pureHuman = [{ type: 'human' }, { type: 'human' }];
+
+  it('真人 + AI 混合局：无 ?pace= 时强制慢速', () => {
+    expect(resolvePresentationPace(mixed, '').id).toBe('slow');
+    expect(resolvePresentationPace(localMixed, '?entrance=classic').id).toBe('slow');
+  });
+
+  it('显式合法 ?pace= 是调试覆盖：混合局也尊重', () => {
+    expect(resolvePresentationPace(mixed, '?pace=current').id).toBe('current');
+    expect(resolvePresentationPace(mixed, '?pace=relaxed').id).toBe('relaxed');
+    expect(resolvePresentationPace(mixed, '?pace=cinematic').id).toBe('cinematic');
+  });
+
+  it('未知/原型键 ?pace= 不生效：混合局仍回慢速', () => {
+    expect(resolvePresentationPace(mixed, '?pace=nonsense').id).toBe('slow');
+    expect(resolvePresentationPace(mixed, '?pace=__proto__').id).toBe('slow');
+    expect(resolvePresentationPace(mixed, '?pace=constructor').id).toBe('slow');
+  });
+
+  it('纯 AI / 纯真人局不强制：跟随 URL 或默认档', () => {
+    expect(resolvePresentationPace(pureAi, '?pace=current').id).toBe('current');
+    expect(resolvePresentationPace(pureHuman, '?pace=relaxed').id).toBe('relaxed');
+    expect(resolvePresentationPace(pureAi, '').id).toBe(DEFAULT_PACE);
+    expect(resolvePresentationPace([], '').id).toBe(DEFAULT_PACE);
+  });
+
+  it('混合局队列：典型 AI 批次保持 normal，且状态暴露 pace=slow', () => {
+    const pace = resolvePresentationPace(mixed, '');
+    const states: Array<{ mode: string; pace: string }> = [];
+    const q = new BattleEventQueue({ onState: (s) => states.push({ mode: s.mode, pace: s.pace }) }, pace);
+    q.pushLogs(aiBurst(3));
+    expect(q.getPace().id).toBe('slow');
+    expect(q.getState().pace).toBe('slow');
+    expect(states[states.length - 1].mode).toBe('normal');
+    q.dispose();
+  });
+
+  it('setPace 动态切换会同步进队列状态（座位变化 → 重算档位）', () => {
+    const q = new BattleEventQueue({}, PACE_PROFILES.current);
+    expect(q.getState().pace).toBe('current');
+    q.setPace(resolvePresentationPace(mixed, ''));
+    expect(q.getState().pace).toBe('slow');
+    q.dispose();
   });
 });

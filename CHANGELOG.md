@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-11-24 · 真人对 AI 默认慢速演出 + AI 找出来策略（Issue #61）
+
+### 变更
+- **人机混合局强制慢速演出**：新增 `client/src/battle/pace-policy.ts` 的 `resolvePresentationPace(seats, search)`——真人/本机玩家 + AI 混合局默认 `slow` 档（此前仅默认档为 slow，无按座位的策略）；纯 AI / 纯真人局跟随 URL 或默认档。显式合法 `?pace=` 仍是最优先的调试覆盖（`Object.hasOwn` 防原型键）。`Game.tsx` 按 `lobby.seats` 计算并经 `useBattlePresentation` 第 6 参传入。
+- **档位可观测**：`QueueState` 新增 `pace` 字段，构造 / `setPace` / 状态广播同步；`.battlefield` 输出 `data-pace`（常驻，不依赖演出队列是否忙碌）。
+
+### 修复
+- **AI 不会「找出来」**：此前三档 AI 把躲藏目标过滤掉后只能移动/躲藏/跳过，同房间只剩躲藏者时白白空过。现在 `server/src/ai.ts` 新增 `seekTargets` / `shouldSeekHidden`：普通/硬核首选 `seek`（按残血/威胁排序），候选链兜底含 `seek`，休闲档随机首选被拒时仍能落地。
+- **不浪费找出来**：`allowSeek=false`、目标隐身（seek 无法解除）、异房间、已淘汰不产生 `seek`；无视躲藏（拔棍）、AOE/辱骂接管、纯远程、零攻击角色豁免。
+- **角色特化修正**：`firstInRoom` 去掉难度门槛（硬核伍六七/大剑客可直接 AOE/接管打躲藏者）；五条悟普通难度先过滤可见成员，不再盲打躲藏目标。
+
+### 新增
+- `tests/pace.test.ts` +6（座位策略、调试覆盖、原型键安全、队列 `pace` 状态、`setPace` 同步）。
+- `tests/integration/ai-difficulty.test.ts` +10（三档 seek 首选/候选链/引擎真实落地/规则关闭/隐身/异房间/淘汰/角色豁免/伍六七 AOE/五条悟）。
+- e2e：单人（本机 + 2AI）开局断言 `.battlefield[data-pace=slow]`。
+- `npm test` **37 文件 / 615 用例全过**；AGENTS.md「演出节奏与 AI 策略扩展点」、README（Pace / AI 难度章节）、TASKS.md 同步。
+
+---
+
 ## 2026-11-23 · 战斗演出节奏可调（Pace 档位）
 
 ### 修复

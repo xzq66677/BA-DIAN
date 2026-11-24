@@ -3,8 +3,8 @@ import type { ActionRequest } from '../types.js';
 
 type Strategy = (ctx: CharacterAiContext) => ActionRequest | undefined;
 
-const firstInRoom: Strategy = ({ difficulty, members }) =>
-  difficulty === 'normal' && members.length > 0 ? { type: 'attack', targetId: members[0] } : undefined;
+const firstInRoom: Strategy = ({ members }) =>
+  members.length > 0 ? { type: 'attack', targetId: members[0] } : undefined;
 
 export const characterAi = {
   bagun(ctx) {
@@ -21,8 +21,9 @@ export const characterAi = {
   gojo({ game, pid, st, members, alive, difficulty }) {
     if (st.domain !== true) return { type: 'domain' };
     if (difficulty === 'hard') return;
-    if (members.length > 0) {
-      return { type: 'attack', targetId: members[0], ranged: !game.isSameRoom(pid, members[0]) };
+    const visibleMembers = members.filter((p) => !(game.players[p].hidden || game.players[p].invisible));
+    if (visibleMembers.length > 0) {
+      return { type: 'attack', targetId: visibleMembers[0], ranged: !game.isSameRoom(pid, visibleMembers[0]) };
     }
     const target = alive.find((p) => !(game.players[p].hidden || game.players[p].invisible));
     if (target) return { type: 'attack', targetId: target, ranged: true };

@@ -88,6 +88,8 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     // 战场出现
     await page.getByText(/行动坞/).waitFor({ timeout: 20000 });
     await expect(page.locator('.battlefield')).toBeVisible();
+    // Issue #61：真人（本机）+ AI 混合局默认慢速演出
+    await expect(page.locator('.battlefield')).toHaveAttribute('data-pace', 'slow');
     // 角色卡在场上（AI 已有随机角色 → 卡面 img）：
     // 2D 牌桌 = .ccard-art img；3D 战场 = .b3-av img（名牌头像）+ .ms-art img（我的席位）
     await page.waitForTimeout(1500);

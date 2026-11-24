@@ -35,6 +35,7 @@ export interface QueueState {
   depth: number;
   mode: QueueMode;
   speed: Speed;
+  pace: PaceId;
 }
 
 /**
@@ -283,16 +284,18 @@ export class BattleEventQueue {
   private disposed = false;
   private pace: PaceProfile;
   private cb: QueueCallbacks;
-  private state: QueueState = { playing: false, depth: 0, mode: 'normal', speed: 1 };
+  private state: QueueState = { playing: false, depth: 0, mode: 'normal', speed: 1, pace: 'current' };
 
   constructor(cb: QueueCallbacks = {}, pace: PaceProfile = PACE_PROFILES.current) {
     this.cb = cb;
     this.pace = pace;
+    this.state = { ...this.state, pace: pace.id };
   }
 
   /** 切换节奏档位（局内可即时生效：只影响后续事件，已在播的这条走完） */
   setPace(pace: PaceProfile): void {
     this.pace = pace;
+    this.emitState();
   }
 
   getPace(): PaceProfile {
@@ -470,6 +473,7 @@ export class BattleEventQueue {
       depth: this.clusters.length,
       mode,
       speed: this.speed,
+      pace: this.pace.id,
     };
     this.cb.onState?.(this.state);
   }
