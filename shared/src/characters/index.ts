@@ -137,7 +137,7 @@ const laodaye: CharDef = {
 const mabaoguo: CharDef = {
   id: 'mabaoguo',
   name: '马保国',
-  desc: '血量4攻击1。混元形意太极：除大伊万爆、肉山坐外，受到伤害时与来源各出一拳判定，赢则原伤反弹（可选）。闪电五连鞭：对同房间敌人进行5局判定（双方各出5拳），按胜次造成其**当前血量** 20/40/60/80/100% 的伤害（单次总量）。不讲武德：被击杀后与击杀者进行5局判定，赢3局则以精神攻击带走对面（同时死亡）。',
+  desc: '血量4攻击1。混元形意太极：除大伊万爆、肉山坐外，受到伤害时与来源各出一拳判定，赢则原伤反弹（可选）。闪电五连鞭：对同房间敌人累计进行5局有效判定（平局不计局数并重判），按胜次造成其**当前血量** 20/40/60/80/100% 的伤害（单次总量）。不讲武德：被击杀后与击杀者进行5局判定，赢3局则以精神攻击带走对面（同时死亡）。',
   hp: 4,
   attack: 1,
   attackType: 'melee',
@@ -229,7 +229,7 @@ const mabaoguo: CharDef = {
     {
       name: 'whip5',
       label: '闪电五连鞭',
-      desc: '对同房间一名敌人进行5局判定（双方各出5拳），按胜次造成其「当前血量」20/40/60/80/100% 的伤害（单次总量）。',
+      desc: '对同房间一名敌人进行5局判定（双方各出5拳），平局不计局数并重判；按胜次造成其「当前血量」20/40/60/80/100% 的伤害（单次总量）。',
       targetHint: 'sameRoomPlayer',
       validate: (ctx) => {
         const t = ctx.params.targetId;
@@ -260,8 +260,15 @@ const mabaoguo: CharDef = {
 
         if (game.rules.skillJudgeMode === 'serverRoll') {
           let wins = 0;
-          for (let i = 1; i <= 5; i++) {
-            if (game.rollJudge(actor, t, `五连鞭第${i}鞭`) === 'win') wins++;
+          let judged = 0;
+          for (let i = 1; judged < 5; i++) {
+            const result = game.rollJudge(actor, t, `五连鞭第${i}鞭`);
+            if (result === 'tie') {
+              game.log('info', '⚡ 五连鞭平局，不计局数，本局重判');
+              continue;
+            }
+            judged++;
+            if (result === 'win') wins++;
           }
           settle(wins);
           return;

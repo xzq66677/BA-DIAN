@@ -3,14 +3,14 @@
  *
  * 覆盖马保国三种能力：
  *  - 混元形意太极：受伤时暂停对局、双方各出一拳，赢则原伤反弹（伤害先挂起，判定后补结算）
- *  - 闪电五连鞭：5 局判定，按胜次造成目标**当前血量** 20/40/60/80/100% 的伤害（单次总量）
+ *  - 闪电五连鞭：平局不计局数并重判，累计 5 次分出胜负，按胜次造成目标**当前血量** 20/40/60/80/100% 的伤害（单次总量）
  *  - 不讲武德：被击杀后 5 局判定，赢 ≥3 局以**精神攻击**带走击杀者
  *
  * 另覆盖：出拳保密（提交阶段不下发拳种）、越权/重复提交拒绝、AI 代出、≥2 真人超时代掷，
  * 以及 serverRoll 兼容模式仍保持旧的即时结算行为。
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { Game } from '../shared/src/engine.js';
 import { CHARACTERS } from '../shared/src/characters/index.js';
 import { Room } from '../server/src/room.js';
@@ -50,10 +50,11 @@ function driveJudge(g: Game, owner: PlayerId, opponent: PlayerId, rounds: Array<
 
 const rooms: Room[] = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const r of rooms.splice(0)) r.dispose();
 });
 
-describe('闪电五连鞭：5 局亲自出拳 + 当前血量伤害', () => {
+describe('闪电五连鞭：5 局有效判定 + 当前血量伤害', () => {
   it('进入 judge 阶段，双方各出 5 拳，按胜次 × 当前血量结算一次', () => {
     const g = game2([{ id: 'A', char: 'mabaoguo' }, { id: 'B' }]);
     g.players.B.room = g.players.A.room;
@@ -96,6 +97,42 @@ describe('闪电五连鞭：5 局亲自出拳 + 当前血量伤害', () => {
     const log = g.logs.filter((l) => l.type === 'damage' && l.data?.tag === 'whip').pop()!;
     expect(String(log.data?.amount)).toBe('0.4');
     expect(g.players.B.hp).toBeCloseTo(0.6, 4);
+  });
+
+  it('平局不计局数并重判，累计 5 次分出胜负后按胜次结算', () => {
+    const g = game2([{ id: 'A', char: 'mabaoguo' }, { id: 'B' }]);
+    g.players.B.room = g.players.A.room;
+    g.players.B.maxHp = 3;
+    g.players.B.hp = 3;
+    soloTurn(g, 'A', 'B');
+    g.submitAction('A', { type: 'whip5', targetId: 'B' });
+
+    driveJudge(g, 'A', 'B', [
+      ['paper', 'paper'], ['rock', 'rock'], ['scissors', 'scissors'], ['rock', 'scissors'], ['paper', 'paper'],
+    ]);
+    expect(g.phase).toBe('judge');
+    expect(g.skillJudgeView()!.round).toBe(2);
+    expect(g.skillJudgeView()!.wins).toBe(1);
+    expect(g.players.B.hp).toBe(3);
+
+    driveJudge(g, 'A', 'B', [
+      ['paper', 'scissors'], ['rock', 'scissors'], ['scissors', 'rock'], ['rock', 'rock'],
+    ]);
+    expect(g.phase).toBe('judge');
+    expect(g.skillJudgeView()!.round).toBe(5);
+    expect(g.skillJudgeView()!.wins).toBe(2);
+    expect(g.players.B.hp).toBe(3);
+
+    driveJudge(g, 'A', 'B', [['rock', 'scissors']]);
+    expect(g.phase).not.toBe('judge');
+    expect(g.skillJudgeView()).toBeNull();
+    expect(g.players.B.hp).toBeCloseTo(1.2, 4); // 3 胜 × 20% × 当前血量 3 = 1.8 伤害
+
+    const records = g.logs.filter((l) => l.type === 'judge' && l.data?.kind === 'whip5');
+    expect(records).toHaveLength(10);
+    expect(records.map((l) => l.data?.round)).toEqual([1, 1, 1, 1, 2, 2, 3, 4, 5, 5]);
+    expect(records.filter((l) => l.data?.result === 'tie')).toHaveLength(5);
+    expect(records.filter((l) => l.text.includes('不计局数，本局重判'))).toHaveLength(5);
   });
 
   it('0 胜：只写日志、不产生伤害事件', () => {
@@ -222,13 +259,24 @@ describe('不讲武德：死后 5 局、精神攻击带走击杀者', () => {
 });
 
 describe('兼容：serverRoll 模式下仍是即时结算（无 judge 阶段）', () => {
-  it('五连鞭立即扣血、不进入 judge', () => {
-    const g = makeGame([{ id: 'A', char: 'mabaoguo' }, { id: 'B' }], 11); // helpers 默认 serverRoll
+  it('五连鞭忽略平局并重判，累计 5 次分出胜负后立即扣血', () => {
+    const g = makeGame([{ id: 'A', char: 'mabaoguo' }, { id: 'B' }], 11);
     g.players.B.room = g.players.A.room;
+    g.players.B.maxHp = 3;
+    g.players.B.hp = 3;
+    const roll = vi.spyOn(g, 'rollJudge')
+      .mockReturnValueOnce('tie')
+      .mockReturnValueOnce('tie')
+      .mockReturnValueOnce('win')
+      .mockReturnValueOnce('win')
+      .mockReturnValueOnce('lose')
+      .mockReturnValueOnce('lose')
+      .mockReturnValueOnce('lose');
     soloTurn(g, 'A', 'B');
     g.submitAction('A', { type: 'whip5', targetId: 'B' });
     expect(g.phase).not.toBe('judge');
-    expect(g.logs.some((l) => l.text.includes('五连鞭命中') || l.text.includes('五连鞭 0/5'))).toBe(true);
+    expect(roll).toHaveBeenCalledTimes(7);
+    expect(g.players.B.hp).toBeCloseTo(1.8, 4); // 2 胜 × 20% × 当前血量 3 = 1.2 伤害
   });
 });
 

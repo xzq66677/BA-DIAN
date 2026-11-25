@@ -52,7 +52,7 @@ export const CARD_META: Record<string, CardMeta> = {
   mabaoguo: {
     img: './cards/mabaoguo.webp', thumb: './cards/mabaoguo-thumb.webp', no: '04',
     skills: '【混元形意太极】·【闪电五连鞭】',
-    mech: '普攻1。受到伤害时判定，判定赢则原伤反弹；闪电五连鞭5场判定按胜次扣血；不讲武德死后5局赢3带走对面。',
+    mech: '普攻1。受到伤害时判定，判定赢则原伤反弹；闪电五连鞭平局重判、不计局数，累计5次分出胜负后按胜次扣血；不讲武德死后5局赢3带走对面。',
     quote: '年轻人不讲武德，来骗来偷袭，这伤原样还你。',
   },
   wuliuqi: {

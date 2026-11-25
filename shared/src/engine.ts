@@ -749,6 +749,7 @@ export class Game implements GameLike {
     const pt = j.pending[j.opponent];
     const result: 'win' | 'lose' | 'tie' = !ot || !pt ? 'tie' : beats(ot, pt) ? 'win' : beats(pt, ot) ? 'lose' : 'tie';
     if (result === 'win') j.wins++;
+    const replayTie = j.kind === 'whip5' && result === 'tie';
     j.last = { round: j.round, ownerThrow: ot as Throw, opponentThrow: pt as Throw, result };
     j.records.push({
       kind: j.kind, label: j.label, round: j.round, owner: j.owner, opponent: j.opponent,
@@ -756,14 +757,14 @@ export class Game implements GameLike {
     });
     const on = this.players[j.owner].name;
     const pn = this.players[j.opponent]?.name ?? '?';
-    const verdict = result === 'win' ? `${on} 胜` : result === 'lose' ? `${pn} 胜` : '平局';
+    const verdict = result === 'win' ? `${on} 胜` : result === 'lose' ? `${pn} 胜` : replayTie ? '平局（不计局数，本局重判）' : '平局';
     this.log('judge', `⚡ ${j.label}（第 ${j.round}/${j.rounds} 局）：${on}[${this.throwName(ot as Throw)}] vs ${pn}[${this.throwName(pt as Throw)}] → ${verdict}`,
       { kind: j.kind, round: j.round, rounds: j.rounds, owner: j.owner, opponent: j.opponent, ownerThrow: ot, opponentThrow: pt, result }, true);
     j.pending = {};
     j.submitted = [];
 
-    if (j.round < j.rounds) {
-      j.round++;
+    if (replayTie || j.round < j.rounds) {
+      if (!replayTie) j.round++;
       const names = this.judgeParticipants(j).map((pid) => this.players[pid].name).join('、');
       this.log('phase', `⚡ ${j.label}（第 ${j.round}/${j.rounds} 局）：等待 ${names} 出拳`, undefined, true);
       return;
