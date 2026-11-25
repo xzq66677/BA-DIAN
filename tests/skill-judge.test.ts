@@ -287,7 +287,7 @@ describe('不讲武德：死后 5 局、精神攻击带走击杀者', () => {
 
 describe('兼容：serverRoll 模式下仍是即时结算（无 judge 阶段）', () => {
   it('五连鞭忽略平局并重判，累计 5 次分出胜负后立即扣血', () => {
-    const g = makeGame([{ id: 'A', char: 'mabaoguo' }, { id: 'B' }], 11);
+    const g = makeGame([{ id: 'A', char: 'mabaoguo' }, { id: 'B', char: 'default' }], 11);
     g.players.B.room = g.players.A.room;
     g.players.B.maxHp = 3;
     g.players.B.hp = 3;
