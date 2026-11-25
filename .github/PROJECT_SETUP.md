@@ -21,7 +21,7 @@
 2. **Add branch protection rule**，分支名填 `main`
 3. 勾选：
    - ✅ Require a pull request before merging
-   - ✅ Require status checks to pass（如有 CI）
+   - ✅ Require status checks to pass，勾选 Test and build、Browser E2E（工作流首次运行后可选）
    - ✅ Require branches to be up to date before merging
    - ✅ Do not allow bypassing the above settings
 4. **Create**

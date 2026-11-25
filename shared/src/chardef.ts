@@ -4,7 +4,7 @@
  * 禁止在引擎中堆砌 if/else 硬编码角色逻辑。
  */
 
-import type { PlayerId, RoomId, ActionRequest, DamageRequest, Throw } from './types.js';
+import type { PlayerId, RoomId, ActionRequest, CharRuntimeState, DamageRequest, PlayerState, SkillJudgeOptions, Throw } from './types.js';
 
 /** 前置声明引擎接口，避免循环导入（运行时由 engine.ts 实现） */
 export interface GameLike {
@@ -30,7 +30,7 @@ export interface GameLike {
   isSameRoom(a: PlayerId, b: PlayerId): boolean;
   isOver(): boolean;
   applyDamage(req: DamageRequest): import('./types.js').AppliedDamage;
-  eliminate(pid: PlayerId, cause: string, killer?: PlayerId): void;
+  eliminate(pid: PlayerId, cause: string, killer?: PlayerId, opts?: { ignoreLives?: boolean }): void;
   heal(pid: PlayerId, amount: number): void;
   checkWin(): boolean;
   appendJudgeHistory(pid: PlayerId, step: import('./types.js').JudgeStep, stage: 'rps1' | 'rps2', sub: number): void;
@@ -45,11 +45,6 @@ export interface GameLike {
    * 全部局数结束后回调 `resolve(wins, rounds)`（wins 为己方获胜局数）。
    */
   requestJudge(opts: import('./types.js').SkillJudgeOptions): void;
-  /**
-   * 发起判定并**挂起当前这次伤害**（太极用）：判定结束前不扣血。
-   * `resolve` 里请自行决定是否改写目标（反弹）并调用 `applyDamage(req)` 完成结算。
-   */
-  deferDamageJudge(req: DamageRequest, opts: import('./types.js').SkillJudgeOptions): void;
   addDeferred(ev: Omit<import('./types.js').DeferredEvent, 'id'>): void;
   /** 生成新的事件组标识（AOE/多段演出分组用；同一次行动的全部伤害共享同一组） */
   nextGroupId(): string;
@@ -114,7 +109,19 @@ export interface JudgeAppendCtx {
   sub: number;
 }
 
+export interface CharacterAiContext {
+  game: Pick<GameLike, 'roundNo' | 'players' | 'roomIds' | 'roomMembers' | 'isSameRoom'>;
+  difficulty: 'normal' | 'hard';
+  pid: PlayerId;
+  me: PlayerState;
+  st: CharRuntimeState;
+  members: PlayerId[];
+  alive: PlayerId[];
+}
+
 export interface CharDef {
+  /** 可选的角色优先行动。返回 undefined 时由服务器使用通用策略。 */
+  aiStrategy?(ctx: CharacterAiContext): ActionRequest | undefined;
   id: string;
   name: string;
   desc: string;
@@ -138,11 +145,13 @@ export interface CharDef {
   ignoreHide?: boolean;
   /** 攻击无视距离：可选定任意房间的目标（如大贱客辱骂，作者确认 2026-11-21） */
   attackAllRooms?: boolean;
+  /** 攻击改为「指定房间」而非指定目标（如伍六七：移动到该房间，下一回合末三刀） */
+  attackRoomHint?: boolean;
   /** 角色自定义攻击说明（客户端行动坞展示用；设置后覆盖默认文案） */
   attackDesc?: string;
   /** 是否具备远程攻击能力（默认角色不具备，仅近战） */
   rangedCapable?: boolean;
-  /** 远程攻击是否需要先瞄准 */
+  /** 远程攻击是否需要先瞄准（opt-in；默认 false，即免瞄准） */
   rangedNeedsAim?: boolean;
   /** 领域生效后远程免瞄准（五条悟） */
   aimExemptWhenDomain?: boolean;
@@ -152,8 +161,8 @@ export interface CharDef {
   dataMissing?: string[];
   /** 初始化角色运行状态 */
   init?(): Record<string, unknown>;
-  /** 伤害管线前钩子：可修改目标/取消（返回 'skip'）；damageHookStage 决定执行阶段 */
-  onBeforeDamage?(ctx: DamageHookCtx): DamageRequest | 'skip' | void;
+  /** 伤害钩子可修改 req、返回 'skip' 取消，或返回 deferTo 等待出拳后再结算。 */
+  onBeforeDamage?(ctx: DamageHookCtx): DamageRequest | 'skip' | { deferTo: SkillJudgeOptions } | void;
   /** 伤害钩子阶段：transfer=转移（先执行），defense=防御（后执行，仅对自身） */
   damageHookStage?: 'transfer' | 'defense';
   /** 死亡钩子 */
@@ -168,8 +177,8 @@ export interface CharDef {
   onAttackAction?(ctx: CharActionContext, targetId: PlayerId, ranged: boolean): import('./types.js').ActionResult;
   /** 附加行动（技能） */
   actions?: CharActionDef[];
-  /** 领域平局算胜标记（五条悟等） */
-  domainTieWin?: boolean;
+  /** 领域标记：展开后「平局回合」获得行动资格（五条悟等）。只给行动权，不改变平局结果 */
+  domainActsOnTie?: boolean;
 }
 
 export const BASE_ATTACK_TYPE: CharDef['attackType'] = 'both';

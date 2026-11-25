@@ -1,0 +1,1540 @@
+{
+  "tag": "after",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "errors": [],
+  "steps": [
+    "01 idle 基线",
+    "03 跨房辱骂·戳指峰值",
+    "辱骂①后切 2D 再切回 3D（场景实例重建）",
+    "02 受骂者移入同房",
+    "02 同房辱骂·蓄势",
+    "04 辱骂③·收势"
+  ],
+  "server": "http://127.0.0.1:52491",
+  "coldStart": {
+    "pageMs": 866,
+    "wallMs": 869,
+    "definition": "打开对局页 → 3 名角色可见 + 渲染器出图 + 自动相机就位"
+  },
+  "players": [
+    {
+      "id": "P1-hx60",
+      "name": "样片员1",
+      "charId": "default",
+      "originRoom": "R1"
+    },
+    {
+      "id": "P2-64qm",
+      "name": "样片员2",
+      "charId": "dajianke",
+      "originRoom": "R2"
+    },
+    {
+      "id": "P3-fm6t",
+      "name": "样片员3",
+      "charId": "default",
+      "originRoom": "R3"
+    }
+  ],
+  "seats": {
+    "djk": "P2-64qm",
+    "victim": "P3-fm6t",
+    "djkRoom": "R2",
+    "victimRoom": "R3"
+  },
+  "idleBefore": {
+    "chars": [
+      {
+        "pid": "P1-hx60",
+        "hp": 2,
+        "charId": "default",
+        "asset": "nobody-v1",
+        "pose": "idle",
+        "t": 0.2792999999998137,
+        "dur": null,
+        "room": "R1",
+        "alive": true,
+        "visible": true,
+        "x": 720,
+        "y": 543.384625553956,
+        "z": 6.35
+      },
+      {
+        "pid": "P2-64qm",
+        "hp": 3,
+        "charId": "dajianke",
+        "asset": "dajianke-v1",
+        "pose": "idle",
+        "t": 0.2792999999998137,
+        "dur": null,
+        "room": "R2",
+        "alive": true,
+        "visible": true,
+        "x": 911.8949988438898,
+        "y": 263.45142675298155,
+        "z": -3.1749999999999985
+      },
+      {
+        "pid": "P3-fm6t",
+        "hp": 2,
+        "charId": "default",
+        "asset": "nobody-v1",
+        "pose": "idle",
+        "t": 0.2792999999998137,
+        "dur": null,
+        "room": "R3",
+        "alive": true,
+        "visible": true,
+        "x": 529.9349069439703,
+        "y": 270.8038759320064,
+        "z": -3.1750000000000025
+      }
+    ],
+    "fingerprint": [
+      [
+        "armL",
+        0.2,
+        0,
+        0.1
+      ],
+      [
+        "armR",
+        0.2,
+        0,
+        -0.1
+      ],
+      [
+        "thighL",
+        0,
+        0.1,
+        0
+      ],
+      [
+        "kneeL",
+        0.1,
+        0,
+        0
+      ],
+      [
+        "thighR",
+        0,
+        -0.1,
+        0
+      ],
+      [
+        "kneeR",
+        0.1,
+        0,
+        0
+      ]
+    ]
+  },
+  "targetableProof": [
+    {
+      "round": 1,
+      "victimRoom": "R3",
+      "djkRoom": "R2",
+      "crossRoom": true
+    },
+    {
+      "round": 3,
+      "victimRoom": "R2",
+      "djkRoom": "R2",
+      "crossRoom": false
+    },
+    {
+      "round": 4,
+      "victimRoom": "R2",
+      "djkRoom": "R2",
+      "crossRoom": false
+    }
+  ],
+  "insult1": {
+    "round": 1,
+    "frames": {
+      "sampleMs": 3914,
+      "frames": 3,
+      "avgFrameMs": 1304.67,
+      "p50FrameMs": 850,
+      "p95FrameMs": 2833.1,
+      "p99FrameMs": 2833.1,
+      "maxFrameMs": 2833.1,
+      "hitches": 3,
+      "fpsEquivalent": 0.8
+    },
+    "logs": [
+      {
+        "seq": 10,
+        "type": "damage",
+        "text": "样片员2 辱骂 样片员3（精神攻击，累计 1/3）",
+        "data": null
+      },
+      {
+        "seq": 11,
+        "type": "action",
+        "text": "样片员2 执行行动：攻击 样片员3",
+        "data": {
+          "pid": "P2-64qm",
+          "fx": "attack",
+          "label": "攻击 样片员3",
+          "targetId": "P3-fm6t"
+        }
+      },
+      {
+        "seq": 12,
+        "type": "info",
+        "text": "📋 第 1 回合小结：样片员2 获得行动资格；样片员2 攻击 样片员3",
+        "data": null
+      },
+      {
+        "seq": 13,
+        "type": "phase",
+        "text": "第 1 回合行动结束，进入回合末结算",
+        "data": null
+      },
+      {
+        "seq": 14,
+        "type": "phase",
+        "text": "—— 第 2 回合 · 隐藏出拳 ——",
+        "data": null
+      }
+    ],
+    "feedback": {},
+    "feedbackPeak": {
+      "firstFloatAt": 3582,
+      "firstFloats": [
+        "被辱骂 1/3"
+      ],
+      "counts": [
+        [
+          "1|P2-64qm->P3-fm6t",
+          1
+        ]
+      ],
+      "samples": [
+        {
+          "t": 748,
+          "floats": [],
+          "fx": 1,
+          "tweens": 2,
+          "chars": [
+            "P1:idle",
+            "P2:attack",
+            "P3:idle"
+          ],
+          "counts": []
+        },
+        {
+          "t": 3582,
+          "floats": [
+            "被辱骂 1/3"
+          ],
+          "fx": 2,
+          "tweens": 3,
+          "chars": [
+            "P1:idle",
+            "P2:attack",
+            "P3:idle"
+          ],
+          "counts": [
+            [
+              "1|P2-64qm->P3-fm6t",
+              1
+            ]
+          ]
+        },
+        {
+          "t": 7101,
+          "floats": [
+            "被辱骂 1/3"
+          ],
+          "fx": 2,
+          "tweens": 3,
+          "chars": [
+            "P1:idle",
+            "P2:idle",
+            "P3:idle"
+          ],
+          "counts": [
+            [
+              "1|P2-64qm->P3-fm6t",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    "idleAfter": {
+      "x": 911.8949988438898,
+      "y": 263.45142675298155,
+      "z": -3.1749999999999985,
+      "pose": "idle"
+    },
+    "fingerprint": [
+      [
+        "armL",
+        0.2,
+        0,
+        0.1
+      ],
+      [
+        "armR",
+        0.2,
+        0,
+        -0.1
+      ],
+      [
+        "thighL",
+        0,
+        0.1,
+        0
+      ],
+      [
+        "kneeL",
+        0.1,
+        0,
+        0
+      ],
+      [
+        "thighR",
+        0,
+        -0.1,
+        0
+      ],
+      [
+        "kneeR",
+        0.1,
+        0,
+        0
+      ]
+    ],
+    "capture": {
+      "fraction": 0.846,
+      "chars": [
+        {
+          "pid": "P1-hx60",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 34.033900000000806,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 835.1845110852661,
+          "y": 742.1516616348213,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-64qm",
+          "hp": 3,
+          "charId": "dajianke",
+          "asset": "dajianke-v1",
+          "pose": "attack",
+          "t": 0.44,
+          "dur": 0.52,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 1057.0279353504902,
+          "y": 314.05299060626345,
+          "z": -3.1749999999999985
+        },
+        {
+          "pid": "P3-fm6t",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 34.033900000000806,
+          "dur": null,
+          "room": "R3",
+          "alive": true,
+          "visible": true,
+          "x": 549.5584974017227,
+          "y": 323.22391615667317,
+          "z": -3.1750000000000025
+        }
+      ],
+      "stats": {
+        "fx": 2,
+        "tweens": 3,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 156,
+        "triangles": 17096,
+        "geometries": 157,
+        "textures": 1
+      },
+      "meshCss": {
+        "left": 1019.2,
+        "top": 273.6,
+        "right": 1060.9,
+        "bottom": 354.2
+      },
+      "canvasCss": {
+        "width": 1440,
+        "height": 851
+      },
+      "at": 45611.799999999814
+    }
+  },
+  "insult2": {
+    "round": 3,
+    "frames": {
+      "sampleMs": 2326,
+      "frames": 12,
+      "avgFrameMs": 193.8,
+      "p50FrameMs": 216.6,
+      "p95FrameMs": 366.6,
+      "p99FrameMs": 366.6,
+      "maxFrameMs": 366.6,
+      "hitches": 11,
+      "fpsEquivalent": 5.2
+    },
+    "logs": [
+      {
+        "seq": 29,
+        "type": "damage",
+        "text": "样片员2 辱骂 样片员3（精神攻击，累计 2/3）",
+        "data": null
+      },
+      {
+        "seq": 30,
+        "type": "action",
+        "text": "样片员2 执行行动：攻击 样片员3",
+        "data": {
+          "pid": "P2-64qm",
+          "fx": "attack",
+          "label": "攻击 样片员3",
+          "targetId": "P3-fm6t"
+        }
+      },
+      {
+        "seq": 31,
+        "type": "info",
+        "text": "📋 第 3 回合小结：样片员2 获得行动资格；样片员2 攻击 样片员3",
+        "data": null
+      },
+      {
+        "seq": 32,
+        "type": "phase",
+        "text": "第 3 回合行动结束，进入回合末结算",
+        "data": null
+      },
+      {
+        "seq": 33,
+        "type": "phase",
+        "text": "—— 第 4 回合 · 隐藏出拳 ——",
+        "data": null
+      }
+    ],
+    "feedback": {},
+    "feedbackPeak": {
+      "firstFloatAt": 3373,
+      "firstFloats": [
+        "被辱骂 2/3"
+      ],
+      "counts": [
+        [
+          "1|P2-64qm->P3-fm6t",
+          2
+        ]
+      ],
+      "samples": [
+        {
+          "t": 49,
+          "floats": [],
+          "fx": 0,
+          "tweens": 0,
+          "chars": [
+            "P1:idle",
+            "P2:idle",
+            "P3:idle"
+          ],
+          "counts": [
+            [
+              "1|P2-64qm->P3-fm6t",
+              1
+            ]
+          ]
+        },
+        {
+          "t": 3111,
+          "floats": [],
+          "fx": 1,
+          "tweens": 2,
+          "chars": [
+            "P1:idle",
+            "P2:attack",
+            "P3:idle"
+          ],
+          "counts": [
+            [
+              "1|P2-64qm->P3-fm6t",
+              1
+            ]
+          ]
+        },
+        {
+          "t": 3373,
+          "floats": [
+            "被辱骂 2/3"
+          ],
+          "fx": 2,
+          "tweens": 3,
+          "chars": [
+            "P1:idle",
+            "P2:idle",
+            "P3:idle"
+          ],
+          "counts": [
+            [
+              "1|P2-64qm->P3-fm6t",
+              2
+            ]
+          ]
+        },
+        {
+          "t": 3638,
+          "floats": [
+            "被辱骂 2/3"
+          ],
+          "fx": 0,
+          "tweens": 3,
+          "chars": [
+            "P1:idle",
+            "P2:idle",
+            "P3:idle"
+          ],
+          "counts": [
+            [
+              "1|P2-64qm->P3-fm6t",
+              2
+            ]
+          ]
+        },
+        {
+          "t": 3900,
+          "floats": [
+            "被辱骂 2/3"
+          ],
+          "fx": 0,
+          "tweens": 0,
+          "chars": [
+            "P1:idle",
+            "P2:idle",
+            "P3:idle"
+          ],
+          "counts": [
+            [
+              "1|P2-64qm->P3-fm6t",
+              2
+            ]
+          ]
+        }
+      ]
+    },
+    "idleAfter": {
+      "x": 908.4983240839525,
+      "y": 265.8170354513149,
+      "z": -3.1749999999999985,
+      "pose": "idle"
+    },
+    "fingerprint": [
+      [
+        "armL",
+        0.2,
+        0,
+        0.1
+      ],
+      [
+        "armR",
+        0.2,
+        0,
+        -0.1
+      ],
+      [
+        "thighL",
+        0,
+        0.1,
+        0
+      ],
+      [
+        "kneeL",
+        0.1,
+        0,
+        0
+      ],
+      [
+        "thighR",
+        0,
+        -0.1,
+        0
+      ],
+      [
+        "kneeR",
+        0.1,
+        0,
+        0
+      ]
+    ],
+    "capture": {
+      "fraction": 0.169,
+      "chars": [
+        {
+          "pid": "P1-hx60",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 25.212399999998482,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 655.2087715413126,
+          "y": 607.5072438472661,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-64qm",
+          "hp": 3,
+          "charId": "dajianke",
+          "asset": "dajianke-v1",
+          "pose": "attack",
+          "t": 0.088,
+          "dur": 0.52,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 876.5910330907292,
+          "y": 284.3983543324136,
+          "z": -3.0712817856193504
+        },
+        {
+          "pid": "P3-fm6t",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 24.072799999998402,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 846.1179242507429,
+          "y": 304.1762111088615,
+          "z": -2.618693213776522
+        }
+      ],
+      "stats": {
+        "fx": 1,
+        "tweens": 2,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 156,
+        "triangles": 15500,
+        "geometries": 156,
+        "textures": 1
+      },
+      "meshCss": {
+        "left": 862.6,
+        "top": 248.6,
+        "right": 900.5,
+        "bottom": 319.4
+      },
+      "canvasCss": {
+        "width": 1440,
+        "height": 851
+      },
+      "at": 136932.1000000001
+    }
+  },
+  "insult2Counts": [
+    [
+      "1|P2-64qm->P3-fm6t",
+      2
+    ]
+  ],
+  "insult3": {
+    "round": 4,
+    "frames": {
+      "sampleMs": 2248,
+      "frames": 36,
+      "avgFrameMs": 62.43,
+      "p50FrameMs": 33.4,
+      "p95FrameMs": 116.7,
+      "p99FrameMs": 683.3,
+      "maxFrameMs": 683.3,
+      "hitches": 17,
+      "fpsEquivalent": 16
+    },
+    "logs": [
+      {
+        "seq": 38,
+        "type": "damage",
+        "text": "样片员2 辱骂 样片员3（精神攻击，累计 3/3）",
+        "data": null
+      },
+      {
+        "seq": 39,
+        "type": "trigger",
+        "text": "💀 样片员3 被辱骂累计3次，精神致死！",
+        "data": null
+      },
+      {
+        "seq": 40,
+        "type": "eliminate",
+        "text": "💀 样片员3（无业游民）被淘汰（原因：insult，击杀者 样片员2）",
+        "data": {
+          "pid": "P3-fm6t",
+          "cause": "insult",
+          "killer": "P2-64qm"
+        }
+      },
+      {
+        "seq": 41,
+        "type": "action",
+        "text": "样片员2 执行行动：攻击 样片员3",
+        "data": {
+          "pid": "P2-64qm",
+          "fx": "attack",
+          "label": "攻击 样片员3",
+          "targetId": "P3-fm6t"
+        }
+      },
+      {
+        "seq": 42,
+        "type": "info",
+        "text": "📋 第 4 回合小结：样片员2 获得行动资格；样片员3 被淘汰（insult）；样片员2 攻击 样片员3",
+        "data": null
+      },
+      {
+        "seq": 43,
+        "type": "phase",
+        "text": "第 4 回合行动结束，进入回合末结算",
+        "data": null
+      },
+      {
+        "seq": 44,
+        "type": "phase",
+        "text": "—— 第 5 回合 · 隐藏出拳 ——",
+        "data": null
+      },
+      {
+        "seq": 45,
+        "type": "info",
+        "text": "斜风骤雨笼罩悬浮遗迹。",
+        "data": null
+      },
+      {
+        "seq": 46,
+        "type": "info",
+        "text": "R1 积水，预计下一回合形成泥潭并封闭入口。",
+        "data": null
+      }
+    ],
+    "feedback": {},
+    "feedbackPeak": {
+      "firstFloatAt": 8,
+      "firstFloats": [
+        "被辱骂 2/3"
+      ],
+      "counts": [],
+      "samples": [
+        {
+          "t": 8,
+          "floats": [
+            "被辱骂 2/3"
+          ],
+          "fx": 1,
+          "tweens": 2,
+          "chars": [
+            "P1:idle",
+            "P2:attack",
+            "P3:idle"
+          ],
+          "counts": [
+            [
+              "1|P2-64qm->P3-fm6t",
+              2
+            ]
+          ]
+        },
+        {
+          "t": 268,
+          "floats": [
+            "被辱骂 2/3"
+          ],
+          "fx": 1,
+          "tweens": 2,
+          "chars": [
+            "P1:idle",
+            "P2:attack",
+            "P3:idle"
+          ],
+          "counts": [
+            [
+              "1|P2-64qm->P3-fm6t",
+              2
+            ]
+          ]
+        },
+        {
+          "t": 1073,
+          "floats": [
+            "被辱骂 3/3"
+          ],
+          "fx": 4,
+          "tweens": 5,
+          "chars": [
+            "P1:idle",
+            "P2:attack",
+            "P3:dead/dead"
+          ],
+          "counts": []
+        }
+      ]
+    },
+    "idleAfter": {
+      "x": 911.8887886761247,
+      "y": 263.4557493117844,
+      "z": -3.1749999999999985,
+      "pose": "idle"
+    },
+    "fingerprint": [
+      [
+        "armL",
+        0.2,
+        0,
+        0.1
+      ],
+      [
+        "armR",
+        0.2,
+        0,
+        -0.1
+      ],
+      [
+        "thighL",
+        0,
+        0.1,
+        0
+      ],
+      [
+        "kneeL",
+        0.1,
+        0,
+        0
+      ],
+      [
+        "thighR",
+        0,
+        -0.1,
+        0
+      ],
+      [
+        "kneeR",
+        0.1,
+        0,
+        0
+      ]
+    ],
+    "capture": {
+      "fraction": 0.762,
+      "chars": [
+        {
+          "pid": "P1-hx60",
+          "hp": 2,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 27.3507999999984,
+          "dur": null,
+          "room": "R1",
+          "alive": true,
+          "visible": true,
+          "x": 552.6886399954066,
+          "y": 719.4751567515722,
+          "z": 6.35
+        },
+        {
+          "pid": "P2-64qm",
+          "hp": 3,
+          "charId": "dajianke",
+          "asset": "dajianke-v1",
+          "pose": "attack",
+          "t": 0.39649999999999996,
+          "dur": 0.52,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 842.0536850004326,
+          "y": 308.7159807401559,
+          "z": -3.0936754909969904
+        },
+        {
+          "pid": "P3-fm6t",
+          "hp": 0,
+          "charId": "default",
+          "asset": "nobody-v1",
+          "pose": "idle",
+          "t": 26.21119999999832,
+          "dur": null,
+          "room": "R2",
+          "alive": true,
+          "visible": true,
+          "x": 804.4050624262094,
+          "y": 332.7464598306107,
+          "z": -2.618693213776522
+        }
+      ],
+      "stats": {
+        "fx": 2,
+        "tweens": 3,
+        "walks": 0,
+        "entities": 3,
+        "rooms": 3,
+        "bodiesHidden": 0,
+        "calls": 164,
+        "triangles": 17246,
+        "geometries": 162,
+        "textures": 1
+      },
+      "meshCss": {
+        "left": 810.2,
+        "top": 277.7,
+        "right": 842.1,
+        "bottom": 353.1
+      },
+      "canvasCss": {
+        "width": 1440,
+        "height": 851
+      },
+      "at": 139511
+    }
+  },
+  "poseDrift": {
+    "initial": [
+      [
+        "armL",
+        0.2,
+        0,
+        0.1
+      ],
+      [
+        "armR",
+        0.2,
+        0,
+        -0.1
+      ],
+      [
+        "thighL",
+        0,
+        0.1,
+        0
+      ],
+      [
+        "kneeL",
+        0.1,
+        0,
+        0
+      ],
+      [
+        "thighR",
+        0,
+        -0.1,
+        0
+      ],
+      [
+        "kneeR",
+        0.1,
+        0,
+        0
+      ]
+    ],
+    "after1": [
+      [
+        "armL",
+        0.2,
+        0,
+        0.1
+      ],
+      [
+        "armR",
+        0.2,
+        0,
+        -0.1
+      ],
+      [
+        "thighL",
+        0,
+        0.1,
+        0
+      ],
+      [
+        "kneeL",
+        0.1,
+        0,
+        0
+      ],
+      [
+        "thighR",
+        0,
+        -0.1,
+        0
+      ],
+      [
+        "kneeR",
+        0.1,
+        0,
+        0
+      ]
+    ],
+    "after2": [
+      [
+        "armL",
+        0.2,
+        0,
+        0.1
+      ],
+      [
+        "armR",
+        0.2,
+        0,
+        -0.1
+      ],
+      [
+        "thighL",
+        0,
+        0.1,
+        0
+      ],
+      [
+        "kneeL",
+        0.1,
+        0,
+        0
+      ],
+      [
+        "thighR",
+        0,
+        -0.1,
+        0
+      ],
+      [
+        "kneeR",
+        0.1,
+        0,
+        0
+      ]
+    ],
+    "after3": [
+      [
+        "armL",
+        0.2,
+        0,
+        0.1
+      ],
+      [
+        "armR",
+        0.2,
+        0,
+        -0.1
+      ],
+      [
+        "thighL",
+        0,
+        0.1,
+        0
+      ],
+      [
+        "kneeL",
+        0.1,
+        0,
+        0
+      ],
+      [
+        "thighR",
+        0,
+        -0.1,
+        0
+      ],
+      [
+        "kneeR",
+        0.1,
+        0,
+        0
+      ]
+    ],
+    "identical": true
+  },
+  "hardware": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/159.0.8154.6 Safari/537.36",
+    "platform": "Win32",
+    "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "webglVendor": "Google Inc. (Google)",
+    "devicePixelRatio": 1,
+    "screen": "1440x900"
+  },
+  "passed": true,
+  "logs": [
+    {
+      "seq": 1,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "游戏开始：3 名玩家，随机种子 1879751940",
+      "important": true
+    },
+    {
+      "seq": 2,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "样片员1（无业游民）初始位置 R1，血量 2",
+      "important": false
+    },
+    {
+      "seq": 3,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "样片员2（大贱客）初始位置 R2，血量 3",
+      "important": false
+    },
+    {
+      "seq": 4,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "样片员3（无业游民）初始位置 R3，血量 2",
+      "important": false
+    },
+    {
+      "seq": 5,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 1 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 6,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（样片员1:剪刀，样片员2:石头，样片员3:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 7,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：样片员2 获得行动资格；样片员1、样片员3 无资格",
+      "important": true
+    },
+    {
+      "seq": 8,
+      "round": 1,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 样片员2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 9,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 样片员2（大贱客，位于 P2-64qm）行动",
+      "important": false
+    },
+    {
+      "seq": 10,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "样片员2 辱骂 样片员3（精神攻击，累计 1/3）",
+      "important": true
+    },
+    {
+      "seq": 11,
+      "round": 1,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "样片员2 执行行动：攻击 样片员3",
+      "important": true,
+      "data": {
+        "pid": "P2-64qm",
+        "fx": "attack",
+        "label": "攻击 样片员3",
+        "targetId": "P3-fm6t"
+      }
+    },
+    {
+      "seq": 12,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 1 回合小结：样片员2 获得行动资格；样片员2 攻击 样片员3",
+      "important": true
+    },
+    {
+      "seq": 13,
+      "round": 1,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 1 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 14,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 2 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 15,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（样片员1:剪刀，样片员2:剪刀，样片员3:石头）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 16,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：样片员3 获得行动资格；样片员1、样片员2 无资格",
+      "important": true
+    },
+    {
+      "seq": 17,
+      "round": 2,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 样片员3 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 18,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 样片员3（无业游民，位于 P3-fm6t）行动",
+      "important": false
+    },
+    {
+      "seq": 19,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "move",
+      "text": "样片员3 从 R3 移动到 R2",
+      "important": true,
+      "data": {
+        "pid": "P3-fm6t",
+        "from": "R3",
+        "to": "R2"
+      }
+    },
+    {
+      "seq": 20,
+      "round": 2,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "样片员3 执行行动：移动到 R2",
+      "important": true,
+      "data": {
+        "pid": "P3-fm6t",
+        "fx": "move",
+        "label": "移动到 R2",
+        "room": "R2"
+      }
+    },
+    {
+      "seq": 21,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 2 回合小结：样片员3 获得行动资格；样片员3 移动到 R2",
+      "important": true
+    },
+    {
+      "seq": 22,
+      "round": 2,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 2 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 23,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 3 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 24,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "穿岛阵风袭来，浮岛的云和微尘随风漂移。",
+      "important": true
+    },
+    {
+      "seq": 25,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（样片员1:剪刀，样片员2:石头，样片员3:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 26,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：样片员2 获得行动资格；样片员1、样片员3 无资格",
+      "important": true
+    },
+    {
+      "seq": 27,
+      "round": 3,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 样片员2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 28,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 样片员2（大贱客，位于 P2-64qm）行动",
+      "important": false
+    },
+    {
+      "seq": 29,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "样片员2 辱骂 样片员3（精神攻击，累计 2/3）",
+      "important": true
+    },
+    {
+      "seq": 30,
+      "round": 3,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "样片员2 执行行动：攻击 样片员3",
+      "important": true,
+      "data": {
+        "pid": "P2-64qm",
+        "fx": "attack",
+        "label": "攻击 样片员3",
+        "targetId": "P3-fm6t"
+      }
+    },
+    {
+      "seq": 31,
+      "round": 3,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 3 回合小结：样片员2 获得行动资格；样片员2 攻击 样片员3",
+      "important": true
+    },
+    {
+      "seq": 32,
+      "round": 3,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 3 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 33,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 4 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 34,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "回合判定（样片员1:剪刀，样片员2:石头，样片员3:剪刀）：分出胜负",
+      "important": false
+    },
+    {
+      "seq": 35,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "judge",
+      "text": "⭐ 初次判定结果：样片员2 获得行动资格；样片员1、样片员3 无资格",
+      "important": true
+    },
+    {
+      "seq": 36,
+      "round": 4,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "order",
+      "text": "⭐ 行动顺序：仅 样片员2 获得行动资格，直接行动",
+      "important": true
+    },
+    {
+      "seq": 37,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "phase",
+      "text": "等待 样片员2（大贱客，位于 P2-64qm）行动",
+      "important": false
+    },
+    {
+      "seq": 38,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "damage",
+      "text": "样片员2 辱骂 样片员3（精神攻击，累计 3/3）",
+      "important": true
+    },
+    {
+      "seq": 39,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "trigger",
+      "text": "💀 样片员3 被辱骂累计3次，精神致死！",
+      "important": true
+    },
+    {
+      "seq": 40,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "eliminate",
+      "text": "💀 样片员3（无业游民）被淘汰（原因：insult，击杀者 样片员2）",
+      "important": true,
+      "data": {
+        "pid": "P3-fm6t",
+        "cause": "insult",
+        "killer": "P2-64qm"
+      }
+    },
+    {
+      "seq": 41,
+      "round": 4,
+      "sub": 1,
+      "phase": "act",
+      "type": "action",
+      "text": "样片员2 执行行动：攻击 样片员3",
+      "important": true,
+      "data": {
+        "pid": "P2-64qm",
+        "fx": "attack",
+        "label": "攻击 样片员3",
+        "targetId": "P3-fm6t"
+      }
+    },
+    {
+      "seq": 42,
+      "round": 4,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "info",
+      "text": "📋 第 4 回合小结：样片员2 获得行动资格；样片员3 被淘汰（insult）；样片员2 攻击 样片员3",
+      "important": true
+    },
+    {
+      "seq": 43,
+      "round": 4,
+      "sub": 1,
+      "phase": "roundEnd",
+      "type": "phase",
+      "text": "第 4 回合行动结束，进入回合末结算",
+      "important": false
+    },
+    {
+      "seq": 44,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "phase",
+      "text": "—— 第 5 回合 · 隐藏出拳 ——",
+      "important": true
+    },
+    {
+      "seq": 45,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "斜风骤雨笼罩悬浮遗迹。",
+      "important": true
+    },
+    {
+      "seq": 46,
+      "round": 5,
+      "sub": 1,
+      "phase": "rps1",
+      "type": "info",
+      "text": "R1 积水，预计下一回合形成泥潭并封闭入口。",
+      "important": true
+    }
+  ]
+}

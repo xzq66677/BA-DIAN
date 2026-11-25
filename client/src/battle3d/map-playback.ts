@@ -77,7 +77,11 @@ export function projectMapSnapshot(
   };
 }
 
-export function playMapEvent(scene: BattleScene3D, event: BattleEvent, durationMs: number): void {
+export type MapPlaybackScene = Pick<BattleScene3D,
+  'playAction' | 'playAttackDecl' | 'playAreaAlert' | 'playHit' | 'playHeal' | 'playMiss' |
+  'playWalk' | 'playEliminate' | 'playRevive' | 'playIvanThrow' | 'playIvanBoom' | 'playDomain' | 'playTrigger'>;
+
+export function playMapEvent(scene: MapPlaybackScene, event: BattleEvent, durationMs: number): void {
   switch (event.kind) {
     case 'action':
       if (event.pid && event.fx && event.fx !== 'move') scene.playAction(event.pid, event.fx, event.targetId);

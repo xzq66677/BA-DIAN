@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.base.json",
-  "compilerOptions": { "noEmit": true },
+  "compilerOptions": { "noEmit": true, "jsx": "react-jsx" },
   "include": ["shared/src/**/*.ts", "server/src/**/*.ts", "tests/**/*.ts"],
   "exclude": ["node_modules", "client"]
 }

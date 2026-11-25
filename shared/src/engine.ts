@@ -13,14 +13,19 @@ import {
   type ActionResult, type GamePlayerConfig, type RuleConfig, type CharRuntimeState,
   type RevealInfo, type PlayerStats, emptyStats,
   type SkillJudgeOptions, type SkillJudgeView, type SkillJudgeRoundRecord,
-  type BattleFxKind, type AttackDeclEventData, type DamageEventData,
-  type HealEventData, type MoveEventData, type EliminateEventData, type ReviveEventData,
+  type BattleFxKind, type HealEventData, type EliminateEventData, type ReviveEventData,
   type ActionEventData,
   DEFAULT_RULES, fmtNum,
 } from './types.js';
+import { PROTOCOL_VERSION, type GameSnapshot } from './protocol.js';
 import { RNG, randomThrow } from './rng.js';
-import { FloatingRuins, type RuinsConditions } from './floating-ruins.js';
-import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats } from './judge.js';
+import type { RuinsConditions } from './floating-ruins.js';
+import { MAPS, type BattleMap, type MapId } from './maps.js';
+import { BASE_ACTIONS } from './base-actions.js';
+import { resolveDamage } from './damage.js';
+import { mentalKill } from './mental.js';
+import { serializeSnapshot } from './snapshot.js';
+import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats, type SubRoundOutcome } from './judge.js';
 import type { CharDef, GameLike, CharActionContext } from './chardef.js';
 
 /** 引擎内部的「进行中判定」状态（带逐局进度） */
@@ -39,11 +44,13 @@ interface ActiveJudge extends SkillJudgeOptions {
   records: SkillJudgeRoundRecord[];
 }
 
-export interface GameConfig {  players: GamePlayerConfig[];
+export interface GameConfig {
+  players: GamePlayerConfig[];
   seed?: number;
   rules?: Partial<RuleConfig>;
   /** 角色注册表（id → CharDef） */
   chars: Record<string, CharDef>;
+  mapId?: MapId;
   floatingRuins?: boolean;
   /**
    * 日志序号起点（默认 0，即本局日志 seq 从 1 开始）。
@@ -63,7 +70,7 @@ export class Game implements GameLike {
   players: Record<PlayerId, PlayerState> = {};
   playerIds: PlayerId[] = [];
   roomIds: RoomId[] = [];
-  private readonly ruins?: FloatingRuins;
+  private readonly map: BattleMap;
   roundNo = 1;
   subRound = 1;
   phase: GamePhase = 'rps1';
@@ -93,8 +100,20 @@ export class Game implements GameLike {
   private activeJudge: ActiveJudge | null = null;
   /** 判定结束后从哪里继续（行动后 / 回合末） */
   private judgeResume: 'afterAction' | 'endRound' | null = null;
-  /** 被判定挂起的伤害请求（太极：判定结束前不结算） */
-  private deferredDamage = new WeakSet<DamageRequest>();
+  /**
+   * 判定中断恢复钩子：判定结算途中（判定历史入史 → 暴走 → 伤害 → 太极挂起 / 不讲武德排队）
+   * 可能排入新的技能判定，此时把「当前流程的收尾」存成闭包，等判定全部结束后再执行。
+   */
+  private judgeResumeHook: (() => void) | null = null;
+  /**
+   * 回合前触发（大屁孩「暴走 / 自爆」）：判定结束后、行动阶段开始前统一结算。
+   * triggerQueue 为已排好序的暴走权持有者；triggerActor 为当前要选择目标的人。
+   */
+  private triggerQueue: PlayerId[] = [];
+  private triggerActor: PlayerId | null = null;
+  private triggerResume: (() => void) | null = null;
+  /** 当前二次判定的用途：行动排序 / 暴走权排序 */
+  private orderPurpose: 'act' | 'berserk' = 'act';
   /** 判定计数（仅用于日志/标识） */
   private judgeSeq = 0;
   histories: Record<PlayerId, JudgeStep[]> = {};
@@ -117,6 +136,7 @@ export class Game implements GameLike {
   roundSummary: string[] = [];
   private deferredSeq = 0;
   private deathChainDepth = 0;
+  private removingParticipants = false;
   /** 正在结算回合末延迟事件（endRound 循环期间置位）：期间淘汰不触发终局判定，结算完统一判；
    *  对角色钩子可见（GameLike）——大贱客阵亡后在窗口内继续吸收同批爆发伤害（作者确认 2026-11-21） */
   settlingDeferred = false;
@@ -124,8 +144,9 @@ export class Game implements GameLike {
   private eventGroupSeq = 0;
   /**
    * 本回合的回合级判定是否已分出胜负。
-   * 平局（同拳/三人循环）算一个完整回合但不分胜负 → false；
-   * 分出胜负（含领域 tieWin、含胜者全灭无人行动）→ true。回合翻页时重置。
+   * 平局（同拳/三人循环）算一个完整回合但不分胜负 → false；**领域只让持有者在平局回合行动，
+   * 不会把平局变成胜负**，因此这类回合同样是 false。
+   * 分出胜负（含胜者全灭无人行动）→ true。回合翻页时重置。
    * 大伊万等延迟事件据此只在「分出胜负的回合」末引爆。
    */
   private roundResolved = false;
@@ -135,7 +156,9 @@ export class Game implements GameLike {
   constructor(config: GameConfig) {
     this.seed = config.seed ?? (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
     this.rng = new RNG(this.seed);
-    if (config.floatingRuins) this.ruins = new FloatingRuins(this.seed);
+    const mapId = config.mapId ?? (config.floatingRuins ? 'floatingRuins' : 'classic');
+    this.map = MAPS[mapId](this.seed, config.players.length);
+    this.roomIds = [...this.map.layout.rooms];
     // 日志序号可续接上一局（同房间多局时保证单调递增，见 GameConfig.logSeqOffset）
     this.logSeq = config.logSeqOffset ?? 0;
     this.rules = { ...DEFAULT_RULES, ...(config.rules || {}) };
@@ -143,7 +166,7 @@ export class Game implements GameLike {
     config.players.forEach((pc, i) => {
       const cd = this.chars[pc.charId] || this.chars['default'];
       const maxHp = cd.hp ?? this.rules.defaultMaxHp;
-      const room: RoomId = `R${i + 1}`;
+      const room: RoomId = this.map.layout.spawn[i];
       this.players[pc.id] = {
         id: pc.id,
         name: pc.name,
@@ -159,7 +182,6 @@ export class Game implements GameLike {
         char: { ...(cd.init ? cd.init() : {}), livesLeft: cd.lives ?? 1 },
       };
       this.playerIds.push(pc.id);
-      this.roomIds.push(room);
       this.histories[pc.id] = [];
       this.stats[pc.id] = emptyStats();
       this.throwHistory[pc.id] = [];
@@ -211,6 +233,7 @@ export class Game implements GameLike {
 
   log(type: LogType, text: string, data?: Record<string, unknown>, important = false): void {
     this.logs.push({
+      v: PROTOCOL_VERSION,
       seq: ++this.logSeq,
       round: this.roundNo,
       sub: this.subRound,
@@ -229,6 +252,7 @@ export class Game implements GameLike {
    * - 无人持有 → 成为持有者；
    * - 他人持有 → **覆盖**旧领域（旧持有者 domain 置 false，日志记录覆盖）；
    * - 自己已持有 → 幂等（技能 validate 会先拦截重复展开）。
+   * - **被覆盖后可以再次展开**：原持有者 domain 已置 false，再展开即覆盖当前持有者（用户确认 2026-11-24）。
    *
    * 领域一旦生成即持续保留，不因回合推进 / 判定重来 / 普通胜负被清除。
    */
@@ -236,7 +260,7 @@ export class Game implements GameLike {
     const p = this.players[pid];
     if (!p || !p.alive) return { ok: false, error: '玩家不存在或已淘汰' };
     const cd = this.charDef(pid);
-    if (!cd.domainTieWin) return { ok: false, error: '该角色没有领域' };
+    if (!cd.domainActsOnTie) return { ok: false, error: '该角色没有领域' };
     const prev = this.domainHolder;
     if (prev === pid && p.char.domain === true) return { ok: true }; // 幂等，不重复写日志
     if (prev && prev !== pid) {
@@ -255,7 +279,10 @@ export class Game implements GameLike {
   }
 
   /**
-   * 领域平局算胜：返回本子轮生效的领域持有者（无则 null）。
+   * 领域平局行动：返回本子轮可行动的领域持有者（无则 null）。
+   *
+   * 语义（用户确认 2026-11-24）：领域**不改变平局结果**，只是让持有者获得
+   * 「平局回合的行动资格」——判定仍是平局（大伊万顺延、大屁孩记平都不受影响）。
    *
    * 判定顺序：
    *  1. 权威来源是 domainHolder（全场唯一，由 openDomain 维护覆盖关系）；
@@ -263,7 +290,7 @@ export class Game implements GameLike {
    *  3. 兼容直接写入 char.domain 的场景（测试/工具）：归一为唯一持有者，
    *     多人同时为 true 时保留座次靠前者，避免出现"永久对冲"。
    */
-  tieWinHolder(candidates: PlayerId[]): PlayerId | null {
+  drawActorHolder(candidates: PlayerId[]): PlayerId | null {
     const holder = this.domainHolder;
     if (holder) {
       const hp = this.players[holder];
@@ -273,7 +300,7 @@ export class Game implements GameLike {
         if (hp) hp.char.domain = false;
         this.domainHolder = null;
         this.log('trigger', '🌀 领域消失：持有者已淘汰或领域状态被清除', undefined, true);
-      } else if (this.charDef(holder).domainTieWin && candidates.includes(holder)) {
+      } else if (this.charDef(holder).domainActsOnTie && candidates.includes(holder)) {
         return holder;
       } else {
         // 持有者不在本子轮候选（理论上不会发生，防御性处理）
@@ -283,7 +310,7 @@ export class Game implements GameLike {
 
     // 兼容路径：从未调用 openDomain 就直接置位 char.domain
     const manual = candidates.filter((pid) =>
-      this.players[pid]?.alive && this.charDef(pid).domainTieWin && this.charState(pid).domain === true);
+      this.players[pid]?.alive && this.charDef(pid).domainActsOnTie && this.charState(pid).domain === true);
     if (manual.length === 0) return null;
     const keep = manual[0];
     for (const pid of manual) {
@@ -314,7 +341,7 @@ export class Game implements GameLike {
     const before = p.hp;
     p.hp = Math.min(p.maxHp, Math.round((p.hp + amount) * 10000) / 10000);
     const data: HealEventData = { target: pid, amount, hpBefore: before, hpAfter: p.hp };
-    this.log('heal', `${p.name} 回复 ${fmtNum(amount)}：${fmtNum(before)} → ${fmtNum(p.hp)}`, data as unknown as Record<string, unknown>);
+    this.log('heal', `${p.name} 回复 ${fmtNum(amount)}：${fmtNum(before)} → ${fmtNum(p.hp)}`, { ...data });
   }
 
   /**
@@ -327,6 +354,9 @@ export class Game implements GameLike {
 
   appendJudgeHistory(pid: PlayerId, step: JudgeStep, stage: 'rps1' | 'rps2', sub: number): void {
     this.histories[pid].push(step);
+    // 已淘汰的玩家不再触发判定钩子：同一子轮内先阵亡者（如被另一名大屁孩暴走秒杀）
+    // 仍会被追加历史，但不能再以「尸体」身份触发暴走/自爆等角色结算。
+    if (!this.players[pid]?.alive) return;
     // 分发给该玩家角色的 onJudgeAppend 钩子（如大屁孩）
     const cd = this.charDef(pid);
     if (cd.onJudgeAppend) {
@@ -367,8 +397,8 @@ export class Game implements GameLike {
   private resolveJudgeSubRound(): void {
     if (this.phase !== 'rps1') return;
     const entrants = this.aliveIds();
-    const tieWin = (cands: PlayerId[]) => this.tieWinHolder(cands);
-    const outcome = resolveSubRound(this.pendingThrows, entrants, tieWin);
+    const drawActor = (cands: PlayerId[]) => this.drawActorHolder(cands);
+    const outcome = resolveSubRound(this.pendingThrows, entrants, drawActor);
     const rec: JudgeRoundRecord = {
       stage: 'rps1', sub: this.subRound, round: this.roundNo,
       throws: { ...this.pendingThrows },
@@ -389,35 +419,61 @@ export class Game implements GameLike {
     // 下一回合重新进行一轮完整的回合判定（不再有「同回合内重判子轮」的概念）。
     if (outcome.status === 'cycle') {
       this.log('judge', `回合判定（${throwsDesc}）：三人循环，平局——本回合无人获得行动资格，回合结束`);
-      if (this.domainHolder) {
-        this.log('judge', `领域说明：三人循环不属于「平局」，${this.players[this.domainHolder].name} 的领域本回合不触发`);
-      }
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
       this.roundSummary.push('回合判定平局（三人循环）');
       this.roundResolved = false;
-      this.endRoundAfterJudge();
+      // 判定历史入史可能触发大屁孩暴走/自爆 → 伤害 → 太极挂起 / 不讲武德排队：
+      // 先把判定结算完，再结算回合前触发，最后收尾（否则平局会停在 rps1 卡死）。
+      const next = () => this.continueAfterJudge(() => this.endRoundAfterJudge());
+      if (this.pauseForPendingJudges(next)) return;
+      next();
       return;
     }
     if (outcome.status === 'alltie') {
       this.log('judge', `回合判定（${throwsDesc}）：同拳平局——本回合无人获得行动资格，回合结束`);
       if (this.domainHolder) {
-        this.log('judge', `领域说明：${this.players[this.domainHolder].name} 的领域本回合未生效（不在本回合候选或不具备平局算胜）`);
+        this.log('judge', `领域说明：${this.players[this.domainHolder].name} 的领域本回合未生效（不在本回合候选或不具备平局行动）`);
       }
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
       this.roundSummary.push('回合判定平局（同拳平局）');
       this.roundResolved = false;
-      this.endRoundAfterJudge();
+      const next2 = () => this.continueAfterJudge(() => this.endRoundAfterJudge());
+      if (this.pauseForPendingJudges(next2)) return;
+      next2();
       return;
     }
-    if (outcome.status === 'tieWin') {
-      this.log('judge', `回合判定（${throwsDesc}）：平局，但${this.players[outcome.winners[0]].name}领域生效判胜`);
+    // 领域平局行动：判定结果仍是平局（大伊万顺延、判定历史记平），
+    // 只有领域持有者获得本回合的行动资格，行动完照常进入回合末。
+    if (outcome.status === 'tieAct') {
+      const holder = outcome.winners[0];
+      const holderName = this.players[holder]?.name ?? holder;
+      this.log('judge', `回合判定（${throwsDesc}）：平局——${holderName} 的领域生效，本回合仍是平局，但其获得平局回合的行动资格`);
       appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
-    } else {
-      this.log('judge', `回合判定（${throwsDesc}）：分出胜负`);
-      appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
+      this.roundSummary.push(`回合判定平局（${holderName} 领域行动）`);
+      this.roundResolved = false;
+      const tail = () => this.continueAfterJudge(() => {
+        if ((this.phase as GamePhase) === 'over') return;
+        if (!this.players[holder]?.alive) {
+          this.endRoundAfterJudge();
+          return;
+        }
+        this.beginActionPhase([holder]);
+      });
+      if (this.pauseForPendingJudges(tail)) return;
+      tail();
+      return;
     }
+    this.log('judge', `回合判定（${throwsDesc}）：分出胜负`);
+    appendHistoryForRound(this, outcome, entrants, 'rps1', this.subRound);
     this.roundResolved = true;
 
+    const tail = () => this.continueAfterJudge(() => this.finishResolvedJudge(outcome));
+    if (this.pauseForPendingJudges(tail)) return;
+    tail();
+  }
+
+  /** 分出胜负后的收尾：公告资格 → 终局判定 → 进入行动阶段 */
+  private finishResolvedJudge(outcome: SubRoundOutcome): void {
     if ((this.phase as GamePhase) === 'over') return; // 判定过程中可能触发自爆等导致终局
 
     // 胜者获得行动资格（过滤判定过程中死亡者）
@@ -436,6 +492,127 @@ export class Game implements GameLike {
     }
 
     this.beginActionPhase(winnersAlive);
+  }
+
+  // ─── 回合前触发（大屁孩：暴走 / 自爆） ───────────────────────
+
+  /** 判定已结算完毕：先结算回合前触发（暴走/自爆），再执行 next（行动阶段 / 回合收尾） */
+  private continueAfterJudge(next: () => void): void {
+    this.triggerResume = next;
+    this.runRoundTriggers();
+  }
+
+  /**
+   * 结算本回合标记的暴走/自爆。顺序：
+   *  1. 自爆先结算（自身淘汰、不伤他人）；
+   *  2. 存活的暴走持有者：1 人直接选目标；≥2 人先做二次判定决定暴走权顺序。
+   * 触发结算期间可能排入技能判定（暴走被太极挂起 / 击杀马保国触发不讲武德），
+   * 一律先暂停，等判定结束再继续。
+   */
+  private runRoundTriggers(): void {
+    if (this.phase === 'over') { this.triggerResume = null; return; }
+    const boom = this.aliveIds().filter((pid) => (this.charState(pid) as { pendingTrigger?: string }).pendingTrigger === 'selfdestruct');
+    for (const pid of boom) {
+      (this.charState(pid) as { pendingTrigger?: string | null }).pendingTrigger = null;
+      this.log('trigger', `💥 ${this.players[pid].name} 自爆！`, { pid, trigger: 'selfdestruct' }, true);
+      this.roundSummary.push(`${this.players[pid].name} 自爆`);
+      this.eliminate(pid, 'selfdestruct');
+      if ((this.phase as GamePhase) === 'over') { this.triggerResume = null; return; }
+      if (this.judgeQueue.length > 0 && this.pauseForPendingJudges(() => this.runRoundTriggers())) return;
+    }
+    const berserk = this.aliveIds().filter((pid) => (this.charState(pid) as { pendingTrigger?: string }).pendingTrigger === 'berserk');
+    if (berserk.length === 0) { this.finishTriggers(); return; }
+    if (berserk.length === 1) { this.startTriggerSelection([berserk[0]]); return; }
+    this.beginBerserkOrder(berserk);
+  }
+
+  /** 进入「暴走选择目标」阶段：按给定顺序逐个等待持有者指定目标 */
+  private startTriggerSelection(order: PlayerId[]): void {
+    this.triggerQueue = [...order];
+    this.triggerActor = null;
+    this.phase = 'trigger';
+    this.nextTriggerActor();
+  }
+
+  private nextTriggerActor(): void {
+    if (this.phase === 'over') { this.triggerResume = null; return; }
+    this.triggerActor = null;
+    while (this.triggerQueue.length > 0) {
+      const pid = this.triggerQueue.shift()!;
+      if (!this.players[pid]?.alive) continue;
+      if ((this.charState(pid) as { pendingTrigger?: string }).pendingTrigger !== 'berserk') continue;
+      this.triggerActor = pid;
+      this.phase = 'trigger';
+      this.log('phase', `🌀 ${this.players[pid].name} 获得暴走权：选择任意一名其他玩家释放精神攻击`, undefined, true);
+      return;
+    }
+    this.finishTriggers();
+  }
+
+  private finishTriggers(): void {
+    this.triggerActor = null;
+    const next = this.triggerResume;
+    this.triggerResume = null;
+    if (this.phase === 'over') return;
+    next?.();
+  }
+
+  /** 暴走权：持有者指定任意一名其他存活玩家（任意房间；无视躲藏/命数） */
+  submitBerserk(pid: PlayerId, targetId: PlayerId): ActionResult {
+    if (this.phase !== 'trigger' || this.triggerActor !== pid) {
+      return { ok: false, error: '当前不是你的暴走选择时机' };
+    }
+    const tp = this.players[targetId];
+    if (!tp || !tp.alive) return { ok: false, error: '目标不存在或已淘汰' };
+    if (targetId === pid) return { ok: false, error: '不能对自己释放暴走' };
+    (this.charState(pid) as { pendingTrigger?: string | null }).pendingTrigger = null;
+    this.log('trigger', `🌀 ${this.players[pid].name} 暴走：对 ${tp.name} 发动精神攻击（秒杀·无视躲藏/命数）`, { pid, target: targetId, trigger: 'berserk' }, true);
+    this.roundSummary.push(`${this.players[pid].name} 暴走 ${tp.name}`);
+    this.triggerActor = null;
+    mentalKill(this, { target: targetId, source: pid, tag: 'berserk' });
+    if ((this.phase as GamePhase) === 'over') { this.triggerResume = null; return { ok: true }; }
+    if (this.judgeQueue.length > 0 && this.pauseForPendingJudges(() => this.nextTriggerActor())) return { ok: true };
+    this.nextTriggerActor();
+    return { ok: true };
+  }
+
+  /** 多名大屁孩同时暴走：先做二次判定（与行动排序同一套规则：输者先）决定暴走权顺序 */
+  private beginBerserkOrder(pids: PlayerId[]): void {
+    const orderLabel = (order: PlayerId[]) =>
+      `⭐ 暴走顺序（二次判定胜负决定，输者先暴走）：${order.map((pid) => this.players[pid].name).join(' → ')}`;
+    // 服务端代掷模式（自动化用例 / 机制测试场）：直接按种子结算排序
+    if (this.rules.secondJudgeMode === 'serverRoll') {
+      const { order, rounds } = resolveActionOrder([...pids], (group) => rollThrows(group, this.rng));
+      this.judgeRecords.push(...rounds);
+      for (const r of rounds) r.round = this.roundNo;
+      if (rounds.length > 0) this.lastReveal = rounds[rounds.length - 1];
+      const aliveOrder = order.filter((pid) => this.players[pid].alive);
+      this.log('order', orderLabel(aliveOrder), undefined, true);
+      this.startTriggerSelection(aliveOrder);
+      return;
+    }
+    this.orderPurpose = 'berserk';
+    this.phase = 'rps2';
+    this.orderQueue = [[...pids]];
+    this.orderOrder = [];
+    this.orderGroup = [];
+    this.orderPending = {};
+    this.orderSubmittedIds = [];
+    this.orderSub = 0;
+    this.log('phase', `—— 第 ${this.roundNo} 回合 · 暴走权排序判定（多名大屁孩同时暴走）——`, undefined, true);
+    this.log('info', `暴走权：${pids.map((pid) => this.players[pid].name).join('、')} 进行二次判定，输者先获得暴走权`);
+    this.startOrderSubRound();
+  }
+
+  /** 当前回合前触发视图（供服务端驱动 AI / 快照下发） */
+  triggerView(): { kind: 'berserk'; actor: PlayerId; queue: PlayerId[] } | null {
+    if (this.phase !== 'trigger' || !this.triggerActor) return null;
+    return { kind: 'berserk', actor: this.triggerActor, queue: [...this.triggerQueue] };
+  }
+
+  /** 二次判定用途（行动排序 / 暴走权排序），供快照与 UI 标注 */
+  orderPurposeKind(): 'act' | 'berserk' {
+    return this.orderPurpose;
   }
 
   /**
@@ -464,7 +641,7 @@ export class Game implements GameLike {
     for (const pid of entrants) {
       const st = this.stats[pid];
       if (!st) continue;
-      if (outcome.status === 'cycle' || outcome.status === 'alltie') st.throwTie++;
+      if (outcome.status === 'cycle' || outcome.status === 'alltie' || outcome.status === 'tieAct') st.throwTie++;
       else if (win.has(pid)) st.throwWin++;
       else if (lose.has(pid)) st.throwLose++;
       else st.throwTie++;
@@ -474,7 +651,16 @@ export class Game implements GameLike {
   // ─── 二次判定与行动队列 ───────────────────────────────────────
 
   private beginActionPhase(winners: PlayerId[]): void {
-    const aliveWinners = winners.filter((pid) => this.players[pid].alive);
+    this.orderPurpose = 'act';
+    // 蓄力回合（本回合末有三刀要落）的伍六七不能进行其他行动：即使赢下判定也不入队列
+    const aliveWinners = winners.filter((pid) => {
+      if (!this.players[pid].alive) return false;
+      if (this.hasSlashDue(pid)) {
+        this.log('info', `🗡️ ${this.players[pid].name} 本回合末有刀要落，蓄力中不能进行其他行动`);
+        return false;
+      }
+      return true;
+    });
     // 只有一名资格者时无需排序：直接入队（不额外出拳、不产生空排序记录）
     if (aliveWinners.length === 1) {
       const only = aliveWinners[0];
@@ -536,8 +722,9 @@ export class Game implements GameLike {
       const l = (r.losers ?? []).filter((pid) => this.players[pid]?.alive).map(nameOf).join('、');
       if (r.outcome === 'resolved') {
         this.log('judge', `行动排序（子轮${r.sub}）：${w} 胜出 → ${l} 优先行动`);
-      } else if (r.outcome === 'tieWin') {
-        this.log('judge', `行动排序（子轮${r.sub}）：平局，${w} 领域生效判胜 → 其余优先行动`);
+      } else if (r.outcome === 'tieAct' || r.outcome === 'tieWin') {
+        // tieWin 仅用于兼容旧回放数据；新对局的二次判定不会产生领域结果（不传 drawActor）
+        this.log('judge', `行动排序（子轮${r.sub}）：平局，${w} 领域生效 → 其余优先行动`);
       } else {
         this.log('judge', `行动排序（子轮${r.sub}）：${r.outcome === 'cycle' ? '三人循环' : '同拳平局'}，重新排序`);
       }
@@ -658,6 +845,13 @@ export class Game implements GameLike {
     this.orderPending = {};
     this.orderSubmittedIds = [];
     const aliveOrder = this.orderOrder.filter((pid) => this.players[pid].alive);
+    // 暴走权排序：按同一套规则（输者先）给出顺序后，进入「选择暴走目标」阶段
+    if (this.orderPurpose === 'berserk') {
+      this.orderPurpose = 'act';
+      this.log('order', `⭐ 暴走顺序（二次判定胜负决定，输者先暴走）：${aliveOrder.map((pid) => this.players[pid].name).join(' → ')}`, undefined, true);
+      this.startTriggerSelection(aliveOrder);
+      return;
+    }
     this.qualified = aliveOrder;
     this.queue = aliveOrder;
     this.actIndex = 0;
@@ -669,17 +863,11 @@ export class Game implements GameLike {
   // ─── 技能内判定：双方亲自出拳（马保国太极 / 五连鞭 / 不讲武德） ───
   //
   // 设计：角色钩子只负责「发起判定」，引擎负责暂停对局收拳、逐局结算、结束后再回调结算效果。
-  // 太极是反应型（在别人的行动里触发），所以它的伤害会被挂起（deferredDamage），
+  // 太极是反应型（在别人的行动里触发），所以它的伤害会被挂起，
   // 等判定结束再补结算——这样不需要把伤害管线改成异步。
 
   /** 发起一次技能内判定（player 模式）：引擎在安全点暂停对局收拳 */
   requestJudge(opts: SkillJudgeOptions): void {
-    this.judgeQueue.push(opts);
-  }
-
-  /** 发起判定并挂起这次伤害（太极）：判定结束前不扣血 */
-  deferDamageJudge(req: DamageRequest, opts: SkillJudgeOptions): void {
-    this.deferredDamage.add(req);
     this.judgeQueue.push(opts);
   }
 
@@ -700,6 +888,19 @@ export class Game implements GameLike {
   private enterJudgeIfPending(resume: 'afterAction' | 'endRound'): boolean {
     if (this.judgeQueue.length === 0) return false;
     this.judgeResume = resume;
+    this.judgeResumeHook = null;
+    return this.startNextJudge();
+  }
+
+  /**
+   * 判定结算途中排入判定时暂停当前收尾流程：把 tail 存为恢复钩子并启动判定。
+   * 返回 true 表示调用方应立即 return（对局暂停在 judge 阶段）。
+   */
+  private pauseForPendingJudges(tail: () => void): boolean {
+    if (this.phase === 'over') return false;
+    if (this.judgeQueue.length === 0) return false;
+    this.judgeResume = null;
+    this.judgeResumeHook = tail;
     return this.startNextJudge();
   }
 
@@ -787,6 +988,15 @@ export class Game implements GameLike {
 
   /** 判定全部结束后继续对局 */
   private resumeAfterJudges(): void {
+    // 判定途中被打断的收尾流程优先恢复（如平局收尾 / 行动阶段开始）
+    const hook = this.judgeResumeHook;
+    if (hook) {
+      this.judgeResumeHook = null;
+      this.judgeResume = null;
+      if (this.phase === 'over') return;
+      hook();
+      return;
+    }
     const resume = this.judgeResume;
     this.judgeResume = null;
     if (this.phase === 'over') return;
@@ -871,7 +1081,7 @@ export class Game implements GameLike {
       ...(req.targetId ? { targetId: req.targetId } : {}),
       ...(req.room ? { room: req.room } : {}),
     };
-    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, actionData as unknown as Record<string, unknown>, true);
+    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, { ...actionData }, true);
     this.roundSummary.push(`${p.name} ${this.actionLabel(req)}`);
     if ((this.phase as GamePhase) === 'over') return { ok: true };
     // 技能内判定（马保国五连鞭等）：先暂停收拳，等判定结算完再消耗行动/推进队列
@@ -887,314 +1097,55 @@ export class Game implements GameLike {
   }
 
   private actionLabel(req: ActionRequest): string {
-    switch (req.type) {
-      case 'move': return `移动到 ${req.room}`;
-      case 'openSluice': return '开启泄水闸';
-      case 'attack': return `攻击 ${req.targetId ? this.players[req.targetId].name : '?'}`;
-      case 'heal': return '回复';
-      case 'hide': return '躲藏';
-      case 'seek': return `找出来（${req.targetId ? this.players[req.targetId].name : '?'}）`;
-      case 'aim': return `瞄准（${req.targetId ? this.players[req.targetId].name : '?'}）`;
-      case 'milk': return '喝牛奶（嘲讽）';
-      case 'skip': return '跳过';
-      default: {
-        const cd = this.charDef(this.currentActor() || this.playerIds[0]);
-        const act = cd.actions?.find((a) => a.name === req.type);
-        return act ? act.label : req.type;
-      }
-    }
+    const base = BASE_ACTIONS.get(req.type);
+    if (base) return base.label(this, req);
+    const mapAction = this.map.actions?.get(req.type);
+    if (mapAction) return mapAction.label;
+    const cd = this.charDef(this.currentActor() || this.playerIds[0]);
+    return cd.actions?.find((action) => action.name === req.type)?.label ?? req.type;
   }
 
   private executeAction(pid: PlayerId, req: ActionRequest): ActionResult {
-    const p = this.players[pid];
-    const cd = this.charDef(pid);
-    switch (req.type) {
-      case 'move': return this.actMove(pid, req);
-      case 'openSluice': {
-        const room = p.room;
-        if (!this.ruins?.openSluice(room)) return { ok: false, error: '只有积水预警房间的玩家可开启泄水闸' };
-        this.log('info', `${p.name} 开启 ${room} 的泄水闸，积水排入云海，泥潭预警解除。`, undefined, true);
-        return { ok: true };
-      }
-      case 'attack': return this.actAttack(pid, req);
-      case 'heal': return this.actHeal(pid, req);
-      case 'hide': return this.actHide(pid, req);
-      case 'seek': return this.actSeek(pid, req);
-      case 'aim': return this.actAim(pid, req);
-      case 'milk': return this.actMilk(pid);
-      case 'skip': {
-        if (!this.rules.allowSkip) return { ok: false, error: '本局不允许跳过' };
-        return { ok: true };
-      }
-      default: {
-        const act = cd.actions?.find((a) => a.name === req.type);
-        if (!act) return { ok: false, error: `未知行动：${req.type}` };
-        const ctx: CharActionContext = { game: this, actor: pid, params: req };
-        if (act.validate) {
-          const err = act.validate(ctx);
-          if (err) return { ok: false, error: err };
-        }
-        act.execute(ctx);
-        return { ok: true };
-      }
+    const base = BASE_ACTIONS.get(req.type);
+    if (base) return base.execute(this, pid, req, this.map);
+    const mapAction = this.map.actions?.get(req.type);
+    if (mapAction) {
+      const { note, ...result } = mapAction.execute(this.players[pid], req);
+      if (note) this.log('info', note, undefined, true);
+      return result;
     }
-  }
-
-  private actMove(pid: PlayerId, req: ActionRequest): ActionResult {
-    const p = this.players[pid];
-    const room = req.room as RoomId;
-    if (!room || !this.roomIds.includes(room)) return { ok: false, error: `非法目标房间：${room}` };
-    if (this.isMoveBlocked(pid, room)) return { ok: false, error: `${room} 泥潭封路，下回合恢复通行` };
-    const from = p.room;
-    p.room = room;
-    if (p.hidden) {
-      p.hidden = false;
-      this.log('state', `${p.name} 移动后现身（离开躲藏）`);
-    }
-    const moveData: MoveEventData = { pid, from, to: room };
-    this.log('move', `${p.name} 从 ${from} 移动到 ${room}`, moveData as unknown as Record<string, unknown>, true);
-    return { ok: true };
-  }
-
-  private actAttack(pid: PlayerId, req: ActionRequest): ActionResult {
-    const cd = this.charDef(pid);
-    const targetId = req.targetId;
-    if (!targetId || !this.players[targetId]) return { ok: false, error: '目标不存在' };
-    const tp = this.players[targetId];
-    if (!tp.alive) return { ok: false, error: '目标已淘汰' };
-    if (targetId === pid && !cd.allowSelfAttack) return { ok: false, error: '默认不允许攻击自己' };
-
-    // 角色完全接管攻击（如伍六七AOE、大贱客辱骂）
-    if (cd.onAttackAction) {
-      return cd.onAttackAction({ game: this, actor: pid, params: req }, targetId, !!req.ranged);
-    }
-
-    const sameRoom = this.isSameRoom(pid, targetId);
-    const ranged = req.ranged ?? !sameRoom;
-    const at = cd.attackType || 'both';
-    // 远程能力：默认角色仅近战；远程需要角色具备 rangedCapable（吹箫哥/五条悟/老大爷等）
-    if (ranged && !cd.rangedCapable) return { ok: false, error: '该角色无法远程攻击' };
-    if (!ranged && (at === 'ranged' || at === 'none')) return { ok: false, error: '该角色无法近战攻击' };
-
-    // 瞄准要求
-    if (ranged && cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && this.charState(pid).domain === true)) {
-      const aim = this.charState(pid).aim;
-      if (aim !== targetId) return { ok: false, error: '需要先瞄准该目标（使用「瞄准」行动）' };
-      this.charState(pid).aim = undefined;
-    }
-
-    if (cd.validateAttack) {
-      const err = cd.validateAttack({ game: this, actor: pid, target: targetId, ranged });
-      if (err) return { ok: false, error: err };
-    }
-
-    // 躲藏目标校验（指向性攻击无法锁定躲藏者）
-    if ((tp.hidden || tp.invisible) && !cd.ignoreHide) {
-      return { ok: false, error: '目标正在躲藏/隐身，无法锁定（AOE 或无视躲避的攻击除外）' };
-    }
-
-    const amount = cd.dynamicDamage?.({ game: this, actor: pid, ranged })
-      ?? (ranged
-        ? (cd.rangedDamage ?? cd.attack ?? this.rules.defaultAttack)
-        : (cd.meleeDamage ?? cd.attack ?? this.rules.defaultAttack));
-    const decl: AttackDeclEventData = { declared: true, source: pid, target: targetId, amount, ranged, room: tp.room };
-    this.log('damage', `${this.players[pid].name} ${ranged ? '远程' : '近战'}攻击 ${tp.name}（伤害 ${fmtNum(amount)}）`, decl as unknown as Record<string, unknown>, true);
-    this.applyDamage({
-      target: targetId,
-      amount,
-      source: pid,
-      dtype: cd.attackDtype || 'physical',
-      ignoreHide: cd.ignoreHide,
-    });
-    return { ok: true };
-  }
-
-  private actHeal(pid: PlayerId, _req: ActionRequest): ActionResult {
-    const p = this.players[pid];
-    const before = p.hp;
-    p.hp = p.maxHp;
-    const data: HealEventData = {
-      target: pid,
-      amount: Math.round((p.hp - before) * 10000) / 10000,
-      hpBefore: before, hpAfter: p.hp,
-    };
-    this.log('heal', `${p.name} 回复：${fmtNum(before)} → ${fmtNum(p.hp)}（满血）`, data as unknown as Record<string, unknown>, true);
-    return { ok: true };
-  }
-
-  private actHide(pid: PlayerId, _req: ActionRequest): ActionResult {
-    const p = this.players[pid];
-    if (!this.rules.allowHide) return { ok: false, error: '本局不允许躲藏' };
-    if (p.hidden) return { ok: false, error: '已在躲藏状态' };
-    p.hidden = true;
-    this.log('state', `${p.name} 进入躲藏（指向性攻击无法锁定，AOE 与无视躲避攻击仍可命中）`);
-    return { ok: true };
-  }
-
-  private actSeek(pid: PlayerId, req: ActionRequest): ActionResult {
-    const targetId = req.targetId;
-    if (!this.rules.allowSeek) return { ok: false, error: '本局不允许找出来' };
-    if (!targetId || !this.players[targetId] || !this.players[targetId].alive) return { ok: false, error: '目标不存在或已淘汰' };
-    if (!this.isSameRoom(pid, targetId)) return { ok: false, error: '只能找出同房间内躲藏的玩家' };
-    const tp = this.players[targetId];
-    if (!tp.hidden) return { ok: false, error: '目标未躲藏' };
-    tp.hidden = false;
-    this.log('state', `${this.players[pid].name} 将 ${tp.name} 找了出来（现身）`);
-    return { ok: true };
-  }
-
-  /** 瞄准（基础行动）：远程需瞄准的角色使用 */
-  private actAim(pid: PlayerId, req: ActionRequest): ActionResult {
-    const cd = this.charDef(pid);
-    if (!cd.rangedNeedsAim) return { ok: false, error: '该角色无需瞄准' };
-    const targetId = req.targetId;
-    if (!targetId || !this.players[targetId] || !this.players[targetId].alive) return { ok: false, error: '瞄准目标不存在或已淘汰' };
-    if (targetId === pid) return { ok: false, error: '不能瞄准自己' };
-    this.charState(pid).aim = targetId;
-    this.log('state', `${this.players[pid].name} 瞄准了 ${this.players[targetId].name}`);
-    return { ok: true };
-  }
-
-  /** 喝牛奶：嘲讽性质，无实际作用（用户确认） */
-  private actMilk(pid: PlayerId): ActionResult {
-    this.log('action', `${this.players[pid].name} 喝了一口牛奶，向在场所有人发出嘲讽 🥛（无实际效果）`, undefined, true);
+    const act = this.charDef(pid).actions?.find((a) => a.name === req.type);
+    if (!act) return { ok: false, error: `未知行动：${req.type}` };
+    const ctx: CharActionContext = { game: this, actor: pid, params: req };
+    const error = act.validate?.(ctx);
+    if (error) return { ok: false, error };
+    act.execute(ctx);
     return { ok: true };
   }
 
   // ─── 伤害管线 ────────────────────────────────────────────────
 
   applyDamage(req: DamageRequest): AppliedDamage {
-    const applied: AppliedDamage = {
-      target: req.target, finalTarget: req.target, amount: req.amount,
-      lethal: false, missed: false, reflected: false, transferred: false,
-    };
-
-    // 1. 转移阶段钩子（大贱客吸引全场伤害）
-    // 转移阶段钩子不按存活预过滤（如大贱客阵亡后在回合末结算窗口内继续吸收同批爆发伤害），
-    // 阵亡语义由钩子自行处理；防御阶段钩子仍仅分发存活角色
-    const transferHooks = this.playerIds
-      .map((pid) => ({ pid, cd: this.charDef(pid) }))
-      .filter(({ cd }) => cd.onBeforeDamage && cd.damageHookStage === 'transfer');
-    for (const { pid, cd } of transferHooks) {
-      const r = cd.onBeforeDamage!({ game: this, req, owner: pid });
-      if (r === 'skip') {
-        const cancelData: DamageEventData = {
-          target: req.target, source: req.source, missed: true,
-          dtype: req.dtype, tag: req.tag, aoe: req.aoe,
-          ...(req.groupId ? { groupId: req.groupId } : {}),
-        };
-        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`, cancelData as unknown as Record<string, unknown>);
-        applied.missed = true;
-        return applied;
-      }
-    }
-
-    let tp = this.players[req.target];
-    if (!tp || !tp.alive) {
-      applied.missed = true;
-      return applied;
-    }
-    applied.transferred = !!req.transferred;
-    applied.finalTarget = req.target;
-
-    // 2. 躲避判定：指向性攻击无法命中躲藏/隐身目标
-    if ((tp.hidden || tp.invisible) && !req.aoe && !req.ignoreHide && !req.bypassHide) {
-      const missData: DamageEventData = {
-        target: tp.id, source: req.source, missed: true,
-        dtype: req.dtype, tag: req.tag, aoe: req.aoe, room: tp.room,
-        ...(req.groupId ? { groupId: req.groupId } : {}),
-      };
-      this.log('state', `${tp.name} 处于躲藏/隐身，${req.source ? this.players[req.source].name + ' 的' : ''}攻击未命中`, missData as unknown as Record<string, unknown>);
-      applied.missed = true;
-      return applied;
-    }
-
-    // 3. 防御阶段钩子（马保国太极反弹等）——按座次顺序分派全部存活角色的防御钩子
-    const defenseHooks = this.aliveIds()
-      .map((pid) => ({ pid, cd: this.charDef(pid) }))
-      .filter(({ cd }) => cd.onBeforeDamage && (!cd.damageHookStage || cd.damageHookStage === 'defense'));
-    for (const { pid, cd } of defenseHooks) {
-      const r = cd.onBeforeDamage!({ game: this, req, owner: pid });
-      if (r === 'skip') {
-        const cancelData2: DamageEventData = {
-          target: req.target, source: req.source, missed: true,
-          dtype: req.dtype, tag: req.tag, aoe: req.aoe,
-          ...(req.groupId ? { groupId: req.groupId } : {}),
-        };
-        this.log('state', `伤害被完全抵消（目标 ${this.players[req.target]?.name}）`, cancelData2 as unknown as Record<string, unknown>);
-        applied.missed = true;
-        return applied;
-      }
-      tp = this.players[req.target];
-      if (!tp || !tp.alive) {
-        applied.missed = true;
-        return applied;
-      }
-    }
-    // 判定挂起（太极）：本次伤害暂不结算，等双方出拳后由角色回调补结算
-    if (this.deferredDamage.has(req)) {
-      this.deferredDamage.delete(req);
-      applied.deferred = true;
-      applied.finalTarget = req.target;
-      this.log('state', `${this.players[req.target]?.name ?? req.target} 的伤害结算挂起，等待判定出拳`,
-        { pendingJudge: true, target: req.target, source: req.source ?? null }, true);
-      return applied;
-    }
-    applied.reflected = !!req.reflected;
-    applied.finalTarget = req.target;
-
-    // 4. 结算
-    const before = tp.hp;
-    tp.hp = Math.max(0, Math.round((tp.hp - req.amount) * 10000) / 10000);
-    const dmgData: DamageEventData = {
-      target: tp.id, source: req.source, amount: req.amount,
-      hpBefore: before, hpAfter: tp.hp, lethal: tp.hp <= 0,
-      dtype: req.dtype, tag: req.tag, segment: req.segment,
-      aoe: req.aoe, room: tp.room,
-      reflected: !!req.reflected, transferred: !!req.transferred,
-      ...(req.groupId ? { groupId: req.groupId } : {}),
-    };
-    this.log('damage', `${tp.name} 受到 ${fmtNum(req.amount)} 伤害（${req.dtype === 'mental' ? '精神' : req.dtype === 'special' ? '特殊' : '物理'}${req.tag ? `·${req.tag}` : ''}${req.segment ? `·第${req.segment.index}/${req.segment.total}段` : ''}）：${fmtNum(before)} → ${fmtNum(tp.hp)}${req.source ? `（来源 ${this.players[req.source].name}）` : ''}`, dmgData as unknown as Record<string, unknown>, true);
-
-    // 战绩：实际掉血量
-    const dealt = Math.max(0, before - tp.hp);
-    if (this.stats[tp.id]) this.stats[tp.id].damageTaken += dealt;
-    if (req.source && req.source !== tp.id && this.stats[req.source]) this.stats[req.source].damageDealt += dealt;
-
-    // 5. 附加效果（转移伤害不随转移）
-    if (req.effects && req.effects.length > 0 && !req.transferred) {
-      this.applyDamageEffects(tp.id, req.effects);
-    }
-
-    // 6. 淘汰判定
-    if (tp.hp <= 0) {
-      applied.lethal = true;
-      this.eliminate(tp.id, req.tag || 'damage', req.source);
-    }
-    return applied;
-  }
-
-  private applyDamageEffects(target: PlayerId, effects: { kind: string }[]): void {
-    for (const ef of effects) {
-      this.log('state', `${this.players[target].name} 获得效果：${ef.kind}`);
-    }
+    return resolveDamage(this, this.stats, req);
   }
 
   // ─── 淘汰与胜负 ──────────────────────────────────────────────
 
-  eliminate(pid: PlayerId, cause: string, killer?: PlayerId): void {
+  eliminate(pid: PlayerId, cause: string, killer?: PlayerId, opts?: { ignoreLives?: boolean }): void {
     const p = this.players[pid];
     if (!p || !p.alive) return;
 
-    // 命数机制（如五条悟2条命）：致死时消耗一条命并满血复活；被房主踢出/主动退出不触发
+    // 命数机制（如五条悟2条命）：致死时消耗一条命并满血复活；被房主踢出/主动退出不触发。
+    // 秒杀类精神攻击（ignoreLives，如大屁孩暴走）无视命数：直接淘汰，不消耗命数、不复活。
     const livesLeft = typeof p.char.livesLeft === 'number' ? (p.char.livesLeft as number) : 1;
-    if (livesLeft > 1 && cause !== 'kicked' && cause !== 'left') {
+    const ignoreLives = opts?.ignoreLives === true;
+    if (!ignoreLives && livesLeft > 1 && cause !== 'kicked' && cause !== 'left') {
       p.char.livesLeft = livesLeft - 1;
       p.hp = p.maxHp;
       p.hidden = false;
       p.invisible = false;
       const reviveData: ReviveEventData = { pid, livesLeft: livesLeft - 1 };
-      this.log('trigger', `💫 ${p.name} 消耗一条命（剩余 ${livesLeft - 1} 条），以 ${fmtNum(p.maxHp)} HP 复活！`, reviveData as unknown as Record<string, unknown>, true);
+      this.log('trigger', `💫 ${p.name} 消耗一条命（剩余 ${livesLeft - 1} 条），以 ${fmtNum(p.maxHp)} HP 复活！`, { ...reviveData }, true);
       return;
     }
 
@@ -1210,7 +1161,7 @@ export class Game implements GameLike {
     }
     if (killer && killer !== pid && this.stats[killer]) this.stats[killer].kills++;
     const elimData: EliminateEventData = { pid, cause, ...(killer && killer !== pid ? { killer } : {}) };
-    this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, elimData as unknown as Record<string, unknown>, true);
+    this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, { ...elimData }, true);
     this.roundSummary.push(`${p.name} 被淘汰（${cause}）`);
     this.qualified = this.qualified.filter((x) => x !== pid);
     // 注意：queue 不在此处过滤——已行动过的索引不应因淘汰而移位；
@@ -1231,15 +1182,51 @@ export class Game implements GameLike {
     this.checkWin();
   }
 
+  /** 将整台设备的退场作为一次外部输入，统一清理等待项后再判胜。 */
+  removeParticipants(ids: PlayerId[], reason: 'left' | 'kicked' | 'removed', host?: PlayerId): void {
+    if (this.isOver()) return;
+    this.removingParticipants = true;
+    try {
+      for (const id of ids) {
+        const player = this.players[id];
+        if (!player) continue;
+        if (player.alive) {
+          if (reason === 'left') this.log('info', `🚪 ${player.name} 主动退出对局`, { pid: id }, true);
+          if (reason === 'kicked') this.log('info', `⚖ ${player.name} 被房主踢出对局`, { pid: id }, true);
+          this.eliminate(id, reason === 'left' ? 'left' : 'kicked', host);
+        }
+        delete this.pendingThrows[id];
+        delete this.orderPending[id];
+      }
+    } finally {
+      this.removingParticipants = false;
+    }
+    if (this.checkWin()) return;
+    if (this.phase === 'rps1' && this.aliveIds().every((id) => this.pendingThrows[id])) {
+      this.resolveJudgeSubRound();
+    } else if (this.phase === 'rps2') {
+      const group = this.orderGroup.filter((id) => this.players[id].alive);
+      if (group.length <= 1 || group.every((id) => this.orderSubmittedIds.includes(id))) {
+        this.resolveOrderSubRound();
+      }
+    } else if (this.phase === 'act' && !this.currentActor()) {
+      this.advanceQueue();
+    }
+  }
+
   checkWin(): boolean {
     if (this.phase === 'over') return true;
+    if (this.removingParticipants) return false;
     // 炸弹先结算、后判胜（Issue #6）：存在已激活（explodeRound<=roundNo）、待本回合末引爆的大伊万时，
     // 延迟终局判定——让本回合完整走完，回合末延迟事件结算后再做最终胜负判断（最后一人在房内可被同归于尽）。
     // settlingDeferred：延迟事件结算循环期间不定胜负——同一发爆炸连杀两人时，第一人淘汰后剩余人数
     // 可能为 1，若当场定胜负会错误产生「幸存者」（其随后也会被同一发炸死，应为平局）。
     // endRound 的延迟事件结算会把 due 伊万移除并在循环结束后复位 settlingDeferred，
     // 因此 endRound 末尾的最终 checkWin 到达此处时两项条件必为 false，最终判定正常执行。
-    if (this.settlingDeferred || this.hasArmedIvan()) return false;
+    if (this.settlingDeferred) return false;
+    // 只在本回合**已分出胜负**时为炸弹让路：平局回合的炸弹会顺延、本回合不会引爆，
+    // 若此时仍让路，「只剩 1 人 + 待爆炸弹 + 连续平局」会让对局永远无法终局（AI 自动对局回归暴露）。
+    if (this.hasArmedIvan() && this.roundResolved) return false;
     const alive = this.aliveIds();
     // 待判定的「不讲武德」可能带走最后一名幸存者（如击杀马保国者）：先让判定结算完再定胜负，
     // 否则会先判胜、判定被 phase==='over' 短路（守旧行为：双方同时死亡 → 平局）。
@@ -1280,6 +1267,38 @@ export class Game implements GameLike {
     return this.deferred.some((d) => d.kind === 'ivan' && d.explodeRound <= this.roundNo);
   }
 
+  /** 本回合末是否有待落的三刀（伍六七蓄力回合不能进行其他行动） */
+  private hasSlashDue(pid: PlayerId): boolean {
+    return this.deferred.some((d) => d.kind === 'wuliuqi-slash' && d.source === pid && d.explodeRound <= this.roundNo);
+  }
+
+  /**
+   * 伍六七三刀：对「刀落瞬间」目标房间内的存活玩家逐段 1 伤（不打自己）。
+   * 同一批内被致死但消耗命数复活者（五条悟）不再吃剩余刀。
+   */
+  private resolveSlash(ev: DeferredEvent): void {
+    const source = ev.source;
+    const room = ev.room;
+    const excluded = new Set<PlayerId>();
+    if (source) excluded.add(source); // 不打自己
+    const gid = this.nextGroupId();
+    const names = this.roomMembers(room).filter((pid) => !excluded.has(pid)).map((pid) => this.players[pid].name);
+    this.log('deferred', `🗡️ 伍六七三刀落于 ${room}（本批目标：${names.join('、') || '无'}）`, { room, source: source ?? null, groupId: gid }, true);
+    for (let seg = 1; seg <= 3; seg++) {
+      const targets = this.roomMembers(room).filter((pid) => !excluded.has(pid) && this.players[pid].alive);
+      for (const pid of targets) {
+        if ((this.phase as GamePhase) === 'over') return;
+        const applied = this.applyDamage({
+          target: pid, amount: 1, source,
+          dtype: 'physical', aoe: true,
+          segment: { index: seg, total: 3 }, tag: 'wuliuqi-slash', groupId: gid,
+        });
+        // 本段致死但人还活着 = 消耗命数复活（五条悟）：剩余刀跳过该玩家
+        if (applied.lethal && this.players[pid]?.alive) excluded.add(pid);
+      }
+    }
+  }
+
   // ─── 回合末（延迟事件结算） ───────────────────────────────────
 
   private endRound(): void {
@@ -1299,14 +1318,23 @@ export class Game implements GameLike {
     }
     if ((this.phase as GamePhase) === 'over') return;
 
-    // 延迟事件（大伊万爆炸 / 通用延迟伤害）：动态判定结算时状态。
+    // 延迟事件：伍六七三刀 → 其他延迟伤害 → 大伊万爆炸（作者确认的结算顺序）。
     // settlingDeferred 期间淘汰不定胜负（同一发爆炸连杀两人时须统一判平局，见 checkWin）
-    const due = this.deferred.filter((d) => d.explodeRound <= this.roundNo);
+    const priority = (kind: string) => (kind === 'wuliuqi-slash' ? 0 : kind === 'ivan' ? 2 : 1);
+    const due = this.deferred
+      .filter((d) => d.explodeRound <= this.roundNo)
+      .sort((a, b) => priority(a.kind) - priority(b.kind));
     this.settlingDeferred = true;
     for (const ev of due) {
       // 大伊万只在「分出胜负」的回合末引爆：平局回合跳过（事件保留，顺延至下一个分出胜负回合）
       if (ev.kind === 'ivan' && !this.roundResolved) continue;
       this.deferred = this.deferred.filter((d) => d.id !== ev.id);
+      // 伍六七三刀：对刀落瞬间房间内的存活玩家逐段 1 伤（平局回合同样落刀）
+      if (ev.kind === 'wuliuqi-slash') {
+        this.resolveSlash(ev);
+        if ((this.phase as GamePhase) === 'over') break;
+        continue;
+      }
       if (ev.kind === 'damage' && ev.payload) {
         this.log('deferred', `延迟伤害结算：${String((ev.payload as { label?: string }).label || '')}`);
         this.applyDamage(ev.payload as DamageRequest & { label?: string });
@@ -1366,6 +1394,11 @@ export class Game implements GameLike {
     this.judgeQueue = [];
     this.activeJudge = null;
     this.judgeResume = null;
+    this.judgeResumeHook = null;
+    this.triggerQueue = [];
+    this.triggerActor = null;
+    this.triggerResume = null;
+    this.orderPurpose = 'act';
     this.judgeRecords = [];
     this.entrantOrder = this.aliveIds();
     this.roundSummary = [];
@@ -1373,7 +1406,7 @@ export class Game implements GameLike {
     // 这里**不清除**；只有被其他领域覆盖或持有者淘汰时才失效。
     this.phase = 'rps1';
     this.log('phase', `—— 第 ${this.roundNo} 回合 · 隐藏出拳 ——`, undefined, true);
-    for (const note of this.ruins?.advance(this.roundNo, this.roomIds) ?? []) {
+    for (const note of this.map.advance?.(this.roundNo) ?? []) {
       this.log('info', note, undefined, true);
     }
   }
@@ -1449,57 +1482,14 @@ export class Game implements GameLike {
   }
 
   ruinsConditions(): RuinsConditions | undefined {
-    return this.ruins?.snapshot();
+    return this.map.snapshot?.().ruins;
   }
 
   isMoveBlocked(pid: PlayerId, room: RoomId): boolean {
-    return this.ruins?.blocksEntry(this.players[pid].room, room) ?? false;
+    return !!this.map.movementError?.(this.players[pid].room, room);
   }
 
-  snapshot(): Record<string, unknown> {
-    const players = this.playerIds.map((pid) => {
-      const p = this.players[pid];
-      return {
-        id: p.id, name: p.name, charId: p.charId, charName: this.charName(pid),
-        hp: p.hp, maxHp: p.maxHp, room: p.room, originRoom: p.originRoom,
-        alive: p.alive, type: p.type, hidden: p.hidden, invisible: p.invisible,
-        char: { ...p.char }, // 判定历史单独剥离
-      };
-    });
-    return {
-      seed: this.seed,
-      roundNo: this.roundNo,
-      subRound: this.subRound,
-      phase: this.phase,
-      players,
-      roomIds: this.roomIds,
-      ruins: this.ruinsConditions(),
-      submittedIds: this.submittedIds.filter((pid) => this.players[pid]?.alive),
-      pendingCount: Object.keys(this.pendingThrows).length,
-      qualified: this.qualified,
-      queue: this.queue,
-      actIndex: this.actIndex,
-      currentActor: this.currentActor(),
-      deferred: this.deferred.map((d) => ({ ...d })),
-      judgeRecords: this.judgeRecords.map((r) => ({ ...r, throws: { ...r.throws } })),
-      /** 已揭示的出拳（全员可见）；提交阶段为 null，不泄露任何拳种 */
-      reveal: this.revealInfo(),
-      /** 本回合最近一次排序子轮的揭示（行动阶段用来解释行动顺序来源） */
-      orderReveal: this.orderRevealInfo(),
-      /** 技能内判定（马保国系）：进行中的出拳面板数据；非判定阶段为 null */
-      judge: this.skillJudgeView(),
-      /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
-      orderGroup: this.phase === 'rps2' ? [...this.orderGroup] : [],
-      orderSubmittedIds: [...this.orderSubmittedIds],
-      orderResult: [...this.orderOrder],
-      orderSub: this.orderSub,
-      /** 局内战绩（每人一份，纯统计） */
-      stats: Object.fromEntries(this.playerIds.map((pid) => [pid, { ...this.stats[pid] }])),
-      /** 领域持有者（全场唯一；null 表示当前无领域生效） */
-      domainHolder: this.domainHolder,
-      // 日志通过增量（newLogs）下发，快照不再重复携带（带宽优化：长对局不随每次状态同步重发全量日志）
-      winner: this.winner ?? null,
-      aliveCount: this.aliveIds().length,
-    };
+  snapshot(): GameSnapshot {
+    return serializeSnapshot(this, this.map.snapshot?.());
   }
 }

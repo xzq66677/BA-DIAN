@@ -34,6 +34,10 @@ describe('首页 UI（TCG风格）', () => {
     expect(screen.getByRole('button', { name: '加入房间' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /机制测试场/ })).toBeTruthy();
     expect(screen.getByPlaceholderText('4位邀请码')).toBeTruthy();
+    const weather = screen.getByLabelText('悬浮遗迹：天气与泥潭') as HTMLSelectElement;
+    expect(weather.value).toBe('on');
+    fireEvent.change(weather, { target: { value: 'off' } });
+    expect(weather.value).toBe('off');
     // 房间列表容器
     expect(screen.getByText(/房间列表/)).toBeTruthy();
   });
@@ -111,6 +115,37 @@ describe('游戏页 UI（TCG战场·真实引擎快照渲染）', () => {
     expect(text).toContain('◈ R1'); // 房间场地
     expect(text).toContain('回合'); // 回合指示
     expect(text).toContain('A'); // 玩家名（卡面铭牌）
+  });
+
+  it('血条显示数值，点击后查看实时公开状态且不显示判定历史', () => {
+    const { snap, logs } = buildSnapshot();
+    const target = snap.players.find((p) => p.id === 'B')!;
+    Object.assign(target, {
+      hidden: true,
+      invisible: true,
+      char: { ...target.char, domain: true, livesLeft: 2, attackOverride: 4, history: ['rock'] },
+    });
+    render(
+      <GamePage
+        lobby={LOBBY}
+        game={snap}
+        session={{ code: 'TEST', identities: [{ playerId: 'A', name: 'A', token: 't' }] }}
+        logs={logs}
+        onExit={() => {}}
+      />,
+    );
+    const hpBar = screen.getByRole('button', { name: /查看 B 的生命与状态/ });
+    expect(hpBar.textContent).toContain(`${target.hp}/${target.maxHp}`);
+    fireEvent.click(hpBar);
+    const dialog = screen.getByRole('dialog', { name: /B/ });
+    expect(dialog.textContent).toContain('躲藏');
+    expect(dialog.textContent).toContain('隐身');
+    expect(dialog.textContent).toContain('领域');
+    expect(dialog.textContent).toContain('剩余 2 条');
+    expect(dialog.textContent).toContain('攻击力 4');
+    expect(dialog.textContent).not.toContain('rock');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('出拳揭示台：判定结算后全员可见彼此出拳（斗地主式牌桌）', () => {
@@ -213,11 +248,10 @@ const lobbyFor = (charId: string) => ({
   config: { submitTimeoutMs: 30000, turnTimeoutMs: 30000 },
 });
 
-describe('自身技能不需要选目标（领域展开 / 抽取今日运势 / 领域强化）', () => {
+describe('自身技能不需要选目标（领域展开 / 抽取今日运势）', () => {
   it.each([
     ['hero-today', '抽取今日运势'],
     ['gojo', '领域展开'],
-    ['laodaye', '领域强化'],
   ])('%s 的「%s」选中后可直接确认发动，不出现目标提示', (charId, label) => {
     const snap = buildActSnapshot(charId);
     expect(snap.phase).toBe('act');

@@ -6,31 +6,26 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
-let serverUrl: string;
-let httpServer: import('node:http').Server;
+import { PROTOCOL_VERSION } from '../../shared/src/protocol.js';
+
+import { startTestServer, type TestServer } from '../support/test-server.js';
+
+let server: TestServer;
 
 beforeAll(async () => {
   const mod = await import('../../server/src/index.js');
-  httpServer = (mod as { httpServer: import('node:http').Server }).httpServer;
-  (mod as { startServer: (port?: number) => void }).startServer(0);
-  await new Promise<void>((resolve) => httpServer.once('listening', () => resolve()));
-  const addr = httpServer.address();
-  const port = typeof addr === 'object' && addr ? addr.port : 3100;
-  serverUrl = `http://127.0.0.1:${port}`;
+  server = await startTestServer(mod);
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => {
-    httpServer.close(() => resolve());
-    setTimeout(resolve, 500);
-  });
+  await server?.close();
 });
 
-function connect(): Promise<ClientSocket> {
+function connect(protoVer?: number): Promise<ClientSocket> {
   return new Promise((resolve, reject) => {
-    const s = ioClient(serverUrl, { transports: ['websocket'] });
-    s.on('connect', () => resolve(s));
-    s.on('connect_error', reject);
+    const s = ioClient(server.url, { transports: ['websocket'], transportOptions: { websocket: { agent: server.agent } }, auth: { protoVer } });
+    s.once('connect', () => resolve(s));
+    s.once('connect_error', (error) => { s.disconnect(); reject(error); });
   });
 }
 
@@ -62,6 +57,85 @@ function waitFor(s: ClientSocket, event: string, timeoutMs = 5000): Promise<Reco
 }
 
 describe('拔典联机系统', () => {
+  it('接受当前版本与旧客户端，拒绝不兼容版本', async () => {
+    const legacy = await connect();
+    const current = await connect(PROTOCOL_VERSION);
+    try {
+      const update = waitFor(current, 'room:update');
+      await emit(current, 'room:create', { name: '版本测试' });
+      expect(await update).toMatchObject({ v: PROTOCOL_VERSION });
+      await expect(connect(PROTOCOL_VERSION + 1)).rejects.toMatchObject({
+        data: { code: 'PROTOCOL_VERSION', supported: [PROTOCOL_VERSION] },
+      });
+    } finally {
+      legacy.disconnect();
+      current.disconnect();
+    }
+  });
+
+  it('加入房间只返回本设备的座位凭证，房主保留所有本地座位凭证', async () => {
+    type Seat = { playerId: string; name: string; token: string };
+    type Result = { ok: boolean; code: string; seats: Seat[] };
+    const host = await connect();
+    const guest = await connect();
+    const guest2 = await connect();
+    const resumed = await connect();
+    try {
+      const created = await emit<Result>(host, 'room:create', { name: '房主', localPlayers: ['房主', '本地玩家'] });
+      expect(created.ok).toBe(true);
+      expect(created.seats.map((s) => s.name)).toEqual(['房主', '本地玩家']);
+      expect(created.seats.every((s) => !!s.token)).toBe(true);
+
+      const joined = await emit<Result>(guest, 'room:join', { code: created.code, name: '客人' });
+      expect(joined.ok).toBe(true);
+      expect(joined.seats).toHaveLength(1);
+      expect(joined.seats[0].name).toBe('客人');
+      expect(joined.seats[0].token).toBeTruthy();
+      for (const seat of created.seats) expect(JSON.stringify(joined)).not.toContain(seat.token);
+
+      const joined2 = await emit<Result>(guest2, 'room:join', { code: created.code, name: '客人二' });
+      expect(joined2.ok).toBe(true);
+      expect(joined2.seats).toHaveLength(1);
+      expect(joined2.seats[0].name).toBe('客人二');
+      expect(joined2.seats[0].token).toBeTruthy();
+      for (const seat of [...created.seats, ...joined.seats]) expect(JSON.stringify(joined2)).not.toContain(seat.token);
+
+      const reconnect = await emit<{ ok: boolean }>(resumed, 'room:reconnect', {
+        code: created.code, playerId: joined.seats[0].playerId, token: joined.seats[0].token,
+      });
+      expect(reconnect.ok).toBe(true);
+    } finally {
+      host.disconnect(); guest.disconnect(); guest2.disconnect(); resumed.disconnect();
+    }
+  });
+
+  it.each([true, false])('创建房间的天气开关 %s 同步给房客并作用于对局', async (weather) => {
+    const host = await connect();
+    const guest = await connect();
+    try {
+      const map = { id: 'floating-ruins', mechanics: { weather } };
+      const created = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(host, 'room:create', { name: '房主', map });
+      expect(created.ok).toBe(true);
+      const joinedUpdate = waitFor(guest, 'room:update');
+      expect((await emit<{ ok: boolean }>(guest, 'room:join', { code: created.code, name: '房客' })).ok).toBe(true);
+      const lobby = (await joinedUpdate).lobby as { config: { map: unknown } };
+      expect(lobby.config.map).toEqual(map);
+      const started = waitForGame(guest);
+      expect((await emit<{ ok: boolean }>(host, 'room:start', { code: created.code, ...created.seats[0], seed: 1 })).ok).toBe(true);
+      const game = (await started).game as { ruins?: unknown };
+      expect(Boolean(game.ruins)).toBe(weather);
+    } finally { host.disconnect(); guest.disconnect(); }
+  });
+
+  it('拒绝未知地图和无效天气选项', async () => {
+    const host = await connect();
+    try {
+      for (const map of [{ id: 'unknown', mechanics: { weather: true } }, { id: 'floating-ruins', mechanics: { weather: 'false' } }]) {
+        expect((await emit<{ ok: boolean }>(host, 'room:create', { name: '房主', map })).ok).toBe(false);
+      }
+    } finally { host.disconnect(); }
+  });
+
   it('创建房间 → 第二名玩家加入 → 广播座位同步', async () => {
     const host = await connect();
     const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(
@@ -71,10 +145,11 @@ describe('拔典联机系统', () => {
     expect(createRes.code).toHaveLength(4);
 
     const guest = await connect();
+    const updatePromise = waitFor(host, 'room:update');
     const joinRes = await emit<{ ok: boolean; code: string }>(guest, 'room:join', { code: createRes.code, name: '客人' });
     expect(joinRes.ok).toBe(true);
 
-    const update = await waitFor(host, 'room:update');
+    const update = await updatePromise;
     const lobby = update.lobby as { seats: { name: string }[] };
     expect(lobby.seats.map((s) => s.name).sort()).toEqual(['客人', '房主']);
     host.disconnect();
@@ -239,6 +314,63 @@ describe('拔典联机系统', () => {
     reconnected.disconnect();
   });
 
+  it('重连后只有新连接能使用该座位进行房主操作', async () => {
+    const original = await connect();
+    const replacement = await connect();
+    try {
+      const created = await emit<{ code: string; seats: { playerId: string; token: string }[] }>(
+        original, 'room:create', { name: '主座位' },
+      );
+      const auth = { code: created.code, ...created.seats[0] };
+      expect(await emit(original, 'room:addAI', { ...auth, token: 'invalid' })).toMatchObject({ ok: false });
+      expect(await emit(replacement, 'room:reconnect', auth)).toMatchObject({ ok: true });
+      expect(await emit(original, 'room:addAI', auth)).toMatchObject({ ok: false });
+      expect(await emit(replacement, 'room:addAI', auth)).toMatchObject({ ok: true });
+      expect(await emit(original, 'room:start', auth)).toMatchObject({ ok: false });
+      expect(await emit(replacement, 'room:start', auth)).toMatchObject({ ok: true });
+      expect(await emit(original, 'room:restart', auth)).toMatchObject({ ok: false });
+    } finally {
+      original.disconnect();
+      replacement.disconnect();
+    }
+  });
+
+  it('未结算的输入不随回放下发，终局输入仅供有凭证的参赛者读取', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const observer = await connect();
+    try {
+      type Membership = { code: string; seats: { playerId: string; token: string }[] };
+      type ReplayList = { live: string | null; replays: { id: string }[] };
+      const created = await emit<Membership>(host, 'room:create', { name: '对局甲' });
+      const { code } = created;
+      const joined = await emit<Membership>(guest, 'room:join', { code, name: '对局乙' });
+      const hostAuth = { code, ...created.seats[0] };
+      expect(await emit(host, 'room:start', { ...hostAuth, seed: 7 })).toMatchObject({ ok: true });
+      expect(await emit(host, 'game:throw', { ...hostAuth, throw: 'paper' })).toMatchObject({ ok: true });
+      const live = await emit<ReplayList>(host, 'replay:list', { code });
+      expect(live.live).toBeTruthy();
+      const active = await emit<{ ok: boolean; replay: object }>(host, 'replay:get', { ...hostAuth, id: live.live });
+      expect(active.ok).toBe(true);
+      expect(active.replay).not.toHaveProperty('simulation');
+      expect(JSON.stringify(active.replay)).not.toContain('paper');
+
+      expect(await emit(guest, 'room:leave', { code, ...joined.seats[0] })).toMatchObject({ ok: true });
+      const finished = await emit<ReplayList>(host, 'replay:list', { code });
+      const id = finished.replays[0].id;
+      const publicResult = await emit<{ ok: boolean; replay: object }>(observer, 'replay:get', { code, id });
+      expect(publicResult.ok).toBe(true);
+      expect(publicResult.replay).not.toHaveProperty('simulation');
+      const privateResult = await emit<{ ok: boolean; replay: object }>(host, 'replay:get', { ...hostAuth, id });
+      expect(privateResult.ok).toBe(true);
+      expect(privateResult.replay).toHaveProperty('simulation');
+    } finally {
+      host.disconnect();
+      guest.disconnect();
+      observer.disconnect();
+    }
+  });
+
   it('断线重连后广播恢复（自动重绑定座位）', async () => {
     const host = await connect();
     const createRes = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(
@@ -345,8 +477,9 @@ describe('拔典联机系统', () => {
     const guest = await connect();
     await emit(guest, 'room:join', { code: code3, name: '观察员' });
     await emit(host2, 'room:addAI', { code: code3, playerId: h2.playerId, token: h2.token, count: 1, charId: 'random' });
+    const startUpdate = waitForGame(guest);
     await emit(host2, 'room:start', { code: code3, playerId: h2.playerId, token: h2.token, seed: 950 });
-    const upd = await waitForGame(guest);
+    const upd = await startUpdate;
     expect((upd.game as { phase: string }).phase).toBe('rps1');
     // 房主退出 → 引擎内淘汰 → 观察员收到广播
     const upd2Promise = waitForGame(guest);
@@ -429,6 +562,46 @@ describe('拔典联机系统', () => {
     const t2 = await emit<{ ok: boolean }>(host, 'game:throw', { code, playerId: me2.playerId, token: me2.token, throw: 'paper' });
     expect(t1.ok).toBe(true);
     expect(t2.ok).toBe(true);
+    host.disconnect();
+  });
+});
+
+describe('房间人数上限（10 人）', () => {
+  it('创建房间：本机人数超过 10 直接拒绝，不留僵尸房间', async () => {
+    const host = await connect();
+    const r = await emit<{ ok: boolean; error?: string }>(host, 'room:create', {
+      name: '超限测试专用房主', localPlayers: Array.from({ length: 11 }, (_, i) => `本机${i + 1}`),
+    });
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('10');
+    const list = await emit<{ ok: boolean; rooms: { hostName: string }[] }>(host, 'lobby:roomsReq', {});
+    expect(list.rooms.some((x) => x.hostName === '超限测试专用房主')).toBe(false);
+    host.disconnect();
+  });
+
+  it('加入房间：满 10 人后拒绝新玩家', async () => {
+    const host = await connect();
+    const c = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(host, 'room:create', {
+      name: '满房房主', localPlayers: Array.from({ length: 10 }, (_, i) => `P${i + 1}`),
+    });
+    expect(c.ok).toBe(true);
+    expect(c.seats).toHaveLength(10);
+    const guest = await connect();
+    const j = await emit<{ ok: boolean; error?: string }>(guest, 'room:join', { code: c.code, name: '后来者' });
+    expect(j.ok).toBe(false);
+    expect(j.error).toContain('已满');
+    guest.disconnect();
+    host.disconnect();
+  });
+
+  it('添加 AI：请求 20 个也只补到 10 人', async () => {
+    const host = await connect();
+    const c = await emit<{ ok: boolean; code: string; seats: { playerId: string; token: string }[] }>(host, 'room:create', { name: 'AI 房主' });
+    const me = c.seats[0];
+    const a = await emit<{ ok: boolean }>(host, 'room:addAI', { code: c.code, playerId: me.playerId, token: me.token, count: 20 });
+    expect(a.ok).toBe(true);
+    const list = await emit<{ ok: boolean; rooms: { code: string; seatCount: number }[] }>(host, 'lobby:roomsReq', {});
+    expect(list.rooms.find((x) => x.code === c.code)?.seatCount).toBe(10);
     host.disconnect();
   });
 });

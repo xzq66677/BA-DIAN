@@ -293,19 +293,42 @@
 
 /* ── HP 条（真实快照值；延迟过渡让斩击先落下、血条随后平滑变化） ── */
 .ccard-hpbar {
+  display: block;
+  position: relative;
+  width: 100%;
   margin-top: 3px;
-  height: 7px;
+  padding: 0;
+  height: 14px;
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(138, 116, 52, 0.45);
   overflow: hidden;
+  cursor: pointer;
+}
+.ccard-hpbar:focus-visible {
+  outline: 2px solid #9fc7ff;
+  outline-offset: 2px;
 }
 .ccard-hpbar-fill {
+  display: block;
   height: 100%;
   border-radius: 3px;
   background: linear-gradient(90deg, #e2493d, #ff7a5c);
   box-shadow: 0 0 6px rgba(226, 73, 61, 0.6);
   transition: width 0.42s ease 0.26s;
+}
+.ccard-hp-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff7e6;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 1px 2px #000, 0 0 4px #000;
+  pointer-events: none;
 }
 .ccard-hpbar-fill.rising {
   background: linear-gradient(90deg, #35a860, #67d98a);
@@ -727,6 +750,36 @@
   align-items: center;
   gap: 8px;
 }
+/* 连判进度（如大屁孩）：行动坞标题下方一行，纯数据驱动（快照 judgeStreak） */
+.judge-streak {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 10px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(126, 200, 255, 0.35);
+  background: linear-gradient(90deg, rgba(30, 48, 68, 0.92), rgba(18, 28, 40, 0.92));
+  font-size: 12px;
+  color: #cfe3f5;
+}
+.judge-streak .js-label { color: var(--gold-2); letter-spacing: 1px; }
+.judge-streak .js-slots { display: inline-flex; gap: 4px; }
+.judge-streak .js-slot {
+  min-width: 22px;
+  text-align: center;
+  padding: 1px 5px;
+  border-radius: 6px;
+  border: 1px solid rgba(207, 227, 245, 0.35);
+  background: rgba(12, 20, 30, 0.8);
+  line-height: 18px;
+}
+.judge-streak .js-slot.is-win { color: #ffd76a; border-color: rgba(255, 215, 106, 0.6); }
+.judge-streak .js-slot.is-tie { color: #b9c7d6; border-color: rgba(185, 199, 214, 0.5); }
+.judge-streak .js-slot.is-lose { color: #ff9b8a; border-color: rgba(255, 155, 138, 0.55); }
+.judge-streak .js-slot.is-empty { color: #55656f; border-style: dashed; }
+.judge-streak .js-hint { margin-left: auto; color: #9fb4c6; font-size: 11px; }
 .scard-row {
   display: flex;
   gap: 10px;
@@ -1165,6 +1218,113 @@
 .card-detail-inner .cd-skills { color: #35507c; font-weight: 800; font-size: 13px; }
 .card-detail-inner .cd-mech { font-size: 13px; line-height: 1.7; margin-top: 6px; }
 .card-detail-inner .cd-quote { color: #8a6a2a; font-style: italic; margin-top: 10px; border-left: 3px solid var(--gold-dim); padding-left: 10px; }
+
+/* 血量与角色状态详情 */
+.status-detail {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.76);
+  backdrop-filter: blur(4px);
+}
+.status-modal {
+  width: min(520px, 100%);
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid rgba(216, 176, 74, 0.65);
+  border-radius: 16px;
+  color: var(--text, #e8e4d8);
+  background: linear-gradient(160deg, #202936, #111820);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.65), 0 0 24px rgba(216, 176, 74, 0.12);
+  animation: card-in 0.2s ease;
+}
+.status-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.status-eyebrow {
+  color: var(--text-dim, #9aa0a8);
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.status-head h2 {
+  margin: 3px 0 0;
+  color: var(--gold-2, #f0d68a);
+  font-size: 22px;
+}
+.status-head h2 small {
+  margin-left: 6px;
+  color: var(--text-dim, #9aa0a8);
+  font-size: 13px;
+  font-weight: 600;
+}
+.status-hp-summary {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid rgba(216, 176, 74, 0.24);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.24);
+}
+.status-hp-numbers {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.status-hp-numbers > span { color: #ffb3ab; font-weight: 800; }
+.status-hp-numbers strong { color: #fff7e6; font-size: 24px; }
+.status-hp-numbers small { color: var(--text-dim, #9aa0a8); font-size: 14px; }
+.status-hpbar {
+  height: 9px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+}
+.status-hp-fill { height: 100%; border-radius: inherit; transition: width 0.3s ease; }
+.status-hp-fill.high { background: linear-gradient(90deg, #35a860, #7ee2a0); }
+.status-hp-fill.mid { background: linear-gradient(90deg, #c47b25, #f0c060); }
+.status-hp-fill.low { background: linear-gradient(90deg, #b82f26, #ff6a5c); }
+.player-status-list {
+  display: grid;
+  gap: 7px;
+}
+.player-status-item {
+  display: flex;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(154, 160, 168, 0.18);
+  border-left: 3px solid #7c8794;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+.player-status-item.tone-good { border-left-color: #63d97e; }
+.player-status-item.tone-warn { border-left-color: #f0c060; }
+.player-status-item.tone-bad { border-left-color: #ff6a5c; }
+.psi-icon { flex: 0 0 20px; font-size: 18px; text-align: center; }
+.psi-body { display: grid; gap: 3px; min-width: 0; }
+.psi-heading { display: flex; justify-content: space-between; gap: 12px; }
+.psi-heading b { font-size: 13px; }
+.psi-heading strong { font-size: 12px; text-align: right; }
+.tone-good .psi-heading strong { color: #8ce6a0; }
+.tone-warn .psi-heading strong { color: #f0c060; }
+.tone-bad .psi-heading strong { color: #ff9c90; }
+.tone-neutral .psi-heading strong { color: #c3cbd4; }
+.psi-detail { color: var(--text-dim, #9aa0a8); font-size: 11px; line-height: 1.5; }
+.status-privacy { margin: 12px 0 0; color: var(--text-dim, #9aa0a8); font-size: 11px; text-align: center; }
+.card-detail-inner .player-status-item { color: var(--ink, #2a2118); background: rgba(255, 255, 255, 0.32); }
+.card-detail-inner .psi-detail { color: #6b5a3a; }
+.card-detail-inner .tone-good .psi-heading strong { color: #24733d; }
+.card-detail-inner .tone-warn .psi-heading strong { color: #9a6214; }
+.card-detail-inner .tone-bad .psi-heading strong { color: #a52c22; }
+.card-detail-inner .tone-neutral .psi-heading strong { color: #4d5966; }
 
 /* ═══════════════════════════════════════════════════════════
    斗地主式牌桌（顶部对手座位 / 中央牌桌+出拳揭示 / 底部我的手牌）
@@ -2659,4 +2819,96 @@
   .ivan-boom-fx { opacity: 0 !important; }
   .win-rays { opacity: 0.7 !important; }
   .ivan-fly-layer { display: none; }
+}
+
+/* ── 全局播报抽屉（Issue #39 / T-6.0.1）────────────────────
+   播报是「公开动态」层：与战斗日志互补——
+   日志 = 完整档案（可追溯全部细节），播报 = 谁做了什么 + 几点几分 + 停留多久。
+   所有动作由 shared/src/announce.ts 的规则表派生，样式只需要处理 tone/priority 两档。 */
+.announce-drawer {
+  position: fixed;
+  top: 54px;
+  right: 12px;
+  width: min(400px, calc(100vw - 24px));
+  max-height: min(62vh, 560px);
+  display: flex;
+  flex-direction: column;
+  z-index: 60;
+  background: linear-gradient(180deg, rgba(28, 21, 10, 0.97), rgba(18, 14, 8, 0.98));
+  border: 1px solid var(--gold-dim);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.announce-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(216, 176, 74, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+}
+.announce-head h3 { margin: 0; font-size: 13px; letter-spacing: 2px; color: var(--gold-2); }
+.announce-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.announce-empty { padding: 18px 14px; font-size: 12px; line-height: 1.7; color: #9b8a6a; text-align: center; }
+.announce-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  border-left: 3px solid transparent;
+  border-bottom: 1px dashed rgba(216, 176, 74, 0.1);
+}
+.announce-line .al-time {
+  flex: 0 0 auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: #8a7a58;
+  letter-spacing: 0.5px;
+}
+.announce-line .al-icon { flex: 0 0 auto; }
+.announce-line .al-text { flex: 1; color: #d8cbb0; overflow-wrap: anywhere; }
+.announce-line .al-ttl {
+  flex: 0 0 auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: #7c6b4a;
+}
+/* 优先级：high 增强（左金边 + 亮字），low 弱化（不抢视线） */
+.announce-line.prio-high { border-left-color: #d8b04a; background: rgba(216, 176, 74, 0.06); }
+.announce-line.prio-high .al-text { color: #ffe9c0; font-weight: 700; }
+.announce-line.prio-low { opacity: 0.66; }
+.announce-line.prio-low .al-text { color: #a2957c; }
+/* 色调：危险/奖励/战斗/系统各一档，未知降级为 info */
+.announce-line.tone-danger .al-icon { color: #ff7a5f; }
+.announce-line.tone-reward .al-icon { color: #ffd76a; }
+.announce-line.tone-combat .al-icon { color: #ffb27a; }
+.announce-line.tone-system .al-icon { color: #9ab; }
+/* 类型差异（V2）：重要动作=实线左框+图标底纹，次要信息=虚线/点线且更矮更小 */
+.announce-line .al-icon { border-radius: 3px; padding: 0 3px; }
+.announce-line.kind-attack { border-left-style: solid; border-left-color: #ff7a5f; background: rgba(255, 100, 70, 0.05); }
+.announce-line.kind-attack .al-icon { background: rgba(255, 100, 70, 0.14); }
+.announce-line.kind-skill { border-left-style: solid; border-left-color: #b98cff; background: rgba(170, 110, 255, 0.05); }
+.announce-line.kind-skill .al-icon { background: rgba(170, 110, 255, 0.14); }
+.announce-line.kind-heal { border-left-style: solid; border-left-color: #6fdc94; background: rgba(90, 220, 140, 0.05); }
+.announce-line.kind-heal .al-icon { background: rgba(90, 220, 140, 0.14); }
+.announce-line.kind-move { border-left-style: dashed; border-left-color: #7ebedc; background: rgba(110, 180, 215, 0.04); }
+.announce-line.kind-move .al-icon { background: rgba(110, 180, 215, 0.12); }
+.announce-line.kind-hide { border-left-style: dashed; border-left-color: #98a2ac; }
+.announce-line.kind-hide .al-icon { background: rgba(150, 160, 170, 0.12); }
+.announce-line.kind-outcome { border-left-style: double; border-left-width: 5px; border-left-color: #d8b04a; background: rgba(216, 176, 74, 0.07); }
+.announce-line.kind-round { border-left-style: dotted; border-left-color: #6f7885; font-size: 11px; padding-top: 2px; padding-bottom: 2px; }
+.announce-line.kind-system { border-left-style: solid; border-left-color: #8aa9bd; }
+/* 抽屉纵向锚点跟随顶栏实际高度：窄屏顶栏按钮会换行（390px 下高 93px），
+   写死 top 会压住第二行按钮。--app-header-h 由 Game 页按 ResizeObserver 写到 :root。 */
+.announce-drawer { top: calc(var(--app-header-h, 50px) + 4px); }
+
+@media (max-width: 560px) {
+  .announce-drawer { right: 6px; width: calc(100vw - 12px); max-height: 58vh; }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  .announce-drawer { max-height: 68vh; }
 }

@@ -4,9 +4,14 @@
  */
 
 export * from './types.js';
+export * from './room-limits.js';
+export * from './announce.js';
 export * from './rng.js';
 export * from './judge.js';
 export * from './chardef.js';
 export * from './engine.js';
 export * from './characters/index.js';
 export * from './testcases/index.js';
+export * from './protocol.js';
+export * from './simulation-types.js';
+export * from './simulation.js';

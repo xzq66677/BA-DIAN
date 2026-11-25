@@ -19,7 +19,8 @@ export const COMPLEX_CASES: TestCase[] = [
       const g = makeGame([{ id: 'W', char: 'wuliuqi' }, { id: 'M', char: 'mabaoguo' }], 300);
       g.players['M'].room = 'R1'; // 与 W 同房间
       playThrows(g, [{ W: 'rock', M: 'scissors' }]); // W 胜
-      actQueue(g, { W: { type: 'attack', targetId: 'M' } });
+      actQueue(g, { W: { type: 'attack', room: 'R1' } });
+      playThrows(g, [{ W: 'rock', M: 'scissors' }]); // 刀落回合（W 蓄力不能行动）
       const judgeCount = g.logs.filter((l) => l.text.includes('太极判定：')).length;
       const segCount = g.logs.filter((l) => l.type === 'damage' && l.text.includes('M') && l.text.match(/第\d\/3段/)).length;
       // 每段独立判定（除非马保国中途死亡）
@@ -78,10 +79,11 @@ export const COMPLEX_CASES: TestCase[] = [
       g.players['D'].room = 'R2'; g.players['B'].room = 'R2';
       g.players['D'].hp = 4; g.players['D'].maxHp = 4;
       playThrows(g, [{ W: 'rock', D: 'scissors', B: 'scissors' }]); // W 胜（rock 组胜 scissors 组）
-      actQueue(g, { W: { type: 'attack', targetId: 'B' } });
-      // 段内目标顺序 [D,B]：段1 D-2(hp2)；段2 D-2 死亡（B的段2转移伤害为致死一击）；段3 D 已死跳过，B -1(hp2)
-      const ok = !isAlive(g, 'D') && hpOf(g, 'B') === 1;
-      return check(ok, `D 被吸伤死亡（承受4伤），段3 落在 B（hp=1）`,
+      actQueue(g, { W: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ W: 'rock', D: 'scissors', B: 'scissors' }]); // 刀落回合
+      // 三刀属于回合末瞬时爆发：D 直接承受自身份额，B 的每一段都被 D 吸收（含阵亡后遗体吸收）
+      const ok = !isAlive(g, 'D') && hpOf(g, 'B') === 2;
+      return check(ok, 'D 承担全部转移伤害后死亡，B 不受损（hp=2）',
         `D=${hpOf(g, 'D')}, B=${hpOf(g, 'B')}`, g);
     }),
   },
@@ -113,14 +115,14 @@ export const COMPLEX_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-X007', name: '角色规则覆盖：领域平局算胜覆盖默认平局规则', category: 'complex', seed: 306,
-    desc: '五条悟领域生效时，平局子轮不再重判而是直接判胜',
+    id: 'TC-X007', name: '角色规则覆盖：领域让持有者在平局回合行动（不改判胜负）', category: 'complex', seed: 306,
+    desc: '五条悟领域生效时，平局子轮仍是平局（不判胜、不重判），持有者获得该平局回合的行动资格',
     run: () => run(() => {
       const g = makeGame([{ id: 'G', char: 'gojo' }, 'B'], 306);
       g.charState('G').domain = true;
       playThrows(g, [{ G: 'paper', B: 'paper' }]);
-      const ok = g.phase === 'act' && g.qualified[0] === 'G' && g.judgeRecords.some((r) => r.outcome === 'tieWin');
-      return check(ok, '平局被领域覆盖为胜（tieWin）', `phase=${g.phase}, outcome记录=${g.judgeRecords.map(r=>r.outcome).join(',')}`, g);
+      const ok = g.phase === 'act' && g.qualified[0] === 'G' && g.judgeRecords.some((r) => r.outcome === 'tieAct');
+      return check(ok, '平局不变，领域持有者获得平局行动资格（tieAct）', `phase=${g.phase}, outcome记录=${g.judgeRecords.map(r=>r.outcome).join(',')}`, g);
     }),
   },
   {
@@ -184,11 +186,12 @@ export const COMPLEX_CASES: TestCase[] = [
       const g = makeGame([{ id: 'D', char: 'dajianke' }, { id: 'W', char: 'wuliuqi' }, 'B'], 311);
       g.players['D'].room = 'R2'; g.players['B'].room = 'R2'; g.players['B'].hidden = true;
       playThrows(g, [{ W: 'rock', D: 'scissors', B: 'scissors' }]); // W 胜
-      actQueue(g, { W: { type: 'attack', targetId: 'B' } });
+      actQueue(g, { W: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ W: 'rock', D: 'scissors', B: 'scissors' }]); // 刀落回合
       const transferred = g.logs.some((l) => l.text.includes('被吸引至大贱客'));
-      // 段内目标顺序 [D,B]：段1 D-1(2)+转移D-1(1)；段2 D-1(0)死，B无转移对象-1(1)；段3 B-1(0)死
-      const ok = transferred && !isAlive(g, 'D') && hpOf(g, 'B') === 0 && !isAlive(g, 'B');
-      return check(ok, '躲藏目标被AOE命中且伤害转移；D 死后剩余段落在 B（血量2耗尽）', `transferred=${transferred}, B=${hpOf(g, 'B')}, D=${hpOf(g, 'D')}`, g);
+      // 躲藏的 B 仍被三刀锁定，但每一段都被 D 吸收（回合末瞬时爆发，含阵亡后遗体吸收）
+      const ok = transferred && !isAlive(g, 'D') && hpOf(g, 'B') === 2 && isAlive(g, 'B');
+      return check(ok, '躲藏目标被三刀锁定且伤害全部转移给 D；B 不受损', `transferred=${transferred}, B=${hpOf(g, 'B')}, D=${hpOf(g, 'D')}`, g);
     }),
   },
   {

@@ -72,6 +72,7 @@
 .s3d-mode .log-side .log-scroll {
   max-height: calc(46vh - 52px);
 }
+.s3d-mode .log-side.log-closed { display: none; }
 /* 操作坞：底部悬浮（操作层融合 3D 舞台） */
 .s3d-mode .action-dock {
   position: absolute;
@@ -144,6 +145,11 @@
   cursor: grab;
 }
 .b3-host:active { cursor: grabbing; }
+.b3-loading {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
 .b3-canvas {
   position: absolute;
   inset: 0;
@@ -252,14 +258,32 @@
   cursor: pointer;
 }
 
+.b3-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.b3-pick:focus-visible,
+.b3-hpbar:focus-visible {
+  outline: 2px solid #9fc7ff;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
 .b3-av {
+  display: flex;
   width: 34px;
   height: 34px;
   border-radius: 8px;
   background: linear-gradient(180deg, #2e2013, #1f150b);
   border: 1px solid rgba(216, 176, 74, 0.4);
   overflow: hidden;
-  display: flex;
   align-items: center;
   justify-content: center;
   font-size: 15px;
@@ -295,18 +319,36 @@
   flex-shrink: 0;
 }
 .b3-hpbar {
-  width: 88px;
-  height: 6px;
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 14px;
+  padding: 0;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(216, 176, 74, 0.3);
   overflow: hidden;
+  cursor: pointer;
 }
 .b3-hp-fill {
+  display: block;
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, #63d97e, #8ce6a0);
   transition: width 0.45s cubic-bezier(0.3, 0.7, 0.3, 1), background 0.3s ease;
+}
+.b3-hp-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff7e6;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 1px 2px #000, 0 0 4px #000;
+  pointer-events: none;
 }
 .b3-badges {
   display: flex;
@@ -477,24 +519,124 @@
   white-space: nowrap;
 }
 
-/* ── 全局播报横幅（喝牛奶/今日勇者运势：一次性，不抢镜头） ── */
+/* ── 全局播报横幅（所有公开动作：一次性，不抢镜头） ──
+   结构：icon + text + 服务端时间戳；具体停留时长由 React 内联 animationDuration 覆盖。
+   规则表见 shared/src/announce.ts —— 新增动作类型无需改这里。 */
 .global-announce {
   position: absolute;
   top: 13%;
   left: 50%;
   transform: translateX(-50%);
   z-index: 9;
-  padding: 6px 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(90vw, 720px);
+  padding: 6px 16px 6px 18px;
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 1.5px;
   color: #ffe9c0;
-  background: rgba(28, 20, 8, 0.88);
+  background: rgba(28, 20, 8, 0.9);
   border: 1px solid rgba(240, 214, 138, 0.65);
   border-radius: 999px;
-  white-space: nowrap;
   pointer-events: none;
-  animation: b3-announce-anim 2.1s ease forwards;
+  animation: b3-announce-anim 2.1s ease forwards; /* 默认值，按 ttlMs 内联覆盖 */
+}
+.global-announce .ga-icon { flex: 0 0 auto; font-size: 16px; line-height: 1; }
+.global-announce .ga-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.global-announce .ga-time {
+  flex: 0 0 auto;
+  padding-left: 8px;
+  border-left: 1px solid rgba(240, 214, 138, 0.3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #c0a878;
+}
+/* 色调：只调边框与文字，保持同一条横幅的视觉统一 */
+.global-announce.tone-danger { border-color: rgba(255, 122, 95, 0.8); color: #ffd9cc; background: rgba(46, 14, 8, 0.92); }
+.global-announce.tone-reward { border-color: rgba(255, 215, 106, 0.85); color: #fff0c2; }
+.global-announce.tone-combat { border-color: rgba(255, 178, 122, 0.7); }
+.global-announce.tone-system { border-color: rgba(154, 187, 204, 0.5); color: #dbe9f2; }
+.global-announce.prio-high { box-shadow: 0 0 0 1px rgba(216, 176, 74, 0.25), 0 6px 22px rgba(0, 0, 0, 0.5); }
+
+/* ── 按信息类型区分表现形式（V2 播报升级）────────────────────
+   五类重要动作各有形状/配色/动效；胜负与回合压缩成小条，只留档不抢镜头。 */
+.global-announce .ga-kind {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #f5e6bd;
+  background: rgba(216, 176, 74, 0.22);
+  border: 1px solid rgba(216, 176, 74, 0.45);
+}
+.global-announce.kind-attack {
+  border-radius: 3px;
+  border-color: rgba(255, 105, 80, 0.9);
+  background: linear-gradient(100deg, rgba(74, 16, 12, 0.94), rgba(28, 20, 8, 0.92));
+  box-shadow: 0 0 14px rgba(255, 90, 60, 0.28);
+}
+.global-announce.kind-attack .ga-kind { background: rgba(255, 100, 70, 0.25); border-color: rgba(255, 120, 90, 0.6); color: #ffd2c2; }
+.global-announce.kind-skill {
+  border-radius: 14px 3px 14px 3px;
+  border-color: rgba(190, 140, 255, 0.85);
+  background: linear-gradient(110deg, rgba(52, 24, 78, 0.94), rgba(20, 16, 34, 0.94));
+  box-shadow: 0 0 16px rgba(170, 110, 255, 0.3);
+}
+.global-announce.kind-skill .ga-kind { background: rgba(170, 110, 255, 0.24); border-color: rgba(190, 150, 255, 0.6); color: #e9d6ff; }
+.global-announce.kind-heal {
+  border-color: rgba(120, 230, 150, 0.8);
+  background: linear-gradient(100deg, rgba(16, 58, 36, 0.94), rgba(12, 28, 20, 0.92));
+}
+.global-announce.kind-heal .ga-kind { background: rgba(90, 220, 140, 0.22); border-color: rgba(120, 230, 160, 0.55); color: #c9ffdc; }
+.global-announce.kind-move {
+  border-radius: 4px;
+  border-style: dashed;
+  border-color: rgba(126, 190, 220, 0.8);
+  background: rgba(14, 32, 44, 0.92);
+  animation-name: b3-announce-slide;
+}
+.global-announce.kind-move .ga-kind { background: rgba(110, 180, 215, 0.2); border-color: rgba(130, 195, 225, 0.55); color: #cfefff; }
+.global-announce.kind-hide {
+  border-style: dashed;
+  border-color: rgba(150, 160, 170, 0.6);
+  background: rgba(24, 28, 32, 0.82);
+  color: #c2c8cc;
+}
+.global-announce.kind-hide .ga-kind { background: rgba(150, 160, 170, 0.18); border-color: rgba(160, 170, 180, 0.5); color: #d2d8dc; }
+.global-announce.kind-outcome {
+  border-radius: 2px;
+  border-width: 2px;
+  border-color: rgba(240, 200, 100, 0.95);
+  background: linear-gradient(100deg, rgba(64, 44, 10, 0.96), rgba(24, 18, 8, 0.94));
+  box-shadow: 0 0 18px rgba(240, 190, 80, 0.32);
+}
+.global-announce.kind-round {
+  top: 8%;
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 3px;
+  border-color: rgba(150, 165, 180, 0.45);
+  background: rgba(20, 22, 26, 0.8);
+  color: #aab3bc;
+}
+.global-announce.kind-round .ga-kind { font-size: 9px; padding: 0 5px; }
+.global-announce.kind-system .ga-kind { background: rgba(130, 160, 185, 0.2); border-color: rgba(140, 175, 200, 0.5); color: #cfe2ef; }
+@keyframes b3-announce-slide {
+  0% { opacity: 0; transform: translateX(-120%) scale(0.96); }
+  12% { opacity: 1; transform: translateX(-50%) scale(1); }
+  82% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-25%); }
 }
 @keyframes b3-announce-anim {
   0% { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.92); }

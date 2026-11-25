@@ -5,13 +5,23 @@
 
 export class RNG {
   private s: number;
+  private draws = 0;
+
+  get drawCount(): number { return this.draws; }
 
   constructor(seed: number) {
     this.s = seed >>> 0;
   }
 
   /** mulberry32 — [0,1) */
+  /** Advance past draws consumed outside the engine, such as AI decision making. */
+  advance(count: number): void {
+    this.s = (this.s + Math.imul(count, 0x6d2b79f5)) >>> 0;
+    this.draws += count;
+  }
+
   next(): number {
+    this.draws++;
     this.s = (this.s + 0x6d2b79f5) >>> 0;
     let t = this.s;
     t = Math.imul(t ^ (t >>> 15), t | 1);

@@ -126,7 +126,7 @@ export function useProtoGame(): ProtoRuntime {
       lastSeqRef.current = delta[delta.length - 1].seq;
       logsRef.current = [...logsRef.current, ...delta.map((l) => ({ seq: l.seq, type: l.type, text: l.text, important: l.important, data: l.data }))];
     }
-    setSnap(g.snapshot() as unknown as GameSnapshot);
+    setSnap(g.snapshot());
     setLogsInternal(logsRef.current);
   }
   const [, setLogsInternal] = useState<LogLike[]>([]);

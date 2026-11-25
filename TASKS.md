@@ -9,11 +9,10 @@
 | 编号 | 未完成事项 | 状态 | 剩余工作及来源 |
 |---|---|---|---|
 | T-13 / #43 | 本地多人无法攻击 1P、单人局 AI 五连鞭要求玩家代判 | TODO（P0） | 复现两个场景，核对目标选择和判定参与者，确认是否同源。 [Issue #43](https://github.com/xzq66677/BA-DIAN/issues/43) |
-| T-11 / #23 | 完善五条悟技能和机制 | IN_PROGRESS（MMR12345） | 核对领域规则、数值与特殊技能。 [Issue #23](https://github.com/xzq66677/BA-DIAN/issues/23) |
+| T-11 / #23 | 完善五条悟技能和机制 | IN_PROGRESS（MMR12345） | 2026-11-24 已定案并落地：近战始终 1 伤、领域平局含三人循环、**领域只给平局回合行动权（不把平局改判为胜）**、无量=领域展开、被覆盖后可再展开；「血量≥20 叠伤×2」「完全体领域远程必中」暂缓（见 CHANGELOG 2026-11-24）。 [Issue #23](https://github.com/xzq66677/BA-DIAN/issues/23) |
 | T-12 / #31 | 完善精神攻击定义与逻辑 | TODO（P1） | 统一核对大贱客、大屁孩、马保国的精神攻击语义及太极反弹优先级。 [Issue #31](https://github.com/xzq66677/BA-DIAN/issues/31) |
 | T-10 / #16 | 完善躲藏机制 | TODO（P1） | 确认目标锁定、解除条件、范围伤害及无视躲藏例外。 [Issue #16](https://github.com/xzq66677/BA-DIAN/issues/16) |
 | #28 | 落地每局最多 10 人并确认代判规则 | TODO（P1） | 2026-11-23 用户确认最多 10 人。云端 `main` 的加入房间与添加 AI 仍按 20 人判断，待统一服务端容量、前端选项及规则文档。代判起始人数与适用判定待决定。 [服务端实现](https://github.com/xzq66677/BA-DIAN/blob/b1fa2d0b801e164afc712fee717b749a844cdb91/server/src/index.ts#L167-L241) · [Issue #28](https://github.com/xzq66677/BA-DIAN/issues/28) |
-| #26 | 统一远程瞄准文档 | TODO | 远程默认免瞄准已实现（T-520）。规则表仍把吹箫哥列为需瞄准示例，与同文角色条目及实现冲突。 [规则文档](docs/GAME_RULES.md#3-行动基础) · [Issue #26](https://github.com/xzq66677/BA-DIAN/issues/26) |
 | #11 | 核对角色默认血量与大伊万例外 | 待规则确认 | 大屁孩和伍六七在 `main` 为 3 血，小女孩按已关闭的 #6 定为 2 血。需确认 #11 的默认 3 血要求如何适用。 [Issue #6](https://github.com/xzq66677/BA-DIAN/issues/6) · [Issue #11](https://github.com/xzq66677/BA-DIAN/issues/11) |
 | #18 | 排查九位初始角色机制 | TODO | 逐角色核对规则与实现，并在 Issue 登记已检查名单。 [Issue #18](https://github.com/xzq66677/BA-DIAN/issues/18) |
 | #2 | 排查其他角色机制并复核新增角色接口 | TODO | 小女孩的爆炸逻辑已由 #6 落地。剩余角色逻辑与新增角色规则接口仍待排查。 [Issue #2](https://github.com/xzq66677/BA-DIAN/issues/2) |
@@ -70,7 +69,7 @@ T-407 已由 T-415 解除阻塞。Issue #39 已随 PR #42 合并，真机复验�
 |---|---|---|---|
 | T-200 | 角色注册表 + 无业游民默认角色 | DONE | 钩子式架构，无 if/else 硬编码 |
 | T-201 | 拔棍（拔棍状态/无视躲避） | DONE | TC-C001~004 |
-| T-202 | 吹箫哥（仅远程/瞄准） | DONE | TC-C010~012；瞄准为基础行动 |
+| T-202 | 吹箫哥（仅远程；瞄准规则后续废止） | DONE | TC-C010~012；现行规则默认免瞄准，见 T-520 |
 | T-203 | 五条悟（近3远2/领域/平局算胜/对冲） | DONE | TC-C020~023 |
 | T-203b | 老大爷（领域对冲验证用） | DONE | TC-C024 |
 | T-204 | 马保国（太极反弹/五连鞭/不讲武德） | DONE | TC-C030~035 |
@@ -107,6 +106,7 @@ T-407 已由 T-415 解除阻塞。Issue #39 已随 PR #42 合并，真机复验�
 | T-405 | 前端构建验证 | DONE | 2.53s，75 模块 |
 | T-406 | UI 组件测试（jsdom） | DONE | 4 用例（含测试场页全量运行 89 用例全 PASS） |
 | T-407 | 真实 Chromium 端到端点击测试 | DONE | 初次尝试缺少系统库，安装后由 T-415 补测通过。云端 PR #42 的回归包含 5 个真实 Chromium 用例。 |
+| T-14 / #51 | 血量数值与角色状态详情 | DONE | 2D/3D 血条显示当前/最大生命，点击血条打开公开状态弹窗；白名单展示躲藏、隐身、领域等真实状态，不暴露隐藏出拳或判定历史。状态类型、读取器与 UI 已分层，后续负面状态扩展契约写入 `AGENTS.md`。`npm test` 36 文件 / 591 用例全过（含真实 Chromium 双模式验收），`npm run build` 通过。 |
 
 ## 阶段5 · 测试修复与回归
 
@@ -175,6 +175,7 @@ T-407 已由 T-415 解除阻塞。Issue #39 已随 PR #42 合并，真机复验�
 | T-518 | 撤销 IP:11937 直连入口（用户指出暴露服务器） | DONE | nginx 恢复原配置（有备份），回到隧道访问 |
 | T-519 | 无立绘角色卡占位（无业游民/老大爷不再显示破图） | DONE | 卡池/座位占位样式 |
 | T-520 | 远程攻击默认免瞄准（用户确认）；需瞄准角色在描述中注明 | DONE | 攻击卡描述动态标注+TC-C025 |
+| T-520c / #26 | 统一远程瞄准文档与残留描述 | DONE | 规则表删除吹箫哥需瞄准示例；明确 `rangedNeedsAim` 为 opt-in，当前仅五条默认需要瞄准。同步代码注释、用例说明与历史测试记录。 |
 
 ## 八轮 · 动作可视化/局内发言/踢人/五条悟排查（2026-11-20）
 
@@ -210,7 +211,7 @@ T-407 已由 T-415 解除阻塞。Issue #39 已随 PR #42 合并，真机复验�
 
 | 编号 | 任务 | 状态 | 说明 |
 |---|---|---|---|
-| T-550 | 排查确认：吹箫哥瞄准为强制规则（引擎实测未瞄准→拒绝、瞄准后→命中） | VERIFIED | 非缺陷 |
+| T-550 | 历史：吹箫哥瞄准为强制规则（引擎实测未瞄准→拒绝、瞄准后→命中） | SUPERSEDED | 2026-11-20 后续用户确认已废止：吹箫哥无需瞄准，见 T-520 / Issue #26 |
 | T-551 | 修复目标过滤：远程-only 角色不再显示同房间目标（此前会选中后被拒） | FIXED | validTargets 按 attackType 过滤 |
 | T-552 | 瞄准状态条：需瞄准角色显示「🎯 需先瞄准 / 已瞄准：X / 领域免瞄准」 | DONE | 行动坞顶部 |
 | T-553 | 局内发言增强：右下角浮动按钮 + 未读消息徽章（原顶栏按钮保留） | DONE | Playwright 实测收发 |
@@ -743,3 +744,16 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | T-611 | 规则侵入性 | 零：只读 `LogEntry` 的 `type/text/data/important`，不动数值、结算顺序、隐藏出拳语义（提交阶段日志无拳种） |
 | T-612 | 兼容性 | 新增字段可选：旧客户端忽略 `announces`；旧服务端不发送时客户端按无播报降级；`useBattlePresentation` 第 5 参数可选，proto/存量测试零改动 |
 | T-613 | 遗留 | 横幅按 `ttlMs` 串行播放，超长局（一次广播几十条）仍会排队；已用「队首＋high」压缩策略缓解。真机上 3D 聚焦镜头与横幅层级（top 13%）需目视复验 |
+
+## 二十七轮 · 真人对 AI 慢速演出 + AI 找出来策略（Issue #61，2026-11-24）
+
+用户要求：真人和 AI 打时演出也要慢速；检查并优化 AI 对躲藏目标的「找出来」策略。先提 Issue 再 PR。
+
+| 编号 | 任务 | 状态 | 说明 |
+|---|---|---|---|
+| T-61.1 | 座位组成节奏策略 | DONE | 新增 `client/src/battle/pace-policy.ts`：`resolvePresentationPace(seats, search)` —— 真人/本机 + AI 混合局默认 `slow`；显式合法 `?pace=` 保留调试覆盖（`Object.hasOwn` 防原型键）；纯 AI/纯真人跟随 URL 或默认档。`Game.tsx` 以 `useMemo(lobby.seats)` 计算并传入 `useBattlePresentation` 第 6 参 |
+| T-61.2 | 队列档位可观测 | DONE | `QueueState` 新增 `pace`；构造/setPace/emitState 同步；`.battlefield` 输出 `data-pace`（常驻，不依赖演出队列），e2e 断言混合局为 `slow` |
+| T-61.3 | AI 找出来策略 | DONE | `server/src/ai.ts` 新增 `seekTargets`/`shouldSeekHidden`；三档难度在同房间只剩躲藏者时优先 seek（普通按残血、硬核按威胁排序），候选链兜底含 seek；`allowSeek=false`/隐身/异房间/已淘汰不产生 seek；无视躲藏（拔棍）、AOE/辱骂接管、纯远程、零攻击角色不浪费 seek |
+| T-61.4 | 角色特化修正 | DONE | `ai-strategies.ts`：`firstInRoom` 去掉难度门槛（硬核伍六七/大剑客可直接打躲藏者）；五条悟普通难度先过滤可见成员，不再盲打躲藏者 |
+| T-61.5 | 测试与验收 | DONE | `tests/pace.test.ts` +6（座位策略/覆盖/原型键/队列 pace 状态）；`tests/integration/ai-difficulty.test.ts` +10（三档 seek 首选/候选链/真实落地/规则关闭/隐身/异房间/淘汰/角色豁免/伍六七 AOE/五条悟）；e2e 混合局 `data-pace=slow` 断言 |
+| T-61.6 | 文档 | DONE | AGENTS.md「演出节奏与 AI 策略扩展点」、README 测试摘要、TASKS.md 登记 |

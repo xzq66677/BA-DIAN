@@ -198,6 +198,33 @@ describe('混元形意太极：受伤时暂停、双方出拳、赢则反弹', (
     expect(g.logs.some((l) => l.text.includes('太极判定未成功'))).toBe(true);
   });
 
+  it('三刀逐段落于马保国：每段独立太极判定，其他目标照常扣血', () => {
+    const g = game2([{ id: 'A', char: 'wuliuqi' }, { id: 'B', char: 'mabaoguo' }, { id: 'C' }]);
+    g.players.B.room = g.players.A.room;
+    g.players.C.room = g.players.A.room;
+    const initialB = g.players.B.hp;
+    const initialC = g.players.C.hp;
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    expect(g.submitAction('A', { type: 'attack', room: g.players.A.room }).ok).toBe(true);
+
+    // 刀落回合：A 赢下判定但蓄力中不能行动 → 回合末三刀落下，马保国每段各挂起一次判定
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    expect(g.skillJudgeView()?.kind).toBe('taiji');
+    expect(g.players.B.hp).toBe(initialB); // 挂起未结算
+    expect(g.players.C.hp).toBeLessThan(initialC); // C 没有太极，第一段已落地
+
+    const hitsOnB = () => g.logs.filter((entry) => entry.type === 'damage' && entry.data?.target === 'B'
+      && entry.data?.tag === 'wuliuqi-slash');
+    for (let settled = 1; settled <= 3; settled++) {
+      driveJudge(g, 'B', 'A', [['scissors', 'rock']]);
+      expect(hitsOnB()).toHaveLength(settled);
+    }
+    expect(hitsOnB().map((entry) => entry.data?.segment)).toEqual([
+      { index: 1, total: 3 }, { index: 2, total: 3 }, { index: 3, total: 3 },
+    ]);
+    expect(g.skillJudgeView()).toBeNull();
+  });
+
   it('平局不反弹（不算赢）', () => {
     const g = game2([{ id: 'A' }, { id: 'B', char: 'mabaoguo' }]);
     g.players.A.room = g.players.B.room;
@@ -302,9 +329,9 @@ describe('房间层：AI 代出与真人超时', () => {
         const b = room.game!.players[ai.playerId];
         b.room = g.players[me.playerId].room;
         room.submitAction(me.playerId, { type: 'attack', targetId: ai.playerId });
-        if (g.phase !== 'judge') continue;
-        // judge 阶段：AI 份已由 kickAI 代出，真人出自己那份
-        const view = g.skillJudgeView()!;
+        // AI 份已由 kickAI 代出，真人出自己那份
+        const view = g.skillJudgeView();
+        if (!view) continue;
         if (view.waitingIds.includes(me.playerId)) {
           g.submitJudgeThrow(me.playerId, 'rock');
         }
@@ -334,5 +361,62 @@ describe('房间层：AI 代出与真人超时', () => {
     await new Promise<void>((r) => setTimeout(r, 300));
     expect(room.game!.phase).not.toBe('judge');
     expect(room.game!.logs.some((l) => l.text.includes('超时，系统代掷判定出拳'))).toBe(true);
+  });
+});
+
+describe('P1 回归：判定结算中的中断与恢复（player 模式）', () => {
+  it('平局暴走击杀马保国（关闭太极）→ 先进入「不讲武德」判定，不再卡在 rps1', () => {
+    const g = game2([{ id: 'P', char: 'dapihuai' }, { id: 'M', char: 'mabaoguo' }], 601);
+    g.charState('M').taijiAuto = false; // 关闭太极：暴走直接结算致死
+    g.judgeHistory('P').push('win', 'lose');
+    throws(g, { P: 'rock', M: 'rock' }); // 同拳平局 → P 记 tie → 三不同 → 暴走（回合最前触发）
+    // 修复前：phase 停在 rps1、judgeQueue=1 但从不启动 → 卡死
+    expect(g.phase).toBe('trigger');
+    expect(g.triggerView()?.kind).toBe('berserk');
+    g.submitBerserk('P', 'M'); // 大屁孩指定马保国 → 直接秒杀（太极已关闭）
+    expect(g.phase).toBe('judge');
+    expect(g.skillJudgeView()?.kind).toBe('bujiangwude');
+    expect(g.skillJudgeView()?.rounds).toBe(5);
+    // 阵亡的马保国仍需亲自出拳（规则如此），出拳接口可用
+    driveJudge(g, 'M', 'P', [['scissors', 'rock'], ['scissors', 'rock'], ['scissors', 'rock'], ['scissors', 'rock'], ['scissors', 'rock']]);
+    expect(g.isOver()).toBe(true);
+    expect(g.winner).toBe('P');
+  });
+
+  it('暴走被太极挂起时不能先行动；判负仍按结算时当前血量秒杀', () => {
+    const g = game2([{ id: 'P', char: 'dapihuai' }, { id: 'M', char: 'mabaoguo' }], 602);
+    g.players.M.hp = 3; // 被压到 3 血：旧实现里回血到 4 就能扛过「3 点旧伤害」
+    g.judgeHistory('P').push('win', 'tie');
+    throws(g, { P: 'rock', M: 'paper' }); // P 输（马保国本有行动资格）→ P 记 lose → 三不同 → 暴走待结算
+    // 修复后：先进入回合前触发；指定马保国后才挂起太极。行动阶段在触发/判定之前不会开始
+    expect(g.phase).toBe('trigger');
+    expect(g.currentActor()).toBeNull();
+    expect(g.submitAction('M', { type: 'heal' }).ok).toBe(false); // 连行动阶段都还没开始
+    g.submitBerserk('P', 'M'); // 释放暴走 → 太极挂起
+    expect(g.phase).toBe('judge');
+    expect(g.skillJudgeView()?.kind).toBe('taiji');
+    expect(g.currentActor()).toBeNull();
+    expect(g.submitAction('M', { type: 'heal' }).ok).toBe(false); // 行动阶段尚未开始
+    g.submitJudgeThrow('M', 'scissors');
+    g.submitJudgeThrow('P', 'rock'); // 太极判负
+    expect(g.players.M.alive).toBe(false); // 秒杀按结算时血量，回血不能抵消
+  });
+
+  it('太极反弹精神攻击 → 反杀，且来源改为反弹者（马保国）', () => {
+    const g = game2([{ id: 'P', char: 'dapihuai' }, { id: 'M', char: 'mabaoguo' }], 603);
+    g.judgeHistory('P').push('win', 'lose');
+    throws(g, { P: 'rock', M: 'rock' }); // 平局 → 三不同 → 暴走待结算
+    expect(g.phase).toBe('trigger');
+    g.submitBerserk('P', 'M'); // 指定马保国 → 太极挂起
+    expect(g.phase).toBe('judge');
+    g.submitJudgeThrow('M', 'scissors');
+    g.submitJudgeThrow('P', 'paper'); // 马保国赢 → 反弹
+    expect(g.players.P.alive).toBe(false); // 20 血也被反杀
+    const dmg = g.logs.filter((l) => l.type === 'damage' && (l.data as { tag?: string })?.tag === 'berserk');
+    const reflected = dmg[dmg.length - 1]?.data as { target?: string; source?: string; instakill?: boolean; reflected?: boolean } | undefined;
+    expect(reflected?.target).toBe('P');
+    expect(reflected?.source).toBe('M'); // 修复前 source 仍是 P（等于目标）
+    expect(reflected?.instakill).toBe(true);
+    expect(reflected?.reflected).toBe(true);
   });
 });

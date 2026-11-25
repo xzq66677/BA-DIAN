@@ -108,6 +108,18 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
+    id: 'TC-C011c', name: '吹箫哥：同房间不能打「远程」', category: 'character', charId: 'chuixiao', seed: 214,
+    desc: '显式 ranged:true 指向同房间目标 → 拒绝（远程只能打异房间），不消耗行动、不掉血（Issue #65）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'chuixiao' }, 'B'], 214);
+      g.players['B'].room = 'R1'; // 同房间
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const r = g.submitAction('A', { type: 'attack', targetId: 'B', ranged: true });
+      const ok = !r.ok && (r.error || '').includes('异房间') && hpOf(g, 'B') === 2 && g.currentActor() === 'A';
+      return check(ok, '同房间远程被拒绝，B 满血，行动未消耗', `ok=${r.ok}, err=${r.error}, hp=${hpOf(g, 'B')}`, g);
+    }),
+  },
+  {
     id: 'TC-C012', name: '吹箫哥：无需瞄准即可攻击任意异房间目标', category: 'character', charId: 'chuixiao', seed: 212,
     desc: '直接攻击异房间的 C 命中（无需先瞄准）',
     run: () => run(() => {
@@ -120,14 +132,19 @@ export const CHARACTER_CASES: TestCase[] = [
 
   // ═══════════════ 20.3 五条悟 ═══════════════
   {
-    id: 'TC-C020', name: '五条悟：近战3伤', category: 'character', charId: 'gojo', seed: 220,
-    desc: '同房间近战 → 3伤害',
+    id: 'TC-C020', name: '五条悟：近战1伤（领域内也是1伤）', category: 'character', charId: 'gojo', seed: 220,
+    desc: '同房间近战 → 1伤害；展开领域后近战伤害仍为1（2026-11-24 用户确认：近战始终为1伤）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'gojo' }, 'B'], 220);
+      g.players['B'].hp = 4; g.players['B'].maxHp = 4;
       g.players['B'].room = 'R1';
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 0 && !isAlive(g, 'B');
-      return check(ok, 'B HP 3-3=0，被淘汰', `hp=${hpOf(g, 'B')}, alive=${isAlive(g, 'B')}`, g);
+      const melee1 = hpOf(g, 'B') === 3 && isAlive(g, 'B');
+      g.openDomain('A');
+      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
+      const meleeInDomain = hpOf(g, 'B') === 2;
+      return check(melee1 && meleeInDomain, 'B HP 4→3→2，领域内近战仍1伤',
+        `s1=${melee1}, s2=${meleeInDomain}(hp=${hpOf(g, 'B')})`, g);
     }),
   },
   {
@@ -149,14 +166,55 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C022', name: '五条悟：领域展开后平局算五条悟胜', category: 'character', charId: 'gojo', seed: 222,
-    desc: '五条悟领域生效，判定子轮全员同拳 → 五条悟直接判胜',
+    id: 'TC-C022', name: '五条悟：领域让其在平局回合行动（平局不变）', category: 'character', charId: 'gojo', seed: 222,
+    desc: '五条悟领域生效，判定子轮全员同拳 → 平局不变，五条悟获得平局回合的行动资格',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'gojo' }, 'B'], 222);
       g.charState('A').domain = true;
-      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局 → 领域判胜
-      const ok = g.phase === 'act' && g.qualified.length === 1 && g.qualified[0] === 'A';
-      return check(ok, '平局子轮中五条悟获行动资格', `phase=${g.phase}, q=${g.qualified.join(',')}`, g);
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局 → 领域让五条悟在平局回合行动
+      const rec = g.judgeRecords.find((r) => r.stage === 'rps1');
+      const ok = g.phase === 'act' && g.qualified.length === 1 && g.qualified[0] === 'A'
+        && rec?.outcome === 'tieAct' && g.judgeHistory('A').at(-1) === 'tie';
+      return check(ok, '平局回合中五条悟获行动资格，判定仍记平',
+        `phase=${g.phase}, q=${g.qualified.join(',')}, outcome=${rec?.outcome}`, g);
+    }),
+  },
+  {
+    id: 'TC-C022b', name: '五条悟：领域平局包含三人循环', category: 'character', charId: 'gojo', seed: 228,
+    desc: '三拳齐全（三人循环）同样算平局 → 领域持有者获得平局行动资格；无领域时仍是平局回合（2026-11-24 用户确认）',
+    run: () => run(() => {
+      const withDomain = makeGame([{ id: 'A', char: 'gojo' }, 'B', 'C'], 228);
+      withDomain.openDomain('A');
+      playThrows(withDomain, [{ A: 'rock', B: 'paper', C: 'scissors' }]);
+      const rec = withDomain.judgeRecords.find((r) => r.stage === 'rps1');
+      const judgeOk = rec?.outcome === 'tieAct' && withDomain.qualified.length === 1 && withDomain.qualified[0] === 'A'
+        && withDomain.judgeHistory('A').at(-1) === 'tie';
+
+      const plain = makeGame([{ id: 'A', char: 'gojo' }, 'B', 'C'], 228);
+      playThrows(plain, [{ A: 'rock', B: 'paper', C: 'scissors' }]);
+      const plainCycle = plain.revealInfo()?.outcome === 'cycle'
+        && plain.roundNo === 2 && plain.qualified.length === 0;
+
+      return check(judgeOk && plainCycle, '有领域→三人循环获得平局行动；无领域→平局回合翻页',
+        `outcome=${rec?.outcome}, q=${withDomain.qualified.join(',')}, plainCycle=${plainCycle}`, withDomain);
+    }),
+  },
+  {
+    id: 'TC-C020b', name: '五条悟：同房间不能打「远程」（避免 1 伤变 2 伤）', category: 'character', charId: 'gojo', seed: 219,
+    desc: '领域生效时显式 ranged:true 指向同房间目标 → 拒绝；改走近战仍为 1 伤（Issue #65）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'gojo' }, 'B'], 219);
+      g.players['B'].hp = 4; g.players['B'].maxHp = 4;
+      g.players['B'].room = 'R1'; // 同房间
+      g.openDomain('A'); // 领域内远程免瞄准，最容易被用来「同房间远程」
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const rejected = g.submitAction('A', { type: 'attack', targetId: 'B', ranged: true });
+      const noDamage = hpOf(g, 'B') === 4 && g.currentActor() === 'A';
+      const melee = g.submitAction('A', { type: 'attack', targetId: 'B' });
+      const ok = !rejected.ok && (rejected.error || '').includes('异房间') && noDamage
+        && melee.ok && hpOf(g, 'B') === 3; // 近战 1 伤
+      return check(ok, '同房间远程被拒绝；近战 1 伤（4→3）',
+        `ok=${rejected.ok}, err=${rejected.error}, hp=${hpOf(g, 'B')}`, g);
     }),
   },
   {
@@ -181,7 +239,7 @@ export const CHARACTER_CASES: TestCase[] = [
   },
   {
     id: 'TC-C023', name: '领域覆盖：后展开者覆盖先展开者，平局算后展开者胜', category: 'character', charId: 'gojo', seed: 223,
-    desc: '用户确认（2026-11-20）：领域为全场唯一场地状态，后展开覆盖先展开；平局判当前持有者胜',
+    desc: '用户确认（2026-11-20）：领域为全场唯一场地状态，后展开覆盖先展开；平局回合由当前持有者行动（平局不变）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B', char: 'laodaye' }], 223);
       g.openDomain('A');
@@ -189,10 +247,10 @@ export const CHARACTER_CASES: TestCase[] = [
       g.openDomain('B'); // 老大爷后展开 → 覆盖五条悟领域
       const covered = g.domainHolder === 'B' && g.charState('A').domain === false && g.charState('B').domain === true;
       const coverLog = g.logs.some((l) => l.text.includes('领域覆盖'));
-      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 同拳平局 → 当前持有者 B 判胜
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 同拳平局 → 当前持有者 B 在平局回合行动
       const ok = firstOk && covered && coverLog && g.phase === 'act'
         && g.qualified.length === 1 && g.qualified[0] === 'B';
-      return check(ok, '五条悟领域被覆盖并失效，老大爷领域生效并平局判胜',
+      return check(ok, '五条悟领域被覆盖并失效，老大爷领域生效并获得平局行动资格',
         `firstOk=${firstOk}, covered=${covered}, log=${coverLog}, phase=${g.phase}, q=${g.qualified.join(',')}`, g);
     }),
   },
@@ -212,8 +270,24 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
+    id: 'TC-C023c', name: '领域：被覆盖后可再次展开夺回（反复展开）', category: 'character', charId: 'gojo', seed: 229,
+    desc: '五条悟领域被老大爷覆盖后，可以再次展开反向覆盖夺回；夺回后平局仍判五条悟胜（2026-11-24 用户确认）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B', char: 'laodaye' }], 229);
+      g.openDomain('A');
+      g.openDomain('B');
+      const covered = g.domainHolder === 'B' && g.charState('A').domain === false;
+      g.openDomain('A');
+      const back = g.domainHolder === 'A' && g.charState('A').domain === true && g.charState('B').domain === false;
+      playThrows(g, [{ A: 'rock', B: 'rock' }]);
+      const ok = covered && back && g.phase === 'act' && g.qualified.length === 1 && g.qualified[0] === 'A';
+      return check(ok, '被覆盖→再次展开夺回→平局仍判五条悟胜',
+        `covered=${covered}, back=${back}, q=${g.qualified.join(',')}`, g);
+    }),
+  },
+  {
     id: 'TC-C025', name: '老大爷：远程攻击默认免瞄准（用户确认规则）', category: 'character', charId: 'laodaye', seed: 225,
-    desc: '远程攻击（异房间）无需瞄准直接命中；仅 rangedNeedsAim 角色（吹箫哥/五条悟）需瞄准',
+    desc: '远程攻击（异房间）无需瞄准直接命中；仅显式 rangedNeedsAim 角色需要瞄准，当前为五条悟',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'laodaye' }, 'B'], 225);
       g.players['B'].hp = 3; g.players['B'].maxHp = 3;
@@ -224,17 +298,24 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C024', name: '老大爷：领域内强化伤害近5远3', category: 'character', charId: 'laodaye', seed: 224,
-    desc: '老大爷展开领域并强化后近战造成5伤',
+    id: 'TC-C024', name: '老大爷：领域展开即完全体（近战5/远程3，血量1.5）', category: 'character', charId: 'laodaye', seed: 224,
+    desc: '基础近战3/远程2；展开领域后近战5、远程3；血量上限为1.5（作者 2026-11-24 确认）',
     run: () => run(() => {
-      const g = makeGame([{ id: 'A', char: 'laodaye' }, { id: 'B', char: 'laodaye' }], 224);
+      const g = makeGame([{ id: 'A', char: 'laodaye' }, 'B'], 224);
       g.players['B'].room = 'R1';
-      g.players['B'].hp = 6; g.players['B'].maxHp = 6;
-      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'domain' } });
-      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'boostAttack' } });
+      g.players['B'].hp = 10; g.players['B'].maxHp = 10;
+      const hpOk = g.players['A'].hp === 1.5 && g.players['A'].maxHp === 1.5;
       winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 1;
-      return check(ok, 'B HP 6-5=1', `hp=${hpOf(g, 'B')}`, g);
+      const base = hpOf(g, 'B') === 7; // 10 - 3（基础近战）
+      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'domain' } }); // 展开即完全体
+      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B' } });
+      const melee = hpOf(g, 'B') === 2; // 7 - 5
+      g.players['B'].room = 'R2';
+      winRound(g, { A: 'rock', B: 'scissors' }, { A: { type: 'attack', targetId: 'B', ranged: true } });
+      const ranged = !isAlive(g, 'B') || hpOf(g, 'B') === 0; // 2 - 3 → 淘汰
+      const ok = hpOk && base && melee && ranged;
+      return check(ok, '血量1.5；基础近战3、领域后近战5/远程3（无需额外强化动作）',
+        `hp=${g.players['A'].hp}/${g.players['A'].maxHp}, base=${base}, melee=${melee}, ranged=${ranged}`, g);
     }),
   },
 
@@ -337,57 +418,127 @@ export const CHARACTER_CASES: TestCase[] = [
 
   // ═══════════════ 20.5 伍六七 ═══════════════
   {
-    id: 'TC-C040', name: '伍六七：3段AOE独立结算', category: 'character', charId: 'wuliuqi', seed: 240,
-    desc: '同房间目标承受三段各1伤（HP 3→0 淘汰），日志记录每段结算',
+    id: 'TC-C040', name: '伍六七：攻击=前往房间蓄力，下一回合末砍出三刀', category: 'character', charId: 'wuliuqi', seed: 240,
+    desc: '攻击时立刻移动到目标房间，本回合无伤害；下一回合末三刀各 1 伤（不打自己）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B'], 240);
-      g.players['B'].room = 'R1';
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // A 赢
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      const moved = g.players['A'].room === 'R2';
+      const noDamageYet = hpOf(g, 'B') === 2;
+      // 下一回合：蓄力回合（即使 A 赢下判定也不能行动），回合末三刀落下
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
-      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const segLogs = g.logs.filter((l) => l.type === 'damage' && l.text.includes('第1/3段') && l.text.includes('B')).length;
-      const ok = !isAlive(g, 'B') && segLogs >= 1 && (3 - hpOf(g, 'B')) === 3;
-      return check(ok, 'B 承受3段×1伤被淘汰，每段有结算日志', `alive=${isAlive(g, 'B')}, seg1日志=${segLogs}`, g);
+      const seg1 = g.logs.some((l) => l.type === 'damage' && l.text.includes('B') && l.text.includes('第1/3段'));
+      const seg2 = g.logs.some((l) => l.type === 'damage' && l.text.includes('B') && l.text.includes('第2/3段'));
+      const ok = moved && noDamageYet && seg1 && seg2 && !isAlive(g, 'B') && hpOf(g, 'A') === 3;
+      return check(ok, '立即移动；本回合不掉血；下一回合末三刀击杀 B（A 自身不受伤）',
+        `moved=${moved}, before=${noDamageYet}, B alive=${isAlive(g, 'B')}, A hp=${hpOf(g, 'A')}`, g);
     }),
   },
   {
-    id: 'TC-C041', name: '伍六七：目标集合为攻击时所在房间快照，段间死亡不再受击', category: 'character', charId: 'wuliuqi', seed: 241,
-    desc: '房间内两名目标：第一段击杀一名，第二、三段不再对其结算',
+    id: 'TC-C041', name: '伍六七：刀落瞬间动态判定房间成员（走开的不挨、进来的挨）', category: 'character', charId: 'wuliuqi', seed: 241,
+    desc: '蓄力时 B 在房间但刀落前离开 → 不受击；C 刀落前进入 → 被三刀击杀',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B', 'C'], 241);
-      g.players['B'].room = 'R1'; g.players['C'].room = 'R1';
-      g.players['B'].hp = 1;
-      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]);
-      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const bSeg1 = g.logs.some((l) => l.text.includes('B') && l.text.includes('第1/3段'));
-      const bSeg2 = g.logs.some((l) => l.text.includes('B') && l.text.includes('第2/3段'));
-      const ok = !isAlive(g, 'B') && bSeg1 && !bSeg2 && hpOf(g, 'C') === 0; // C 承受全部3段
-      return check(ok, 'B 仅第1段结算（死亡），C 承受3段被淘汰',
-        `B alive=${isAlive(g, 'B')}, seg2=${bSeg2}, C hp=${hpOf(g, 'C')}`, g);
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // A 赢
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      g.players['B'].room = 'R3'; // 刀落前离开
+      g.players['C'].room = 'R2'; // 刀落前进入
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]); // 蓄力回合
+      const ok = hpOf(g, 'B') === 2 && !isAlive(g, 'C');
+      return check(ok, 'B 已离开不受击；C 进入后吃满三刀',
+        `B hp=${hpOf(g, 'B')}, C alive=${isAlive(g, 'C')}`, g);
     }),
   },
   {
-    id: 'TC-C042', name: '伍六七：释放房间固定为攻击时所在房间（不会跟随移动）', category: 'character', charId: 'wuliuqi', seed: 242,
-    desc: 'A 在 R1 释放 → 仅 R1 内目标受击（异房间 D 不受影响）',
+    id: 'TC-C042', name: '伍六七：蓄力回合赢下判定也不能行动', category: 'character', charId: 'wuliuqi', seed: 242,
+    desc: '有刀待落的回合，伍六七被移出行动队列，日志提示蓄力中',
     run: () => run(() => {
-      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B', 'D'], 242);
-      g.players['B'].room = 'R1';
-      playThrows(g, [{ A: 'rock', B: 'scissors', D: 'scissors' }]);
-      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'D') === 2 && !isAlive(g, 'B');
-      return check(ok, 'R2 的 D 未受击，R1 的 B 被淘汰', `D hp=${hpOf(g, 'D')}, B alive=${isAlive(g, 'B')}`, g);
+      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B'], 242);
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]); // A 本应获得行动资格
+      const actingAgain = g.logs.some((l) => l.type === 'action' && l.round === 2 && l.text.includes('A'));
+      const chargeHint = g.logs.some((l) => l.text.includes('蓄力中不能进行其他行动'));
+      const ok = !actingAgain && chargeHint && !isAlive(g, 'B');
+      return check(ok, 'A 第二回合未行动，三刀照常落下',
+        `actingAgain=${actingAgain}, chargeHint=${chargeHint}, B alive=${isAlive(g, 'B')}`, g);
     }),
   },
   {
-    id: 'TC-C043', name: '伍六七：AOE命中躲藏目标', category: 'character', charId: 'wuliuqi', seed: 243,
-    desc: '躲藏的 B 在房间内仍被AOE命中（AOE不受躲藏限制）',
+    id: 'TC-C043', name: '伍六七：三刀命中躲藏/隐身目标', category: 'character', charId: 'wuliuqi', seed: 243,
+    desc: '躲藏+隐身的 B 在目标房间内仍被三刀击杀（AOE 不受躲藏限制）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B'], 243);
-      g.players['B'].room = 'R1';
+      g.players['B'].room = 'R2';
       g.players['B'].hidden = true;
+      g.players['B'].invisible = true;
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
-      actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const ok = hpOf(g, 'B') === 0;
-      return check(ok, '躲藏的 B 被AOE淘汰', `B hp=${hpOf(g, 'B')}, alive=${isAlive(g, 'B')}`, g);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const ok = !isAlive(g, 'B');
+      return check(ok, '躲藏+隐身的 B 被三刀淘汰', `B alive=${isAlive(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C044', name: '伍六七：三刀不打自己', category: 'character', charId: 'wuliuqi', seed: 244,
+    desc: 'A 与目标同处一室：三刀只打 B，A 血量不变',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B'], 244);
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const ok = hpOf(g, 'A') === 3 && !isAlive(g, 'B');
+      return check(ok, 'A 血量不变，B 被三刀击杀', `A hp=${hpOf(g, 'A')}, B alive=${isAlive(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C045', name: '伍六七：五条悟复活后不吃同一批剩余刀', category: 'character', charId: 'wuliuqi', seed: 245,
+    desc: 'G 以 2 血被第一/二刀打死 → 消耗一条命满血复活；第三刀跳过复活后的 G',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, { id: 'G', char: 'gojo' }], 245);
+      g.players['G'].room = 'R2';
+      g.players['G'].hp = 2; // 2 血 2 条命
+      playThrows(g, [{ A: 'rock', G: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', G: 'scissors' }]);
+      const ok = isAlive(g, 'G') && hpOf(g, 'G') === 3 && g.charState('G').livesLeft === 1;
+      return check(ok, 'G 复活后为 3 血、剩余 1 条命（第三刀未再扣血）',
+        `alive=${isAlive(g, 'G')}, hp=${hpOf(g, 'G')}, lives=${g.charState('G').livesLeft}`, g);
+    }),
+  },
+  {
+    id: 'TC-C046', name: '伍六七：平局回合也落刀', category: 'character', charId: 'wuliuqi', seed: 246,
+    desc: '刀落回合全员同拳平局（无人行动），三刀仍然结算',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, 'B'], 246);
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局
+      const ok = !isAlive(g, 'B');
+      return check(ok, '平局回合三刀照常落下，B 被淘汰', `phase=${g.phase}, B alive=${isAlive(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C047', name: '伍六七：三刀先于大伊万爆炸结算', category: 'character', charId: 'wuliuqi', seed: 247,
+    desc: '同一回合末同时有伍六七三刀与大伊万：三刀日志先出现（作者确认的结算顺序）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wuliuqi' }, { id: 'V', char: 'ivan-girl' }, 'B'], 247);
+      g.players['B'].room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors', V: 'scissors' }]);
+      actQueue(g, { A: { type: 'attack', room: 'R2' } });
+      // 手动排入一个同一回合末引爆的大伊万事件，验证排序
+      g.addDeferred({ kind: 'ivan', room: 'R2', source: 'V', explodeRound: g.roundNo, createdAtRound: g.roundNo });
+      playThrows(g, [{ A: 'rock', B: 'scissors', V: 'scissors' }]);
+      const slashIdx = g.logs.findIndex((l) => l.text.includes('三刀落于'));
+      const ivanIdx = g.logs.findIndex((l) => l.text.includes('💥 大伊万在'));
+      const ok = slashIdx >= 0 && (ivanIdx < 0 || slashIdx < ivanIdx);
+      return check(ok, `三刀先于大伊万（slash=${slashIdx}, ivan=${ivanIdx}）`, `slash=${slashIdx}, ivan=${ivanIdx}`, g);
     }),
   },
 
@@ -541,18 +692,18 @@ export const CHARACTER_CASES: TestCase[] = [
 
   // ═══════════════ 20.7 今日勇者（随机数代表） ═══════════════
   {
-    id: 'TC-C060', name: '今日勇者：基础面板（3血2攻）与运势技能入口', category: 'character', charId: 'hero-today', seed: 260,
-    desc: '初始血量3攻击2；拥有「抽取今日运势」技能（用户确认规则）',
+    id: 'TC-C060', name: '今日勇者：基础面板（3血1攻）与运势技能入口', category: 'character', charId: 'hero-today', seed: 260,
+    desc: '初始血量3攻击1；拥有「抽取今日运势」技能（用户确认规则）',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], 260);
       g.players['B'].hp = 3; g.players['B'].maxHp = 3;
-      const okInit = g.players['A'].hp === 3 && g.players['A'].maxHp === 3;
+      const okInit = g.players['A'].hp === 3 && g.players['A'].maxHp === 3 && g.charDef('A').attack === 1;
       const hasAction = g.charDef('A').actions?.some((a) => a.name === 'rollFortune') === true;
       g.players['B'].room = 'R1';
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
-      const okAtk = hpOf(g, 'B') === 1; // 基础攻击2
-      return check(okInit && okAtk && hasAction, '初始3血2攻确认，普攻2伤，运势技能已注册',
+      const okAtk = hpOf(g, 'B') === 2; // 基础攻击1
+      return check(okInit && okAtk && hasAction, '初始3血1攻确认，普攻1伤，运势技能已注册',
         `hpA=${g.players['A'].hp}, B=${hpOf(g, 'B')}, hasRollFortune=${hasAction}`, g);
     }),
   },
@@ -567,10 +718,11 @@ export const CHARACTER_CASES: TestCase[] = [
       actQueue(g, { A: { type: 'rollFortune' } });
       const rolled = g.players['A'].hp === 6 && g.players['A'].maxHp === 6
         && g.charState('A').attackOverride === 6;
+      const feedback = g.logs.some((l) => l.text.includes('抽中 9 点') && l.text.includes('中头奖了'));
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
       const okAtk = hpOf(g, 'B') === 0; // 6-6=0
-      return check(rolled && okAtk, '掷出9 → 血6攻6，普攻造成6伤淘汰B',
+      return check(rolled && okAtk && feedback, '掷出9 → 血6攻6（满血），反馈「中头奖」，普攻6伤淘汰B',
         `面板=${rolled}(A hp=${g.players['A'].hp}), B=${hpOf(g, 'B')}`, g);
     }),
   },
@@ -583,7 +735,7 @@ export const CHARACTER_CASES: TestCase[] = [
       actQueue(g, { A: { type: 'rollFortune' } });
       const dead = !isAlive(g, 'A');
       const over = g.isOver() && g.winner === 'B';
-      const causeLogged = g.logs.some((l) => l.text.includes('运势极凶'));
+      const causeLogged = g.logs.some((l) => l.text.includes('抽中 0 点') && l.text.includes('运势极凶'));
       return check(dead && over && causeLogged, '掷出0 → A 暴毙，B 获胜',
         `A alive=${isAlive(g, 'A')}, winner=${g.winner}, log=${causeLogged}`, g);
     }),
@@ -635,11 +787,33 @@ export const CHARACTER_CASES: TestCase[] = [
       actQueue(g, { A: { type: 'rollFortune' } });
       const rolled = g.players['A'].hp === 4 && g.players['A'].maxHp === 4
         && g.charState('A').attackOverride === 2;
+      const feedback = g.logs.some((l) => l.text.includes('抽中 6 点') && l.text.includes('小有斩获'));
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
       actQueue(g, { A: { type: 'attack', targetId: 'B' } });
       const okAtk = hpOf(g, 'B') === 2; // 4-2=2
-      return check(rolled && okAtk, '掷出6 → 血4攻2，普攻造成2伤',
+      return check(rolled && okAtk && feedback, '掷出6 → 血4攻2（满血），反馈「小有斩获」，普攻2伤',
         `面板=${rolled}(A hp=${g.players['A'].hp}), B=${hpOf(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C067', name: '今日勇者：变身即满血（当前血量=新上限）与运势反馈', category: 'character', charId: 'hero-today', seed: 12,
+    desc: '掷2/3 → 血1攻1（当前=上限），反馈「时运不济」；掷8 → 血6攻4，反馈「鸿运当头」',
+    run: () => run(() => {
+      const play = (seed: number) => {
+        const g = makeGame([{ id: 'A', char: 'hero-today' }, 'B'], seed);
+        playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+        actQueue(g, { A: { type: 'rollFortune' } });
+        return g;
+      };
+      const low = play(12); // 掷2 → 血1攻1
+      const lowFull = low.players['A'].hp === low.players['A'].maxHp && low.players['A'].maxHp === 1;
+      const lowMsg = low.logs.some((l) => l.text.includes('抽中 2 点') && l.text.includes('时运不济'));
+      const high = play(30); // 掷8 → 血6攻4
+      const highFull = high.players['A'].hp === high.players['A'].maxHp && high.players['A'].maxHp === 6;
+      const highMsg = high.logs.some((l) => l.text.includes('抽中 8 点') && l.text.includes('鸿运当头'));
+      const ok = lowFull && lowMsg && highFull && highMsg;
+      return check(ok, '变身后面板满血（当前血量=上限），并给出对应运势反馈',
+        `low=${low.players['A'].hp}/${low.players['A'].maxHp}, high=${high.players['A'].hp}/${high.players['A'].maxHp}`, low);
     }),
   },
   {
@@ -686,11 +860,11 @@ export const CHARACTER_CASES: TestCase[] = [
       // W 的房间 R2；让 D、B 都进入 R2
       g.players['D'].room = 'R2'; g.players['B'].room = 'R2';
       playThrows(g, [{ W: 'rock', D: 'scissors', B: 'scissors' }]); // W 胜
-      actQueue(g, { W: { type: 'attack', targetId: 'B' } });
-      // 段内顺序 [D,B]：D 直接承受（自己是目标不转移），B 的伤害转移至 D。
-      // 段1：D -2（hp1）；段2：D -1 死亡 → B 的伤害无转移对象 → B -1（hp2）；段3：B -1（hp1）
-      const ok = !isAlive(g, 'D') && hpOf(g, 'B') === 0 && hpOf(g, 'W') === 3;
-      return check(ok, '伤害全部流向大贱客直至其死亡；其后伤害落在 B（血量2耗尽）',
+      actQueue(g, { W: { type: 'attack', room: 'R2' } });
+      playThrows(g, [{ W: 'rock', D: 'scissors', B: 'scissors' }]); // 刀落回合
+      // 三刀属于「回合末瞬时爆发」：D 直接承受自身份额，B 的每一段都被 D 吸收（含 D 阵亡后的遗体吸收）
+      const ok = !isAlive(g, 'D') && hpOf(g, 'B') === 2 && hpOf(g, 'W') === 3;
+      return check(ok, '三刀全部由 D 承担（遗体也吸收），B 不受损；W 不受伤',
         `D=${hpOf(g, 'D')}, B=${hpOf(g, 'B')}, W=${hpOf(g, 'W')}`, g);
     }),
   },
@@ -821,33 +995,30 @@ export const CHARACTER_CASES: TestCase[] = [
 
   // ═══════════════ 20.9 大屁孩 ═══════════════
   {
-    id: 'TC-C080', name: '大屁孩：三不同结果（赢平输）暴走精神攻击', category: 'character', charId: 'dapihuai', seed: 280,
-    desc: '判定历史出现 赢/平/输 任意排列的连续三项 → 暴走随机精神攻击',
+    id: 'TC-C080', name: '大屁孩：三不同 → 暴走（回合最前，由本人指定目标）', category: 'character', charId: 'dapihuai', seed: 280,
+    desc: '判定历史三不同后进入「回合前触发」阶段，由大屁孩指定任意其他玩家，精神攻击秒杀（血量20、攻击0）',
     run: () => run(() => {
       const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A', 'B'], 280);
-      // 构造历史：第一子轮三人循环（P 记 tie），第二子轮 P 输，第三子轮 P 赢
-      g.judgeHistory('P').push('win', 'tie');
-      playThrows(g, [{ P: 'rock', A: 'scissors', B: 'paper' }]); // 循环 → P 追加 tie → [win,tie,tie]? 
-      // 直接构造：追加 tie 后检查——需要 win,tie,lose / 任意排列
-      const g2 = makeGame([{ id: 'P', char: 'dapihuai' }, 'A', 'B'], 280);
-      g2.judgeHistory('P').push('win', 'lose');
-      const targetHpBefore = Math.min(g2.players['A'].hp, g2.players['B'].hp); // 默认角色血量2
-      playThrows(g2, [{ P: 'rock', A: 'rock', B: 'rock' }]); // 全同拳 → P 追加 tie → [win,lose,tie] 三不同 → 暴走
-      const berserk = g2.logs.some((l) => l.text.includes('暴走'));
-      const someoneHurt = g2.players['A'].hp < 2 || g2.players['B'].hp < 2;
-      const histReset = g2.judgeHistory('P').length === 0;
-      const ok = berserk && someoneHurt && histReset && targetHpBefore === 2;
-      return check(ok, '三不同 → 暴走精神攻击（1伤），历史重置',
-        `berserk=${berserk}, hurt=${someoneHurt}, reset=${histReset}, A=${g2.players['A'].hp}, B=${g2.players['B'].hp}`, g2);
+      g.judgeHistory('P').push('win', 'lose');
+      playThrows(g, [{ P: 'rock', A: 'rock', B: 'rock' }]); // 平 → [win,lose,tie] 三不同
+      const trig = g.triggerView();
+      const inTrigger = g.phase === 'trigger' && trig?.kind === 'berserk' && trig.actor === 'P';
+      const r = g.submitBerserk('P', 'A'); // 本人指定 A
+      const pickedDead = !isAlive(g, 'A') && isAlive(g, 'B');
+      const histReset = g.judgeHistory('P').length === 0;
+      const statsOk = g.charDef('P').hp === 20 && g.charDef('P').attack === 0;
+      const ok = inTrigger && r.ok && pickedDead && histReset && statsOk;
+      return check(ok, '触发阶段指定 A → 只有 A 被秒杀；血量20/攻击0；历史重置',
+        `trigger=${inTrigger}, ok=${r.ok}, A=${isAlive(g, 'A')}, B=${isAlive(g, 'B')}, hp=${g.players.P.maxHp}`, g);
     }),
   },
   {
     id: 'TC-C081', name: '大屁孩：三连相同（赢赢赢/平平平/输输输）自爆', category: 'character', charId: 'dapihuai', seed: 281,
-    desc: '连续三次相同判定结果 → 自爆淘汰',
+    desc: '连续三次相同判定结果 → 自爆（回合最前结算，自身淘汰）',
     run: () => run(() => {
       const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A', 'B'], 281);
       g.judgeHistory('P').push('tie', 'tie');
-      playThrows(g, [{ P: 'rock', A: 'scissors', B: 'paper' }]); // 循环 → P 再记 tie → 平平平 → 自爆
+      playThrows(g, [{ P: 'rock', A: 'scissors', B: 'paper' }]); // 循环 → P 再记 tie → 平平平
       const exploded = g.logs.some((l) => l.text.includes('自爆'));
       const ok = exploded && !isAlive(g, 'P');
       return check(ok, '平平平 → 自爆，大屁孩淘汰', `exploded=${exploded}, P alive=${isAlive(g, 'P')}`, g);
@@ -855,14 +1026,12 @@ export const CHARACTER_CASES: TestCase[] = [
   },
   {
     id: 'TC-C082', name: '大屁孩：跨回合记忆（历史不因回合更替清空）', category: 'character', charId: 'dapihuai', seed: 282,
-    desc: '第一回合记 1 条，第二回合追加后达到三同仍触发',
+    desc: '第一回合记 1 条，第三回合达到三同触发自爆',
     run: () => run(() => {
       const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A'], 282);
-      // 回合1：P 胜 A（rock vs scissors）→ 记 win
       playThrows(g, [{ P: 'rock', A: 'scissors' }]);
       const after1 = g.judgeHistory('P').length;
       actQueue(g, { P: { type: 'skip' } });
-      // 回合2、3：P 再胜两次 → win,win,win → 自爆
       playThrows(g, [{ P: 'rock', A: 'scissors' }]);
       const after2 = g.judgeHistory('P').length;
       if (g.phase === 'act') actQueue(g, { P: { type: 'skip' } });
@@ -881,24 +1050,195 @@ export const CHARACTER_CASES: TestCase[] = [
       playThrows(g, [{ P1: 'rock', P2: 'scissors', A: 'paper' }]); // 三人循环 → 都记 tie
       const h1 = g.judgeHistory('P1').length;
       const h2 = g.judgeHistory('P2').length;
-      // 各自历史独立：都是1条tie，但对象不同
       const ok = h1 === 1 && h2 === 1 && isAlive(g, 'P1') && isAlive(g, 'P2');
       return check(ok, '两名大屁孩各记录1条，均未误触发', `h1=${h1}, h2=${h2}`, g);
     }),
   },
   {
-    id: 'TC-C084', name: '大屁孩：暴走目标随机但确定（种子复现）', category: 'character', charId: 'dapihuai', seed: 284,
-    desc: '同种子同序列 → 暴走目标一致',
+    id: 'TC-C084', name: '大屁孩：暴走目标由本人指定（不随机）', category: 'character', charId: 'dapihuai', seed: 284,
+    desc: '同一局面分别指定 A / B，被指定者必死、另一人不受影响',
     run: () => run(() => {
-      const play = () => {
+      const play = (target: string) => {
         const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A', 'B'], 284);
         g.judgeHistory('P').push('win', 'lose');
         playThrows(g, [{ P: 'rock', A: 'rock', B: 'rock' }]);
-        return g.logs.filter((l) => l.text.includes('暴走：对随机玩家')).map((l) => l.text).join('|') + `|A=${g.players['A'].hp},B=${g.players['B'].hp}`;
+        g.submitBerserk('P', target);
+        return `${target}:${g.players.A.alive ? 'A活' : 'A死'},${g.players.B.alive ? 'B活' : 'B死'}`;
       };
-      const r1 = play(); const r2 = play();
-      const ok = r1 === r2 && r1.length > 0;
-      return check(ok, '暴走目标可复现', `${r1} / ${r2}`, undefined);
+      const r1 = play('A'); const r2 = play('B');
+      const ok = r1 === 'A:A死,B活' && r2 === 'B:A活,B死';
+      return check(ok, '指定谁就杀谁（不随机）', `${r1} / ${r2}`, undefined);
+    }),
+  },
+  {
+    id: 'TC-C088', name: '大屁孩：阵亡后不再触发暴走（尸体不参与结算）', category: 'character', charId: 'dapihuai', seed: 285,
+    desc: '两名大屁孩同时持有暴走权时先做二次判定；先手秒杀后手，后手不得再以尸体身份暴走',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P1', char: 'dapihuai' }, { id: 'P2', char: 'dapihuai' }], 285);
+      g.judgeHistory('P1').push('win', 'lose');
+      g.judgeHistory('P2').push('win', 'lose');
+      playThrows(g, [{ P1: 'rock', P2: 'rock' }]); // 两人都记 tie → 各自三不同
+      const view = g.triggerView();
+      const actor = view?.actor ?? '';
+      const other = actor === 'P1' ? 'P2' : 'P1';
+      const ordered = view?.kind === 'berserk' && (actor === 'P1' || actor === 'P2');
+      if (actor) g.submitBerserk(actor, other);
+      const otherDead = !g.players[other].alive;
+      const corpseBerserk = g.logs.some((l) => l.text.includes(`${other} 暴走：`));
+      const ok = ordered && otherDead && !corpseBerserk;
+      return check(ok, '先手暴走秒杀后手；后手阵亡后不再暴走',
+        `ordered=${ordered}, actor=${actor}, otherDead=${otherDead}, corpseBerserk=${corpseBerserk}`, g);
+    }),
+  },
+  {
+    id: 'TC-C089', name: '大屁孩：暴走秒杀无视命数（五条悟不消耗命数复活）', category: 'character', charId: 'dapihuai', seed: 286,
+    desc: '指定五条悟释放暴走：直接淘汰，不触发「消耗一条命满血复活」',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P', char: 'dapihuai' }, { id: 'G', char: 'gojo' }], 286);
+      g.judgeHistory('P').push('win', 'lose');
+      playThrows(g, [{ P: 'rock', G: 'rock' }]);
+      g.submitBerserk('P', 'G');
+      const dead = !isAlive(g, 'G');
+      const livesIntact = g.charState('G').livesLeft === 2;
+      const revived = g.logs.some((l) => l.text.includes('消耗一条命'));
+      const instakill = g.logs.some((l) => l.text.includes('精神攻击（秒杀'));
+      const ok = dead && livesIntact && !revived && instakill;
+      return check(ok, 'G 直接淘汰、命数仍为 2、无复活日志',
+        `dead=${dead}, lives=${g.charState('G').livesLeft}, revived=${revived}, instakill=${instakill}`, g);
+    }),
+  },
+  // ═══════════════ 精神攻击（独立词条）：无视躲藏 / 无视命数 ═══════════════
+  {
+    id: 'TC-C090', name: '精神攻击·辱骂：无视命数（五条悟不复活）', category: 'character', charId: 'dajianke', seed: 293,
+    desc: '辱骂累计 3 次改为精神攻击结算：目标直接淘汰，不触发五条悟式命数复活',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'D', char: 'dajianke' }, { id: 'G', char: 'gojo' }], 293);
+      for (let i = 0; i < 3 && !g.isOver(); i++) {
+        playThrows(g, [{ D: 'rock', G: 'scissors' }]); // D 胜获得资格
+        actQueue(g, { D: { type: 'attack', targetId: 'G' } });
+      }
+      const dead = !isAlive(g, 'G');
+      const lives = g.charState('G').livesLeft;
+      const revived = g.logs.some((l) => l.text.includes('消耗一条命'));
+      const mentalKill = g.logs.some((l) => l.text.includes('精神攻击击杀'));
+      const ok = dead && lives === 2 && !revived && mentalKill;
+      return check(ok, 'G 直接淘汰、命数仍为 2、无复活日志',
+        `dead=${dead}, lives=${lives}, revived=${revived}, mentalKill=${mentalKill}`, g);
+    }),
+  },
+  {
+    id: 'TC-C091', name: '精神攻击·辱骂：无视躲藏与隐身', category: 'character', charId: 'dajianke', seed: 294,
+    desc: '躲藏且隐身的对手仍被辱骂锁定，累计 3 次精神击杀',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'D', char: 'dajianke' }, 'B'], 294);
+      g.players['B'].room = 'R1';
+      g.players['B'].hidden = true;
+      g.players['B'].invisible = true;
+      for (let i = 0; i < 3 && !g.isOver(); i++) {
+        playThrows(g, [{ D: 'rock', B: 'scissors' }]);
+        actQueue(g, { D: { type: 'attack', targetId: 'B' } });
+      }
+      const ok = !isAlive(g, 'B');
+      return check(ok, '躲藏+隐身的 B 仍被精神攻击击杀', `alive=${isAlive(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C092', name: '精神攻击·不讲武德：无视命数（五条悟不复活）', category: 'character', charId: 'mabaoguo', seed: 295,
+    desc: '击杀马保国后被「不讲武德」带走：直接淘汰，不触发命数复活（种子扫描找到判定成功的一局）',
+    run: () => run(() => {
+      let g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B', char: 'mabaoguo' }], 1);
+      let found = false;
+      for (let seed = 1; seed <= 120 && !found; seed++) {
+        g = makeGame([{ id: 'A', char: 'gojo' }, { id: 'B', char: 'mabaoguo' }], seed);
+        g.players['B'].hp = 1;
+        g.eliminate('B', 'test', 'A'); // 直接淘汰马保国（绕过太极），触发不讲武德判定
+        if (g.phase === 'judge') { for (let i = 0; i < 5; i++) { g.submitJudgeThrow('B', 'rock'); g.submitJudgeThrow('A', 'paper'); } }
+        found = !g.players['A'].alive;
+      }
+      const lives = g.charState('A').livesLeft;
+      const revived = g.logs.some((l) => l.text.includes('消耗一条命'));
+      const ok = found && !isAlive(g, 'A') && lives === 2 && !revived;
+      return check(ok, '不讲武德带走五条悟：直接淘汰、命数仍为 2、无复活日志',
+        `found=${found}, lives=${lives}, revived=${revived}`, g);
+    }),
+  },
+  {
+    id: 'TC-C093', name: '精神攻击·暴走：无视躲藏与隐身', category: 'character', charId: 'dapihuai', seed: 296,
+    desc: '指定躲藏+隐身的对手释放暴走：仍被秒杀',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A'], 296);
+      g.players['A'].hidden = true;
+      g.players['A'].invisible = true;
+      g.judgeHistory('P').push('win', 'lose');
+      playThrows(g, [{ P: 'rock', A: 'rock' }]);
+      g.submitBerserk('P', 'A');
+      const ok = !isAlive(g, 'A');
+      return check(ok, '躲藏+隐身的 A 仍被暴走击杀', `alive=${isAlive(g, 'A')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C094', name: '大屁孩：自爆在回合最前结算（先于行动阶段）', category: 'character', charId: 'dapihuai', seed: 297,
+    desc: '第三连胜触发自爆时，行动阶段尚未开始：大屁孩先自爆，对手直接获胜',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A'], 297);
+      playThrows(g, [{ P: 'rock', A: 'scissors' }]);
+      actQueue(g, { P: { type: 'skip' } });
+      playThrows(g, [{ P: 'rock', A: 'scissors' }]);
+      actQueue(g, { P: { type: 'skip' } });
+      playThrows(g, [{ P: 'rock', A: 'scissors' }]); // 第三胜 → 三同 → 自爆
+      const explodedLog = g.logs.some((l) => l.text.includes('自爆'));
+      const thirdRoundActions = g.logs.filter((l) => l.type === 'action' && l.round === g.roundNo).length;
+      const ok = explodedLog && !isAlive(g, 'P') && thirdRoundActions === 0;
+      return check(ok, '第三回合自爆先于行动，本回合没有行动记录',
+        `exploded=${explodedLog}, P=${isAlive(g, 'P')}, 第三回合行动=${thirdRoundActions}`, g);
+    }),
+  },
+  {
+    id: 'TC-C095', name: '大屁孩：多名大屁孩同时暴走 → 二次判定决定顺序', category: 'character', charId: 'dapihuai', seed: 298,
+    desc: '两名大屁孩同时持有暴走权：先按二次判定排序，再依次指定目标释放',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P1', char: 'dapihuai' }, { id: 'P2', char: 'dapihuai' }, 'A'], 298);
+      g.judgeHistory('P1').push('win', 'lose');
+      g.judgeHistory('P2').push('win', 'lose');
+      playThrows(g, [{ P1: 'rock', P2: 'rock', A: 'rock' }]); // 三人都记 tie → 两名大屁孩同时三不同
+      const orderLog = g.logs.find((l) => l.text.includes('暴走顺序'))?.text ?? '';
+      const first = g.triggerView()?.actor ?? '';
+      if (first) g.submitBerserk(first, 'A');
+      const second = g.triggerView()?.actor ?? '';
+      if (second) g.submitBerserk(second, first);
+      const ok = orderLog.length > 0 && first.length > 0 && second.length > 0 && second !== first
+        && !isAlive(g, 'A') && !g.players[first].alive;
+      return check(ok, '二次判定给出暴走顺序，两人依次释放',
+        `order="${orderLog}", first=${first}, second=${second}, A=${isAlive(g, 'A')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C096', name: '大屁孩：暴走可指定任意房间目标', category: 'character', charId: 'dapihuai', seed: 299,
+    desc: '目标在异房间也照杀（精神攻击无视距离/躲藏）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A'], 299);
+      g.players['A'].room = 'R4';
+      g.judgeHistory('P').push('win', 'lose');
+      playThrows(g, [{ P: 'rock', A: 'rock' }]);
+      const targetRoom = g.players['A'].room;
+      g.submitBerserk('P', 'A');
+      const ok = !isAlive(g, 'A');
+      return check(ok, `异房间（${targetRoom}）目标仍被暴走击杀`, `alive=${isAlive(g, 'A')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C097', name: '大屁孩：暴走目标校验（不能选自己/已淘汰）', category: 'character', charId: 'dapihuai', seed: 300,
+    desc: '非法目标被拒绝，合法目标正常释放',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'P', char: 'dapihuai' }, 'A', 'B'], 300);
+      g.judgeHistory('P').push('win', 'lose');
+      playThrows(g, [{ P: 'rock', A: 'rock', B: 'rock' }]);
+      const self = g.submitBerserk('P', 'P');
+      g.eliminate('B', 'test');
+      const deadTarget = g.submitBerserk('P', 'B');
+      const ok = !self.ok && !deadTarget.ok && g.phase === 'trigger';
+      return check(ok, '选自己/已淘汰目标都被拒绝，仍停在触发阶段',
+        `self=${self.error}, dead=${deadTarget.error}`, g);
     }),
   },
 ];

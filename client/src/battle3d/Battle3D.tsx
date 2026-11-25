@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import { BattleScene3D, type SnapLite } from './scene.js';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { BattleScene3D, SnapLite } from './scene.js';
 import { playMapEvent, projectMapSnapshot } from './map-playback.js';
 import { gllog } from './gllog.js';
 import { recordContextLost, markSessionDegraded, isSessionDegraded, clearSessionDegraded } from './gl-policy.js';
@@ -48,6 +48,7 @@ export interface Battle3DProps {
   automaticCamera: boolean;
   active: boolean;
   onPickPlayer: (pid: string) => void;
+  onShowStatus: (pid: string) => void;
   onPickRoom: (rid: string) => void;
 }
 
@@ -57,6 +58,7 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<BattleScene3D | null>(null);
   const [failed, setFailed] = useState(false);
+  const [sceneModule, setSceneModule] = useState<typeof import('./scene.js')>();
   const hooksRef = useRef(props);
   hooksRef.current = props;
   const authority = useRef<SnapLite | null>(null);
@@ -66,7 +68,9 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
   const ending = useRef(false);
 
   function present(scene: BattleScene3D, event?: BattleEvent, immediate = false, durationMs = 600) {
-    if (!authority.current) return;
+    if (!authority.current || !sceneModule) return;
+    // 辱骂计数按战局代（gameNo）跨场景实例存续：2D/3D 切换会重建场景实例，换代（重开新局）才清零
+    sceneModule.setInsultGeneration(String(match.current ?? ''));
     const current = authority.current;
     const finale = ending.current && !playback.busy();
     const next = projectMapSnapshot(current, playback.remaining(), shown.current, event, finale);
@@ -76,13 +80,27 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
     if (finale) scene.showFinale(String(match.current ?? 'match'), next.winner);
   }
 
+  useEffect(() => {
+    if (!active || failed || sceneModule) return;
+    let cancelled = false;
+    void import('./scene.js').then((module) => {
+      if (!cancelled) setSceneModule(module);
+    }, (error: unknown) => {
+      if (cancelled) return;
+      gllog.push('scene-load-error', { error: String(error) }, true);
+      setFailed(true);
+    });
+    return () => { cancelled = true; };
+  }, [active, failed, sceneModule]);
+
   useLayoutEffect(() => {
     const host = hostRef.current;
-    if (!host || failed || !active) return;
+    if (!host || failed || !active || !sceneModule) return;
     let scene: BattleScene3D;
     try {
-      scene = new BattleScene3D(host, {
+      scene = new sceneModule.BattleScene3D(host, {
         onPickPlayer: (pid) => hooksRef.current.onPickPlayer(pid),
+        onShowStatus: (pid) => hooksRef.current.onShowStatus(pid),
         onPickRoom: (rid) => hooksRef.current.onPickRoom(rid),
         onContextLost: () => {
           const state = recordContextLost();
@@ -127,7 +145,7 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
       gllog.setStats(() => null);
     };
     // The subscription and scene lifetime follow the renderer, not each snapshot.
-  }, [failed, active, playback]);
+  }, [failed, active, playback, sceneModule]);
 
   useLayoutEffect(() => {
     const scene = sceneRef.current;
@@ -135,14 +153,14 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
     scene.setReducedMotion(reducedMotion);
     scene.setLowEffects(lowEffects);
     scene.setAutomaticCamera(automaticCamera);
-  }, [active, reducedMotion, lowEffects, automaticCamera]);
+  }, [active, sceneModule, reducedMotion, lowEffects, automaticCamera]);
 
   useLayoutEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
     scene.setTargetable(targetablePids);
     scene.setSelection(roomPickMode, selectedRoom, selectedPlayer, blockedRoom);
-  }, [active, targetablePids, roomPickMode, selectedRoom, selectedPlayer, blockedRoom]);
+  }, [active, sceneModule, targetablePids, roomPickMode, selectedRoom, selectedPlayer, blockedRoom]);
 
   useLayoutEffect(() => {
     const scene = sceneRef.current;
@@ -170,8 +188,12 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
     };
     ending.current = finaleReady && game.phase === 'over';
     present(scene, undefined, !shown.current);
-  }, [active, game, gameNo, resync, myIds, finaleReady, playback]);
+  }, [active, sceneModule, game, gameNo, resync, myIds, finaleReady, playback]);
 
-  const view = <div className="b3-host" data-testid="battle3d" data-failed={failed ? '1' : '0'} ref={hostRef} />;
+  const view = (
+    <div className="b3-host" data-testid="battle3d" data-failed={failed ? '1' : '0'} ref={hostRef}>
+      {active && !failed && !sceneModule && <div className="b3-loading" role="status">正在加载 3D 战场…</div>}
+    </div>
+  );
   return { view, failed, resetView: () => sceneRef.current?.resetView() };
 }

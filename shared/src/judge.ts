@@ -3,9 +3,11 @@
  *
  * 初次判定（行动资格）：
  *  - 按出拳分组。恰好两组：胜组获得行动资格，败组无资格。
- *  - 全员同拳（平局）或三拳齐全（三人循环）：全员重新判定，不得随机决定胜者。
- *  - 领域平局算胜（如五条悟领域）：仅在"全员同拳"子轮且恰有一名领域持有者生效；
- *    多名领域持有者则领域对冲，平局保持平局。
+ *  - 全员同拳（平局）或三拳齐全（三人循环）：本回合不分胜负（平局回合，
+ *    下一回合重新判定），不得随机决定胜者。
+ *  - 领域（如五条悟「无量空处」）：**平局仍然是平局**，领域不改变判定结果；
+ *    领域持有者只是获得**平局回合的行动资格**（`tieAct`）。领域全场唯一，
+ *    多人先后展开是覆盖关系而不是对冲。
  *
  * 二次判定（行动排序）：
  *  - 仅初次判定胜者参与。
@@ -30,11 +32,14 @@ export function beats(a: Throw, b: Throw): boolean {
   return BEATS[a] === b;
 }
 
-/** 领域平局算胜检查：返回该子轮唯一领域胜者（或 null） */
-export type TieWinFn = (playerIds: PlayerId[]) => PlayerId | null;
+/**
+ * 领域平局行动：返回该子轮获得「平局行动资格」的领域持有者（或 null）。
+ * 注意它**不改变判定结果**——结果仍是平局，只是持有人可以在平局回合行动。
+ */
+export type DrawActorFn = (playerIds: PlayerId[]) => PlayerId | null;
 
 export interface SubRoundOutcome {
-  status: 'cycle' | 'alltie' | 'resolved' | 'tieWin';
+  status: 'cycle' | 'alltie' | 'resolved' | 'tieAct';
   winners: PlayerId[];
   losers: PlayerId[];
 }
@@ -46,7 +51,7 @@ export interface SubRoundOutcome {
 export function resolveSubRound(
   throws: Partial<Record<PlayerId, Throw>>,
   entrants: PlayerId[],
-  tieWin?: TieWinFn,
+  drawActor?: DrawActorFn,
 ): SubRoundOutcome {
   const groups = new Map<Throw, PlayerId[]>();
   for (const pid of entrants) {
@@ -57,21 +62,29 @@ export function resolveSubRound(
   }
 
   const distinct = [...groups.keys()];
+  const solo = entrants.length === 1;
+  /**
+   * 领域持有者在平局回合获得行动资格（用户确认 2026-11-24）。
+   * 这只决定「谁能动」，**不改变平局这个判定结果**：胜负仍为平局。
+   */
+  const tieActor = (): PlayerId | null => {
+    if (solo || !drawActor) return null;
+    return drawActor(entrants);
+  };
 
   if (distinct.length === 3) {
-    // 三人循环：全员重新判定，不得随机决定胜者
+    // 三拳齐全（三人循环）：属于「平局」；有领域时持有人获得平局行动资格
+    const tw = tieActor();
+    if (tw) return { status: 'tieAct', winners: [tw], losers: [] };
+    // 无领域：全员重新判定，不得随机决定胜者
     return { status: 'cycle', winners: [], losers: [] };
   }
 
   if (distinct.length === 1) {
-    // 全员同拳：平局。领域持有者恰好一人时平局算胜。
-    const solo = entrants.length === 1;
-    if (!solo && tieWin) {
-      const tw = tieWin(entrants);
-      if (tw) {
-        const others = entrants.filter((p) => p !== tw);
-        return { status: 'tieWin', winners: [tw], losers: others };
-      }
+    // 全员同拳：平局。领域持有者恰好一人时获得平局行动资格。
+    if (!solo) {
+      const tw = tieActor();
+      if (tw) return { status: 'tieAct', winners: [tw], losers: [] };
     }
     return { status: 'alltie', winners: [], losers: [] };
   }
@@ -91,7 +104,7 @@ export interface JudgeHistorySink {
   append(pid: PlayerId, step: JudgeStep, stage: 'rps1' | 'rps2', sub: number): void;
 }
 
-/** 为一轮判定记录历史步（全员同记录） */
+/** 为一轮判定记录历史步（全员同记录；平局与「领域平局行动」都记平，不改变结果） */
 function recordRound(
   sink: JudgeHistorySink,
   outcome: SubRoundOutcome,
@@ -99,8 +112,10 @@ function recordRound(
   stage: 'rps1' | 'rps2',
   sub: number,
 ): void {
+  const draw = outcome.status === 'cycle' || outcome.status === 'alltie' || outcome.status === 'tieAct';
   for (const pid of entrants) {
-    if (outcome.winners.includes(pid)) sink.append(pid, 'win', stage, sub);
+    if (draw) sink.append(pid, 'tie', stage, sub);
+    else if (outcome.winners.includes(pid)) sink.append(pid, 'win', stage, sub);
     else if (outcome.losers.includes(pid)) sink.append(pid, 'lose', stage, sub);
     else sink.append(pid, 'tie', stage, sub);
   }
@@ -112,7 +127,8 @@ function recordRound(
  *  1. 收集本子轮出拳（隐藏提交）。
  *  2. 调 resolveSubRound。
  *  3. cycle/alltie → 记录 tie，清空出拳，进入下一子轮。
- *  4. resolved/tieWin → 记录 win/lose，胜者获得行动资格。
+ *  4. tieAct → 全员记录 tie（平局不变），只有领域持有者获得平局回合的行动资格。
+ *  5. resolved → 记录 win/lose，胜者获得行动资格。
  */
 export function appendHistoryForRound(
   sink: JudgeHistorySink,
@@ -132,7 +148,7 @@ export function appendHistoryForRound(
 export function resolveActionOrder(
   winners: PlayerId[],
   roll: (pids: PlayerId[]) => Partial<Record<PlayerId, Throw>>,
-  tieWin?: TieWinFn,
+  drawActor?: DrawActorFn,
   sink?: JudgeHistorySink,
   stage: 'rps1' | 'rps2' = 'rps2',
 ): { order: PlayerId[]; rounds: JudgeRoundRecord[] } {
@@ -145,7 +161,7 @@ export function resolveActionOrder(
     for (let guard = 0; guard < MAX_SUBROUNDS; guard++) {
       sub++;
       const throws = roll(group);
-      const outcome = resolveSubRound(throws, group, tieWin);
+      const outcome = resolveSubRound(throws, group, drawActor);
       rounds.push({ stage, sub, throws: { ...throws }, outcome: outcome.status, winners: outcome.winners, losers: outcome.losers });
       if (sink) appendHistoryForRound(sink, outcome, group, stage, sub);
       if (outcome.status === 'cycle' || outcome.status === 'alltie') continue; // 重新判定

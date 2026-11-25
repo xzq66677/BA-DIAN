@@ -111,4 +111,41 @@ describe('悬浮遗迹风雨和导流机关', () => {
       room.dispose();
     }
   });
+
+  it('关闭天气的房间重开后仍关闭，旧配置默认开启', () => {
+    const room = new Room('OFF', { map: { id: 'floating-ruins', mechanics: { weather: false } }, turnTimeoutMs: 0, submitTimeoutMs: 0 });
+    const legacy = new Room('DEFAULT', { turnTimeoutMs: 0, submitTimeoutMs: 0 });
+    try {
+      for (const r of [room, legacy]) {
+        r.addSeat('A', 'default', 'local');
+        r.addSeat('B', 'default', 'local');
+        expect(r.start().ok).toBe(true);
+      }
+      expect(room.game!.snapshot().ruins).toBeUndefined();
+      expect(legacy.game!.snapshot().ruins).toBeDefined();
+      expect(room.restart({ autoStart: true }).ok).toBe(true);
+      expect(room.game!.snapshot().ruins).toBeUndefined();
+    } finally { room.dispose(); legacy.dispose(); }
+  });
+
+  it('天气、泥潭预警和开闸的真实日志进入全局播报', () => {
+    const room = new Room('RUIN', { seed: 1, turnTimeoutMs: 0, submitTimeoutMs: 0 });
+    try {
+      for (const id of ['A', 'B', 'C']) room.addSeat(id, 'default', 'local');
+      expect(room.start().ok).toBe(true);
+      const game = room.game!;
+      tieUntil(game, 4);
+      const warning = room.toAnnouncements(room.takeNewLogs());
+      expect(warning.some(item => item.text.includes('斜风骤雨'))).toBe(true);
+      expect(warning.some(item => item.text.includes('预计下一回合形成泥潭'))).toBe(true);
+      const occupant = game.playerIds.find(id => game.players[id].room === game.ruinsConditions()?.mud?.room)!;
+      expect(occupant).toBeTruthy();
+      winRound(game, occupant);
+      expect(game.submitAction(occupant, { type: 'openSluice' }).ok).toBe(true);
+      const opened = room.toAnnouncements(room.takeNewLogs());
+      expect(opened.some(item => item.text.includes('泥潭预警解除'))).toBe(true);
+    } finally {
+      room.dispose();
+    }
+  });
 });

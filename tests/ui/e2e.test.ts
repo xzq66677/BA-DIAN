@@ -12,9 +12,12 @@ import path from 'node:path';
 import { mkdirSync, mkdtempSync } from 'node:fs';
 import { chromium, type Browser, type Page } from 'playwright';
 import { expect } from '@playwright/test';
+import { attachBrowserTransport } from '../support/browser-transport.js';
+import { startTestServer, type TestServer } from '../support/test-server.js';
 import { ALL_CASES } from '../../shared/src/testcases/index.js';
 
 let browser: Browser;
+let server: TestServer;
 let baseUrl = '';
 
 beforeAll(async () => {
@@ -32,13 +35,8 @@ beforeAll(async () => {
     cwd: root, stdio: 'pipe', env: { ...process.env, NODE_ENV: 'production', TEMP: temp, TMP: temp, TMPDIR: temp },
   });
   process.env.CLIENT_DIST = path.resolve(import.meta.dirname, '../../client/dist-e2e');
-  const mod = await import('../../server/src/index.js');
-  const httpServer = (mod as unknown as { httpServer: import('node:http').Server }).httpServer;
-  (mod as unknown as { startServer: (port?: number) => void }).startServer(0);
-  await new Promise<void>((resolve) => httpServer.once('listening', () => resolve()));
-  const addr = httpServer.address();
-  const port = typeof addr === 'object' && addr ? addr.port : 3100;
-  baseUrl = `http://127.0.0.1:${port}`;
+  server = await startTestServer(await import('../../server/src/index.js'));
+  baseUrl = server.url;
   browser = await chromium.launch({
     headless: true,
     ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
@@ -46,17 +44,23 @@ beforeAll(async () => {
 }, 90000);
 
 afterAll(async () => {
-  await browser?.close();
+  try {
+    await browser?.close();
+  } finally {
+    await server?.close();
+  }
 });
 
-function newPage(browser: Browser): Promise<Page> {
-  return browser.newPage();
+async function newPage(browser: Browser): Promise<Page> {
+  const page = await browser.newPage();
+  await attachBrowserTransport(page, server);
+  return page;
 }
 
 describe('真实浏览器端到端', { timeout: 120000 }, () => {
   it('首页渲染：卡池立绘真实加载 + 房间列表容器', async () => {
     const page = await newPage(browser);
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await expect(page.getByText(/拔 典/)).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/角色卡池/)).toBeVisible();
 
@@ -73,7 +77,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
 
   it('单人开局（+2AI随机）→ 战场渲染 → 隐藏出拳 → AI 自动推进', async () => {
     const page = await newPage(browser);
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
 
     await page.locator('input[placeholder="输入昵称"]').fill('E2E勇者');
@@ -84,6 +88,8 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     // 战场出现
     await page.getByText(/行动坞/).waitFor({ timeout: 20000 });
     await expect(page.locator('.battlefield')).toBeVisible();
+    // Issue #61：真人（本机）+ AI 混合局默认慢速演出
+    await expect(page.locator('.battlefield')).toHaveAttribute('data-pace', 'slow');
     // 角色卡在场上（AI 已有随机角色 → 卡面 img）：
     // 2D 牌桌 = .ccard-art img；3D 战场 = .b3-av img（名牌头像）+ .ms-art img（我的席位）
     await page.waitForTimeout(1500);
@@ -110,7 +116,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
   it('战斗日志可自主开关，2D / 3D / 手机窄屏与横屏关闭后不遮挡', async () => {
     const page = await newPage(browser);
     await page.addInitScript(() => localStorage.setItem('badian-renderer', '2d'));
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
     await page.locator('input[placeholder="输入昵称"]').fill('日志验收员');
     await page.locator('select').nth(2).selectOption('1');
@@ -158,7 +164,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     host.on('pageerror', (e) => jsErrors.push(`host: ${String(e)}`));
     guest.on('pageerror', (e) => jsErrors.push(`guest: ${String(e)}`));
     try {
-      await host.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+      await host.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
       await host.getByText(/拔 典/).waitFor({ timeout: 15000 });
       await host.locator('input[placeholder="输入昵称"]').fill('联机房主');
       await host.getByRole('button', { name: '仅创建（邀请好友）' }).click();
@@ -166,7 +172,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
       const code = (await host.locator('.tcg-panel').first().innerText()).match(/\b[A-Z2-9]{4}\b/)?.[0];
       expect(code).toBeTruthy();
 
-      await guest.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+      await guest.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
       await guest.getByText(/拔 典/).waitFor({ timeout: 15000 });
       await guest.locator('input[placeholder="输入昵称"]').fill('联机客人');
       const roomItem = guest.locator('.room-item').filter({ hasText: code! });
@@ -200,7 +206,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     const page = await newPage(browser);
     const jsErrors: string[] = [];
     page.on('pageerror', (e) => jsErrors.push(String(e)));
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
 
     // 单人开局：2 个随机 AI（对局必有攻击/伤害/移动事件）
@@ -267,9 +273,75 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     await page.close();
   });
 
+  it('2D 对局不下载 Three.js，切换 3D 后再加载战场', async () => {
+    const page = await newPage(browser);
+    try {
+      const threeRequests = new Set<string>();
+      page.on('request', (request) => {
+        const asset = new URL(request.url()).pathname;
+        if (/\/assets\/three-(?:core-|webgl-)?[^/]+\.js$/.test(asset)) threeRequests.add(asset);
+      });
+      await page.goto(baseUrl + '/?entrance=classic&r=2d', { waitUntil: 'domcontentloaded' });
+      await page.locator('input[placeholder="输入昵称"]').fill('渲染切换测试');
+      await page.locator('select').nth(2).selectOption('1');
+      await page.getByRole('button', { name: /单人开局/ }).click();
+
+      const switchTo3d = page.getByRole('button', { name: '3D', exact: true });
+      await expect(switchTo3d).toBeVisible();
+      expect(threeRequests.size).toBe(0);
+
+      await switchTo3d.click();
+      await expect(page.getByTestId('battle3d').locator('canvas')).toBeVisible({ timeout: 15000 });
+      expect(Array.from(threeRequests)).toEqual(expect.arrayContaining([
+        expect.stringContaining('/three-core-'), expect.stringContaining('/three-webgl-'),
+      ]));
+      await expect(page.locator('.b3-roomlabel').first()).toBeVisible();
+
+      await page.getByRole('button', { name: '2D', exact: true }).click();
+      await expect(page.getByTestId('battle3d')).toHaveCount(0);
+      await expect(switchTo3d).toBeVisible();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('2D/3D 血条显示数值并打开相同的角色状态详情', async () => {
+    const page = await newPage(browser);
+    const jsErrors: string[] = [];
+    page.on('pageerror', (error) => jsErrors.push(String(error)));
+    try {
+      await page.goto(baseUrl + '/?entrance=classic&r=2d', { waitUntil: 'domcontentloaded' });
+      await page.locator('input[placeholder="输入昵称"]').fill('血条状态测试');
+      await page.locator('select').nth(2).selectOption('2');
+      await page.getByRole('button', { name: /单人开局/ }).click();
+      await page.getByText(/行动坞/).waitFor({ timeout: 20000 });
+
+      const hp2d = page.locator('.ccard-hpbar').first();
+      await expect(hp2d).toBeVisible();
+      await expect(hp2d).toHaveText(/\d+(?:\.\d+)?\/\d+(?:\.\d+)?/);
+      await hp2d.click();
+      await expect(page.getByRole('dialog', { name: /血条状态测试|AI/ })).toBeVisible();
+      await expect(page.getByText('仅显示当前公开快照，不包含未揭示出拳或判定历史。')).toBeVisible();
+      await page.getByRole('button', { name: '关闭状态详情' }).click();
+
+      await page.getByRole('button', { name: '3D', exact: true }).click();
+      const hp3d = page.locator('.b3-hpbar').first();
+      await expect(hp3d).toBeVisible({ timeout: 15000 });
+      await expect(hp3d).toHaveText(/\d+(?:\.\d+)?\/\d+(?:\.\d+)?/);
+      await hp3d.click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page.getByLabel('角色状态')).toBeVisible();
+      await page.getByRole('button', { name: '关闭状态详情' }).click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      expect(jsErrors).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
   it('大厅：添加指定角色AI + 房主改AI角色 + 聊天', async () => {
     const page = await newPage(browser);
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
 
     await page.locator('input[placeholder="输入昵称"]').fill('大厅测试员');
@@ -297,12 +369,17 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     await page.waitForTimeout(800);
     const chatText = await page.locator('.chat-log').innerText();
     expect(chatText).toContain('一起玩拔典！');
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByText(/玩家卡位/)).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.chat-log')).toContainText('一起玩拔典！');
+    await expect(page.locator('.seat-slot').first()).toContainText('伍六七');
     await page.close();
   });
 
   it('机制测试场：全部用例运行且全 PASS', async () => {
     const page = await newPage(browser);
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
     await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
     await page.getByRole('button', { name: /机制测试场/ }).click();
     await page.getByRole('button', { name: /运行全部/ }).waitFor({ timeout: 15000 });

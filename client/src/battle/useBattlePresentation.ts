@@ -10,9 +10,10 @@
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BattleEventQueue, type QueueState, type Speed } from './queue.js';
+import { BattleEventQueue, DEFAULT_PACE, paceFromLocation, type PaceProfile, type QueueState, type Speed } from './queue.js';
 import type { BattleEvent, LogLike } from './events.js';
 import { sfx, type SfxKind } from '../audio/sfx.js';
+import { condenseAnnounceQueue, type AnnounceItem } from '../../../shared/src/announce.js';
 
 /** 行动者卡 fx（⚔️/💊/🚶/✨ 弹出动画）；targetId 供 3D 场景确定动作朝向（2D 不使用） */
 export interface FxView { kind: string; key: number; targetId?: string }
@@ -58,13 +59,17 @@ export interface PresentationState {
   ivanBoom: IvanBoomView | null;
   /** 领域展开（重大事件）：爆发 + 聚焦（3D 场景穹顶由快照 domainHolder 驱动） */
   domainDecl: { key: number; pid: string } | null;
-  /** 全局播报（喝牛奶 / 今日勇者运势）：战场中央横幅，一次一条 */
-  announce: { key: number; kind: 'milk' | 'fortune'; pid: string; roll?: number } | null;
+  /**
+   * 全局播报横幅（服务端权威的 `AnnounceItem`，一次一条、按序播放）。
+   * 覆盖全部公开动作（攻击/技能/移动/回复/喝牛奶/运势/淘汰/复活/领域/终局…），
+   * 不再只为 milk / fortune 特判 —— 新增动作只要服务端产出播报即可显示。
+   */
+  globalAnnounce: AnnounceItem | null;
 }
 
 export const EMPTY_PRESENTATION: PresentationState = {
   fx: {}, decls: {}, hits: {}, heals: {}, misses: {}, deaths: {}, revives: {}, zoneAlert: null, moveBanner: null,
-  ivanThrow: null, ivanBoom: null, domainDecl: null, announce: null,
+  ivanThrow: null, ivanBoom: null, domainDecl: null, globalAnnounce: null,
 };
 
 /** 叠加层展示时长（ms，覆盖 CSS 动画全长）；reduced-motion 时缩短 */
@@ -79,7 +84,8 @@ const BANNER_MS = 1300;
 const IVAN_THROW_MS = 1150;
 const IVAN_BOOM_MS = 1250;
 const DOMAIN_MS = 1100;
-const ANNOUNCE_MS = 1800;
+/** 横幅队列上限：拥堵时只保留最新的若干条，避免播报积压拖慢对局节奏 */
+const ANNOUNCE_QUEUE_MAX = 6;
 
 export type PresentationSignal = { event: BattleEvent; durationMs: number } | { reset: true };
 
@@ -118,15 +124,21 @@ function reducedMotionPreferred(): boolean {
  * @param gamePhase 对局阶段（可选）：'over' 时启用终局延迟呈现——
  *        等待队列中剩余演出（致命链/爆炸/淘汰）播完再交给终局 UI，防止终局弹层抢断最后一幕。
  *        兜底：最长等待 FINALE_WAIT_MAX_MS；可 skipFinaleWait 立即放行；重连（队列空）不等待。
+ * @param announces 全局播报增量（服务端权威，App 层累积后传入）。
+ *        按 seq 去重、队列逐条播放；首次收到只推进游标（重连补发不回放历史横幅）。
+ *        不传时不产生横幅（演出层不自行猜测内容，避免与服务端播报不一致）。
+ * @param pace 演出节奏档位（可选）：由房间座位组成策略计算；不传时回退 URL/默认档。
  */
 export function useBattlePresentation(
   logs: LogLike[],
   gameNo?: number,
-  gamePhase?: 'rps1' | 'rps2' | 'act' | 'judge' | 'roundEnd' | 'over',
+  gamePhase?: 'rps1' | 'rps2' | 'trigger' | 'act' | 'judge' | 'roundEnd' | 'over',
   resync?: { cursor: number },
+  announces?: AnnounceItem[],
+  pace?: PaceProfile,
 ): BattlePresentation {
   const [pres, setPres] = useState<PresentationState>(EMPTY_PRESENTATION);
-  const [queueState, setQueueState] = useState<QueueState>({ playing: false, depth: 0, mode: 'normal', speed: 1 });
+  const [queueState, setQueueState] = useState<QueueState>({ playing: false, depth: 0, mode: 'normal', speed: 1, pace: pace?.id ?? DEFAULT_PACE });
   const queueRef = useRef<BattleEventQueue | null>(null);
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const listenersRef = useRef(new Set<(signal: PresentationSignal) => void>());
@@ -147,6 +159,16 @@ export function useBattlePresentation(
   const queueStateRef = useRef(queueState);
   queueStateRef.current = queueState;
 
+  // ── 全局播报横幅队列 ──
+  /** 横幅自身状态独立于演出队列：播报是「全员通告」，不该被战斗演出攒批影响 */
+  const [globalAnnounce, setGlobalAnnounce] = useState<AnnounceItem | null>(null);
+  const announceRef = useRef<{
+    queue: AnnounceItem[];
+    timer: ReturnType<typeof setTimeout> | null;
+    lastSeq: number;
+    booted: boolean;
+  }>({ queue: [], timer: null, lastSeq: 0, booted: false });
+
   // 回调经由 ref 转发，保证队列持有的一直是最新闭包
   const applyEventRef = useRef<(e: BattleEvent, durationMs: number) => void>(() => {});
   const flushRef = useRef<() => void>(() => {});
@@ -158,7 +180,7 @@ export function useBattlePresentation(
       onEventStart: (e, durationMs) => applyEventRef.current(e, durationMs),
       onFlush: () => flushRef.current(),
       onState: (s) => { modeRef.current = s.mode; setQueueState(s); },
-    });
+    }, pace ?? paceFromLocation());
   }
   const queue = queueRef.current;
 
@@ -186,6 +208,27 @@ export function useBattlePresentation(
     timersRef.current.clear();
   }
 
+  /** 播报队列泵：空闲时取队首展示 ttlMs，到点清空并继续下一条 */
+  function pumpAnnounce(): void {
+    const st = announceRef.current;
+    if (st.timer !== null) return;
+    const next = st.queue.shift();
+    if (!next) return;
+    setGlobalAnnounce(next);
+    st.timer = setTimeout(() => {
+      st.timer = null;
+      setGlobalAnnounce((cur) => (cur && cur.id === next.id ? null : cur));
+      pumpAnnounce();
+    }, next.ttlMs);
+  }
+
+  function clearAnnounceQueue(): void {
+    const st = announceRef.current;
+    if (st.timer !== null) { clearTimeout(st.timer); st.timer = null; }
+    st.queue = [];
+    setGlobalAnnounce(null);
+  }
+
   function publish(next: PresentationState): void {
     presRef.current = next;
     setPres(next);
@@ -193,7 +236,7 @@ export function useBattlePresentation(
 
   function scheduleExpiry(key: keyof PresentationState, id: string, ms: number): void {
     const singleton = key === 'zoneAlert' || key === 'moveBanner' || key === 'ivanThrow'
-      || key === 'ivanBoom' || key === 'domainDecl' || key === 'announce';
+      || key === 'ivanBoom' || key === 'domainDecl' || key === 'globalAnnounce';
     const clockKey = singleton ? key : `${key}:${id}`;
     clearTimeout(timersRef.current.get(clockKey));
     const t = setTimeout(() => {
@@ -222,11 +265,6 @@ export function useBattlePresentation(
         if (!pid) break;
         next.fx = { ...prev.fx, [pid]: { kind: e.fx ?? (e.kind === 'attackDecl' ? 'attack' : 'skill'), key: e.seq, targetId: e.targetId } };
         scheduleExpiry('fx', pid, e.kind === 'attackDecl' ? 420 : FX_MS);
-        // 喝牛奶：全局播报一次（嘲讽是全场事件，不只演在个人卡上）
-        if (e.fx === 'milk') {
-          next.announce = { key: e.seq, kind: 'milk', pid };
-          scheduleExpiry('announce', String(e.seq), ANNOUNCE_MS);
-        }
         if (e.kind === 'attackDecl' && e.targetId) {
           next.decls = { ...prev.decls, [pid]: { key: e.seq, targetId: e.targetId, amount: e.amount, room: e.room } };
           scheduleExpiry('decls', pid, 520);
@@ -302,12 +340,9 @@ export function useBattlePresentation(
         scheduleExpiry('domainDecl', 'decl', DOMAIN_MS);
         break;
       }
-      case 'fortune': {
-        const t = e.targetId!;
-        next.announce = { key: e.seq, kind: 'fortune', pid: t, roll: e.roll };
-        scheduleExpiry('announce', String(e.seq), ANNOUNCE_MS + 600);
+      case 'fortune':
+        // 今日运势的横幅由全局播报流（announce 规则表）负责，这里不再单独演一次
         break;
-      }
       case 'trigger':
         // 触发：日志面板有完整信息，战场层不额外阻挡
         break;
@@ -319,6 +354,7 @@ export function useBattlePresentation(
   applyEventRef.current = applyEvent;
   flushRef.current = () => {
     clearAllTimers();
+    clearAnnounceQueue();
     publish(EMPTY_PRESENTATION);
     for (const listen of listenersRef.current) listen({ reset: true });
   };
@@ -330,6 +366,7 @@ export function useBattlePresentation(
     return () => {
       q.dispose();
       clearAllTimers();
+      clearAnnounceQueue();
       if (finaleFallbackRef.current !== null) clearTimeout(finaleFallbackRef.current);
       finaleFallbackRef.current = null;
     };
@@ -350,11 +387,19 @@ export function useBattlePresentation(
     return () => mq.removeEventListener?.('change', handler);
   }, [queue]);
 
+  useEffect(() => {
+    if (pace) queue.setPace(pace);
+  }, [queue, pace]);
+
   // 局号变化（重开新局）：清空队列与全部叠加层
   useLayoutEffect(() => {
     if (gameNoRef.current !== undefined && gameNo !== undefined && gameNo !== gameNoRef.current) {
       queue.clear();
       bootstrappedRef.current = false;
+      // 播报：新局清空横幅与游标（seq 虽跨局续接，但从头播起更符合「新局重新开始」的观感）
+      clearAnnounceQueue();
+      announceRef.current.lastSeq = 0;
+      announceRef.current.booted = false;
       // 终局等待一并复位（新对局不继承旧局等待状态）
       overSeenRef.current = false;
       fallbackArmedRef.current = false;
@@ -382,6 +427,26 @@ export function useBattlePresentation(
       queue.pushLogs(logs);
     }
   }, [logs, queue, resync, gameNo]);
+
+  // 全局播报入队：服务端权威增量 → 横幅队列（seq 去重、首帧补发不回放）
+  useLayoutEffect(() => {
+    const st = announceRef.current;
+    const list = announces ?? [];
+    if (list.length === 0) return;
+    const maxSeq = list.reduce((m, a) => (a.seq > m ? a.seq : m), st.lastSeq);
+    const prevSeq = st.lastSeq;
+    if (!st.booted) {
+      st.booted = true;
+      // 首批数量大 = 重连补发/历史回放：只推游标，不回放旧横幅
+      if (list.length > 3) { st.lastSeq = maxSeq; return; }
+    }
+    const fresh = list.filter((a) => a.seq > prevSeq);
+    st.lastSeq = maxSeq;
+    if (fresh.length === 0) return;
+    // 拥堵策略：保留队首 + high，其余旧的中低价值播报直接丢弃（避免播到过时消息）
+    st.queue = condenseAnnounceQueue(st.queue, fresh, ANNOUNCE_QUEUE_MAX);
+    pumpAnnounce();
+  }, [announces]);
 
   useEffect(() => {
     const syncHidden = () => { if (document.hidden) queue.skipAll(); };
@@ -451,5 +516,6 @@ export function useBattlePresentation(
     },
   }), [queue]);
 
-  return { pres, queue: queueState, api, finaleWaiting };
+  // 横幅状态独立于演出叠加层：合并进 pres 让调用方只读一个对象
+  return { pres: globalAnnounce ? { ...pres, globalAnnounce } : pres, queue: queueState, api, finaleWaiting };
 }

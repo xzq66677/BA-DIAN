@@ -14,6 +14,14 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.endsWith('/node_modules/three/build/three.core.js')) return 'three-core';
+          if (id.endsWith('/node_modules/three/build/three.module.js')) return 'three-webgl';
+        },
+      },
+    },
     chunkSizeWarningLimit: 1200,
   },
 });
