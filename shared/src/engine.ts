@@ -13,6 +13,7 @@ import {
   type ActionResult, type GamePlayerConfig, type RuleConfig, type CharRuntimeState,
   type RevealInfo, type PlayerStats, emptyStats,
   type SkillJudgeOptions, type SkillJudgeView, type SkillJudgeRoundRecord,
+  type ActiveStatusEffect, type ExtraActionView, type PublicStatusEffect,
   type BattleFxKind, type HealEventData, type EliminateEventData, type ReviveEventData,
   type ActionEventData,
   DEFAULT_RULES, fmtNum,
@@ -25,8 +26,9 @@ import { BASE_ACTIONS } from './base-actions.js';
 import { resolveDamage } from './damage.js';
 import { mentalKill } from './mental.js';
 import { serializeSnapshot } from './snapshot.js';
+import { STATUS_REGISTRY, publicStatusEffects, statusDef } from './statuses.js';
 import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats, type SubRoundOutcome } from './judge.js';
-import type { CharDef, GameLike, CharActionContext } from './chardef.js';
+import type { CharDef, GameLike, CharActionContext, CharActionDef } from './chardef.js';
 
 /** 引擎内部的「进行中判定」状态（带逐局进度） */
 interface ActiveJudge extends SkillJudgeOptions {
@@ -105,6 +107,14 @@ export class Game implements GameLike {
    * 可能排入新的技能判定，此时把「当前流程的收尾」存成闭包，等判定全部结束后再执行。
    */
   private judgeResumeHook: (() => void) | null = null;
+  /** 行动前判定（如塔内压制）挂起的待执行行动：判定结束后继续/取消 */
+  private pendingPreAction: {
+    pid: PlayerId;
+    req: ActionRequest;
+    onResult?: (result: 'win' | 'lose' | 'tie') => 'normal' | 'block' | 'selfAttack';
+  } | null = null;
+  /** 行动前判定已在 completePreAction 中收尾：resolveJudgeRound 不再重复推进队列 */
+  private preActionResolved = false;
   /**
    * 回合前触发（大屁孩「暴走 / 自爆」）：判定结束后、行动阶段开始前统一结算。
    * triggerQueue 为已排好序的暴走权持有者；triggerActor 为当前要选择目标的人。
@@ -179,6 +189,7 @@ export class Game implements GameLike {
         type: pc.type,
         hidden: false,
         invisible: false,
+        effects: [],
         char: { ...(cd.init ? cd.init() : {}), livesLeft: cd.lives ?? 1 },
       };
       this.playerIds.push(pc.id);
@@ -220,11 +231,23 @@ export class Game implements GameLike {
   }
 
   roomMembers(room: RoomId): PlayerId[] {
-    return this.aliveIds().filter((pid) => this.players[pid].room === room);
+    // 高塔内部视为独立房间：塔内玩家不计入原房间成员（AOE/三刀等房间级效果不穿透塔壁）
+    return this.aliveIds().filter((pid) => this.players[pid].room === room
+      && this.players[pid].char.inTower !== true);
   }
 
   isSameRoom(a: PlayerId, b: PlayerId): boolean {
-    return this.players[a].room === this.players[b].room;
+    const pa = this.players[a];
+    const pb = this.players[b];
+    if (!pa || !pb) return false;
+    if (pa.room !== pb.room) return false;
+    // 高塔内外隔绝：同在塔内或同在塔外才算同房间
+    return (pa.char.inTower === true) === (pb.char.inTower === true);
+  }
+
+  /** 该玩家是否位于高塔内部 */
+  isInTower(pid: PlayerId): boolean {
+    return this.players[pid]?.char.inTower === true;
   }
 
   isOver(): boolean {
@@ -350,6 +373,100 @@ export class Game implements GameLike {
    */
   nextGroupId(): string {
     return `GRP-${this.roundNo}-${++this.eventGroupSeq}`;
+  }
+
+  // ─── 状态效果（持续效果统一生命周期） ────────────────────────
+
+  /** 施加状态；同 kind 重复施加时刷新生命周期数据（例如重新点燃会重置「点燃回合」） */
+  addStatus(
+    pid: PlayerId,
+    effect: Omit<ActiveStatusEffect, 'appliedRound'> & { appliedRound?: number },
+  ): ActiveStatusEffect {
+    const p = this.players[pid];
+    const next: ActiveStatusEffect = { ...effect, appliedRound: effect.appliedRound ?? this.roundNo };
+    if (!p) return next;
+    p.effects = p.effects ?? [];
+    const existing = p.effects.find((e) => e.kind === next.kind);
+    if (existing) Object.assign(existing, next);
+    else p.effects.push(next);
+    this.log('state', `✨ ${p.name} 获得状态：${statusDef(next.kind)?.label ?? next.kind}`,
+      { pid, effect: next.kind, severity: next.severity ?? null, remainingRounds: next.remainingRounds ?? null }, false);
+    return existing ?? next;
+  }
+
+  /** 移除指定状态并执行清理 */
+  removeStatus(pid: PlayerId, kind: string): boolean {
+    const p = this.players[pid];
+    if (!p || !p.effects) return false;
+    const idx = p.effects.findIndex((e) => e.kind === kind);
+    if (idx < 0) return false;
+    const [removed] = p.effects.splice(idx, 1);
+    statusDef(kind)?.cleanup?.({ game: this, owner: pid, effect: removed });
+    return true;
+  }
+
+  getStatus(pid: PlayerId, kind: string): ActiveStatusEffect | undefined {
+    return this.players[pid]?.effects?.find((e) => e.kind === kind);
+  }
+
+  hasStatus(pid: PlayerId, kind: string): boolean {
+    return !!this.getStatus(pid, kind);
+  }
+
+  /**
+   * 回合末结算所有持续状态（含平局回合，由 endRound 统一调用）。
+   * 到期状态（remainingRounds 递减到 0）自动移除。
+   */
+  tickStatuses(): void {
+    for (const pid of [...this.aliveIds()]) {
+      const p = this.players[pid];
+      if (!p?.alive) continue;
+      for (const effect of [...(p.effects ?? [])]) {
+        if (!this.players[pid]?.alive) break;
+        STATUS_REGISTRY[effect.kind]?.tick?.({ game: this, owner: pid, effect });
+        if (typeof effect.remainingRounds === 'number') {
+          effect.remainingRounds -= 1;
+          if (effect.remainingRounds <= 0) this.removeStatus(pid, effect.kind);
+        }
+      }
+    }
+  }
+
+  /** 状态提供的附加行动（拥有者视角） */
+  private statusActions(pid: PlayerId): CharActionDef[] {
+    const out: CharActionDef[] = [];
+    for (const effect of this.players[pid]?.effects ?? []) {
+      const def = STATUS_REGISTRY[effect.kind];
+      if (def?.actions) out.push(...def.actions({ game: this, owner: pid, effect }));
+    }
+    return out;
+  }
+
+  /**
+   * 玩家可用的全部附加行动：状态提供的行动 + 其他角色为在场者提供的环境行动。
+   * 引擎与客户端共用同一份列表（快照下发 `extraActions`），避免 UI 写死角色名。
+   */
+  extraActionsFor(pid: PlayerId): CharActionDef[] {
+    const out = this.statusActions(pid);
+    for (const owner of this.playerIds) {
+      if (owner === pid || !this.players[owner]?.alive) continue;
+      const cd = this.charDef(owner);
+      if (cd.extraActionsForOthers) out.push(...cd.extraActionsForOthers({ game: this, owner, viewer: pid }));
+    }
+    return out;
+  }
+
+  /** 附加行动的快照视图（当前行动者） */
+  extraActionViews(pid: PlayerId | null): ExtraActionView[] {
+    if (!pid) return [];
+    return this.extraActionsFor(pid).map((action) => ({
+      key: action.name,
+      label: action.label,
+      desc: action.desc,
+      typeLabel: action.typeLabel ?? '环境',
+      ...(action.targetHint && action.targetHint !== 'none' ? { targetHint: action.targetHint } : {}),
+      ...(action.roomHint ? { roomHint: true } : {}),
+    }));
   }
 
   appendJudgeHistory(pid: PlayerId, step: JudgeStep, stage: 'rps1' | 'rps2', sub: number): void {
@@ -950,7 +1067,8 @@ export class Game implements GameLike {
     const pt = j.pending[j.opponent];
     const result: 'win' | 'lose' | 'tie' = !ot || !pt ? 'tie' : beats(ot, pt) ? 'win' : beats(pt, ot) ? 'lose' : 'tie';
     if (result === 'win') j.wins++;
-    const replayTie = j.kind === 'whip5' && result === 'tie';
+    // 平局重赛：五连鞭「平局不计局数」、狂猎受击判定「平局再来一把」均不推进局数
+    const replayTie = result === 'tie' && (j.kind === 'whip5' || j.rerollTie === true);
     j.last = { round: j.round, ownerThrow: ot as Throw, opponentThrow: pt as Throw, result };
     j.records.push({
       kind: j.kind, label: j.label, round: j.round, owner: j.owner, opponent: j.opponent,
@@ -974,15 +1092,21 @@ export class Game implements GameLike {
     // 全部局数结束 → 回调角色结算（wins 为己方胜局数）
     const wins = j.wins;
     const rounds = j.rounds;
+    const lastResult = j.last?.result;
     this.activeJudge = null;
     try {
-      j.resolve(wins, rounds);
+      j.resolve(wins, rounds, lastResult);
     } catch (e) {
       this.log('error', `判定结算异常：${(e as Error)?.message ?? String(e)}`);
     }
     if (this.phase === 'over') return;
     // 结算可能又触发新的判定（例：五连鞭打在马保国身上 → 太极）
     if (this.startNextJudge()) return;
+    // 行动前判定的收尾已在 completePreAction 中推进过队列：不要重复推进
+    if (this.preActionResolved) {
+      this.preActionResolved = false;
+      return;
+    }
     this.resumeAfterJudges();
   }
 
@@ -1025,11 +1149,22 @@ export class Game implements GameLike {
     };
   }
 
-  /** 推进行动队列（跳过死亡者） */
+  /** 推进行动队列（跳过死亡者与无法行动者，如倒地） */
   private advanceQueue(initial = false): void {
     if (this.phase !== 'act') return;
-    while (this.actIndex < this.queue.length && !this.players[this.queue[this.actIndex]].alive) {
-      this.actIndex++;
+    while (this.actIndex < this.queue.length) {
+      const pid = this.queue[this.actIndex];
+      const p = this.players[pid];
+      if (!p.alive) {
+        this.actIndex++;
+        continue;
+      }
+      if (this.charDef(pid).skipsAction?.({ game: this, player: pid })) {
+        this.log('phase', `💀 ${p.name} 当前无法行动，本回合行动跳过`, { pid }, true);
+        this.actIndex++;
+        continue;
+      }
+      break;
     }
     if (this.actIndex >= this.queue.length) {
       this.endRound();
@@ -1058,7 +1193,68 @@ export class Game implements GameLike {
     if (pid !== cur) return { ok: false, error: `当前轮到 ${this.players[cur].name} 行动` };
     const p = this.players[pid];
     if (!p.alive) return { ok: false, error: '已淘汰玩家不能行动' };
+    // 倒地/被控制等无法行动状态：拒绝行动（正常流程中 advanceQueue 已跳过）
+    if (this.charDef(pid).skipsAction?.({ game: this, player: pid })) {
+      return { ok: false, error: `${p.name} 当前无法行动` };
+    }
 
+    // 角色状态限制（如亡魂状态只能使用吸/吹）
+    const actionError = this.charDef(pid).validateAction?.({ game: this, player: pid, action: req });
+    if (actionError) return { ok: false, error: actionError };
+
+    // 行动前压制（高塔等）：其他角色的 onBeforeAction 可让本次行动无效、改为自伤，
+    // 或进入双方亲自出拳的判定（player 模式），判定后再继续/取消本次行动（均消耗行动）
+    for (const owner of this.playerIds) {
+      if (owner === pid) continue;
+      const def = this.charDef(owner);
+      const pre = def.onBeforeAction?.({ game: this, owner, player: pid });
+      if (!pre) continue;
+      if (pre === 'block') {
+        this.log('trigger', `🗼 ${p.name} 的行动被高塔压制，本次行动无效`, { pid, owner }, true);
+        return this.consumeSuppressedAction(pid, '行动被压制（无效）');
+      }
+      if (pre === 'selfAttack') {
+        const selfDef = this.charDef(pid);
+        const amount = selfDef.meleeDamage ?? selfDef.attack ?? this.rules.defaultAttack;
+        this.log('trigger', `🗼 ${p.name} 在塔内判定失败，攻击了自己（${fmtNum(amount)} 伤）`, { pid, owner, amount }, true);
+        this.applyDamage({
+          target: pid, amount, source: pid,
+          dtype: selfDef.attackDtype || 'physical',
+          tag: 'tower-self', ignoreHide: true, isAttack: true,
+        });
+        return this.consumeSuppressedAction(pid, '被高塔压制，攻击了自己');
+      }
+
+      // player 模式：暂停对局，双方亲自出拳；判定结束后由 completePreAction 继续
+      this.pendingPreAction = { pid, req, onResult: pre.onResult };
+      this.preActionResolved = false;
+      this.requestJudge({
+        ...pre.judge,
+        resolve: (wins, rounds, lastResult) => {
+          const pending = this.pendingPreAction;
+          this.pendingPreAction = null;
+          if (!pending) return;
+          const result = lastResult ?? (wins > 0 ? 'win' : 'lose');
+          const verdict = pending.onResult?.(result) ?? 'normal';
+          this.phase = 'act'; // 判定结束后先恢复行动阶段，再继续本次行动
+          this.completePreAction(pending.pid, pending.req, verdict);
+          // 收尾可能进入新的判定；没有新判定时由本标记阻止引擎再次推进队列
+          if (!this.activeJudge) this.preActionResolved = true;
+        },
+      });
+      // 判定结束后由 completePreAction 收尾
+      this.judgeResume = null;
+      this.judgeResumeHook = null;
+      this.startNextJudge();
+      return { ok: true };
+    }
+
+    return this.performSubmittedAction(pid, req);
+  }
+
+  /** 正常执行一次已通过前置校验的行动（含消耗行动、推进队列） */
+  private performSubmittedAction(pid: PlayerId, req: ActionRequest): ActionResult {
+    const p = this.players[pid];
     const res = this.executeAction(pid, req);
     if (!res.ok) return res; // 非法行动：不修改状态、不消耗行动
     const st = this.stats[pid];
@@ -1091,6 +1287,42 @@ export class Game implements GameLike {
     return { ok: true };
   }
 
+  /** 行动前判定结束后的收尾：正常执行 / 行动无效 / 自伤（均消耗行动） */
+  private completePreAction(pid: PlayerId, req: ActionRequest, verdict: 'normal' | 'block' | 'selfAttack'): void {
+    if (this.phase === 'over') return;
+    if (!this.players[pid]?.alive) return;
+    if (verdict === 'block') {
+      this.log('trigger', `🗼 ${this.players[pid].name} 的塔内判定为平局，本次行动无效`, { pid }, true);
+      this.consumeSuppressedAction(pid, '行动被压制（无效）');
+      return;
+    }
+    if (verdict === 'selfAttack') {
+      const cd = this.charDef(pid);
+      const amount = cd.meleeDamage ?? cd.attack ?? this.rules.defaultAttack;
+      this.log('trigger', `🗼 ${this.players[pid].name} 的塔内判定失败，攻击了自己（${fmtNum(amount)} 伤）`, { pid, amount }, true);
+      this.applyDamage({
+        target: pid, amount, source: pid,
+        dtype: cd.attackDtype || 'physical',
+        tag: 'tower-self', ignoreHide: true, isAttack: true,
+      });
+      this.consumeSuppressedAction(pid, '被高塔压制，攻击了自己');
+      return;
+    }
+    this.performSubmittedAction(pid, req);
+  }
+
+  /** 行动被压制（无效/自伤）仍消耗行动并推进队列 */
+  private consumeSuppressedAction(pid: PlayerId, label: string): ActionResult {
+    const st = this.stats[pid];
+    if (st) st.actions++;
+    this.roundSummary.push(`${this.players[pid].name} ${label}`);
+    if ((this.phase as GamePhase) === 'over') return { ok: true };
+    if (this.enterJudgeIfPending('afterAction')) return { ok: true };
+    this.actIndex++;
+    this.advanceQueue();
+    return { ok: true };
+  }
+
   /** 超时强制跳过（服务端调用） */
   forceSkipAction(pid: PlayerId): ActionResult {
     return this.submitAction(pid, { type: 'skip' });
@@ -1101,11 +1333,18 @@ export class Game implements GameLike {
     if (base) return base.label(this, req);
     const mapAction = this.map.actions?.get(req.type);
     if (mapAction) return mapAction.label;
-    const cd = this.charDef(this.currentActor() || this.playerIds[0]);
-    return cd.actions?.find((action) => action.name === req.type)?.label ?? req.type;
+    const actor = this.currentActor() ?? this.playerIds[0];
+    const cd = this.charDef(actor);
+    return cd.actions?.find((action) => action.name === req.type)?.label
+      ?? this.extraActionsFor(actor).find((action) => action.name === req.type)?.label
+      ?? req.type;
   }
 
   private executeAction(pid: PlayerId, req: ActionRequest): ActionResult {
+    // 角色禁用的基础行动（如骷髅无法主动「回复」回满血）
+    if (this.charDef(pid).blockBaseActions?.includes(req.type)) {
+      return { ok: false, error: `${this.players[pid].name} 无法使用该行动` };
+    }
     const base = BASE_ACTIONS.get(req.type);
     if (base) return base.execute(this, pid, req, this.map);
     const mapAction = this.map.actions?.get(req.type);
@@ -1114,7 +1353,8 @@ export class Game implements GameLike {
       if (note) this.log('info', note, undefined, true);
       return result;
     }
-    const act = this.charDef(pid).actions?.find((a) => a.name === req.type);
+    const act = this.charDef(pid).actions?.find((a) => a.name === req.type)
+      ?? this.extraActionsFor(pid).find((a) => a.name === req.type);
     if (!act) return { ok: false, error: `未知行动：${req.type}` };
     const ctx: CharActionContext = { game: this, actor: pid, params: req };
     const error = act.validate?.(ctx);
@@ -1153,13 +1393,23 @@ export class Game implements GameLike {
     p.hidden = false;
     p.invisible = false;
     p.hp = 0;
+    // 死亡清理：状态效果随持有者退场全部移除（生命周期要求）
+    if (p.effects && p.effects.length > 0) {
+      for (const effect of [...p.effects]) statusDef(effect.kind)?.cleanup?.({ game: this, owner: pid, effect });
+      p.effects = [];
+    }
     // 领域随持有者退场而消失（游戏中唯一会"自然失效"的路径；不含被覆盖）
     if (this.domainHolder === pid) {
       this.domainHolder = null;
       p.char.domain = false;
       this.log('trigger', `🌀 ${p.name} 的领域随其退场消失`, { pid }, true);
     }
-    if (killer && killer !== pid && this.stats[killer]) this.stats[killer].kills++;
+    if (killer && killer !== pid && this.stats[killer]) {
+      this.stats[killer].kills++;
+      // 击杀钩子（如狂猎击杀后攻击 ×1.5）
+      const killerDef = this.charDef(killer);
+      if (killerDef.onKill) killerDef.onKill({ game: this, killer, target: pid, cause });
+    }
     const elimData: EliminateEventData = { pid, cause, ...(killer && killer !== pid ? { killer } : {}) };
     this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, { ...elimData }, true);
     this.roundSummary.push(`${p.name} 被淘汰（${cause}）`);
@@ -1362,6 +1612,10 @@ export class Game implements GameLike {
     }
     this.settlingDeferred = false;
 
+    // 持续状态结算（燃烧等）：所有回合都结算，包含平局回合与延迟事件之后
+    this.tickStatuses();
+    if ((this.phase as GamePhase) === 'over') return;
+
     // 回合末触发的技能判定（例：大伊万炸死马保国 → 不讲武德）：先暂停收拳，结算完再收尾
     if (this.enterJudgeIfPending('endRound')) return;
     this.finishEndRound();
@@ -1402,6 +1656,11 @@ export class Game implements GameLike {
     this.judgeRecords = [];
     this.entrantOrder = this.aliveIds();
     this.roundSummary = [];
+    // 回合开始钩子（倒地复活、回合开始的角色结算等）——在出拳阶段之前
+    for (const pid of this.aliveIds()) {
+      this.charDef(pid).onRoundStart?.({ game: this, player: pid });
+    }
+    if ((this.phase as GamePhase) === 'over') return;
     // 注意：领域（char.domain / domainHolder）是场地状态，跨回合持续保留，
     // 这里**不清除**；只有被其他领域覆盖或持有者淘汰时才失效。
     this.phase = 'rps1';

@@ -1,4 +1,5 @@
 import type { CharDef, GameLike } from './chardef.js';
+import { statusDef } from './statuses.js';
 import {
   fmtNum, type AppliedDamage, type DamageEventData, type DamageRequest, type PlayerId, type PlayerStats,
 } from './types.js';
@@ -109,16 +110,32 @@ export function resolveDamage(game: GameLike, stats: Record<PlayerId, PlayerStat
   if (stats[tp.id]) stats[tp.id].damageTaken += dealt;
   if (req.source && req.source !== tp.id && stats[req.source]) stats[req.source].damageDealt += dealt;
 
-  // 5. 附加效果（转移伤害不随转移）
+  // 5. 附加效果（转移伤害不随转移）：状态类效果走状态注册表，未知效果安全降级为日志
   if (req.effects && req.effects.length > 0 && !req.transferred) {
-    for (const effect of req.effects) game.log('state', `${tp.name} 获得效果：${effect.kind}`);
+    for (const effect of req.effects) {
+      const def = statusDef(effect.kind);
+      if (!def) {
+        game.log('state', `${tp.name} 获得效果：${effect.kind}`);
+        continue;
+      }
+      game.addStatus(tp.id, {
+        kind: effect.kind,
+        ...(typeof effect.severity === 'number' ? { severity: effect.severity } : {}),
+        remainingRounds: typeof effect.remainingRounds === 'number' ? effect.remainingRounds : null,
+        ...(req.source ? { source: req.source } : {}),
+      });
+    }
   }
 
-  // 6. 淘汰判定
+  // 6. 淘汰判定：角色可拦截（倒地/复活），否则正常淘汰
   if (tp.hp <= 0) {
     applied.lethal = true;
-    // ignoreLives：秒杀类精神攻击无视命数（不触发五条悟式「消耗一条命复活」）
-    game.eliminate(tp.id, req.tag || 'damage', req.source, { ignoreLives: req.ignoreLives });
+    const cause = req.tag || 'damage';
+    const verdict = game.charDef(tp.id).onLethalDamage?.({ game, player: tp.id, req, cause });
+    if (verdict !== 'prevent') {
+      // ignoreLives：秒杀类精神攻击无视命数（不触发五条悟式「消耗一条命复活」）
+      game.eliminate(tp.id, cause, req.source, { ignoreLives: req.ignoreLives });
+    }
   }
   return applied;
 }

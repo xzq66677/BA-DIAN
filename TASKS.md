@@ -757,3 +757,83 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | T-61.4 | 角色特化修正 | DONE | `ai-strategies.ts`：`firstInRoom` 去掉难度门槛（硬核伍六七/大剑客可直接打躲藏者）；五条悟普通难度先过滤可见成员，不再盲打躲藏者 |
 | T-61.5 | 测试与验收 | DONE | `tests/pace.test.ts` +6（座位策略/覆盖/原型键/队列 pace 状态）；`tests/integration/ai-difficulty.test.ts` +10（三档 seek 首选/候选链/真实落地/规则关闭/隐身/异房间/淘汰/角色豁免/伍六七 AOE/五条悟）；e2e 混合局 `data-pace=slow` 断言 |
 | T-61.6 | 文档 | DONE | AGENTS.md「演出节奏与 AI 策略扩展点」、README 测试摘要、TASKS.md 登记 |
+
+## 二十八轮 · 新角色：佝偻弓箭手（Issue #71，2026-11-26）
+
+认领：Issue #71（4 位新角色）已指派给 wkdjdjskaksj、标签 status: in-progress；本轮只实现「佝偻弓箭手」，其余三位按用户后续指令处理。按要求**只在本地提交，不推送 GitHub**。
+
+| 编号 | 任务 | 说明 |
+|---|---|---|
+| T-2600 | 状态系统基础设施 | 新增 `shared/src/statuses.ts` 注册表（tick/actions/cleanup）与 `PlayerState.effects` 权威状态；引擎 `addStatus/removeStatus/getStatus/hasStatus/tickStatuses`、回合末统一结算（含平局回合）、死亡清理；快照只投影 `PublicStatusEffect`（kind/severity/remainingRounds/stacks/source）。 |
+| T-2601 | 附加行动框架 | `Game.extraActionsFor` 聚合「状态提供的行动 + 在场角色为他人提供的行动」，`submitAction` 统一校验/执行，快照 `extraActions` 下发当前行动者；客户端行动坞直接渲染（服务端权威），UI 不写死角色名。 |
+| T-2602 | 角色扩展点 | `CharDef` 新增 `traits / attackEffects / onLethalDamage / onRoundStart / skipsAction / onAttackLanded / extraActionsForOthers`；引擎在伤害结算、队列推进、回合开始、普攻命中处调用。 |
+| T-2603 | 佝偻弓箭手本体 | 血 3 远程 1；普攻点燃（燃烧 0.5/回合、无限、平局计入、点燃/扑灭当回合不结算）；骷髅身躯（非精神/非燃烧致死→倒地1回合、仍参与猜拳、不可行动、下一回合半血复原；燃烧致死永久死亡；精神致死正常死亡）；同房间燃烧者引燃骷髅；同房间敌人取箭2次+燃烧箭近战（1伤+点燃），取箭被其攻击中断。 |
+| T-2604 | 客户端 | 状态读取器新增「燃烧」（`status-readers.ts`，2D/3D 通用）；行动坞渲染 `extraActions`；`cards.ts` 占位卡面与文案；`palette.ts/rig.ts` 骨弓道具与配色。 |
+| T-2605 | 测试 | `tests/character-hunchback.test.ts` 13 例（点燃/结算/扑灭/引燃/取箭/中断/倒地复原/精神与燃烧致死/快照公开字段）；共享用例 TC-C098~C100；状态读取器 +2 例。`npm test` **45 文件 / 697 用例全过**，双端 `tsc` 0 错误，`npm run build` 通过。 |
+| T-2606 | 文档 | `docs/characters/hunchback-archer.md` 新增；GAME_RULES（角色条目 + A-20/A-21/A-22 假设）、README（角色表 / 3D 说明 / 测试数 697）、CHANGELOG 同步。 |
+| T-2607 | 交付边界 | 本地分支 + 本地提交，**未推送、未开 PR**；等待用户下一步指令（其余三位角色 / 后续调整）。 |
+### 用户反馈调整（2026-11-26 同日，本地）
+
+| 编号 | 调整 | 说明 |
+|---|---|---|
+| T-2608 | 倒地时长改为「完整缺席 1 回合」 | 倒地当回合之后的那个回合整回合不能行动（仍参与猜拳、平局计入），再下一回合开始时以生命上限一半复原；角色测试与共享用例 TC-C099 同步 |
+| T-2609 | 远程攻击可打同房间目标 | `CharDef.rangedSameRoom`；`base-actions` 放开同房间远程校验；客户端目标列表与 `ranged: true` 标记同步；AI 策略纳入同房间目标 |
+| T-2610 | 燃烧箭攻击一次后失效 | 攻击后 `pendingArrow` 清空，需重新取箭；测试覆盖「第二次使用被拒绝 + 只提供取箭」 |
+| T-2611 | 骷髅无法主动「回复」回满血 | `CharDef.blockBaseActions = ['heal']`；引擎拒绝该行动、客户端隐藏「回复」；测试与共享用例 TC-C101 覆盖 |
+| T-2612 | 验收 | `npm test` 45 文件 / 697 用例全过；双端 `tsc` 0 错误；`npm run build` 通过；仍为本地分支，未推送 GitHub |
+## 二十九轮 · 新角色：鬼影（Issue #71，2026-11-26）
+
+| 编号 | 任务 | 说明 |
+|---|---|---|
+| T-2900 | 鬼影本体 | 血 2 / 攻 1.5；单次受伤上限 0.5（`onBeforeDamage` 压缩并清除秒杀）；无法主动回复（`blockBaseActions: ['heal']`）。 |
+| T-2901 | 附身机制 | `possess` 行动：无视距离移动 + 附身（不可锁定躲藏/隐身）；宿主获得 `possessed`、鬼影获得 `possessing`；附身期间鬼影 `invisible`。 |
+| T-2902 | 附身伤害与回血 | `possessed` 每回合末 1 伤（含平局回合，附身/驱赶当回合不结算），伤害等量 `heal` 给鬼影（上限截断）。 |
+| T-2903 | 胜利额外行动 | 赢下判定后可用一次行动「折磨宿主」（+1 伤、等量回血）或「操控宿主」（用宿主攻击力攻击其同房间目标）。 |
+| T-2904 | 解除附身 | 宿主可花一次行动「驱逐鬼影」；宿主死亡/鬼影死亡自动解除并现形；两个状态互解清理防递归。 |
+| T-2905 | AI / 客户端 | `aiStrategy`（未附身优先附身、已附身折磨）+ `ai.ts` 自动追加无目标附加行动；`status-readers` 新增被附身/附身中；`cards/palette/rig` 鬼影占位卡与幽光道具；修正客户端近战目标未过滤隐身。 |
+| T-2906 | 测试 | `tests/character-ghost.test.ts` 10 例；共享用例 TC-C102~C104；状态读取器鬼影用例。`npm test` **46 文件 / 714 用例全过**，双端 `tsc` 0 错误，`npm run build` 通过。 |
+| T-2907 | 文档 | `docs/characters/ghost.md`；GAME_RULES 角色条目 + A-23/A-24；README 角色表/3D 说明/测试数；CHANGELOG 同步。 |
+| T-2908 | 交付边界 | 本地分支 + 本地提交，**未推送、未开 PR**；等待用户下一步指令（狂猎 / 飞天水螅 / 调整）。 |
+### 用户反馈调整（2026-11-26 同日）
+
+| 编号 | 调整 | 说明 |
+|---|---|---|
+| T-2909 | 受伤上限口径 | 普通伤害（物理/特殊，含大伊万 999999、AOE）仍压到 0.5；**秒杀类精神攻击无视上限**（`dtype: 'mental'` + `instakill`：大屁孩暴走/大贱客辱骂/不讲武德直接淘汰）。角色测试与共享用例 TC-C102 同步，文档 A-23 已更新。 |
+## 三十轮 · 新角色：狂猎（Issue #71，2026-11-26）
+
+| 编号 | 任务 | 说明 |
+|---|---|---|
+| T-3000 | 狂猎本体 | 血 4 / 攻 1；受击猜拳判定（`rollJudgeThrows` 循环重掷，平局直到分出胜负）：赢 → `skip` 抵消伤害并反击（未骑乘 1 伤 + 上马 1 回合；已骑乘 6 伤 + 下马），输 → 正常承伤。 |
+| T-3001 | 通用扩展 | `DamageRequest.isAttack`（普攻/燃烧箭/操控攻击标记）；`CharDef.onKill` 击杀钩子；`mounted` 状态（remainingRounds 引擎递减、cleanup 自动下马）。 |
+| T-3002 | 骑乘战斗 | `onAttackAction` 接管攻击：骑乘时跨房间突进 + 位移、伤害×2；骑乘最后一回合 6 伤单体；未骑乘限制同房间近战。 |
+| T-3003 | 主动上马 / 成长 | `mount` 行动消耗一次行动上马 2 回合；`onKill` 击杀后攻击 ×1.5 且可叠加（与骑乘 ×2 相乘，爆发回合固定 6 伤）。 |
+| T-3004 | AI / 客户端 | `aiStrategy` 未骑乘先上马、骑乘后追杀最低血可见目标；`status-readers` 新增「骑乘中」；`cards` 占位卡；`palette/rig` 长枪骑旗；骑乘时攻击目标可选任意房间。 |
+| T-3005 | 测试 | `tests/character-wild-hunt.test.ts` 10 例（胜负/平局重掷/骑乘反击 6 伤/突进/爆发/未骑乘限制/击杀成长/快照）；共享用例 TC-C105~C106；`npm test` **47 文件 / 727 用例全过**，双端 `tsc` 0 错误，`npm run build` 通过。 |
+| T-3006 | 文档 | `docs/characters/wild-hunt.md`；GAME_RULES 角色条目 + A-25/A-26；README 角色表/3D 说明/测试数；CHANGELOG 同步。 |
+| T-3007 | 交付边界 | 本地分支 + 本地提交，**未推送、未开 PR**；等待用户下一步指令（飞天水螅 / 调整）。 |
+### 用户反馈调整（2026-11-26 同日）
+
+| 编号 | 调整 | 说明 |
+|---|---|---|
+| T-3008 | 受击判定改为双方亲自出拳 | 默认 player 模式进入 `judge` 阶段；`SkillJudgeOptions.rerollTie` 支持「平局再来一把」（不推进局数）直到分出胜负；`serverRoll` 保留即时结算供 AI/测试场使用。新增 3 个 player 模式用例（胜/平局重来/负）。 |
+| T-3009 | 最后一回合 6 伤叠加击杀加成 | 爆发回合伤害改为 `6 × 1.5^击杀数`（1 杀 → 9 伤），与普通/骑乘口径一致；新增用例覆盖。 |
+## 三十一轮 · 新角色：飞天水螅（Issue #71，2026-11-26）
+
+| 编号 | 任务 | 说明 |
+|---|---|---|
+| T-3100 | 飞天水螅本体 | 血 3 / 攻 1.5；造玄武岩高塔（2 次行动）；塔内外隔绝并算作新房间（`inTower` 标记 + `roomMembers`/`isSameRoom` 隔离 + 跨塔攻击拒绝）。 |
+| T-3101 | 塔内压制 | 新增 `CharDef.onBeforeAction`：敌人与飞天水螅同处塔内时行动前判定——胜=正常、平=本次行动无效、负=自伤（均消耗行动，`consumeSuppressedAction`）。 |
+| T-3102 | 吸/吹 | 各消耗一次行动、单体、只移动一格：吸=其他房间→自己房间 / 自己房间→塔内；吹=塔内→自己房间 / 自己房间→其他房间（优先初始房间）；不可锁定躲藏/隐身。 |
+| T-3103 | 亡魂 | 首次致死 hp0 但不死、不可被攻击、仍参与猜拳与行动队列；`validateAction` 限制只能吸/吹/跳过；仍计入存活可获胜。 |
+| T-3104 | 客户端 / AI | 状态读取器新增高塔/造塔中/塔内/亡魂；攻击目标列表按塔内外过滤；`cards` 占位卡；`palette/rig` 触手道具；`aiStrategy` 先造塔再吸/吹。 |
+| T-3105 | 测试 | `tests/character-water-snake.test.ts` 9 例（造塔/隔绝/压制胜平负/吸吹/离塔/亡魂）；共享用例 TC-C107~C109；状态读取器用例。`npm test` **48 文件 / 744 用例全过**，双端 `tsc` 0 错误，`npm run build` 通过。 |
+| T-3106 | 文档 | `docs/characters/water-snake.md`；GAME_RULES 角色条目 + A-27/A-28/A-29；README 角色表/3D 说明/测试数；CHANGELOG 同步。 |
+| T-3107 | 交付边界 | 已推送 GitHub 并创建 PR（`Closes #71`，PR 链接见 Issue #71 评论）；Issue #71 四位角色（鬼影/狂猎/佝偻弓箭手/飞天水螅）全部完成。 |
+### 用户反馈调整（2026-11-26 同日）
+
+| 编号 | 调整 | 说明 |
+|---|---|---|
+| T-3110 | 高塔可被攻击/坍塌 | 同房间玩家（塔内或塔外）获得环境行动「攻击高塔」（伤害=自身攻击力）；	owerHp 归零调用 collapseTower：弹出塔内玩家、清空塔状态、允许重建。 |
+| T-3111 | 吸/吹多目标 | ActionRequest.targetIds + CharActionDef.multiTarget；客户端行动坞支持多选目标（点击切换、已选人数提示）；吸/吹校验/执行按多目标逐个处理。 |
+| T-3112 | 塔内压制双方亲自出拳 | CharDef.onBeforeAction 返回 { judge, onResult } 时引擎挂起本次行动（pendingPreAction）并进入 judge；判定后 completePreAction 按结果正常执行/无效/自伤；平局不重掷；AI/测试场保留 serverRoll。 |
+| T-3113 | 验证 | 角色测试扩到 16 例（造塔/隔绝/压制即时与亲自出拳/吸吹单多目标/攻击高塔坍塌/亡魂）；共享用例 TC-C107~C111；`npm test` **48 文件 / 761 用例全过**，双端 `tsc` 0 错误，`npm run build` 通过；已推送并创建 PR。 |
