@@ -16,6 +16,7 @@
  */
 
 import { parseBattleEvent, type BattleEvent, type LogLike } from './events.js';
+import { actionPresentationDuration, isMajorActionPresentation } from './action-presentation.js';
 
 export type Speed = 1 | 2 | 4;
 /** normal：按事件语义节奏播放；fast：拥堵压缩（跳过低重要度） */
@@ -219,6 +220,12 @@ export function eventMs(e: BattleEvent, mode: QueueMode, speed: Speed, reduced: 
     return reduced ? pace.fastReducedMs : isMajorEvent(e) ? pace.fastMajorMs : pace.fastMs;
   }
   let base = pace.base[e.kind] ?? Math.round(300 * (pace.base.action / BASE_CURRENT.action));
+  if (e.kind === 'action') {
+    const presentationMs = actionPresentationDuration(e.fx);
+    if (presentationMs !== undefined) {
+      base = Math.round(presentationMs * (pace.base.action / BASE_CURRENT.action));
+    }
+  }
   // 多段伤害段间紧凑（总时长仍覆盖斩击动画）
   if (e.kind === 'damage' && e.segment && e.segment.total > 1) base = pace.damageSegmentMs;
   // 致命伤害衔接淘汰演出，停留更久
@@ -254,6 +261,7 @@ function droppableInFast(e: BattleEvent): boolean {
 function isMajorEvent(e: BattleEvent): boolean {
   return e.kind === 'eliminate' || e.kind === 'revive' || e.kind === 'domain'
     || e.kind === 'ivanThrow' || e.kind === 'ivanBoom' || e.kind === 'fortune'
+    || (e.kind === 'action' && isMajorActionPresentation(e.fx))
     || (e.kind === 'damage' && !!e.lethal);
 }
 

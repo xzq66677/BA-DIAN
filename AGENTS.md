@@ -68,6 +68,8 @@ MAP 链：`feat/map101-stone-refinement`、`feat/map102-labels-danger`、
 
 新增功能必须保留后续接入能力，不能把当前角色、状态、地图、道具或规则枚举写死：优先使用共享类型、数据配置、注册表、策略或适配器扩展；公共引擎与 UI 主流程不得堆叠具体业务名称分支。新增内容应能以最小改动注册/配置后生效，并补充对应扩展点测试；未知或旧版本数据必须安全降级，不得导致对局或页面崩溃。
 
+老虎机侠资产、手动拉杆与从天而降特效的复用流程见 [docs/SLOT_MACHINE_WORKFLOW.md](docs/SLOT_MACHINE_WORKFLOW.md)。Issue #72 的玩法归 MMR12345，视觉协作者不得抢认领或覆盖规则实现。
+
 ## 演出节奏与 AI 策略扩展点
 
 - `client/src/battle/pace-policy.ts`：演出档位由座位组成策略计算（真人/本机 + AI 混合局默认慢速），`resolvePresentationPace(seats, search)` 是唯一入口。新增座位类型或节奏策略在此扩展，不要在页面组件里写死档位；显式 `?pace=` 保留调试覆盖；`QueueState.pace` 对外可观测（`.battlefield` 的 `data-pace`）。

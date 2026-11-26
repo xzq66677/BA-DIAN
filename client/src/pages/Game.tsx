@@ -16,6 +16,9 @@ import {
 } from '../battle/useBattlePresentation.js';
 import { useCardRoomFlip } from '../battle/flip.js';
 import { resolvePresentationPace } from '../battle/pace-policy.js';
+import { resolveActionPresentation } from '../battle/action-presentation.js';
+import { FxOverlayHost, fxOverlayView, type FxOverlayView } from '../battle/fx-overlays.js';
+import '../battle/slot-machine-overlay.js';
 import { PlayerStatusList, PlayerStatusModal } from '../battle/player-status.js';
 import { formatHp as fmtHp } from '../battle/status-types.js';
 import { sfx } from '../audio/sfx.js';
@@ -40,6 +43,8 @@ interface ActionOption {
   typeLabel: string;
   targetHint?: string;
   roomHint?: boolean;
+  presentationFx?: string;
+  manual?: boolean;
   /** 本局已消耗的技能（如今日勇者运势全局一次）：卡面灰化不可再点 */
   used?: boolean;
 }
@@ -104,6 +109,9 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   const [selRoom, setSelRoom] = useState('');
   const [actMsg, setActMsg] = useState('');
   const [berserkMsg, setBerserkMsg] = useState('');
+  const [manualCue, setManualCue] = useState<FxOverlayView | null>(null);
+  const [manualAction, setManualAction] = useState<ActionRequest | null>(null);
+  const [manualBusy, setManualBusy] = useState(false);
 
   // 战绩面板 / 回放
   const [statsOpen, setStatsOpen] = useState(false);
@@ -240,6 +248,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     for (const a of cd.actions || []) {
       // 今日勇者「抽取今日运势」全局仅一次：已用则卡面灰化（快照 char.fortuneUsed 为权威状态）
       const used = a.name === 'rollFortune' && actor.char.fortuneUsed === true;
+      const presentation = resolveActionPresentation(a.name);
       list.push({
         key: a.name, label: a.label,
         desc: used ? `${a.desc}（本局已使用）` : a.desc,
@@ -247,6 +256,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         // 'none' 表示自身技能（领域展开 / 抽取今日运势 / 强化攻击等）：不选目标、不设房间，直接确认发动
         targetHint: a.targetHint && a.targetHint !== 'none' ? a.targetHint : undefined,
         roomHint: a.roomHint,
+        presentationFx: presentation?.fx,
+        manual: presentation?.mode === 'manual',
         used,
       });
     }
@@ -284,30 +295,87 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   useEffect(() => { if (!selAction?.targetHint) setSelTarget(''); }, [selAction]);
 
   function resetSelection() {
+    setManualCue(null);
+    setManualAction(null);
+    setManualBusy(false);
     setSelAction(null);
     setSelTarget('');
     setActMsg('');
   }
 
-  async function confirmAction() {
-    if (!selAction || !myTurnId) return;
+  useEffect(() => {
+    setManualCue(null);
+    setManualAction(null);
+    setManualBusy(false);
+  }, [lobby.gameNo, game.phase, myTurnId?.playerId]);
+
+  function prepareAction(): ActionRequest | null {
+    if (!selAction || !myTurnId) return null;
     setActMsg('');
     const action: ActionRequest = { type: selAction.key };
     const needTarget = !!selAction.targetHint;
     const needRoom = !!selAction.roomHint || selAction.key === 'move';
     if (needTarget) {
-      if (!selTarget) { setActMsg('请先选择目标'); return; }
+      if (!selTarget) { setActMsg('请先选择目标'); return null; }
       action.targetId = selTarget;
     }
     if (needRoom) {
-      if (!selRoom) { setActMsg('请先点击战场中发绿光的房间'); return; }
-      if (selRoom === blockedRoom) { setActMsg(`${selRoom} 泥潭封路，请选择其他房间`); return; }
+      if (!selRoom) { setActMsg('请先点击战场中发绿光的房间'); return null; }
+      if (selRoom === blockedRoom) { setActMsg(`${selRoom} 泥潭封路，请选择其他房间`); return null; }
       action.room = selRoom;
     }
     if (selAction.key === 'attack' && validTargets.find((t) => t.id === selTarget)?.room !== actor?.room) action.ranged = true;
+    return action;
+  }
+
+  async function submitPreparedAction(action: ActionRequest): Promise<void> {
+    if (!myTurnId) return;
     const r = await net.submitAction(lobby.code, myTurnId.playerId, myTurnId.token, action) as { ok: boolean; error?: string };
-    if (!r.ok) { setActMsg(r.error || '行动失败'); return; }
+    if (!r.ok) {
+      setActMsg(r.error || '行动失败');
+      setManualCue(null);
+      setManualAction(null);
+      return;
+    }
     resetSelection();
+  }
+
+  function confirmAction() {
+    if (!selAction || !myTurnId || manualBusy) return;
+    const action = prepareAction();
+    if (!action) return;
+    const presentation = resolveActionPresentation(selAction.key);
+    if (presentation?.mode === 'manual') {
+      setManualAction(action);
+      setManualCue({
+        key: -1,
+        kind: presentation.fx,
+        pid: myTurnId.playerId,
+        targetId: action.targetId,
+        room: action.room,
+        playerName: myTurnId.name,
+        durationMs: presentation.durationMs,
+      });
+      return;
+    }
+    void submitPreparedAction(action);
+  }
+
+  async function completeManualPull(): Promise<void> {
+    if (!manualAction || manualBusy) return;
+    setManualBusy(true);
+    try {
+      await submitPreparedAction(manualAction);
+    } finally {
+      setManualBusy(false);
+    }
+  }
+
+  function cancelManualPull(): void {
+    if (manualBusy) return;
+    setManualCue(null);
+    setManualAction(null);
+    setActMsg('');
   }
 
   function phaseText(): string {
@@ -423,6 +491,10 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     onPickRoom: (rid) => setSelRoom(rid),
   });
   const use3d = rendererMode === '3d' && webglOk && !battle3d.failed;
+  const presentationOverlays = Object.values(pres.fx).map((view) => fxOverlayView(
+    view,
+    game.players.find((player) => player.id === view.pid)?.name,
+  ));
   useEffect(() => {
     if (!finaleReady || !use3d || reducedMotion || !automaticCamera) return;
     const t = window.setTimeout(() => setFinaleCanvasDone(true), 760);
@@ -581,6 +653,22 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         <section className={`battlefield ${use3d ? 'bt3d-stage' : 'bt-table'} anim-in ${game.phase === 'over' ? 'is-over' : ''}`} data-pace={queueState.pace}>
           {/* 全局播报：所有公开动作的战场中央横幅（服务端权威，带时间戳与停留时长） */}
           {pres.globalAnnounce && <GlobalAnnounceBanner item={pres.globalAnnounce} />}
+          <FxOverlayHost
+            views={presentationOverlays}
+            mode={use3d ? '3d' : '2d'}
+            interactive={false}
+            reducedMotion={reducedMotion}
+          />
+          {manualCue && (
+            <FxOverlayHost
+              views={[manualCue]}
+              mode={use3d ? '3d' : '2d'}
+              interactive
+              reducedMotion={reducedMotion}
+              onPull={() => { void completeManualPull(); }}
+              onCancel={cancelManualPull}
+            />
+          )}
           {(queueState.playing || queueState.depth > 0 || finaleWaiting || finaleCameraPending) && (
             <div className="battle-ctl" data-testid="battle-ctl" data-queue-depth={String(queueState.depth)} data-queue-playing={queueState.playing ? '1' : '0'}>
               <span className="bc-depth">🎬 {queueState.depth}</span>
@@ -864,14 +952,14 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                         key={o.key}
                         className={`scard ${selAction?.key === o.key ? 'selected' : ''} ${o.used ? 'is-used' : ''}`}
                         disabled={o.used}
-                        onClick={() => { setSelAction(o); setActMsg(''); }}
+                        onClick={() => { setManualCue(null); setManualAction(null); setSelAction(o); setActMsg(''); }}
                       >
                         <div className="scard-head">
                           <span className="scard-name">{o.label}</span>
                           <span className="scard-type">{o.typeLabel}</span>
                         </div>
                         <div className="scard-desc">{o.desc.length > 44 ? o.desc.slice(0, 44) + '…' : o.desc}</div>
-                        <div className="scard-need">{o.used ? '🚫 本局已使用' : o.targetHint ? '🎯 需选择目标' : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
+                        <div className="scard-need">{o.used ? '🚫 本局已使用' : o.manual ? '🎰 手动拉杆' : o.targetHint ? '🎯 需选择目标' : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
                       </button>
                     ))}
                   </div>
@@ -928,7 +1016,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                         );
                       })()}
                       {blockedRoom && <span className="ruins-mud-chip" data-active="true">{blockedRoom} 泥潭封路，下回合恢复</span>}
-                      <button className="tcg-btn" disabled={(!!selAction.targetHint && !selTarget) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom))} onClick={confirmAction}>确认发动</button>
+                      <button className="tcg-btn" disabled={(!!selAction.targetHint && !selTarget) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom))} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
                       <button className="tcg-btn ghost" onClick={resetSelection}>取消</button>
                       {actMsg && <span className="error-text">{actMsg}</span>}
                     </div>

@@ -6,6 +6,7 @@ import { recordContextLost, markSessionDegraded, isSessionDegraded, clearSession
 import type { BattlePresentationApi } from '../battle/useBattlePresentation.js';
 import type { BattleEvent } from '../battle/events.js';
 import type { GameSnapshot } from '../net.js';
+import './slot-drop-presenter.js';
 
 export { clearSessionDegraded };
 
