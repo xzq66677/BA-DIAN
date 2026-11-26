@@ -1259,17 +1259,36 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C099', name: '佝偻弓箭手：非精神致死倒地，下一回合半血复原', category: 'character', charId: 'hunchback-archer', seed: 302,
-    desc: '物理致死不会死亡：倒地期间仍参与猜拳，下一回合开始以生命上限一半复原',
+    id: 'TC-C099', name: '佝偻弓箭手：非精神致死倒地，完整缺席 1 回合后复原', category: 'character', charId: 'hunchback-archer', seed: 302,
+    desc: '物理致死不会死亡：倒地当回合之后的完整一回合缺席行动（仍参与猜拳），再下一回合开始以生命上限一半复原',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, 'B'], 302);
       g.players.A.hp = 1;
       g.applyDamage({ target: 'A', amount: 5, source: 'B', dtype: 'physical', tag: 'attack' });
       const downed = isAlive(g, 'A') && g.charState('A').downed === true && hpOf(g, 'A') === 0;
-      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 倒地仍参与猜拳（平局回合）
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 第 1 回合结束 → 第 2 回合仍完整缺席
+      const absent = g.charState('A').downed === true && g.roundNo === 2;
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 第 2 回合结束 → 第 3 回合开始复原
       const revived = g.charState('A').downed !== true && hpOf(g, 'A') === g.players.A.maxHp / 2;
-      return check(downed && revived, '倒地不死并在下一回合半血复原',
-        `downed=${downed}, revived=${revived}, hp=${hpOf(g, 'A')}`, g);
+      return check(downed && absent && revived, '倒地后完整缺席 1 回合，再下一回合半血复原',
+        `downed=${downed}, absent=${absent}, revived=${revived}, hp=${hpOf(g, 'A')}, round=${g.roundNo}`, g);
+    }),
+  },
+  {
+    id: 'TC-C101', name: '佝偻弓箭手：可射击同房间目标，且无法主动回复', category: 'character', charId: 'hunchback-archer', seed: 304,
+    desc: '远程攻击允许同房间目标（1 伤 + 点燃）；基础「回复」被禁用',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, 'B'], 304);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      g.players.A.hp = 1;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const heal = g.submitAction('A', { type: 'heal' });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const shot = g.submitAction('A', { type: 'attack', targetId: 'B', ranged: true });
+      const ok = !heal.ok && shot.ok && hpOf(g, 'B') === 1 && g.getStatus('B', 'burning') !== undefined;
+      return check(ok, '同房间可远程射击；回复被拒绝',
+        `heal=${heal.ok}/${heal.error}, shot=${shot.ok}, hpB=${hpOf(g, 'B')}`, g);
     }),
   },
   {

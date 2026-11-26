@@ -172,6 +172,10 @@ export interface CharDef {
   rangedCapable?: boolean;
   /** 远程攻击是否需要先瞄准（opt-in；默认 false，即免瞄准） */
   rangedNeedsAim?: boolean;
+  /** 远程攻击可以打**同房间**目标（默认远程只能异房间，近战只能同房间） */
+  rangedSameRoom?: boolean;
+  /** 禁止使用的基础行动（如骷髅无法主动「回复」回满血） */
+  blockBaseActions?: string[];
   /** 领域生效后远程免瞄准（五条悟） */
   aimExemptWhenDomain?: boolean;
   /** 是否允许攻击自己（默认否） */

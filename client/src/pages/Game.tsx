@@ -270,7 +270,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         roomHint: a.roomHint,
       });
     }
-    return list;
+    // 角色禁用的基础行动（如骷髅无法主动回复）
+    return list.filter((o) => !cd.blockBaseActions?.includes(o.key));
   }, [game, actor]);
 
   // 选中行动的合法目标（客户端提示；服务器重新校验）
@@ -288,7 +289,15 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         if (cd.attackAllRooms) {
           return meleeOk ? others.filter((p) => !p.hidden || cd.ignoreHide) : [];
         }
-        const sameRoom = meleeOk ? others.filter((p) => p.room === actor.room && (!p.hidden || cd.ignoreHide)) : [];
+        const sameRoomMelee = meleeOk ? others.filter((p) => p.room === actor.room && (!p.hidden || cd.ignoreHide)) : [];
+        // 允许远程打同房间的角色（如佝偻弓箭手近距离放箭）
+        const sameRoomRanged = rangedOk && cd.rangedSameRoom
+          ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible)
+          : [];
+        const sameRoom = [
+          ...sameRoomMelee,
+          ...sameRoomRanged.filter((p) => !sameRoomMelee.some((m) => m.id === p.id)),
+        ];
         const otherRoom = rangedOk ? others.filter((p) => p.room !== actor.room && !p.hidden) : [];
         return [...sameRoom, ...otherRoom];
       }
@@ -333,7 +342,12 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
       if (selRoom === blockedRoom) { setActMsg(`${selRoom} 泥潭封路，请选择其他房间`); return null; }
       action.room = selRoom;
     }
-    if (selAction.key === 'attack' && validTargets.find((t) => t.id === selTarget)?.room !== actor?.room) action.ranged = true;
+    if (selAction.key === 'attack') {
+      const cd = actor ? (CHARACTERS[actor.charId] || CHARACTERS['default']) : undefined;
+      const targetRoom = validTargets.find((t) => t.id === selTarget)?.room;
+      // 异房间远程，或角色支持「远程打同房间」（如佝偻弓箭手）
+      if (targetRoom !== actor?.room || (cd?.rangedSameRoom && cd.rangedCapable)) action.ranged = true;
+    }
     return action;
   }
 

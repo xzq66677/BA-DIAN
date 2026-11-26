@@ -91,7 +91,7 @@ describe('燃烧：点燃 / 每回合 0.5 / 扑灭', () => {
 });
 
 describe('骷髅身躯：倒地与复原', () => {
-  it('非精神/非燃烧致死 → 倒地不死，仍参与猜拳，下一回合以半血复原', () => {
+  it('非精神/非燃烧致死 → 不死亡；完整缺席 1 回合后以半血复原', () => {
     const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, { id: 'B' }]);
     g.players.A.hp = 1;
     // 伤害发生在出拳阶段（等价于回合前触发/延迟伤害）：倒地后仍可出拳
@@ -100,9 +100,15 @@ describe('骷髅身躯：倒地与复原', () => {
     expect(g.players.A.hp).toBe(0);
     expect(g.charState('A').downed).toBe(true);
 
-    // 倒地状态下继续参与猜拳（平局回合同样计入）
+    // 第 1 回合结束 → 进入第 2 回合：完整缺席本回合（仍参与猜拳，但不能行动）
     throws(g, { A: 'rock', B: 'rock' });
     expect(g.roundNo).toBe(2);
+    expect(g.charState('A').downed).toBe(true);
+    expect(g.players.A.hp).toBe(0);
+
+    // 第 2 回合（平局）继续参与猜拳 → 第 3 回合开始复原为半血
+    throws(g, { A: 'rock', B: 'rock' });
+    expect(g.roundNo).toBe(3);
     expect(g.charState('A').downed).toBe(false);
     expect(g.players.A.hp).toBe(1.5); // 生命上限 3 的一半
   });
@@ -119,6 +125,19 @@ describe('骷髅身躯：倒地与复原', () => {
     const r = g.submitAction('A', { type: 'skip' });
     expect(r.ok).toBe(false);
     expect(String(r.error)).toContain('无法行动');
+  });
+
+  it('骷髅无法主动「回复」回满血', () => {
+    const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, { id: 'B' }]);
+    g.players.A.hp = 1;
+    throws(g, { A: 'rock', B: 'scissors' }); // A 获得行动资格
+    expect(g.phase).toBe('act');
+    const snap = g.snapshot() as unknown as { extraActions?: unknown[] };
+    const r = g.submitAction('A', { type: 'heal' });
+    expect(r.ok).toBe(false);
+    expect(String(r.error)).toContain('无法使用该行动');
+    expect(g.players.A.hp).toBe(1); // 未回血
+    expect(snap.extraActions).toBeDefined();
   });
 
   it('精神攻击致死 → 正常死亡（不倒地）', () => {
@@ -166,7 +185,18 @@ describe('同房间反制：引燃骷髅 / 取燃烧箭', () => {
     expect(g.players.A.hp).toBe(3);
   });
 
-  it('取箭 2 次行动 → 燃烧箭近战（1 伤 + 点燃），并消耗箭', () => {
+  it('远程攻击可以打同房间目标（近距离放箭）', () => {
+    const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, { id: 'B' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    throws(g, { A: 'rock', B: 'scissors' }); // A 获得行动资格
+    const r = g.submitAction('A', { type: 'attack', targetId: 'B', ranged: true });
+    expect(r.ok).toBe(true);
+    expect(g.players.B.hp).toBe(1); // 默认角色 2 血 - 1
+    expect(g.getStatus('B', 'burning')).toBeTruthy();
+  });
+
+  it('取箭 2 次行动 → 燃烧箭近战（1 伤 + 点燃），攻击一次后箭失效', () => {
     const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, { id: 'B' }]);
     g.players.A.room = 'R1';
     g.players.B.room = 'R1';
@@ -192,6 +222,14 @@ describe('同房间反制：引燃骷髅 / 取燃烧箭', () => {
     expect(g.players.A.hp).toBe(before - 1);
     expect(g.players.A.effects?.[0]).toMatchObject({ kind: 'burning' });
     expect(g.charState('B').pendingArrow).toBeNull();
+
+    // 箭在攻击一次后失效：下一回合不能再射，只能重新取箭
+    throws(g, { B: 'rock', A: 'scissors' });
+    const again = g.submitAction('B', { type: 'fireArrow', targetId: 'A' });
+    expect(again.ok).toBe(false);
+    const snap4 = g.snapshot() as unknown as { extraActions: { key: string }[] };
+    expect(snap4.extraActions.map((a) => a.key)).toContain('takeArrow');
+    expect(snap4.extraActions.map((a) => a.key)).not.toContain('fireArrow');
   });
 
   it('取箭期间被弓箭手攻击 → 进度清零（中断）', () => {

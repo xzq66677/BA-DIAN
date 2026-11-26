@@ -1221,6 +1221,10 @@ export class Game implements GameLike {
   }
 
   private executeAction(pid: PlayerId, req: ActionRequest): ActionResult {
+    // 角色禁用的基础行动（如骷髅无法主动「回复」回满血）
+    if (this.charDef(pid).blockBaseActions?.includes(req.type)) {
+      return { ok: false, error: `${this.players[pid].name} 无法使用该行动` };
+    }
     const base = BASE_ACTIONS.get(req.type);
     if (base) return base.execute(this, pid, req, this.map);
     const mapAction = this.map.actions?.get(req.type);

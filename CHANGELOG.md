@@ -347,8 +347,14 @@ D
 - **角色扩展点**：`CharDef` 新增 `traits / attackEffects / onLethalDamage / onRoundStart / skipsAction / onAttackLanded / extraActionsForOthers`，后续角色可复用，引擎不写角色名分支。
 - 3D：`palette.ts` 新增骨灰绿/骨白配色与 `bow` 道具（`rig.ts` 程序化骨弓）；未做专属 rig，按既有「新增角色不需要等 3D」规则回退 legacy Humanoid。
 
+### 变更（2026-11-26 用户反馈调整）
+- **倒地时长**：由「倒地当回合剩余时间」改为**完整缺席 1 回合**——倒地当回合之后的那个回合整回合不能行动（仍参与猜拳、平局计入），**再下一回合开始**以生命上限一半复原。
+- **远程攻击可打同房间目标**（`CharDef.rangedSameRoom`）：佝偻弓箭手可在同房间近距离放箭（仍造成 1 伤 + 点燃）。
+- **燃烧箭一次失效**：取出的箭只够攻击一次，用过即失效（需重新取箭）。
+- **无法主动回血**：骷髅不能使用基础行动「回复」（新增 `CharDef.blockBaseActions`，引擎拒绝 + 客户端隐藏该行动），只能靠倒地复原机制回血。
+
 ### 测试
-- **697 用例 / 45 文件全过**：新增 `tests/character-hunchback.test.ts`（13 例）、共享用例 TC-C098~C100（机制测试场同源）、状态读取器 +2 例（燃烧展示、淘汰清理与未知状态安全降级）。
+- **697 用例 / 45 文件全过**：新增 `tests/character-hunchback.test.ts`（15 例）、共享用例 TC-C098~C101（机制测试场同源）、状态读取器 +2 例（燃烧展示、淘汰清理与未知状态安全降级）。
 
 ---
 

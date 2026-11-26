@@ -491,32 +491,39 @@ const dapihuai: CharDef = {
  * 12. 佝偻弓箭手：骷髅弓手（Issue #71）
  *
  * 规则要点：
- * - 远程攻击造成 1 点伤害并**点燃**目标：燃烧每回合 0.5 伤害（含平局回合），无限持续，
- *   直到目标消耗一次行动「扑灭」；点燃当回合与扑灭当回合不结算；
- * - 骷髅身躯：非精神、非燃烧伤害致死时**不会死亡**——原地倒地 1 回合（仍参与猜拳，平局也计入），
- *   下一回合开始时以生命上限一半复原；燃烧致死则彻底死亡（燃烧期间受到其他伤害仍可复原）；
+ * - 远程攻击造成 1 点伤害并**点燃**目标（可射击同房间目标）：燃烧每回合 0.5 伤害（含平局回合），
+ *   无限持续，直到目标消耗一次行动「扑灭」；点燃当回合与扑灭当回合不结算；
+ * - 骷髅身躯：非精神、非燃烧伤害致死时**不会死亡**——完整缺席 1 回合（仍参与猜拳、平局也计入，
+ *   但整回合不能行动），再下一回合开始时以生命上限一半复原；燃烧致死则彻底死亡
+ *   （燃烧期间受到其他伤害仍可复原）；
+ * - 无法主动「回复」回满血（只能靠复原机制回血）；
  * - 同房间的**燃烧敌人**可消耗一次行动引燃它；
  * - 同房间的**任何敌人**可消耗 2 次行动取出燃烧箭，再消耗 1 次行动以燃烧箭近战攻击
- *   （1 伤 + 点燃）；取箭期间被它攻击会中断（进度清零）。
+ *   （1 伤 + 点燃，攻击一次后箭失效）；取箭期间被它攻击会中断（进度清零）。
  */
 const hunchbackArcher: CharDef = {
   id: 'hunchback-archer',
   name: '佝偻弓箭手',
-  desc: '血量3。远程攻击造成1点伤害并点燃目标：燃烧每回合造成0.5伤害（平局回合同样结算、持续到目标消耗一次行动扑灭；点燃当回合与扑灭当回合不结算）。骷髅身躯：精神伤害以外的伤害导致血量归零时不会死亡，而是原地倒地1回合（仍参与猜拳、平局也计入），下一回合开始以生命上限一半复原；因燃烧导致血量归零则彻底死亡（燃烧期间受到其他伤害仍可复原）。同房间的燃烧敌人可消耗一次行动引燃它；同房间的任何敌人都可消耗两次行动取出燃烧箭、再消耗一次行动用其近战攻击（1伤+点燃），取箭期间被它攻击会中断。',
+  desc: '血量3。远程攻击（可打同房间目标）造成1点伤害并点燃：燃烧每回合0.5伤害（平局回合同样结算、持续到目标消耗一次行动扑灭；点燃当回合与扑灭当回合不结算）。骷髅身躯：精神伤害以外的伤害导致血量归零时不会死亡，而是完整缺席1回合（仍参与猜拳、平局也计入，但整回合无法行动），再下一回合开始时以生命上限一半复原；因燃烧导致血量归零则彻底死亡（燃烧期间受到其他伤害仍可复原）。无法主动「回复」回满血。同房间的燃烧敌人可消耗一次行动引燃它；同房间的任何敌人都可消耗两次行动取出燃烧箭、再消耗一次行动用其近战攻击（1伤+点燃，攻击一次后箭失效），取箭期间被它攻击会中断。',
   hp: 3,
   attack: 1,
   attackType: 'ranged',
   rangedCapable: true,
   rangedDamage: 1,
+  /** 可射击同房间目标（近距离放箭） */
+  rangedSameRoom: true,
+  /** 骷髅无法主动回复：只能靠「倒地复原」机制回血 */
+  blockBaseActions: ['heal'],
   traits: ['skeleton'],
-  init: () => ({ downed: false, pendingArrow: null }),
+  init: () => ({ downed: false, downedAtRound: 0, pendingArrow: null }),
   /** 普攻（远程）命中后点燃目标 */
   attackEffects: [{ kind: 'burning', severity: 0.5 }],
   aiStrategy: ({ game, pid, alive }) => {
     const targets = alive
-      .filter((p) => p !== pid && !game.isSameRoom(pid, p) && !(game.players[p].hidden || game.players[p].invisible))
+      .filter((p) => p !== pid && !(game.players[p].hidden || game.players[p].invisible))
       .sort((a, b) => game.players[a].hp - game.players[b].hp);
-    return targets[0] ? { type: 'attack', targetId: targets[0], ranged: true } : undefined;
+    const target = targets[0];
+    return target ? { type: 'attack', targetId: target, ranged: true } : undefined;
   },
   onLethalDamage: ({ game, player, req }) => {
     const p = game.getPlayer(player);
@@ -532,20 +539,29 @@ const hunchbackArcher: CharDef = {
       p.hp = 0;
       return 'prevent';
     }
-    // 其余伤害：骨架散落，倒地 1 回合后复原
+    // 其余伤害：骨架散落，完整缺席 1 回合，再下一回合开始复原
     st.downed = true;
+    st.downedAtRound = game.roundNo;
     p.hp = 0;
     const reviveHp = Math.round(p.maxHp * 0.5 * 10000) / 10000;
-    game.log('trigger', `🦴 ${p.name} 的骨架散落——不会死亡，倒地 1 回合（仍参与猜拳），下一回合开始以 ${fmtNum(reviveHp)} HP 复原`,
-      { pid: player, downed: true, reviveHp, reviveRound: game.roundNo + 1 }, true);
-    game.roundSummary.push(`${p.name} 倒地（下一回合半血复原）`);
+    const reviveRound = game.roundNo + 2;
+    game.log('trigger', `🦴 ${p.name} 的骨架散落——不会死亡，完整缺席 1 回合（仍参与猜拳、不能行动），第 ${reviveRound} 回合开始以 ${fmtNum(reviveHp)} HP 复原`,
+      { pid: player, downed: true, reviveHp, reviveRound, downedAtRound: st.downedAtRound }, true);
+    game.roundSummary.push(`${p.name} 倒地（完整缺席 1 回合后复原）`);
     return 'prevent';
   },
   skipsAction: ({ game, player }) => game.charState(player).downed === true,
   onRoundStart: ({ game, player }) => {
     const st = game.charState(player);
     if (st.downed !== true) return;
+    const downedAtRound = typeof st.downedAtRound === 'number' ? st.downedAtRound : game.roundNo - 1;
+    // 完整缺席 1 回合：倒地当回合之后的那个回合仍然缺席，再下一回合开始才复原
+    if (game.roundNo < downedAtRound + 2) {
+      game.log('phase', `🦴 ${game.getPlayer(player).name} 仍在复原中（完整缺席本回合行动，仍可参与猜拳）`, { pid: player, downed: true }, true);
+      return;
+    }
     st.downed = false;
+    st.downedAtRound = 0;
     const p = game.getPlayer(player);
     if (!p.alive) return;
     p.hp = Math.round(p.maxHp * 0.5 * 10000) / 10000;

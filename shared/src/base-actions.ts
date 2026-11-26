@@ -98,7 +98,8 @@ function actAttack(game: GameLike, pid: PlayerId, req: ActionRequest, map: Battl
   if (!ranged && (at === 'ranged' || at === 'none')) return { ok: false, error: '该角色无法近战攻击' };
   // 房间约束（用户确认规则：远程=异房间、近战=同房间）。不校验时，客户端直接提交 ranged:true
   // 就能对同房间目标造成远程伤害——吹箫哥可绕过「无法近战」，五条悟可把 1 伤的近战换成 2 伤的远程。
-  if (ranged && sameRoom) return { ok: false, error: '远程攻击只能针对异房间目标（同房间请用近战）' };
+  // 例外：rangedSameRoom（如佝偻弓箭手）允许远程打同房间目标。
+  if (ranged && sameRoom && !cd.rangedSameRoom) return { ok: false, error: '远程攻击只能针对异房间目标（同房间请用近战）' };
 
   // 瞄准要求
   if (ranged && cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && game.charState(pid).domain === true)) {
