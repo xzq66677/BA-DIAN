@@ -334,7 +334,7 @@ it('routes the authoritative queue events to production scene methods with playb
   const scene: MapPlaybackScene = {
     playAttackDecl: vi.fn(), playAction: vi.fn(), playAreaAlert: vi.fn(), playHit: vi.fn(),
     playHeal: vi.fn(), playMiss: vi.fn(), playEliminate: vi.fn(), playRevive: vi.fn(), playWalk: vi.fn(),
-    playIvanThrow: vi.fn(), playIvanBoom: vi.fn(), playTrigger: vi.fn(), playDomain: vi.fn(), playSlotDrop: vi.fn(),
+    playIvanThrow: vi.fn(), playIvanBoom: vi.fn(), playTrigger: vi.fn(), playDomain: vi.fn(),
   };
   const events: BattleEvent[] = [
     { seq: 10, kind: 'attackDecl', sourceId: 'a', targetId: 'p' },

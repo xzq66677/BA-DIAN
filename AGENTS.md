@@ -68,7 +68,7 @@ MAP 链：`feat/map101-stone-refinement`、`feat/map102-labels-danger`、
 
 新增功能必须保留后续接入能力，不能把当前角色、状态、地图、道具或规则枚举写死：优先使用共享类型、数据配置、注册表、策略或适配器扩展；公共引擎与 UI 主流程不得堆叠具体业务名称分支。新增内容应能以最小改动注册/配置后生效，并补充对应扩展点测试；未知或旧版本数据必须安全降级，不得导致对局或页面崩溃。
 
-老虎机侠资产、手动拉杆与从天而降特效的复用流程见 [docs/SLOT_MACHINE_WORKFLOW.md](docs/SLOT_MACHINE_WORKFLOW.md)。Issue #72 的玩法归 MMR12345，视觉协作者不得抢认领或覆盖规则实现。
+全角色资产、动画、手动互动与 2D/3D 演出的通用复用流程见 [docs/CHARACTER_PRESENTATION_WORKFLOW.md](docs/CHARACTER_PRESENTATION_WORKFLOW.md)。新增角色应通过注册表接入，不在 `Game.tsx`、`scene.ts` 或通用 overlay 堆具体角色分支；老虎机侠只是完整示例，Issue #72 的玩法仍归 MMR12345。
 
 ## 演出节奏与 AI 策略扩展点
 

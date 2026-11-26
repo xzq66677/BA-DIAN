@@ -648,6 +648,7 @@ export class Room {
     this.lastFrameSig = sig;
     const logs = g.logs.filter((l) => l.seq > this.lastFrameLogSeq).map((l) => ({
       seq: l.seq, type: l.type, text: l.text, important: l.important,
+      ...(l.data ? { data: structuredClone(l.data) } : {}),
     }));
     if (g.logs.length > 0) this.lastFrameLogSeq = g.logs[g.logs.length - 1].seq;
     const frame: ReplayFrame = {

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BattleScene3D, type SnapLite } from './battle3d/scene.js';
 import { FxOverlayHost, type FxOverlayView } from './battle/fx-overlays.js';
-import './battle/slot-machine-overlay.js';
+import './battle/presentation-plugins.js';
+import './battle3d/presentation-plugins.js';
 import './battle3d/battle3d.css';
 import './slot-preview.css';
 
@@ -31,6 +32,7 @@ function App() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [lowEffects, setLowEffects] = useState(false);
   const [view, setView] = useState<FxOverlayView | null>(null);
+  const [reelCount, setReelCount] = useState<3 | 4>(4);
   const [interactive, setInteractive] = useState(true);
   const [status, setStatus] = useState('选择一种演出开始');
   const [sceneReady, setSceneReady] = useState(false);
@@ -93,6 +95,7 @@ function App() {
       room: '中央房',
       playerName: '阿机',
       durationMs: kind === 'slotPull' ? 2600 : 2200,
+      presentation: { reelCount },
     };
   }
 
@@ -126,6 +129,18 @@ function App() {
           <p>生产组件 · 手动输入 · 2D/3D 掉落</p>
         </div>
         <div className="slot-preview-actions">
+          <div className="slot-reel-modes" role="group" aria-label="预览卷轴模式">
+            {([3, 4] as const).map((count) => (
+              <button
+                key={count}
+                data-testid={`preview-reels-${count}`}
+                aria-pressed={reelCount === count}
+                onClick={() => setReelCount(count)}
+              >
+                {count} 数字
+              </button>
+            ))}
+          </div>
           <button data-testid="preview-pull" onClick={playPull}>中央手动拉杆</button>
           <button data-testid="preview-drop-2d" onClick={() => playDrop('2d')}>2D 从天而降</button>
           <button data-testid="preview-drop-3d" onClick={() => playDrop('3d')}>3D 从天而降</button>
@@ -144,7 +159,7 @@ function App() {
           mode={mode}
           interactive={interactive}
           reducedMotion={reducedMotion}
-          onPull={() => {
+          onSubmit={() => {
             setInteractive(false);
             setStatus('拉杆完成，模拟服务端已受理');
           }}

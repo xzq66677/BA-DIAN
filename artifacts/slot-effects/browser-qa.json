@@ -1,9 +1,17 @@
 {
   "url": "http://127.0.0.1:5187/slot-preview.html",
-  "startedAt": "2026-11-26T08:27:45.442Z",
+  "startedAt": "2026-11-26T11:06:06.396Z",
   "checks": [
     {
-      "name": "three reels show digits from zero to nine",
+      "name": "preview selects four reels by default",
+      "passed": true
+    },
+    {
+      "name": "four-reel mode target is at least 44px",
+      "passed": true
+    },
+    {
+      "name": "three-reel mode shows digits from zero to nine",
       "passed": true
     },
     {
@@ -47,7 +55,15 @@
       "passed": true
     },
     {
+      "name": "four-reel keyboard result shows all digits",
+      "passed": true
+    },
+    {
       "name": "2D drop overlay is visible",
+      "passed": true
+    },
+    {
+      "name": "landed 2D machine keeps four reels",
       "passed": true
     },
     {
@@ -67,6 +83,10 @@
       "passed": true
     },
     {
+      "name": "390px four-reel overlay has no horizontal overflow",
+      "passed": true
+    },
+    {
       "name": "mobile lever target is at least 44px",
       "passed": true
     },
@@ -76,6 +96,10 @@
     },
     {
       "name": "mobile 2D drop is visible",
+      "passed": true
+    },
+    {
+      "name": "mobile landed machine keeps four reels",
       "passed": true
     },
     {
@@ -92,13 +116,16 @@
     }
   ],
   "screenshots": [
+    "artifacts\\slot-effects\\desktop-pull-4-idle.png",
     "artifacts\\slot-effects\\desktop-pull-idle.png",
     "artifacts\\slot-effects\\desktop-pull-spinning.png",
     "artifacts\\slot-effects\\desktop-pull-result.png",
+    "artifacts\\slot-effects\\desktop-pull-4-result.png",
     "artifacts\\slot-effects\\desktop-drop-2d-falling.png",
     "artifacts\\slot-effects\\desktop-drop-2d-reduced.png",
     "artifacts\\slot-effects\\desktop-drop-3d-impact.png",
     "artifacts\\slot-effects\\desktop-drop-3d-low-effects.png",
+    "artifacts\\slot-effects\\mobile-pull-4-idle.png",
     "artifacts\\slot-effects\\mobile-pull-idle.png",
     "artifacts\\slot-effects\\mobile-pull-spinning.png",
     "artifacts\\slot-effects\\mobile-drop-2d.png"
@@ -148,5 +175,5 @@
     }
   },
   "passed": true,
-  "finishedAt": "2026-11-26T08:28:43.276Z"
+  "finishedAt": "2026-11-26T11:06:35.604Z"
 }

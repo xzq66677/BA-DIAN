@@ -1,14 +1,16 @@
+import type { BattleEvent } from '../battle/events.js';
+
 export interface ActionPresentationScene {
   playAction(pid: string, kind: string, targetId?: string): void;
-  playSlotDrop?(pid: string, room: string, seconds: number): void;
 }
 
-export type ActionPresenter = (
-  scene: ActionPresentationScene,
-  pid: string,
-  targetId: string | undefined,
-  durationMs: number,
-) => void;
+export interface ActionPresenterContext {
+  scene: ActionPresentationScene;
+  event: BattleEvent;
+  durationMs: number;
+}
+
+export type ActionPresenter = (context: ActionPresenterContext) => boolean;
 
 const presenters = new Map<string, ActionPresenter>();
 
@@ -18,13 +20,11 @@ export function registerActionPresenter(kind: string, presenter: ActionPresenter
 
 export function playActionPresenter(
   scene: ActionPresentationScene,
-  pid: string,
-  kind: string,
-  targetId: string | undefined,
+  event: BattleEvent,
   durationMs: number,
 ): boolean {
-  const presenter = presenters.get(kind);
+  if (!event.fx) return false;
+  const presenter = presenters.get(event.fx);
   if (!presenter) return false;
-  presenter(scene, pid, targetId, durationMs);
-  return true;
+  return presenter({ scene, event, durationMs });
 }

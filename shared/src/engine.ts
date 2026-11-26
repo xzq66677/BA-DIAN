@@ -1077,7 +1077,7 @@ export class Game implements GameLike {
       : req.type === 'skip' ? 'skip'
       : 'skill';
     const actionData: ActionEventData = {
-      pid, fx, label: this.actionLabel(req),
+      pid, actionName: req.type, fx, label: this.actionLabel(req),
       ...(req.targetId ? { targetId: req.targetId } : {}),
       ...(req.room ? { room: req.room } : {}),
     };
