@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "issue": 72,
+  "issueOwner": "MMR12345",
+  "workScope": "visual-assets-only",
+  "suggestedCharId": "slot-hero",
+  "visualId": "slot-hero-v1",
+  "status": "candidate-ready-for-review",
+  "integrationStatus": "not-integrated",
+  "baseline": "origin/main@52db570",
+  "author": "HungerG procedural asset pipeline",
+  "source": "preview/slot-hero.js",
+  "generatedAsset": "model/slot-hero.glb",
+  "validation": "evidence/validation.json",
+  "license": "project-internal procedural source; no downloaded or generated third-party mesh/texture inputs",
+  "externalCredentials": {
+    "TRIPO_API_KEY": "MISSING",
+    "GEMINI_API_KEY": "MISSING",
+    "ELEVENLABS_API_KEY": "MISSING",
+    "used": false
+  },
+  "artDirection": {
+    "style": "stylized art-deco clockwork automaton",
+    "silhouette": "slot-machine torso, three front reels, seven-segment 777 marquee, ivory ceramic face, asymmetrical right-side lever",
+    "palette": ["deep teal enamel", "oxblood enamel", "brushed brass", "ivory ceramic", "burgundy fabric", "cyan signal", "red signal"],
+    "symbols": ["money", "bomb", "attack", "key"],
+    "nonGoals": ["photorealistic scanned human", "gameplay rules", "shared character registry", "production runtime integration"]
+  },
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "footY": 0,
+    "targetHeight": 1.9,
+    "pivot": "feet center",
+    "rootMotion": false
+  },
+  "materialContract": {
+    "type": "MeshPhysicalMaterial / MeshStandardMaterial",
+    "embeddedMaps": ["baseColor", "roughness", "metalness", "normal"],
+    "textureSize": {
+      "baseColor": 256,
+      "roughnessMetalness": 64,
+      "normal": 64
+    },
+    "runtimeExternalResources": false
+  },
+  "animationContract": {
+    "clipNames": ["idle", "walk", "slot_pull", "flinch", "dead", "reviveRise", "victory"],
+    "skillClip": "slot_pull",
+    "victoryClip": "victory",
+    "skillDurationSeconds": 2.6,
+    "victoryDurationSeconds": 2.8,
+    "leverBone": "Lever",
+    "reelBones": ["Reel.1", "Reel.2", "Reel.3"],
+    "existingRigMapping": {
+      "idle": "idle",
+      "walk": "walk",
+      "attackSwing": "slot_pull",
+      "flinch": "flinch",
+      "dead": "dead",
+      "reviveRise": "reviveRise",
+      "cheer": "victory"
+    }
+  },
+  "budget": {
+    "targetGlbMegabytes": 4,
+    "actualGlbMegabytes": 8.09,
+    "budgetStatus": "over-target-geometry-dominated",
+    "targetTriangles": 65000,
+    "actualTriangles": 44000,
+    "targetBones": 22,
+    "actualBones": 22,
+    "targetTextures": 24,
+    "actualLoadedTextures": 24,
+    "actualEmbeddedImages": 18,
+    "targetDrawCalls": 12,
+    "actualModelDrawCalls": 11
+  },
+  "ownership": {
+    "visualAsset": "HungerG",
+    "issueAndGameplay": "MMR12345",
+    "runtimeAdapterAndRegistration": "MMR12345 or explicitly assigned integrator"
+  }
+}

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>老虎机侠 · GLB 资产实验室</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; background: #071416; color: #e9f4ed; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; overflow: hidden; background: radial-gradient(circle at 50% 38%, #173c3b 0, #071416 68%); }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 310px; height: 100vh; }
+    #stage { position: relative; min-width: 0; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .brand { position: absolute; left: 30px; top: 25px; pointer-events: none; }
+    .eyebrow { color: #d8af62; letter-spacing: .22em; font-size: 11px; font-weight: 700; }
+    h1 { margin: 8px 0 4px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(32px, 4vw, 58px); font-weight: 500; letter-spacing: -.03em; }
+    .subtitle { color: #9db7b0; font-size: 13px; }
+    .view-hint { position: absolute; left: 30px; bottom: 24px; color: #88a69e; font-size: 12px; pointer-events: none; }
+    aside { padding: 28px 24px; background: linear-gradient(180deg, rgba(9, 27, 28, .96), rgba(5, 16, 18, .98)); border-left: 1px solid #29423e; overflow-y: auto; }
+    .panel-label { color: #d8af62; font-size: 10px; letter-spacing: .18em; font-weight: 700; text-transform: uppercase; }
+    h2 { margin: 9px 0 7px; font: 500 24px Georgia, serif; }
+    .description { margin: 0 0 24px; color: #9db7b0; font-size: 12px; line-height: 1.7; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    button { appearance: none; border: 1px solid #39564f; border-radius: 9px; padding: 11px 10px; background: #122a29; color: #dfece5; font: inherit; font-size: 12px; cursor: pointer; transition: background .18s, border-color .18s, transform .18s; }
+    button:hover { background: #1b3b36; border-color: #6d9384; }
+    button:active { transform: translateY(1px); }
+    button.primary { grid-column: 1 / -1; padding: 14px; border-color: #c79c52; background: linear-gradient(135deg, #d1a557, #9b6a2f); color: #101b18; font-weight: 750; }
+    button.active { border-color: #7ce4d5; background: #204943; }
+    .section { margin-top: 26px; padding-top: 21px; border-top: 1px solid #223b37; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; margin-top: 14px; }
+    .stat span { display: block; color: #76968c; font-size: 10px; margin-bottom: 4px; }
+    .stat strong { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .status { min-height: 38px; margin-top: 18px; padding: 10px 12px; border: 1px solid #28453f; border-radius: 8px; color: #a8c9bc; background: #0b201f; font-size: 11px; line-height: 1.55; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: #9db7b0; font-size: 11px; }
+    .check::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #70d9bc; box-shadow: 0 0 10px #70d9bc; }
+    .progress { height: 3px; margin-top: 10px; background: #19332f; border-radius: 3px; overflow: hidden; }
+    #progressBar { height: 100%; width: 0; background: #e3b45e; }
+    @media (max-width: 760px) {
+      body { overflow: auto; }
+      main { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+      #stage { height: 58vh; min-height: 390px; }
+      aside { border-left: 0; border-top: 1px solid #29423e; padding: 22px 18px 30px; }
+      .brand { left: 18px; top: 18px; }
+      .view-hint { left: 18px; bottom: 15px; }
+      .description { margin-bottom: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="stage" aria-label="老虎机侠三维模型预览">
+      <div class="brand">
+        <div class="eyebrow">BA-DIAN · CHARACTER ASSET LAB</div>
+        <h1>老虎机侠</h1>
+        <div class="subtitle">SLOT HERO / slot-hero-v1 / 协作资产候选</div>
+      </div>
+      <div class="view-hint">拖拽旋转 · 滚轮缩放 · 点击「拉动拉杆」查看技能动作</div>
+    </section>
+    <aside>
+      <div class="panel-label">Procedural PBR / GLB 2.0</div>
+      <h2>幸运也是种本事</h2>
+      <p class="description">装饰艺术机体、三滚轮胸窗、金钱 / 炸弹 / 攻击 / 钥匙四符号。真实骨骼、内嵌 PBR 贴图，无运行时外部资源。</p>
+      <div class="actions" aria-label="动画控制">
+        <button id="pull" class="primary" type="button">拉动拉杆 · 老虎机技能</button>
+        <button data-clip="idle" class="active" type="button">待机</button>
+        <button data-clip="walk" type="button">行走</button>
+        <button data-clip="flinch" type="button">受击</button>
+        <button data-clip="dead" type="button">倒地</button>
+        <button data-clip="reviveRise" type="button">起身</button>
+        <button data-clip="victory" type="button">胜利</button>
+        <button id="export" type="button">导出 GLB 到 model/</button>
+      </div>
+      <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
+      <div id="status" class="status" role="status">正在构建模型与材质…</div>
+      <div class="section">
+        <div class="panel-label">Asset diagnostics</div>
+        <div class="stats">
+          <div class="stat"><span>三角面</span><strong id="triangles">—</strong></div>
+          <div class="stat"><span>骨骼</span><strong id="bones">—</strong></div>
+          <div class="stat"><span>网格 / 材质</span><strong id="meshes">—</strong></div>
+          <div class="stat"><span>站立高度</span><strong id="height">—</strong></div>
+          <div class="stat"><span>动画</span><strong id="clips">—</strong></div>
+          <div class="stat"><span>贴图</span><strong id="textures">—</strong></div>
+        </div>
+        <div class="check">+Y 向上 / +Z 正向 / 脚底 y=0</div>
+        <div class="check">GLB 内嵌 BaseColor / Roughness / Metalness / Normal</div>
+        <div class="check">未使用 TRIPO / GEMINI / ELEVENLABS 凭据</div>
+      </div>
+    </aside>
+  </main>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
