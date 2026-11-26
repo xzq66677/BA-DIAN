@@ -107,6 +107,14 @@ export class Game implements GameLike {
    * 可能排入新的技能判定，此时把「当前流程的收尾」存成闭包，等判定全部结束后再执行。
    */
   private judgeResumeHook: (() => void) | null = null;
+  /** 行动前判定（如塔内压制）挂起的待执行行动：判定结束后继续/取消 */
+  private pendingPreAction: {
+    pid: PlayerId;
+    req: ActionRequest;
+    onResult?: (result: 'win' | 'lose' | 'tie') => 'normal' | 'block' | 'selfAttack';
+  } | null = null;
+  /** 行动前判定已在 completePreAction 中收尾：resolveJudgeRound 不再重复推进队列 */
+  private preActionResolved = false;
   /**
    * 回合前触发（大屁孩「暴走 / 自爆」）：判定结束后、行动阶段开始前统一结算。
    * triggerQueue 为已排好序的暴走权持有者；triggerActor 为当前要选择目标的人。
@@ -1084,15 +1092,21 @@ export class Game implements GameLike {
     // 全部局数结束 → 回调角色结算（wins 为己方胜局数）
     const wins = j.wins;
     const rounds = j.rounds;
+    const lastResult = j.last?.result;
     this.activeJudge = null;
     try {
-      j.resolve(wins, rounds);
+      j.resolve(wins, rounds, lastResult);
     } catch (e) {
       this.log('error', `判定结算异常：${(e as Error)?.message ?? String(e)}`);
     }
     if (this.phase === 'over') return;
     // 结算可能又触发新的判定（例：五连鞭打在马保国身上 → 太极）
     if (this.startNextJudge()) return;
+    // 行动前判定的收尾已在 completePreAction 中推进过队列：不要重复推进
+    if (this.preActionResolved) {
+      this.preActionResolved = false;
+      return;
+    }
     this.resumeAfterJudges();
   }
 
@@ -1184,7 +1198,12 @@ export class Game implements GameLike {
       return { ok: false, error: `${p.name} 当前无法行动` };
     }
 
-    // 行动前压制（高塔等）：其他角色的 onBeforeAction 可让本次行动无效或改为自伤（均消耗行动）
+    // 角色状态限制（如亡魂状态只能使用吸/吹）
+    const actionError = this.charDef(pid).validateAction?.({ game: this, player: pid, action: req });
+    if (actionError) return { ok: false, error: actionError };
+
+    // 行动前压制（高塔等）：其他角色的 onBeforeAction 可让本次行动无效、改为自伤，
+    // 或进入双方亲自出拳的判定（player 模式），判定后再继续/取消本次行动（均消耗行动）
     for (const owner of this.playerIds) {
       if (owner === pid) continue;
       const def = this.charDef(owner);
@@ -1194,21 +1213,48 @@ export class Game implements GameLike {
         this.log('trigger', `🗼 ${p.name} 的行动被高塔压制，本次行动无效`, { pid, owner }, true);
         return this.consumeSuppressedAction(pid, '行动被压制（无效）');
       }
-      const selfDef = this.charDef(pid);
-      const amount = selfDef.meleeDamage ?? selfDef.attack ?? this.rules.defaultAttack;
-      this.log('trigger', `🗼 ${p.name} 在塔内判定失败，攻击了自己（${fmtNum(amount)} 伤）`, { pid, owner, amount }, true);
-      this.applyDamage({
-        target: pid, amount, source: pid,
-        dtype: selfDef.attackDtype || 'physical',
-        tag: 'tower-self', ignoreHide: true, isAttack: true,
+      if (pre === 'selfAttack') {
+        const selfDef = this.charDef(pid);
+        const amount = selfDef.meleeDamage ?? selfDef.attack ?? this.rules.defaultAttack;
+        this.log('trigger', `🗼 ${p.name} 在塔内判定失败，攻击了自己（${fmtNum(amount)} 伤）`, { pid, owner, amount }, true);
+        this.applyDamage({
+          target: pid, amount, source: pid,
+          dtype: selfDef.attackDtype || 'physical',
+          tag: 'tower-self', ignoreHide: true, isAttack: true,
+        });
+        return this.consumeSuppressedAction(pid, '被高塔压制，攻击了自己');
+      }
+
+      // player 模式：暂停对局，双方亲自出拳；判定结束后由 completePreAction 继续
+      this.pendingPreAction = { pid, req, onResult: pre.onResult };
+      this.preActionResolved = false;
+      this.requestJudge({
+        ...pre.judge,
+        resolve: (wins, rounds, lastResult) => {
+          const pending = this.pendingPreAction;
+          this.pendingPreAction = null;
+          if (!pending) return;
+          const result = lastResult ?? (wins > 0 ? 'win' : 'lose');
+          const verdict = pending.onResult?.(result) ?? 'normal';
+          this.phase = 'act'; // 判定结束后先恢复行动阶段，再继续本次行动
+          this.completePreAction(pending.pid, pending.req, verdict);
+          // 收尾可能进入新的判定；没有新判定时由本标记阻止引擎再次推进队列
+          if (!this.activeJudge) this.preActionResolved = true;
+        },
       });
-      return this.consumeSuppressedAction(pid, '被高塔压制，攻击了自己');
+      // 判定结束后由 completePreAction 收尾
+      this.judgeResume = null;
+      this.judgeResumeHook = null;
+      this.startNextJudge();
+      return { ok: true };
     }
 
-    // 角色状态限制（如亡魂状态只能使用吸/吹）
-    const actionError = this.charDef(pid).validateAction?.({ game: this, player: pid, action: req });
-    if (actionError) return { ok: false, error: actionError };
+    return this.performSubmittedAction(pid, req);
+  }
 
+  /** 正常执行一次已通过前置校验的行动（含消耗行动、推进队列） */
+  private performSubmittedAction(pid: PlayerId, req: ActionRequest): ActionResult {
+    const p = this.players[pid];
     const res = this.executeAction(pid, req);
     if (!res.ok) return res; // 非法行动：不修改状态、不消耗行动
     const st = this.stats[pid];
@@ -1239,6 +1285,30 @@ export class Game implements GameLike {
     this.actIndex++;
     this.advanceQueue();
     return { ok: true };
+  }
+
+  /** 行动前判定结束后的收尾：正常执行 / 行动无效 / 自伤（均消耗行动） */
+  private completePreAction(pid: PlayerId, req: ActionRequest, verdict: 'normal' | 'block' | 'selfAttack'): void {
+    if (this.phase === 'over') return;
+    if (!this.players[pid]?.alive) return;
+    if (verdict === 'block') {
+      this.log('trigger', `🗼 ${this.players[pid].name} 的塔内判定为平局，本次行动无效`, { pid }, true);
+      this.consumeSuppressedAction(pid, '行动被压制（无效）');
+      return;
+    }
+    if (verdict === 'selfAttack') {
+      const cd = this.charDef(pid);
+      const amount = cd.meleeDamage ?? cd.attack ?? this.rules.defaultAttack;
+      this.log('trigger', `🗼 ${this.players[pid].name} 的塔内判定失败，攻击了自己（${fmtNum(amount)} 伤）`, { pid, amount }, true);
+      this.applyDamage({
+        target: pid, amount, source: pid,
+        dtype: cd.attackDtype || 'physical',
+        tag: 'tower-self', ignoreHide: true, isAttack: true,
+      });
+      this.consumeSuppressedAction(pid, '被高塔压制，攻击了自己');
+      return;
+    }
+    this.performSubmittedAction(pid, req);
   }
 
   /** 行动被压制（无效/自伤）仍消耗行动并推进队列 */

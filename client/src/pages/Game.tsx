@@ -42,6 +42,8 @@ interface ActionOption {
   desc: string;
   typeLabel: string;
   targetHint?: string;
+  /** 多目标行动：可同时选择多名玩家（如吸/吹） */
+  multiTarget?: boolean;
   roomHint?: boolean;
   presentationFx?: string;
   manual?: boolean;
@@ -106,6 +108,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   // 行动坞交互状态（纯 UI 状态；最终合法性由服务器校验）
   const [selAction, setSelAction] = useState<ActionOption | null>(null);
   const [selTarget, setSelTarget] = useState('');
+  /** 多目标行动的已选玩家（如吸/吹） */
+  const [selTargets, setSelTargets] = useState<string[]>([]);
   const [selRoom, setSelRoom] = useState('');
   const [actMsg, setActMsg] = useState('');
   const [berserkMsg, setBerserkMsg] = useState('');
@@ -255,6 +259,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         typeLabel: '技能',
         // 'none' 表示自身技能（领域展开 / 抽取今日运势 / 强化攻击等）：不选目标、不设房间，直接确认发动
         targetHint: a.targetHint && a.targetHint !== 'none' ? a.targetHint : undefined,
+        multiTarget: a.multiTarget,
         roomHint: a.roomHint,
         presentationFx: presentation?.fx,
         manual: presentation?.mode === 'manual',
@@ -316,7 +321,10 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     }
   }, [game, actor, selAction]);
 
-  useEffect(() => { if (!selAction?.targetHint) setSelTarget(''); }, [selAction]);
+  useEffect(() => {
+    setSelTarget('');
+    setSelTargets([]);
+  }, [selAction]);
 
   function resetSelection() {
     setManualCue(null);
@@ -324,6 +332,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     setManualBusy(false);
     setSelAction(null);
     setSelTarget('');
+    setSelTargets([]);
     setActMsg('');
   }
 
@@ -340,8 +349,13 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     const needTarget = !!selAction.targetHint;
     const needRoom = !!selAction.roomHint || selAction.key === 'move';
     if (needTarget) {
-      if (!selTarget) { setActMsg('请先选择目标'); return null; }
-      action.targetId = selTarget;
+      if (selAction.multiTarget) {
+        if (selTargets.length === 0) { setActMsg('请先选择至少一个目标'); return null; }
+        action.targetIds = [...selTargets];
+      } else {
+        if (!selTarget) { setActMsg('请先选择目标'); return null; }
+        action.targetId = selTarget;
+      }
     }
     if (needRoom) {
       if (!selRoom) { setActMsg('请先点击战场中发绿光的房间'); return null; }
@@ -463,7 +477,14 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
 
   function pickTargetOrDetail(pid: string) {
     if (selAction?.targetHint) {
-      if (validTargets.some((t) => t.id === pid)) { setSelTarget(pid); return; }
+      if (validTargets.some((t) => t.id === pid)) {
+        if (selAction.multiTarget) {
+          setSelTargets((prev) => prev.includes(pid) ? prev.filter((id) => id !== pid) : [...prev, pid]);
+        } else {
+          setSelTarget(pid);
+        }
+        return;
+      }
       // 点击了不可选目标：明确说明原因（而非默默打开详情让玩家困惑）
       const p = game.players.find((x) => x.id === pid);
       const m = actor;
@@ -508,7 +529,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     roomPickMode,
     selectedRoom: selRoom,
     blockedRoom,
-    selectedPlayer: selTarget,
+    selectedPlayer: selTargets[selTargets.length - 1] ?? selTarget,
     reducedMotion,
     automaticCamera,
     lowEffects,
@@ -988,7 +1009,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                           <span className="scard-type">{o.typeLabel}</span>
                         </div>
                         <div className="scard-desc">{o.desc.length > 44 ? o.desc.slice(0, 44) + '…' : o.desc}</div>
-                        <div className="scard-need">{o.used ? '🚫 本局已使用' : o.manual ? '🎰 手动拉杆' : o.targetHint ? '🎯 需选择目标' : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
+                        <div className="scard-need">{o.used ? '🚫 本局已使用' : o.manual ? '🎰 手动拉杆' : o.targetHint ? (o.multiTarget ? '🎯 可多选目标' : '🎯 需选择目标') : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
                       </button>
                     ))}
                   </div>
@@ -1000,11 +1021,15 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                         <span>
                           目标：
                           <b className="cb-target">
-                            {selTarget ? game.players.find((p) => p.id === selTarget)?.name : '（点击战场高亮卡牌）'}
+                            {selAction.multiTarget
+                              ? (selTargets.length > 0
+                                ? `${selTargets.map((id) => game.players.find((p) => p.id === id)?.name).filter(Boolean).join('、')}（已选 ${selTargets.length} 人）`
+                                : '（可点击多个战场高亮卡牌）')
+                              : (selTarget ? game.players.find((p) => p.id === selTarget)?.name : '（点击战场高亮卡牌）')}
                           </b>
                         </span>
                       )}
-                      {use3d && crowdedArena && selAction.targetHint && validTargets.length > 0 && (
+                      {use3d && crowdedArena && selAction.targetHint && !selAction.multiTarget && validTargets.length > 0 && (
                         <select aria-label="目标玩家" value={selTarget} onChange={e => setSelTarget(e.target.value)}>
                           <option value="">选择目标玩家</option>
                           {validTargets.map(p => <option key={p.id} value={p.id}>{p.name} · {p.room}</option>)}
@@ -1045,7 +1070,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                         );
                       })()}
                       {blockedRoom && <span className="ruins-mud-chip" data-active="true">{blockedRoom} 泥潭封路，下回合恢复</span>}
-                      <button className="tcg-btn" disabled={(!!selAction.targetHint && !selTarget) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom))} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
+                      <button className="tcg-btn" disabled={(!!selAction.targetHint && (selAction.multiTarget ? selTargets.length === 0 : !selTarget)) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom))} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
                       <button className="tcg-btn ghost" onClick={resetSelection}>取消</button>
                       {actMsg && <span className="error-text">{actMsg}</span>}
                     </div>

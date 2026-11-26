@@ -173,6 +173,116 @@ describe('飞天水螅：吸 / 吹', () => {
   });
 });
 
+describe('飞天水螅：攻击高塔与坍塌', () => {
+  it('塔外玩家可攻击高塔；耐久归零坍塌并弹出塔内玩家', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    buildTowerDirectly(g, 'R1');
+
+    throws(g, { B: 'rock', A: 'scissors' });
+    const snap = g.snapshot() as unknown as { extraActions: { key: string }[] };
+    expect(snap.extraActions.map((a) => a.key)).toContain('attackTower');
+    g.charState('A').towerHp = 1;
+    expect(g.submitAction('B', { type: 'attackTower' }).ok).toBe(true);
+
+    expect(g.charState('A').towerHp).toBe(0);
+    expect(g.charState('A').towerBaseRoom).toBeNull();
+    expect(g.charState('A').inTower).toBe(false);
+
+    // 坍塌后可以重新造塔
+    throws(g, { A: 'rock', B: 'scissors' });
+    expect(g.submitAction('A', { type: 'buildTower' }).ok).toBe(true);
+    expect(g.charState('A').buildProgress).toBe(1);
+  });
+
+  it('塔内玩家也能攻击高塔（需先通过塔内压制判定）', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    buildTowerDirectly(g, 'R1');
+    g.charState('B').inTower = true;
+    g.charState('A').towerHp = 1;
+
+    throws(g, { B: 'rock', A: 'scissors' });
+    forceThrows(g, [0, 1]); // 压制判定：B 石头 vs A 剪刀 → B 胜，可正常行动
+    expect(g.submitAction('B', { type: 'attackTower' }).ok).toBe(true);
+    expect(g.charState('A').towerBaseRoom).toBeNull();
+    expect(g.players.B.char.inTower === true).toBe(false); // 坍塌后被弹出
+  });
+});
+
+describe('飞天水螅：吸/吹多目标', () => {
+  it('一次吸可同时把多名敌人吸到身边/塔内', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R2';
+    g.players.C.room = 'R3';
+    buildTowerDirectly(g, 'R1');
+
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    expect(g.submitAction('A', { type: 'inhale', targetIds: ['B', 'C'] }).ok).toBe(true);
+    expect(g.players.B.room).toBe('R1');
+    expect(g.players.C.room).toBe('R1');
+  });
+
+  it('一次吹可同时把多名塔内敌人吹出塔外', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    g.players.C.room = 'R1';
+    buildTowerDirectly(g, 'R1');
+    g.charState('B').inTower = true;
+    g.charState('C').inTower = true;
+
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    expect(g.submitAction('A', { type: 'blow', targetIds: ['B', 'C'] }).ok).toBe(true);
+    expect(g.players.B.char.inTower === true).toBe(false);
+    expect(g.players.C.char.inTower === true).toBe(false);
+  });
+});
+
+describe('飞天水螅：塔内压制（双方亲自出拳）', () => {
+  function towerJudgeGame(): Game {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }], 61, { skillJudgeMode: 'player' });
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    buildTowerDirectly(g, 'R1');
+    g.charState('B').inTower = true;
+    throws(g, { B: 'rock', A: 'scissors' });
+    return g;
+  }
+
+  it('平局 → 本次行动无效（仍消耗行动）', () => {
+    const g = towerJudgeGame();
+    expect(g.submitAction('B', { type: 'attack', targetId: 'A' }).ok).toBe(true);
+    expect(g.phase).toBe('judge');
+    expect(g.skillJudgeView()?.label).toBe('塔内压制判定');
+    g.submitJudgeThrow('A', 'rock');
+    g.submitJudgeThrow('B', 'rock'); // 平局
+    expect(g.players.A.hp).toBe(3);
+    expect(g.roundNo).toBe(2);
+    expect(g.logs.map((l) => l.text).join('\n')).toContain('本次行动无效');
+  });
+
+  it('飞天水螅胜 → 敌人攻击自己', () => {
+    const g = towerJudgeGame();
+    g.submitAction('B', { type: 'attack', targetId: 'A' });
+    g.submitJudgeThrow('A', 'rock');
+    g.submitJudgeThrow('B', 'scissors'); // 蛇胜 → 敌人自伤
+    expect(g.players.A.hp).toBe(3);
+    expect(g.players.B.hp).toBe(1);
+  });
+
+  it('敌人胜 → 正常行动', () => {
+    const g = towerJudgeGame();
+    g.submitAction('B', { type: 'attack', targetId: 'A' });
+    g.submitJudgeThrow('A', 'scissors');
+    g.submitJudgeThrow('B', 'rock'); // 敌人胜 → 正常攻击
+    expect(g.players.A.hp).toBe(2);
+  });
+});
+
 describe('飞天水螅：亡魂（死后继续参与）', () => {
   it('致死 → 化为亡魂：hp 0、不可被攻击、仍参与猜拳、只能吸/吹', () => {
     const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);

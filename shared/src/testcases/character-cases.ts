@@ -1473,6 +1473,41 @@ export const CHARACTER_CASES: TestCase[] = [
         `room=${pulledRoom}, tower=${pulledTower}, out=${blownOut}, away=${blownAway}`, g);
     }),
   },
+  {
+    id: 'TC-C110', name: '飞天水螅：高塔可被攻击，耐久归零坍塌', category: 'character', charId: 'water-snake', seed: 313,
+    desc: '塔外/塔内的同房间玩家都可攻击高塔；耐久归零后坍塌（塔内玩家被弹出，可重新造塔）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B'], 313);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      Object.assign(g.charState('A'), { towerBaseRoom: 'R1', towerHp: 1, buildProgress: 2, inTower: true });
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      const r = g.submitAction('B', { type: 'attackTower' });
+      const collapsed = g.charState('A').towerBaseRoom == null && g.charState('A').towerHp === 0;
+      const out = g.charState('A').inTower !== true;
+      return check(r.ok && collapsed && out, '高塔被打掉并坍塌',
+        `ok=${r.ok}, tower=${g.charState('A').towerBaseRoom}, hp=${g.charState('A').towerHp}`, g);
+    }),
+  },
+  {
+    id: 'TC-C111', name: '飞天水螅：吸/吹一次行动可针对多目标', category: 'character', charId: 'water-snake', seed: 314,
+    desc: '一次吸可同时把多名敌人拉近，一次吹可同时把多名塔内敌人吹出',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B', 'C'], 314);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      g.players.C.room = 'R3';
+      Object.assign(g.charState('A'), { towerBaseRoom: 'R1', towerHp: 6, buildProgress: 2, inTower: true });
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]);
+      g.submitAction('A', { type: 'inhale', targetIds: ['B', 'C'] });
+      const pulled = g.players.B.room === 'R1' && g.players.C.room === 'R1';
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]);
+      g.submitAction('A', { type: 'blow', targetIds: ['B', 'C'] });
+      const blown = g.players.B.room !== 'R1' && g.players.C.room !== 'R1';
+      return check(pulled && blown, '多目标吸/吹生效',
+        `pulled=${pulled}, blown=${blown}`, g);
+    }),
+  },
 ];
 
 function insults2(g: ReturnType<typeof makeGame>): number {

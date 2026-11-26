@@ -87,6 +87,8 @@ export interface CharActionDef {
   typeLabel?: string;
   /** 需要目标玩家（同房间/任意） */
   targetHint?: 'anyPlayer' | 'sameRoomPlayer' | 'otherRoomPlayer' | 'none';
+  /** 多目标行动：一次行动可使用 targetIds 指定多名玩家（如吸/吹） */
+  multiTarget?: boolean;
   /** 需要房间选择（如大伊万投掷） */
   roomHint?: boolean;
   validate?(ctx: CharActionContext): string | null;
@@ -139,6 +141,31 @@ export interface CharacterAiContext {
   members: PlayerId[];
   alive: PlayerId[];
 }
+
+/** 行动前判定的参数（双方亲自出拳；平局按各角色规则处理） */
+export interface PreActionJudgeSpec {
+  kind: import('./types.js').SkillJudgeKind;
+  owner: PlayerId;
+  opponent: PlayerId;
+  rounds: number;
+  label: string;
+  rerollTie?: boolean;
+}
+
+/**
+ * 行动前压制钩子的返回值：
+ * - 'block'：本次行动无效（仍消耗行动）
+ * - 'selfAttack'：该玩家改为攻击自己（仍消耗行动）
+ * - `{ judge, onResult }`：进入双方亲自出拳的判定（player 模式），判定后由 onResult 决定结果
+ */
+export type BeforeActionHookResult =
+  | 'block'
+  | 'selfAttack'
+  | {
+    judge: PreActionJudgeSpec;
+    onResult?: (result: 'win' | 'lose' | 'tie') => 'normal' | 'block' | 'selfAttack';
+  }
+  | void;
 
 export interface CharDef {
   /** 可选的角色优先行动。返回 undefined 时由服务器使用通用策略。 */
@@ -211,11 +238,8 @@ export interface CharDef {
   onDeath?(ctx: DeathHookCtx): void;
   /** 击杀钩子：killer 为本角色时触发（击杀后攻击提升等） */
   onKill?(ctx: { game: GameLike; killer: PlayerId; target: PlayerId; cause: string }): void;
-  /**
-   * 行动前压制钩子：本角色可在**其他玩家**行动前施加判定/限制。
-   * 返回 'block' 本次行动无效（仍消耗行动）、'selfAttack' 该玩家改为攻击自己（仍消耗行动）。
-   */
-  onBeforeAction?(ctx: { game: GameLike; owner: PlayerId; player: PlayerId }): 'block' | 'selfAttack' | void;
+  /** 行动前压制钩子：可在其他玩家行动前判定/限制（返回判定则由引擎暂停收拳） */
+  onBeforeAction?(ctx: { game: GameLike; owner: PlayerId; player: PlayerId }): BeforeActionHookResult;
   /** 行动合法性附加校验（角色自身状态限制，如亡魂只能使用吸/吹） */
   validateAction?(ctx: { game: GameLike; player: PlayerId; action: ActionRequest }): string | null;
   /** 回合末钩子（所有行动完成后） */

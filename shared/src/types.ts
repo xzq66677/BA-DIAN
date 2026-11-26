@@ -82,7 +82,7 @@ export interface PlayerState {
 }
 
 /** 技能内判定（马保国系能力）的类别 */
-export type SkillJudgeKind = 'taiji' | 'whip5' | 'bujiangwude' | 'wildhunt';
+export type SkillJudgeKind = 'taiji' | 'whip5' | 'bujiangwude' | 'wildhunt' | 'tower';
 
 /** 一次技能内判定的请求（由角色钩子发起，引擎负责暂停对局收拳与逐局结算） */
 export interface SkillJudgeOptions {
@@ -97,8 +97,8 @@ export interface SkillJudgeOptions {
   label: string;
   /** 平局是否立即重赛（不消耗局数）：狂猎受击判定「再来一把」 */
   rerollTie?: boolean;
-  /** 全部局数结算后的回调（wins = 己方获胜局数） */
-  resolve: (wins: number, rounds: number) => void;
+  /** 全部局数结算后的回调（wins = 己方获胜局数；lastResult = 最后一局结果） */
+  resolve: (wins: number, rounds: number, lastResult?: 'win' | 'lose' | 'tie') => void;
 }
 
 /** 进行中的判定（快照下发，供客户端渲染出拳面板） */
@@ -450,6 +450,8 @@ export interface ReplayRecord extends ReplaySummary {
 export interface ActionRequest {
   type: string;
   targetId?: PlayerId;
+  /** 多目标行动（如飞天水螅的吸/吹）：一次行动可指定多名玩家 */
+  targetIds?: PlayerId[];
   room?: RoomId;
   /** 是否声明为远程攻击（默认按房间关系自动判定） */
   ranged?: boolean;

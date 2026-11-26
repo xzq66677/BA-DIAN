@@ -902,6 +902,8 @@ const wildHunt: CharDef = {
 type WaterSnakeState = {
   /** 高塔所在的原房间（null = 未建成） */
   towerBaseRoom: string | null;
+  /** 高塔剩余耐久（建成时 6，归零坍塌） */
+  towerHp: number;
   /** 造塔进度：0/1/2 */
   buildProgress: number;
   /** 是否位于高塔内部 */
@@ -912,6 +914,29 @@ type WaterSnakeState = {
 
 function waterSnakeState(game: GameLike, pid: PlayerId): WaterSnakeState {
   return game.charState(pid) as unknown as WaterSnakeState;
+}
+
+/** 行动目标（兼容单目标 targetId 与多目标 targetIds） */
+function actionTargetIds(req: { targetId?: PlayerId; targetIds?: PlayerId[] }): PlayerId[] {
+  return [...new Set([...(req.targetIds ?? []), ...(req.targetId ? [req.targetId] : [])])];
+}
+
+/** 高塔坍塌：塔内所有玩家被弹出塔外，塔回到未建造状态 */
+function collapseTower(game: GameLike, owner: PlayerId): void {
+  const st = waterSnakeState(game, owner);
+  const base = st.towerBaseRoom;
+  if (!base) return;
+  for (const pid of game.playerIds) {
+    if (game.players[pid].char.inTower === true && game.players[pid].room === base) {
+      game.players[pid].char.inTower = false;
+      game.log('trigger', `🗼 高塔坍塌：${game.players[pid].name} 被弹出塔外`, { pid, tower: base }, true);
+    }
+  }
+  st.towerBaseRoom = null;
+  st.towerHp = 0;
+  st.buildProgress = 0;
+  st.inTower = false;
+  game.log('trigger', `🗼 ${base} 的玄武岩高塔坍塌！`, { tower: base }, true);
 }
 
 /**
@@ -933,7 +958,7 @@ const waterSnake: CharDef = {
   attackType: 'melee',
   attackDesc: '近战攻击同房间目标（伤害 1.5）；高塔内外隔绝，无法直接攻击塔壁另一端的目标',
   traits: ['tower'],
-  init: () => ({ towerBaseRoom: null, buildProgress: 0, inTower: false, posthumous: false }),
+  init: () => ({ towerBaseRoom: null, towerHp: 0, buildProgress: 0, inTower: false, posthumous: false }),
   /** 亡魂免疫：化为亡魂后不再受到伤害（也避免了被反复击杀） */
   onBeforeDamage: ({ game, req, owner }) => {
     if (req.target !== owner) return;
@@ -969,6 +994,16 @@ const waterSnake: CharDef = {
     const actor = game.players[player];
     if (actor.char.inTower !== true) return;
     if (actor.room !== snake.towerBaseRoom) return;
+
+    // player 模式（对局默认）：双方亲自出拳，判定结束后再由引擎继续本次行动
+    if (game.rules.skillJudgeMode !== 'serverRoll') {
+      return {
+        judge: { kind: 'tower', owner, opponent: player, rounds: 1, label: '塔内压制判定' },
+        onResult: (result: 'win' | 'lose' | 'tie') => (result === 'win' ? 'selfAttack' : result === 'lose' ? 'normal' : 'block'),
+      };
+    }
+
+    // serverRoll（AI 对局/测试场）：即时单掷，不重掷
     const throwName = (t: string) => (t === 'rock' ? '石头' : t === 'scissors' ? '剪刀' : '布');
     const roll = game.rollJudgeThrows(player, owner); // 敌人视角：win=敌人胜
     const detail = `${actor.name} ${throwName(roll.a)} vs ${game.players[owner].name} ${throwName(roll.b)}`;
@@ -982,6 +1017,38 @@ const waterSnake: CharDef = {
     }
     game.log('trigger', `🗼 塔内判定：${detail} → ${actor.name} 输了，攻击自己`, { pid: player, owner, ...roll }, true);
     return 'selfAttack';
+  },
+  /** 为同房间的其他玩家提供「攻击高塔」环境行动（塔内、塔外都能打） */
+  extraActionsForOthers: ({ game, owner, viewer }) => {
+    const snake = waterSnakeState(game, owner);
+    if (snake.towerBaseRoom == null) return [];
+    if (game.players[viewer]?.room !== snake.towerBaseRoom) return [];
+    const base = snake.towerBaseRoom;
+    return [{
+      name: 'attackTower',
+      label: '攻击高塔',
+      desc: `消耗本次行动攻击 ${base} 的玄武岩高塔（当前 ${fmtNum(typeof snake.towerHp === 'number' ? snake.towerHp : 0)}/6 血）；塔血归零会坍塌，塔内玩家被弹出。`,
+      typeLabel: '环境',
+      targetHint: 'none',
+      validate: (ctx) => {
+        const st = waterSnakeState(ctx.game, owner);
+        if (st.towerBaseRoom == null) return '高塔已经不存在';
+        if (ctx.game.players[ctx.actor].room !== st.towerBaseRoom) return '需要与高塔同房间';
+        return null;
+      },
+      execute: (ctx) => {
+        const st = waterSnakeState(ctx.game, owner);
+        const baseRoom = st.towerBaseRoom;
+        if (!baseRoom) return;
+        const def = ctx.game.charDef(ctx.actor);
+        const amount = def.meleeDamage ?? def.attack ?? ctx.game.rules.defaultAttack;
+        const before = typeof st.towerHp === 'number' ? st.towerHp : 0;
+        st.towerHp = Math.max(0, Math.round((before - amount) * 10000) / 10000);
+        ctx.game.log('damage', `🗼 ${ctx.game.players[ctx.actor].name} 攻击高塔：${fmtNum(before)} → ${fmtNum(st.towerHp)} 血`,
+          { pid: ctx.actor, tower: baseRoom, hp: st.towerHp }, true);
+        if (st.towerHp <= 0) collapseTower(ctx.game, owner);
+      },
+    }];
   },
   aiStrategy: ({ game, pid, alive, st }) => {
     const snake = st as unknown as WaterSnakeState;
@@ -1018,6 +1085,7 @@ const waterSnake: CharDef = {
         }
         st.buildProgress = 2;
         st.towerBaseRoom = p.room;
+        st.towerHp = 6;
         st.inTower = true;
         ctx.game.log('trigger', `🗼 ${p.name} 在 ${p.room} 建成玄武岩高塔并进入塔内（塔内外隔绝、算作新房间）`,
           { pid: ctx.actor, room: p.room, towerBaseRoom: p.room }, true);
@@ -1026,67 +1094,82 @@ const waterSnake: CharDef = {
     {
       name: 'inhale',
       label: '吸',
-      desc: '消耗本次行动，把一名敌人吸近一格：其他房间 → 自己房间；自己房间 → 高塔内部。',
+      desc: '消耗本次行动，把一名或多名敌人吸近一格：其他房间 → 自己房间；自己房间 → 高塔内部。',
       targetHint: 'anyPlayer',
+      multiTarget: true,
       validate: (ctx) => {
         const st = waterSnakeState(ctx.game, ctx.actor);
-        const targetId = ctx.params.targetId;
-        const target = targetId ? ctx.game.players[targetId] : undefined;
+        const ids = actionTargetIds(ctx.params);
         const p = ctx.game.getPlayer(ctx.actor);
-        if (!target?.alive) return '目标不存在或已淘汰';
-        if (targetId === ctx.actor) return '不能吸自己';
-        if (target.hidden || target.invisible) return '无法锁定躲藏/隐身的玩家';
-        if (target.char.inTower === true) return '目标已经在塔内';
-        if (target.room !== p.room) return null; // 其他房间 → 自己房间
-        // 同房间：需要有塔才能吸进塔内
-        if (st.towerBaseRoom == null || st.towerBaseRoom !== p.room) return '当前房间没有高塔，无法把人吸进塔内';
+        if (ids.length === 0) return '请选择至少一个目标';
+        for (const targetId of ids) {
+          const target = ctx.game.players[targetId];
+          if (!target?.alive) return '目标不存在或已淘汰';
+          if (targetId === ctx.actor) return '不能吸自己';
+          if (target.hidden || target.invisible) return '无法锁定躲藏/隐身的玩家';
+          if (target.char.inTower === true) return '目标已经在塔内';
+          if (target.room === p.room && (st.towerBaseRoom == null || st.towerBaseRoom !== p.room)) {
+            return '当前房间没有高塔，无法把人吸进塔内';
+          }
+        }
         return null;
       },
       execute: (ctx) => {
-        const targetId = ctx.params.targetId!;
+        const ids = actionTargetIds(ctx.params);
         const p = ctx.game.getPlayer(ctx.actor);
-        const target = ctx.game.players[targetId];
-        if (target.room !== p.room) {
-          const from = target.room;
-          target.room = p.room;
-          ctx.game.log('trigger', `🌀 ${p.name} 一吸：${target.name} 被从 ${from} 吸到 ${p.room}（拉近一格）`, { pid: targetId, source: ctx.actor, from, to: p.room }, true);
-          return;
+        for (const targetId of ids) {
+          const target = ctx.game.players[targetId];
+          if (!target) continue;
+          if (target.room !== p.room) {
+            const from = target.room;
+            target.room = p.room;
+            ctx.game.log('trigger', `🌀 ${p.name} 一吸：${target.name} 被从 ${from} 吸到 ${p.room}（拉近一格）`, { pid: targetId, source: ctx.actor, from, to: p.room }, true);
+            continue;
+          }
+          target.char.inTower = true;
+          ctx.game.log('trigger', `🌀 ${p.name} 一吸：${target.name} 被吸进高塔内部（塔内外隔绝）`, { pid: targetId, source: ctx.actor }, true);
         }
-        target.char.inTower = true;
-        ctx.game.log('trigger', `🌀 ${p.name} 一吸：${target.name} 被吸进高塔内部（塔内外隔绝）`, { pid: targetId, source: ctx.actor }, true);
       },
     },
     {
       name: 'blow',
       label: '吹',
-      desc: '消耗本次行动，把一名敌人吹远一格：塔内 → 自己房间；自己房间 → 其他房间。',
+      desc: '消耗本次行动，把一名或多名敌人吹远一格：塔内 → 自己房间；自己房间 → 其他房间。',
       targetHint: 'anyPlayer',
+      multiTarget: true,
       validate: (ctx) => {
-        const targetId = ctx.params.targetId;
-        const target = targetId ? ctx.game.players[targetId] : undefined;
+        const ids = actionTargetIds(ctx.params);
         const p = ctx.game.getPlayer(ctx.actor);
-        if (!target?.alive) return '目标不存在或已淘汰';
-        if (targetId === ctx.actor) return '不能吹自己';
-        if (target.hidden || target.invisible) return '无法锁定躲藏/隐身的玩家';
-        if (target.char.inTower === true) return null; // 塔内 → 塔外
-        if (target.room === p.room) return null; // 自己房间 → 其他房间
-        return '只能吹塔内或自己房间里的敌人';
+        if (ids.length === 0) return '请选择至少一个目标';
+        for (const targetId of ids) {
+          const target = ctx.game.players[targetId];
+          if (!target?.alive) return '目标不存在或已淘汰';
+          if (targetId === ctx.actor) return '不能吹自己';
+          if (target.hidden || target.invisible) return '无法锁定躲藏/隐身的玩家';
+          if (target.char.inTower === true) continue; // 塔内 → 塔外
+          if (target.room === p.room) continue; // 自己房间 → 其他房间
+          return '只能吹塔内或自己房间里的敌人';
+        }
+        return null;
       },
       execute: (ctx) => {
-        const targetId = ctx.params.targetId!;
+        const ids = actionTargetIds(ctx.params);
         const p = ctx.game.getPlayer(ctx.actor);
-        const target = ctx.game.players[targetId];
-        if (target.char.inTower === true) {
-          target.char.inTower = false;
-          ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从塔内吹回 ${target.room}（拉远一格）`, { pid: targetId, source: ctx.actor, to: target.room }, true);
-          return;
+        for (const targetId of ids) {
+          const target = ctx.game.players[targetId];
+          if (!target) continue;
+          if (target.char.inTower === true) {
+            target.char.inTower = false;
+            ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从塔内吹回 ${target.room}（拉远一格）`, { pid: targetId, source: ctx.actor, to: target.room }, true);
+            continue;
+          }
+          const dest = target.originRoom !== p.room
+            ? target.originRoom
+            : (ctx.game.roomIds.find((room) => room !== p.room) ?? p.room);
+          const from = target.room;
+          target.room = dest;
+          ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从 ${from} 吹到 ${dest}（拉远一格）`, { pid: targetId, source: ctx.actor, from, to: dest }, true);
         }
-        const dest = target.originRoom !== p.room
-          ? target.originRoom
-          : (ctx.game.roomIds.find((room) => room !== p.room) ?? p.room);
-        const from = target.room;
-        target.room = dest;
-        ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从 ${from} 吹到 ${dest}（拉远一格）`, { pid: targetId, source: ctx.actor, from, to: dest }, true);
       },
     },
   ],

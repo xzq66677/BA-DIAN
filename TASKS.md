@@ -829,3 +829,11 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | T-3105 | 测试 | `tests/character-water-snake.test.ts` 9 例（造塔/隔绝/压制胜平负/吸吹/离塔/亡魂）；共享用例 TC-C107~C109；状态读取器用例。`npm test` **48 文件 / 744 用例全过**，双端 `tsc` 0 错误，`npm run build` 通过。 |
 | T-3106 | 文档 | `docs/characters/water-snake.md`；GAME_RULES 角色条目 + A-27/A-28/A-29；README 角色表/3D 说明/测试数；CHANGELOG 同步。 |
 | T-3107 | 交付边界 | 本地分支 + 本地提交，**未推送、未开 PR**；Issue #71 四位角色（鬼影/狂猎/佝偻弓箭手/飞天水螅）全部完成，等待用户验收/调整。 |
+### 用户反馈调整（2026-11-26 同日）
+
+| 编号 | 调整 | 说明 |
+|---|---|---|
+| T-3110 | 高塔可被攻击/坍塌 | 同房间玩家（塔内或塔外）获得环境行动「攻击高塔」（伤害=自身攻击力）；	owerHp 归零调用 collapseTower：弹出塔内玩家、清空塔状态、允许重建。 |
+| T-3111 | 吸/吹多目标 | ActionRequest.targetIds + CharActionDef.multiTarget；客户端行动坞支持多选目标（点击切换、已选人数提示）；吸/吹校验/执行按多目标逐个处理。 |
+| T-3112 | 塔内压制双方亲自出拳 | CharDef.onBeforeAction 返回 { judge, onResult } 时引擎挂起本次行动（pendingPreAction）并进入 judge；判定后 completePreAction 按结果正常执行/无效/自伤；平局不重掷；AI/测试场保留 serverRoll。 |
+| T-3113 | 验证 | 角色测试扩到 16 例（造塔/隔绝/压制即时与亲自出拳/吸吹单多目标/攻击高塔坍塌/亡魂）；共享用例 TC-C107~C111；`npm test` 全过，双端 `tsc` 0 错误，`npm run build` 通过。仍为本地提交，未推送。 |

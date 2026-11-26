@@ -345,8 +345,13 @@ D
 - **通用扩展**：`CharDef.onBeforeAction`（行动前压制：无效/自伤，仍消耗行动）、`CharDef.validateAction`（角色状态限制行动，如亡魂只能吸/吹）；引擎新增 `isInTower`，`roomMembers`/`isSameRoom` 把塔内视为独立房间，`base-actions.actAttack` 增加跨塔壁拒绝。
 - 3D：`palette.ts` 新增水青/浅水配色与 `tentacle` 触手道具；客户端状态读取器新增「高塔/造塔中/塔内/亡魂」，攻击目标列表按塔内外过滤。
 
+### 变更（2026-11-26 用户反馈）
+- **高塔可被攻击**：同房间玩家（塔内或塔外）都可消耗一次行动攻击高塔（伤害=自身攻击力）；6 点耐久归零后高塔**坍塌**，塔内玩家被弹出塔外，塔回到未建造状态（可重新造塔）。
+- **吸/吹多目标**：一次行动可通过 `ActionRequest.targetIds` 指定多名敌人，每人仍只移动一格；客户端行动坞支持多选目标。
+- **塔内压制改为双方亲自出拳**：默认 player 模式进入 `judge` 阶段（平局=本次行动无效且不重掷）；新增引擎「行动前判定」挂起/恢复流程（`pendingPreAction`/`completePreAction`），AI 对局/测试场保留 `serverRoll` 即时结算。
+
 ### 测试
-- **744 用例 / 48 文件全过**：新增 `tests/character-water-snake.test.ts`（9 例）、共享用例 TC-C107~C109、状态读取器高塔用例。
+- **753 用例 / 48 文件全过**：`tests/character-water-snake.test.ts` 扩到 16 例（造塔/隔绝/压制即时与亲自出拳/吸吹单多目标/攻击高塔坍塌/亡魂）、共享用例 TC-C107~C111、状态读取器高塔用例。
 
 ---
 
