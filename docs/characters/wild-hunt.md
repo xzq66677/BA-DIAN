@@ -1,4 +1,4 @@
-# 狂猎 · wild-hunt（Issue #71 · 本地待评审）
+# 狂猎 · wild-hunt（Issue #71）
 
 规格：charId `wild-hunt`，血 4、攻击 1（`attackType: 'melee'`；骑乘时攻击钩子接管，可跨房间突进）。
 视觉：暗红主体 `0x7a2f2f` + 金色点缀 `0xd8b04a`，程序化「长枪 + 骑旗」道具（`prop: 'lance'`，`rig.ts` 新增），

@@ -1,4 +1,4 @@
-# 佝偻弓箭手 · hunchback-archer（Issue #71 · 本地待评审）
+# 佝偻弓箭手 · hunchback-archer（Issue #71）
 
 规格：charId `hunchback-archer`，血 3、远程攻击 1（`attackType: 'ranged'`，**可射击同房间目标**，不提供近战）。
 视觉：骨灰绿主体 `0x6f7a5a` + 骨白点缀 `0xe8e2cf`，程序化「骨柄长弓」道具（`prop: 'bow'`，`rig.ts` 新增），

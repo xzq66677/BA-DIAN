@@ -1,4 +1,4 @@
-# 飞天水螅 · water-snake（Issue #71 · 本地待评审）
+# 飞天水螅 · water-snake（Issue #71）
 
 规格：charId `water-snake`，血 3、攻击 1.5（`attackType: 'melee'`）。
 视觉：水青主体 `0x2f6f7a` + 浅水点缀 `0x9fd8e8`，程序化「水螅触手」道具（`prop: 'tentacle'`，`rig.ts` 新增），

@@ -1,4 +1,4 @@
-# 鬼影 · ghost（Issue #71 · 本地待评审）
+# 鬼影 · ghost（Issue #71）
 
 规格：charId `ghost`，血 2、攻击 1.5（`attackType: 'both'`，近战/远程同伤）、`attackDtype: 'physical'`。
 视觉：雾青主体 `0x3b4d5e` + 幽光点缀 `0xbfe8ff`，程序化「幽光灵环」道具（`prop: 'ghost'`，`rig.ts` 新增），
