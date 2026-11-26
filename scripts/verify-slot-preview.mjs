@@ -62,11 +62,17 @@ try {
   await ready(page);
 
   await page.getByTestId('preview-pull').click();
+  record('preview selects four reels by default', await page.locator('.slot-reel').count() === 4);
+  record('four-reel mode target is at least 44px', await page.getByTestId('preview-reels-4').evaluate((button) => button.getBoundingClientRect().height >= 44));
+  await shot(page, 'desktop-pull-4-idle');
+  await page.getByTestId('preview-reset').click();
+  await page.getByTestId('preview-pull').click();
+  await page.getByTestId('slot-pull-overlay').getByRole('button', { name: '3 数字', exact: true }).click();
   const initialDigits = await page.locator('.slot-reel').evaluateAll((reels) => reels.map((reel) => ({
     digit: Number(reel.dataset.digit),
     symbol: reel.dataset.symbol,
   })));
-  record('three reels show digits from zero to nine', initialDigits.length === 3 && initialDigits.every(({ digit }) => digit >= 0 && digit <= 9));
+  record('three-reel mode shows digits from zero to nine', initialDigits.length === 3 && initialDigits.every(({ digit }) => digit >= 0 && digit <= 9));
   record('each reel shows the mapped concrete symbol', initialDigits.every(({ digit, symbol }) => symbol === (digit === 0 ? 'key' : digit <= 3 ? 'money' : digit <= 7 ? 'bomb' : 'attack')));
   record('number and symbol legend is visible', await page.getByRole('list', { name: '老虎机数字符号对照' }).isVisible());
   await shot(page, 'desktop-pull-idle');
@@ -108,10 +114,21 @@ try {
   await page.waitForFunction(() => window.__slotPreview.getState().status.includes('已受理'));
   record('keyboard activation submits', true);
 
+  await page.getByTestId('preview-pull').click();
+  await page.getByTestId('slot-pull-overlay').getByRole('button', { name: '4 数字', exact: true }).click();
+  const fourDigits = await page.locator('.slot-reel').evaluateAll((reels) => reels.map((reel) => Number(reel.dataset.digit)));
+  await handle.focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__slotPreview.getState().status === '演出完成', null, { timeout: 5000 });
+  const fourResultText = await page.locator('.slot-machine-caption').textContent() ?? '';
+  record('four-reel keyboard result shows all digits', fourDigits.length === 4 && fourDigits.every((digit) => fourResultText.includes(String(digit))));
+  await shot(page, 'desktop-pull-4-result');
+
   await page.getByTestId('preview-drop-2d').click();
   await page.waitForTimeout(420);
   await shot(page, 'desktop-drop-2d-falling');
   record('2D drop overlay is visible', await page.getByTestId('slot-drop-overlay').isVisible());
+  record('landed 2D machine keeps four reels', await page.locator('.slot-reel').count() === 4);
   await page.waitForFunction(() => window.__slotPreview.getState().status === '演出完成', null, { timeout: 5000 });
 
   await page.getByLabel('reduced-motion').check();
@@ -160,6 +177,12 @@ try {
   const overflow = await mobilePage.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   record('390px layout has no horizontal overflow', overflow <= 0);
   await mobilePage.getByTestId('preview-pull').tap();
+  const mobileOverflow = await mobilePage.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  record('390px four-reel overlay has no horizontal overflow', mobileOverflow <= 0);
+  await shot(mobilePage, 'mobile-pull-4-idle');
+  await mobilePage.getByTestId('preview-reset').tap();
+  await mobilePage.getByRole('button', { name: '3 数字', exact: true }).tap();
+  await mobilePage.getByTestId('preview-pull').tap();
   const mobileBox = await mobilePage.getByRole('button', { name: '拉动老虎机拉杆' }).boundingBox();
   assert(mobileBox);
   record('mobile lever target is at least 44px', mobileBox.width >= 44 && mobileBox.height >= 44);
@@ -177,10 +200,12 @@ try {
   await mobilePage.waitForTimeout(650);
   await shot(mobilePage, 'mobile-pull-spinning');
   await mobilePage.getByTestId('preview-reset').tap();
+  await mobilePage.getByRole('button', { name: '4 数字', exact: true }).tap();
   await mobilePage.getByTestId('preview-drop-2d').tap();
   await mobilePage.waitForTimeout(450);
   await shot(mobilePage, 'mobile-drop-2d');
   record('mobile 2D drop is visible', await mobilePage.getByTestId('slot-drop-overlay').isVisible());
+  record('mobile landed machine keeps four reels', await mobilePage.locator('.slot-reel').count() === 4);
   await mobile.close();
 
   record('no browser console errors', report.consoleErrors.length === 0);

@@ -9,7 +9,9 @@
  */
 
 import type { SnapLog } from '../net.js';
-import { normalizeSlotReels, type SlotReels } from './slot-machine-reels.js';
+import { resolveActionPresentation } from './action-presentation.js';
+
+export type PresentationData = Readonly<Record<string, unknown>>;
 
 /** 最小日志形状（net.ts 的 SnapLog 与测试构造的日志都满足；type 可缺省=旧数据） */
 export interface LogLike {
@@ -46,6 +48,8 @@ export interface BattleEvent {
   explodeRound?: number;
   /** 行动者 / 移动者 */
   pid?: string;
+  /** 服务端权威行动名；由角色注册表解析为视觉 fx。 */
+  actionName?: string;
   /** 受击 / 回复 / 淘汰目标 */
   targetId?: string;
   /** 伤害来源 */
@@ -61,7 +65,8 @@ export interface BattleEvent {
   segment?: { index: number; total: number };
   /** 事件房间（AOE 房间高亮） */
   room?: string;
-  reels?: SlotReels;
+  /** 角色演出插件专用的公开数据；各插件自行校验字段 */
+  presentation?: PresentationData;
   fromRoom?: string;
   toRoom?: string;
   cause?: string;
@@ -77,6 +82,10 @@ function num(v: unknown): number | undefined {
 function str(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
+function presentationData(v: unknown): PresentationData | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  return Object.freeze({ ...v as Record<string, unknown> });
+}
 
 /**
  * 日志 → 演出事件。返回 null 表示该日志不参与演出
@@ -88,13 +97,16 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
     case 'action': {
       const pid = str(d.pid);
       if (!pid) return null; // 旧格式无 pid：不演出（日志面板照常显示）
+      const actionName = str(d.actionName);
+      const registeredFx = actionName ? resolveActionPresentation(actionName)?.fx : undefined;
       return {
         kind: 'action', seq: log.seq, pid,
-        fx: str(d.fx) || 'skill',
+        actionName,
+        fx: registeredFx ?? str(d.fx) ?? 'skill',
         label: str(d.label),
         targetId: str(d.targetId),
         room: str(d.room),
-        reels: normalizeSlotReels(d.reels) ?? undefined,
+        presentation: presentationData(d.presentation),
         important: log.important,
       };
     }

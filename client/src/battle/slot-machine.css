@@ -100,7 +100,7 @@
 
 .slot-reels {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   height: 82%;
   overflow: hidden;
@@ -170,6 +170,7 @@
 
 .slot-reels[data-spinning='1'] .slot-reel:nth-child(2) > span { animation-delay: -0.17s; }
 .slot-reels[data-spinning='1'] .slot-reel:nth-child(3) > span { animation-delay: -0.31s; }
+.slot-reels[data-spinning='1'] .slot-reel:nth-child(4) > span { animation-delay: -0.43s; }
 
 .slot-marquee-lights {
   position: absolute;
@@ -186,6 +187,44 @@
   border-radius: 50%;
   background: #ffe9a1;
   box-shadow: 0 0 7px #ffbf52;
+}
+
+.slot-reel-modes {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.slot-reel-modes button {
+  min-width: 84px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid rgba(234, 192, 99, 0.65);
+  border-radius: 999px;
+  color: #f9e6b6;
+  background: rgba(18, 13, 15, 0.88);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.slot-reel-modes button[aria-pressed='true'] {
+  color: #241417;
+  background: #f3cf79;
+  box-shadow: 0 0 12px rgba(255, 207, 99, 0.3);
+}
+
+.slot-reel-modes button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.slot-reel-modes button:focus-visible,
+.slot-lever-handle:focus-visible,
+.slot-machine-cancel:focus-visible {
+  outline: 3px solid #fff4c7;
+  outline-offset: 3px;
 }
 
 .slot-symbol-legend {

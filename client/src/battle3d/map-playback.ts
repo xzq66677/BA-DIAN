@@ -80,13 +80,13 @@ export function projectMapSnapshot(
 
 export type MapPlaybackScene = Pick<BattleScene3D,
   'playAction' | 'playAttackDecl' | 'playAreaAlert' | 'playHit' | 'playHeal' | 'playMiss' |
-  'playWalk' | 'playEliminate' | 'playRevive' | 'playSlotDrop' | 'playIvanThrow' | 'playIvanBoom' | 'playDomain' | 'playTrigger'>;
+  'playWalk' | 'playEliminate' | 'playRevive' | 'playIvanThrow' | 'playIvanBoom' | 'playDomain' | 'playTrigger'>;
 
 export function playMapEvent(scene: MapPlaybackScene, event: BattleEvent, durationMs: number): void {
   switch (event.kind) {
     case 'action':
       if (event.pid && event.fx && event.fx !== 'move'
-          && !playActionPresenter(scene, event.pid, event.fx, event.targetId, durationMs)) {
+          && !playActionPresenter(scene, event, durationMs)) {
         scene.playAction(event.pid, event.fx, event.targetId);
       }
       break;

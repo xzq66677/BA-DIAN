@@ -18,7 +18,7 @@ import { useCardRoomFlip } from '../battle/flip.js';
 import { resolvePresentationPace } from '../battle/pace-policy.js';
 import { resolveActionPresentation } from '../battle/action-presentation.js';
 import { FxOverlayHost, fxOverlayView, type FxOverlayView } from '../battle/fx-overlays.js';
-import '../battle/slot-machine-overlay.js';
+import '../battle/presentation-plugins.js';
 import { PlayerStatusList, PlayerStatusModal } from '../battle/player-status.js';
 import { formatHp as fmtHp } from '../battle/status-types.js';
 import { sfx } from '../audio/sfx.js';
@@ -361,7 +361,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     void submitPreparedAction(action);
   }
 
-  async function completeManualPull(): Promise<void> {
+  async function completeManualAction(): Promise<void> {
     if (!manualAction || manualBusy) return;
     setManualBusy(true);
     try {
@@ -371,7 +371,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     }
   }
 
-  function cancelManualPull(): void {
+  function cancelManualAction(): void {
     if (manualBusy) return;
     setManualCue(null);
     setManualAction(null);
@@ -665,8 +665,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
               mode={use3d ? '3d' : '2d'}
               interactive
               reducedMotion={reducedMotion}
-              onPull={() => { void completeManualPull(); }}
-              onCancel={cancelManualPull}
+              onSubmit={() => { void completeManualAction(); }}
+              onCancel={cancelManualAction}
             />
           )}
           {(queueState.playing || queueState.depth > 0 || finaleWaiting || finaleCameraPending) && (

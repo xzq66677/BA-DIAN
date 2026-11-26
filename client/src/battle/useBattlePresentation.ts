@@ -11,14 +11,13 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BattleEventQueue, DEFAULT_PACE, paceFromLocation, type PaceProfile, type QueueState, type Speed } from './queue.js';
-import type { BattleEvent, LogLike } from './events.js';
+import type { BattleEvent, LogLike, PresentationData } from './events.js';
 import { sfx, type SfxKind } from '../audio/sfx.js';
 import { condenseAnnounceQueue, type AnnounceItem } from '../../../shared/src/announce.js';
 import { actionPresentationDuration } from './action-presentation.js';
-import type { SlotReels } from './slot-machine-reels.js';
 
 /** 行动者卡 fx（⚔️/💊/🚶/✨ 弹出动画）；targetId 供 3D 场景确定动作朝向（2D 不使用） */
-export interface FxView { kind: string; key: number; pid?: string; targetId?: string; room?: string; durationMs?: number; reels?: SlotReels }
+export interface FxView { kind: string; key: number; pid?: string; targetId?: string; room?: string; durationMs?: number; presentation?: PresentationData }
 
 /** 攻击宣告（出手意向：来源 → 目标）；2D 不使用，3D 场景据此画预警光束 */
 export interface DeclView { key: number; targetId: string; amount?: number; room?: string }
@@ -271,7 +270,7 @@ export function useBattlePresentation(
           pid,
           targetId: e.targetId,
           room: e.room,
-          reels: e.reels,
+          presentation: e.presentation,
           durationMs,
         } };
         scheduleExpiry('fx', pid, e.kind === 'attackDecl' ? 420 : Math.max(FX_MS, actionPresentationDuration(e.fx) ?? 0, durationMs));
