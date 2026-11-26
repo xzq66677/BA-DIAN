@@ -165,6 +165,11 @@ export interface DamageRequest {
   judgeResolved?: boolean;
   /** 伤害标签（ivan/insult/whip/berserk/selfdestruct...） */
   tag?: string;
+  /**
+   * 是否为「攻击」造成的伤害（普攻 / 燃烧箭 / 被操控的攻击）。
+   * 受击判定类被动（如狂猎的猜拳反击）只对攻击生效，不响应燃烧/爆炸/精神攻击等。
+   */
+  isAttack?: boolean;
   /** 原始效果附加（转移伤害时不随转移） */
   effects?: DamageEffect[];
   /**

@@ -1366,6 +1366,48 @@ export const CHARACTER_CASES: TestCase[] = [
         `ready=${ready}, damaged=${damaged}, ignited=${ignited}, consumed=${consumed}`, g);
     }),
   },
+  {
+    id: 'TC-C105', name: '狂猎：受击猜拳胜利 → 抵消伤害、反击 1 伤并上马', category: 'character', charId: 'wild-hunt', seed: 308,
+    desc: '受到攻击时猜拳（平局重掷）：胜利则本次伤害抵消、反击 1 伤、上马 1 回合；失败正常受伤',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wild-hunt' }, 'B'], 308);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      // 固定猜拳：狂猎石头 vs B 剪刀 → 狂猎胜（0=石头 1=剪刀 2=布）
+      let i = 0;
+      const seq = [0, 1];
+      const original = g.rng.int.bind(g.rng);
+      (g.rng as unknown as { int: (n: number) => number }).int = (n: number) => (i < seq.length ? Math.min(seq[i++], n - 1) : original(n));
+      const r = g.submitAction('B', { type: 'attack', targetId: 'A' });
+      const ok = r.ok && hpOf(g, 'A') === 4 && hpOf(g, 'B') === 1 && g.hasStatus('A', 'mounted');
+      return check(ok, '判定胜利：伤害抵消、反击 1 伤、上马 1 回合',
+        `ok=${r.ok}, hpA=${hpOf(g, 'A')}, hpB=${hpOf(g, 'B')}, mounted=${g.hasStatus('A', 'mounted')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C106', name: '狂猎：骑乘突进伤害×2，最后一回合 6 伤单体后下马', category: 'character', charId: 'wild-hunt', seed: 309,
+    desc: '主动上马 2 回合：第一回合跨房间突进 2 伤，最后一回合 6 伤单体，结束自动下马',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wild-hunt' }, 'B'], 309);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      g.players.B.maxHp = 30;
+      g.players.B.hp = 30;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const mounted = g.submitAction('A', { type: 'mount' }).ok;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const dash = g.submitAction('A', { type: 'attack', targetId: 'B' }).ok;
+      const crossed = g.players.A.room === 'R2';
+      const firstHit = hpOf(g, 'B') === 28; // 1×2
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'attack', targetId: 'B' });
+      const finalHit = hpOf(g, 'B') === 22; // 6 伤单体
+      const dismounted = !g.hasStatus('A', 'mounted');
+      return check(mounted && dash && crossed && firstHit && finalHit && dismounted, '骑乘突进与最后一回合爆发、结束下马',
+        `mounted=${mounted}, dash=${dash}, crossed=${crossed}, first=${firstHit}, final=${finalHit}, off=${dismounted}`, g);
+    }),
+  },
 ];
 
 function insults2(g: ReturnType<typeof makeGame>): number {

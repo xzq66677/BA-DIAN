@@ -91,4 +91,14 @@ describe('角色公开状态', () => {
     expect(possessing!.value).toBe('无法被锁定');
     expect(possessing!.detail).toContain('折磨');
   });
+
+  it('骑乘中：展示剩余回合与攻击强化', () => {
+    const p = player({ charId: 'wild-hunt', effects: [{ kind: 'mounted', severity: 0, remainingRounds: 2 }] });
+    const items = playerStatusItems(p, [p]);
+    const mounted = items.find((item) => item.key === 'status-mounted');
+    expect(mounted).toBeTruthy();
+    expect(mounted!.value).toContain('剩余 2 回合');
+    expect(mounted!.detail).toContain('6 伤');
+    expect(mounted!.tone).toBe('good');
+  });
 });

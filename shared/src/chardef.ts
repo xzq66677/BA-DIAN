@@ -207,6 +207,8 @@ export interface CharDef {
   damageHookStage?: 'transfer' | 'defense';
   /** 死亡钩子 */
   onDeath?(ctx: DeathHookCtx): void;
+  /** 击杀钩子：killer 为本角色时触发（击杀后攻击提升等） */
+  onKill?(ctx: { game: GameLike; killer: PlayerId; target: PlayerId; cause: string }): void;
   /** 回合末钩子（所有行动完成后） */
   onRoundEnd?(ctx: { game: GameLike }): void;
   /** 判定历史追加钩子（大屁孩） */

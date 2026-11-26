@@ -7,7 +7,7 @@
  */
 
 import { characterAi } from './ai-strategies.js';
-import type { CharActionDef, CharDef } from '../chardef.js';
+import type { CharActionDef, CharDef, GameLike } from '../chardef.js';
 import { mentalKill } from '../mental.js';
 import { fmtNum, type PlayerId } from '../types.js';
 
@@ -644,6 +644,7 @@ const hunchbackArcher: CharDef = {
             source: ctx.actor,
             dtype: 'physical',
             tag: 'arrow',
+            isAttack: true,
             effects: [{ kind: 'burning', severity: 0.5 }],
           });
         },
@@ -730,6 +731,144 @@ const ghost: CharDef = {
   ],
 };
 
+/** 狂猎骑乘：上马 rounds 回合（当回合不消耗，下一回合起生效；最后一回合为爆发回合） */
+function mountWildHunt(game: GameLike, owner: PlayerId, rounds: number): void {
+  const st = game.charState(owner);
+  st.mounted = true;
+  st.mountExpiresRound = game.roundNo + rounds;
+  // remainingRounds 交给引擎回合末递减：+1 保证当回合不被立刻扣掉
+  game.addStatus(owner, { kind: 'mounted', severity: 0, remainingRounds: rounds + 1 });
+  game.log('trigger', `🐎 ${game.players[owner].name} 上马 ${rounds} 回合（骑乘：攻击×2/带位移；最后一回合攻击变为 6 伤单体）`,
+    { pid: owner, rounds, expiresRound: st.mountExpiresRound }, true);
+}
+
+/**
+ * 14. 狂猎（Issue #71）
+ *
+ * - 血量 4、攻击 1；
+ * - 受到**攻击**时与来源猜拳判定（平局重掷直到分出胜负）：
+ *   赢 → 抵消本次伤害并反击（未骑乘：反击 1 伤并上马 1 回合；已骑乘：反击改为 6 伤，使用后下马）；
+ *   输 → 正常受伤；
+ * - 骑乘期间攻击无视距离并带位移（攻击后移动到目标房间）、伤害 ×2；
+ *   骑乘的**最后一回合**攻击变为 6 伤单体；
+ * - 可消耗一次行动主动上马 2 回合；
+ * - 每次击杀敌人后攻击 ×1.5（可叠加）。
+ */
+const wildHunt: CharDef = {
+  id: 'wild-hunt',
+  name: '狂猎',
+  desc: '血量4、攻击1。受到攻击时与来源猜拳判定（平局重掷直到分出胜负）：赢则抵消本次伤害并反击——未骑乘时反击1伤并上马1回合，已骑乘时反击改为6伤、用后下马；输则正常受伤。骑乘期间攻击无视距离并带位移（攻击后移动到目标房间）、伤害×2；骑乘的最后一回合攻击变为6伤单体。可消耗一次行动主动上马2回合。每次击杀敌人后攻击×1.5（可叠加）。',
+  hp: 4,
+  attack: 1,
+  attackType: 'melee',
+  attackDesc: '近战攻击同房间目标（伤害 1）；骑乘期间可跨房间突进（攻击后移动到目标房间）、伤害×2，骑乘最后一回合攻击变为 6 伤单体',
+  traits: ['hunter'],
+  init: () => ({ mounted: false, mountExpiresRound: 0, kills: 0 }),
+  /** 受击判定：只响应普通攻击（普攻/燃烧箭/操控攻击），不响应燃烧、爆炸、精神攻击等 */
+  onBeforeDamage: ({ game, req, owner }) => {
+    if (req.target !== owner) return;
+    if (!req.isAttack) return;
+    const source = req.source;
+    if (!source || source === owner || !game.players[source]?.alive) return;
+    const st = game.charState(owner);
+    const throwName = (t: string) => (t === 'rock' ? '石头' : t === 'scissors' ? '剪刀' : '布');
+    let result: 'win' | 'lose' | 'tie' = 'tie';
+    let ties = 0;
+    let guard = 0;
+    let last = { a: 'rock', b: 'rock' };
+    // 平局重掷，直到分出胜负（安全上限防死循环）
+    while (result === 'tie' && guard++ < 50) {
+      const roll = game.rollJudgeThrows(owner, source);
+      last = { a: roll.a, b: roll.b };
+      result = roll.result;
+      if (result === 'tie') ties++;
+    }
+    const detail = `狂猎 ${throwName(last.a)} vs ${throwName(last.b)}${ties > 0 ? `（平局重掷 ${ties} 次）` : ''}`;
+    if (result !== 'win') {
+      game.log('trigger', `⚔ ${game.players[owner].name} 受击判定失败：${detail} → 正常受伤`, { pid: owner, source, result, ties }, true);
+      return; // 正常承伤
+    }
+    const mountedNow = st.mounted === true;
+    const counterAmount = mountedNow ? 6 : 1;
+    game.log('trigger', `⚔ ${game.players[owner].name} 受击判定成功：${detail} → 抵消伤害并反击 ${fmtNum(counterAmount)} 点${mountedNow ? '（用后下马）' : '（上马 1 回合）'}`,
+      { pid: owner, source, result, ties, counter: counterAmount, mounted: mountedNow }, true);
+    // 反击：无视躲藏/隐身（反击不是普通攻击，不触发对方的受击判定）
+    game.applyDamage({
+      target: source,
+      amount: counterAmount,
+      source: owner,
+      dtype: 'physical',
+      tag: 'counter',
+      ignoreHide: true,
+    });
+    if (mountedNow) {
+      game.removeStatus(owner, 'mounted');
+    } else {
+      mountWildHunt(game, owner, 1);
+    }
+    return 'skip'; // 本次攻击伤害被完全抵消
+  },
+  onAttackAction: ({ game, actor }, targetId) => {
+    const p = game.getPlayer(actor);
+    const target = game.players[targetId];
+    if (!target?.alive) return { ok: false, error: '目标已淘汰' };
+    if (targetId === actor) return { ok: false, error: '不能攻击自己' };
+    const st = game.charState(actor);
+    const mounted = st.mounted === true;
+    if (!mounted && !game.isSameRoom(actor, targetId)) {
+      return { ok: false, error: '未骑乘时只能近战同房间目标' };
+    }
+    if (target.hidden || target.invisible) return { ok: false, error: '目标正在躲藏/隐身，无法锁定' };
+
+    if (mounted) p.room = target.room; // 攻击带位移：突进到目标房间
+    const expires = typeof st.mountExpiresRound === 'number' ? st.mountExpiresRound : 0;
+    const finalRound = mounted && game.roundNo >= expires;
+    const kills = typeof st.kills === 'number' ? st.kills : 0;
+    const cd = game.charDef(actor);
+    // 击杀加成 1.5^kills；骑乘 ×2；骑乘最后一回合固定 6 伤单体
+    const amount = finalRound
+      ? 6
+      : Math.round((cd.attack ?? 1) * (mounted ? 2 : 1) * Math.pow(1.5, kills) * 10000) / 10000;
+    game.log('damage', `🌪 ${p.name} ${mounted ? (finalRound ? '在骑乘最后一回合发动致命冲锋' : '骑乘突进') : '攻击'} ${target.name}（伤害 ${fmtNum(amount)}${mounted ? '，位移至目标房间' : ''}）`,
+      { pid: actor, target: targetId, amount, mounted, finalRound, room: target.room }, true);
+    const applied = game.applyDamage({
+      target: targetId,
+      amount,
+      source: actor,
+      dtype: cd.attackDtype || 'physical',
+      isAttack: true,
+    });
+    if (!applied.missed && !applied.deferred && applied.finalTarget !== actor) {
+      cd.onAttackLanded?.({ game, actor, target: applied.finalTarget });
+    }
+    return { ok: true };
+  },
+  aiStrategy: ({ game, pid, alive, st }) => {
+    if (st.mounted !== true) return { type: 'mount' };
+    const target = alive
+      .filter((p) => p !== pid && !(game.players[p].hidden || game.players[p].invisible))
+      .sort((a, b) => game.players[a].hp - game.players[b].hp)[0];
+    return target ? { type: 'attack', targetId: target } : undefined;
+  },
+  onKill: ({ game, killer }) => {
+    const st = game.charState(killer);
+    const kills = (typeof st.kills === 'number' ? st.kills : 0) + 1;
+    st.kills = kills;
+    const mult = Math.pow(1.5, kills);
+    game.log('trigger', `🩸 ${game.players[killer].name} 击杀敌人，攻击提升至 ×${fmtNum(mult)}（可叠加）`, { pid: killer, kills, mult }, true);
+  },
+  actions: [
+    {
+      name: 'mount',
+      label: '上马',
+      desc: '消耗本次行动主动上马 2 回合：骑乘期间攻击无视距离并带位移、伤害×2；骑乘最后一回合攻击变为 6 伤单体。',
+      targetHint: 'none',
+      validate: (ctx) => (ctx.game.hasStatus(ctx.actor, 'mounted') ? '已经处于骑乘中' : null),
+      execute: (ctx) => { mountWildHunt(ctx.game, ctx.actor, 2); },
+    },
+  ],
+};
+
 export const CHARACTERS: Record<string, CharDef> = {
   default: defaultChar,
   bagun,
@@ -744,6 +883,7 @@ export const CHARACTERS: Record<string, CharDef> = {
   dapihuai,
   'hunchback-archer': hunchbackArcher,
   ghost,
+  'wild-hunt': wildHunt,
 };
 
 export const CHARACTER_LIST: CharDef[] = Object.values(CHARACTERS);

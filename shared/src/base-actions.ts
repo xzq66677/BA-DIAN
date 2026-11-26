@@ -130,6 +130,7 @@ function actAttack(game: GameLike, pid: PlayerId, req: ActionRequest, map: Battl
     source: pid,
     dtype: cd.attackDtype || 'physical',
     ignoreHide: cd.ignoreHide,
+    isAttack: true,
     ...(cd.attackEffects && cd.attackEffects.length > 0 ? { effects: cd.attackEffects } : {}),
   });
   // 命中后的角色回调（如骷髅弓箭手打断对方取箭）；反弹/未命中不触发

@@ -400,6 +400,19 @@ export function buildProp(kind: string): { hand?: THREE.Object3D; headTop?: THRE
       back = g;
       break;
     }
+    case 'lance': {
+      // 狂猎：长枪 + 三角骑旗
+      const g = new THREE.Group();
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.022, 1.25, 6), std(0x8a6a3f, 0.65, 0.08));
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 8), std(0xd8d8e0, 0.3, 0.8));
+      tip.position.y = 0.7;
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.01), std(0x8a2f2a, 0.6, 0));
+      flag.position.set(0.1, 0.5, 0);
+      g.add(shaft, tip, flag);
+      g.rotation.z = 0.18;
+      hand = g;
+      break;
+    }
     default: break;
   }
   return { hand, headTop, back, stick };

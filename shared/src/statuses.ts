@@ -42,6 +42,7 @@ export interface StatusDef {
 export const BURNING_KIND = 'burning';
 export const POSSESSED_KIND = 'possessed';
 export const POSSESSING_KIND = 'possessing';
+export const MOUNTED_KIND = 'mounted';
 
 /** 同一房间内、带指定标签的存活角色（状态/环境行动用，避免写死角色 id） */
 export function findTraitInRoom(
@@ -256,6 +257,7 @@ const possessing: StatusDef = {
             source: hid,
             dtype: hostDef.attackDtype || 'physical',
             tag: 'controlled',
+            isAttack: true,
             ...(hostDef.attackEffects && hostDef.attackEffects.length > 0 ? { effects: hostDef.attackEffects } : {}),
           });
         },
@@ -273,10 +275,26 @@ const possessing: StatusDef = {
   },
 };
 
+/** 骑乘中（狂猎）：攻击强化与位移由角色攻击钩子读取；剩余回合由引擎统一递减 */
+const mounted: StatusDef = {
+  kind: MOUNTED_KIND,
+  label: '骑乘中',
+  icon: '🐎',
+  cleanup: ({ game, owner }) => {
+    const st = game.charState(owner);
+    st.mounted = false;
+    st.mountExpiresRound = 0;
+    if (game.players[owner]?.alive) {
+      game.log('trigger', `🐎 ${game.players[owner].name} 结束骑乘，下马`, { pid: owner, effect: MOUNTED_KIND }, true);
+    }
+  },
+};
+
 export const STATUS_REGISTRY: Record<string, StatusDef> = {
   [BURNING_KIND]: burning,
   [POSSESSED_KIND]: possessed,
   [POSSESSING_KIND]: possessing,
+  [MOUNTED_KIND]: mounted,
 };
 
 export function statusDef(kind: string): StatusDef | undefined {

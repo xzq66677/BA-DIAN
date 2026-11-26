@@ -1284,7 +1284,12 @@ export class Game implements GameLike {
       p.char.domain = false;
       this.log('trigger', `🌀 ${p.name} 的领域随其退场消失`, { pid }, true);
     }
-    if (killer && killer !== pid && this.stats[killer]) this.stats[killer].kills++;
+    if (killer && killer !== pid && this.stats[killer]) {
+      this.stats[killer].kills++;
+      // 击杀钩子（如狂猎击杀后攻击 ×1.5）
+      const killerDef = this.charDef(killer);
+      if (killerDef.onKill) killerDef.onKill({ game: this, killer, target: pid, cause });
+    }
     const elimData: EliminateEventData = { pid, cause, ...(killer && killer !== pid ? { killer } : {}) };
     this.log('eliminate', `💀 ${p.name}（${this.charName(pid)}）被淘汰（原因：${cause}${killer ? `，击杀者 ${this.players[killer]?.name}` : ''}）`, { ...elimData }, true);
     this.roundSummary.push(`${p.name} 被淘汰（${cause}）`);

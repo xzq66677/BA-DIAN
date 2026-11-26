@@ -113,6 +113,18 @@ const readStatusEffects: PlayerStatusReader = (p, context) => {
       });
       continue;
     }
+    if (effect.kind === 'mounted') {
+      const left = typeof effect.remainingRounds === 'number' ? effect.remainingRounds : undefined;
+      items.push({
+        key: 'status-mounted',
+        icon: '🐎',
+        label: '骑乘中',
+        value: left ? `剩余 ${left} 回合` : '攻击强化',
+        detail: '攻击无视距离并带位移、伤害×2；骑乘最后一回合攻击变为 6 伤单体。',
+        tone: 'good',
+      });
+      continue;
+    }
     // 未知状态安全忽略
   }
   return items;
