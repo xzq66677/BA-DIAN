@@ -78,6 +78,10 @@ export function aiDecideActions(g: Game, pid: PlayerId, difficulty: AiDifficulty
     for (const t of seekTargets(g, pid)) push({ type: 'seek', targetId: t });
   }
   if (me.hp < me.maxHp) push({ type: 'heal' });
+  // 状态/环境提供的附加行动（无需目标的：扑灭、驱逐、折磨等）——让 AI 也能应对状态
+  for (const extra of g.extraActionsFor(pid)) {
+    if (!extra.targetHint || extra.targetHint === 'none') push({ type: extra.name });
+  }
   const otherRoom = g.roomIds.find((r) => r !== me.room && !g.isMoveBlocked(pid, r) && g.roomMembers(r).length > 0);
   if (otherRoom) push({ type: 'move', room: otherRoom });
   if (g.rules.allowHide && !me.hidden) push({ type: 'hide' });

@@ -2,8 +2,8 @@ import type { AnnounceItem } from './announce.js';
 import type { RuinsConditions } from './floating-ruins.js';
 import type { MapConfig } from './map-config.js';
 import type {
-  AiDifficulty, DeferredEvent, GamePhase, InteractionEvent, JudgeRoundRecord, JudgeStep,
-  LogEntry, PlayerState, PlayerStats, ReplaySummary, RevealInfo, SkillJudgeView,
+  AiDifficulty, DeferredEvent, ExtraActionView, GamePhase, InteractionEvent, JudgeRoundRecord, JudgeStep,
+  LogEntry, PlayerState, PlayerStats, PublicStatusEffect, ReplaySummary, RevealInfo, SkillJudgeView,
 } from './types.js';
 
 /** Missing version fields identify the legacy wire format. Version 1 is additive. */
@@ -18,8 +18,14 @@ export function supportsReplayFormat(version: unknown): boolean {
   return version === undefined || version === REPLAY_FORMAT_VERSION;
 }
 
-export type SnapPlayer = PlayerState & {
+/**
+ * 快照玩家：服务端权威状态去掉内部生命周期字段，只保留公开投影。
+ * `effects` 用 PublicStatusEffect（不含 appliedRound 等私有字段）。
+ */
+export type SnapPlayer = Omit<PlayerState, 'effects'> & {
   charName: string;
+  /** 公开的持续状态（仅公开字段） */
+  effects?: PublicStatusEffect[];
   /**
    * 公开的「连判」进度：该玩家最近至多 3 次已结算的回合判定结果（赢/平/输）。
    * 只来自已经揭示的判定历史，不含任何未结算的出拳或私有状态。
@@ -95,6 +101,8 @@ export interface GameSnapshot {
   orderReveal?: RevealInfo | null;
   /** 技能内判定（马保国系）：进行中的出拳面板数据；非判定阶段为 null */
   judge?: SkillJudgeView | null;
+  /** 当前行动者由状态 / 在场角色提供的附加行动（服务端权威，客户端只展示） */
+  extraActions?: ExtraActionView[];
   /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
   orderGroup?: string[];
   orderSubmittedIds?: string[];

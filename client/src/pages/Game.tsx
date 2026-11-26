@@ -42,6 +42,8 @@ interface ActionOption {
   desc: string;
   typeLabel: string;
   targetHint?: string;
+  /** 多目标行动：可同时选择多名玩家（如吸/吹） */
+  multiTarget?: boolean;
   roomHint?: boolean;
   presentationFx?: string;
   manual?: boolean;
@@ -106,6 +108,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   // 行动坞交互状态（纯 UI 状态；最终合法性由服务器校验）
   const [selAction, setSelAction] = useState<ActionOption | null>(null);
   const [selTarget, setSelTarget] = useState('');
+  /** 多目标行动的已选玩家（如吸/吹） */
+  const [selTargets, setSelTargets] = useState<string[]>([]);
   const [selRoom, setSelRoom] = useState('');
   const [actMsg, setActMsg] = useState('');
   const [berserkMsg, setBerserkMsg] = useState('');
@@ -255,13 +259,24 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         typeLabel: '技能',
         // 'none' 表示自身技能（领域展开 / 抽取今日运势 / 强化攻击等）：不选目标、不设房间，直接确认发动
         targetHint: a.targetHint && a.targetHint !== 'none' ? a.targetHint : undefined,
+        multiTarget: a.multiTarget,
         roomHint: a.roomHint,
         presentationFx: presentation?.fx,
         manual: presentation?.mode === 'manual',
         used,
       });
     }
-    return list;
+    // 状态 / 在场角色提供的附加行动（服务端权威列表：燃烧扑灭、引燃骷髅、取燃烧箭…）
+    for (const a of game.extraActions ?? []) {
+      list.push({
+        key: a.key, label: a.label, desc: a.desc,
+        typeLabel: a.typeLabel ?? '环境',
+        targetHint: a.targetHint,
+        roomHint: a.roomHint,
+      });
+    }
+    // 角色禁用的基础行动（如骷髅无法主动回复）
+    return list.filter((o) => !cd.blockBaseActions?.includes(o.key));
   }, [game, actor]);
 
   // 选中行动的合法目标（客户端提示；服务器重新校验）
@@ -272,6 +287,10 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     const hiddenOthers = others.filter((p) => p.room === actor.room && (p.hidden || p.invisible));
     switch (selAction.targetHint) {
       case 'attack': {
+        // 高塔内外隔绝：只有同侧（同在塔内或同在塔外）才能互相攻击
+        const sameTowerSide = (p: SnapPlayer) => (p.char.inTower === true) === (actor.char.inTower === true);
+        // 骑乘中（如狂猎）：攻击无视距离，可突进任意房间
+        if (actor.char.mounted === true) return others.filter((p) => !p.hidden && !p.invisible && sameTowerSide(p));
         const at = cd.attackType || 'both';
         const meleeOk = at !== 'ranged' && at !== 'none';
         const rangedOk = !!cd.rangedCapable && at !== 'none';
@@ -279,8 +298,18 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         if (cd.attackAllRooms) {
           return meleeOk ? others.filter((p) => !p.hidden || cd.ignoreHide) : [];
         }
-        const sameRoom = meleeOk ? others.filter((p) => p.room === actor.room && (!p.hidden || cd.ignoreHide)) : [];
-        const otherRoom = rangedOk ? others.filter((p) => p.room !== actor.room && !p.hidden) : [];
+        const sameRoomMelee = meleeOk ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible && sameTowerSide(p)) : [];
+        // 允许远程打同房间的角色（如佝偻弓箭手近距离放箭）
+        const sameRoomRanged = rangedOk && cd.rangedSameRoom
+          ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible && sameTowerSide(p))
+          : [];
+        const sameRoom = [
+          ...sameRoomMelee,
+          ...sameRoomRanged.filter((p) => !sameRoomMelee.some((m) => m.id === p.id)),
+        ];
+        const otherRoom = rangedOk
+          ? others.filter((p) => p.room !== actor.room && !p.hidden && p.char.inTower !== true && actor.char.inTower !== true)
+          : [];
         return [...sameRoom, ...otherRoom];
       }
       case 'aim': return others.filter((p) => !p.hidden && !p.invisible);
@@ -292,7 +321,10 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     }
   }, [game, actor, selAction]);
 
-  useEffect(() => { if (!selAction?.targetHint) setSelTarget(''); }, [selAction]);
+  useEffect(() => {
+    setSelTarget('');
+    setSelTargets([]);
+  }, [selAction]);
 
   function resetSelection() {
     setManualCue(null);
@@ -300,6 +332,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     setManualBusy(false);
     setSelAction(null);
     setSelTarget('');
+    setSelTargets([]);
     setActMsg('');
   }
 
@@ -316,15 +349,25 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     const needTarget = !!selAction.targetHint;
     const needRoom = !!selAction.roomHint || selAction.key === 'move';
     if (needTarget) {
-      if (!selTarget) { setActMsg('请先选择目标'); return null; }
-      action.targetId = selTarget;
+      if (selAction.multiTarget) {
+        if (selTargets.length === 0) { setActMsg('请先选择至少一个目标'); return null; }
+        action.targetIds = [...selTargets];
+      } else {
+        if (!selTarget) { setActMsg('请先选择目标'); return null; }
+        action.targetId = selTarget;
+      }
     }
     if (needRoom) {
       if (!selRoom) { setActMsg('请先点击战场中发绿光的房间'); return null; }
       if (selRoom === blockedRoom) { setActMsg(`${selRoom} 泥潭封路，请选择其他房间`); return null; }
       action.room = selRoom;
     }
-    if (selAction.key === 'attack' && validTargets.find((t) => t.id === selTarget)?.room !== actor?.room) action.ranged = true;
+    if (selAction.key === 'attack') {
+      const cd = actor ? (CHARACTERS[actor.charId] || CHARACTERS['default']) : undefined;
+      const targetRoom = validTargets.find((t) => t.id === selTarget)?.room;
+      // 异房间远程，或角色支持「远程打同房间」（如佝偻弓箭手）
+      if (targetRoom !== actor?.room || (cd?.rangedSameRoom && cd.rangedCapable)) action.ranged = true;
+    }
     return action;
   }
 
@@ -434,7 +477,14 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
 
   function pickTargetOrDetail(pid: string) {
     if (selAction?.targetHint) {
-      if (validTargets.some((t) => t.id === pid)) { setSelTarget(pid); return; }
+      if (validTargets.some((t) => t.id === pid)) {
+        if (selAction.multiTarget) {
+          setSelTargets((prev) => prev.includes(pid) ? prev.filter((id) => id !== pid) : [...prev, pid]);
+        } else {
+          setSelTarget(pid);
+        }
+        return;
+      }
       // 点击了不可选目标：明确说明原因（而非默默打开详情让玩家困惑）
       const p = game.players.find((x) => x.id === pid);
       const m = actor;
@@ -479,7 +529,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     roomPickMode,
     selectedRoom: selRoom,
     blockedRoom,
-    selectedPlayer: selTarget,
+    selectedPlayer: selTargets[selTargets.length - 1] ?? selTarget,
     reducedMotion,
     automaticCamera,
     lowEffects,
@@ -959,7 +1009,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                           <span className="scard-type">{o.typeLabel}</span>
                         </div>
                         <div className="scard-desc">{o.desc.length > 44 ? o.desc.slice(0, 44) + '…' : o.desc}</div>
-                        <div className="scard-need">{o.used ? '🚫 本局已使用' : o.manual ? '🎰 手动拉杆' : o.targetHint ? '🎯 需选择目标' : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
+                        <div className="scard-need">{o.used ? '🚫 本局已使用' : o.manual ? '🎰 手动拉杆' : o.targetHint ? (o.multiTarget ? '🎯 可多选目标' : '🎯 需选择目标') : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
                       </button>
                     ))}
                   </div>
@@ -971,11 +1021,15 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                         <span>
                           目标：
                           <b className="cb-target">
-                            {selTarget ? game.players.find((p) => p.id === selTarget)?.name : '（点击战场高亮卡牌）'}
+                            {selAction.multiTarget
+                              ? (selTargets.length > 0
+                                ? `${selTargets.map((id) => game.players.find((p) => p.id === id)?.name).filter(Boolean).join('、')}（已选 ${selTargets.length} 人）`
+                                : '（可点击多个战场高亮卡牌）')
+                              : (selTarget ? game.players.find((p) => p.id === selTarget)?.name : '（点击战场高亮卡牌）')}
                           </b>
                         </span>
                       )}
-                      {use3d && crowdedArena && selAction.targetHint && validTargets.length > 0 && (
+                      {use3d && crowdedArena && selAction.targetHint && !selAction.multiTarget && validTargets.length > 0 && (
                         <select aria-label="目标玩家" value={selTarget} onChange={e => setSelTarget(e.target.value)}>
                           <option value="">选择目标玩家</option>
                           {validTargets.map(p => <option key={p.id} value={p.id}>{p.name} · {p.room}</option>)}
@@ -1016,7 +1070,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                         );
                       })()}
                       {blockedRoom && <span className="ruins-mud-chip" data-active="true">{blockedRoom} 泥潭封路，下回合恢复</span>}
-                      <button className="tcg-btn" disabled={(!!selAction.targetHint && !selTarget) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom))} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
+                      <button className="tcg-btn" disabled={(!!selAction.targetHint && (selAction.multiTarget ? selTargets.length === 0 : !selTarget)) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom))} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
                       <button className="tcg-btn ghost" onClick={resetSelection}>取消</button>
                       {actMsg && <span className="error-text">{actMsg}</span>}
                     </div>

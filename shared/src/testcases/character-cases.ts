@@ -1241,6 +1241,273 @@ export const CHARACTER_CASES: TestCase[] = [
         `self=${self.error}, dead=${deadTarget.error}`, g);
     }),
   },
+  {
+    id: 'TC-C098', name: '佝偻弓箭手：远程点燃 + 当回合不结算，下一平局回合结算 0.5', category: 'character', charId: 'hunchback-archer', seed: 301,
+    desc: '远程攻击 1 伤并点燃；点燃当回合回合末不结算，下一回合（含平局回合）结算 0.5',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, 'B'], 301);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'attack', targetId: 'B' });
+      const ignited = g.getStatus('B', 'burning')?.severity === 0.5;
+      const hpAfterIgnite = hpOf(g, 'B'); // 只吃攻击 1 伤
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局回合仍结算燃烧
+      const ticked = hpOf(g, 'B') === hpAfterIgnite - 0.5;
+      return check(ignited && ticked, '点燃当回合不结算；下一平局回合结算 0.5',
+        `ignited=${ignited}, hp=${hpAfterIgnite}→${hpOf(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C099', name: '佝偻弓箭手：非精神致死倒地，完整缺席 1 回合后复原', category: 'character', charId: 'hunchback-archer', seed: 302,
+    desc: '物理致死不会死亡：倒地当回合之后的完整一回合缺席行动（仍参与猜拳），再下一回合开始以生命上限一半复原',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, 'B'], 302);
+      g.players.A.hp = 1;
+      g.applyDamage({ target: 'A', amount: 5, source: 'B', dtype: 'physical', tag: 'attack' });
+      const downed = isAlive(g, 'A') && g.charState('A').downed === true && hpOf(g, 'A') === 0;
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 第 1 回合结束 → 第 2 回合仍完整缺席
+      const absent = g.charState('A').downed === true && g.roundNo === 2;
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 第 2 回合结束 → 第 3 回合开始复原
+      const revived = g.charState('A').downed !== true && hpOf(g, 'A') === g.players.A.maxHp / 2;
+      return check(downed && absent && revived, '倒地后完整缺席 1 回合，再下一回合半血复原',
+        `downed=${downed}, absent=${absent}, revived=${revived}, hp=${hpOf(g, 'A')}, round=${g.roundNo}`, g);
+    }),
+  },
+  {
+    id: 'TC-C102', name: '鬼影：普通单次伤害上限 0.5，秒杀类精神攻击无视上限', category: 'character', charId: 'ghost', seed: 305,
+    desc: '大伊万式高伤压到 0.5；大屁孩暴走/辱骂/不讲武德等精神秒杀直接淘汰；基础「回复」被禁用',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ghost' }, 'B'], 305);
+      g.players.A.hp = 2;
+      const heal = g.submitAction('A', { type: 'heal' });
+      g.applyDamage({ target: 'A', amount: 5, source: 'B', dtype: 'physical' });
+      const capped = g.players.A.hp === 1.5;
+      g.applyDamage({ target: 'A', amount: 999999, source: 'B', dtype: 'special' });
+      const ivanCapped = g.players.A.hp === 1 && g.players.A.alive;
+      g.applyDamage({ target: 'A', amount: 999, source: 'B', dtype: 'mental', instakill: true, ignoreLives: true });
+      const mentalKills = !g.players.A.alive;
+      return check(!heal.ok && capped && ivanCapped && mentalKills, '普通伤害被压到 0.5，精神秒杀无视上限',
+        `heal=${heal.ok}, capped=${capped}, ivan=${ivanCapped}, mental=${mentalKills}`, g);
+    }),
+  },
+  {
+    id: 'TC-C103', name: '鬼影：无视距离附身并不可被锁定', category: 'character', charId: 'ghost', seed: 306,
+    desc: '消耗一次行动移动到目标房间并附身；附身期间指向性伤害未命中',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ghost' }, 'B'], 306);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const pos = g.submitAction('A', { type: 'possess', targetId: 'B' });
+      const moved = g.players.A.room === g.players.B.room;
+      const status = g.getStatus('B', 'possessed')?.source === 'A';
+      const hpBefore = g.players.A.hp;
+      g.applyDamage({ target: 'A', amount: 1, source: 'B', dtype: 'physical' });
+      const untargetable = g.players.A.hp === hpBefore;
+      return check(pos.ok && moved && status && untargetable, '附身后移动到目标房间、宿主被标记、鬼影不可锁定',
+        `pos=${pos.ok}, moved=${moved}, status=${status}, untargetable=${untargetable}`, g);
+    }),
+  },
+  {
+    id: 'TC-C104', name: '鬼影：附身每回合 1 伤（平局也结算）并等量回血', category: 'character', charId: 'ghost', seed: 307,
+    desc: '附身当回合不结算；下一平局回合宿主 -1、鬼影 +1（上限内）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ghost' }, 'B'], 307);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'possess', targetId: 'B' });
+      const noTickYet = hpOf(g, 'B') === 2;
+      g.players.A.hp = 1;
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局回合
+      const damaged = hpOf(g, 'B') === 1;
+      const healed = hpOf(g, 'A') === 2;
+      return check(noTickYet && damaged && healed, '附身当回合不结算；平局回合 -1 并等量回血',
+        `noTick=${noTickYet}, B=${hpOf(g, 'B')}, A=${hpOf(g, 'A')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C101', name: '佝偻弓箭手：可射击同房间目标，且无法主动回复', category: 'character', charId: 'hunchback-archer', seed: 304,
+    desc: '远程攻击允许同房间目标（1 伤 + 点燃）；基础「回复」被禁用',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, 'B'], 304);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      g.players.A.hp = 1;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const heal = g.submitAction('A', { type: 'heal' });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const shot = g.submitAction('A', { type: 'attack', targetId: 'B', ranged: true });
+      const ok = !heal.ok && shot.ok && hpOf(g, 'B') === 1 && g.getStatus('B', 'burning') !== undefined;
+      return check(ok, '同房间可远程射击；回复被拒绝',
+        `heal=${heal.ok}/${heal.error}, shot=${shot.ok}, hpB=${hpOf(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C100', name: '佝偻弓箭手：取燃烧箭 2 次行动后近战 1 伤+点燃', category: 'character', charId: 'hunchback-archer', seed: 303,
+    desc: '同房间敌人花 2 次行动取箭，再花 1 次行动用燃烧箭近战：1 伤并点燃',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, 'B'], 303);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      g.submitAction('B', { type: 'takeArrow' });
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      g.submitAction('B', { type: 'takeArrow' });
+      const ready = (g.charState('B').pendingArrow as { progress?: number } | null)?.progress === 2;
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      const before = hpOf(g, 'A');
+      g.submitAction('B', { type: 'fireArrow', targetId: 'A' });
+      const damaged = hpOf(g, 'A') === before - 1;
+      const ignited = g.getStatus('A', 'burning') !== undefined;
+      const consumed = g.charState('B').pendingArrow == null;
+      return check(ready && damaged && ignited && consumed, '燃烧箭近战 1 伤 + 点燃并消耗箭',
+        `ready=${ready}, damaged=${damaged}, ignited=${ignited}, consumed=${consumed}`, g);
+    }),
+  },
+  {
+    id: 'TC-C105', name: '狂猎：受击猜拳胜利 → 抵消伤害、反击 1 伤并上马', category: 'character', charId: 'wild-hunt', seed: 308,
+    desc: '受到攻击时猜拳（平局重掷）：胜利则本次伤害抵消、反击 1 伤、上马 1 回合；失败正常受伤',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wild-hunt' }, 'B'], 308);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      // 固定猜拳：狂猎石头 vs B 剪刀 → 狂猎胜（0=石头 1=剪刀 2=布）
+      let i = 0;
+      const seq = [0, 1];
+      const original = g.rng.int.bind(g.rng);
+      (g.rng as unknown as { int: (n: number) => number }).int = (n: number) => (i < seq.length ? Math.min(seq[i++], n - 1) : original(n));
+      const r = g.submitAction('B', { type: 'attack', targetId: 'A' });
+      const ok = r.ok && hpOf(g, 'A') === 4 && hpOf(g, 'B') === 1 && g.hasStatus('A', 'mounted');
+      return check(ok, '判定胜利：伤害抵消、反击 1 伤、上马 1 回合',
+        `ok=${r.ok}, hpA=${hpOf(g, 'A')}, hpB=${hpOf(g, 'B')}, mounted=${g.hasStatus('A', 'mounted')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C106', name: '狂猎：骑乘突进伤害×2，最后一回合 6 伤单体后下马', category: 'character', charId: 'wild-hunt', seed: 309,
+    desc: '主动上马 2 回合：第一回合跨房间突进 2 伤，最后一回合 6 伤单体，结束自动下马',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'wild-hunt' }, 'B'], 309);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      g.players.B.maxHp = 30;
+      g.players.B.hp = 30;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const mounted = g.submitAction('A', { type: 'mount' }).ok;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const dash = g.submitAction('A', { type: 'attack', targetId: 'B' }).ok;
+      const crossed = g.players.A.room === 'R2';
+      const firstHit = hpOf(g, 'B') === 28; // 1×2
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'attack', targetId: 'B' });
+      const finalHit = hpOf(g, 'B') === 22; // 6 伤单体
+      const dismounted = !g.hasStatus('A', 'mounted');
+      return check(mounted && dash && crossed && firstHit && finalHit && dismounted, '骑乘突进与最后一回合爆发、结束下马',
+        `mounted=${mounted}, dash=${dash}, crossed=${crossed}, first=${firstHit}, final=${finalHit}, off=${dismounted}`, g);
+    }),
+  },
+  {
+    id: 'TC-C107', name: '飞天水螅：两次行动造塔，塔内外隔绝', category: 'character', charId: 'water-snake', seed: 310,
+    desc: '造塔需 2 次行动；建成后自身入塔，塔内玩家不计入原房间成员',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B'], 310);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'buildTower' });
+      const half = g.charState('A').buildProgress === 1 && g.charState('A').towerBaseRoom == null;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'buildTower' });
+      const built = g.charState('A').towerBaseRoom === 'R1' && g.charState('A').inTower === true;
+      g.charState('B').inTower = true;
+      const isolated = g.roomMembers('R1').length === 0;
+      return check(half && built && isolated, '两次行动造塔；塔内玩家从原房间成员中隔离',
+        `half=${half}, built=${built}, isolated=${isolated}`, g);
+    }),
+  },
+  {
+    id: 'TC-C108', name: '飞天水螅：塔内压制判定平局 → 本次行动无效', category: 'character', charId: 'water-snake', seed: 311,
+    desc: '敌人与飞天水螅同处塔内，行动前判定；平局本次行动不生效（仍消耗行动）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B'], 311);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      Object.assign(g.charState('A'), { towerBaseRoom: 'R1', buildProgress: 2, inTower: true });
+      g.charState('B').inTower = true;
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      let i = 0;
+      const seq = [0, 0];
+      const original = g.rng.int.bind(g.rng);
+      (g.rng as unknown as { int: (n: number) => number }).int = (n: number) => (i < seq.length ? Math.min(seq[i++], n - 1) : original(n));
+      g.submitAction('B', { type: 'attack', targetId: 'A' });
+      const noDamage = hpOf(g, 'A') === 3;
+      const consumed = g.roundNo === 2;
+      return check(noDamage && consumed, '平局压制：目标未受伤且行动被消耗',
+        `hpA=${hpOf(g, 'A')}, round=${g.roundNo}`, g);
+    }),
+  },
+  {
+    id: 'TC-C109', name: '飞天水螅：吸/吹只移动一格', category: 'character', charId: 'water-snake', seed: 312,
+    desc: '吸：其他房间→自己房间、自己房间→塔内；吹：塔内→自己房间、自己房间→其他房间',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B'], 312);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      g.players.B.originRoom = 'R2';
+      Object.assign(g.charState('A'), { towerBaseRoom: 'R1', buildProgress: 2, inTower: true });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'inhale', targetId: 'B' });
+      const pulledRoom = g.players.B.room === 'R1';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'inhale', targetId: 'B' });
+      const pulledTower = g.charState('B').inTower === true;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'blow', targetId: 'B' });
+      const blownOut = g.charState('B').inTower !== true && g.players.B.room === 'R1';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'blow', targetId: 'B' });
+      const blownAway = g.players.B.room === 'R2';
+      return check(pulledRoom && pulledTower && blownOut && blownAway, '吸/吹各移动一格',
+        `room=${pulledRoom}, tower=${pulledTower}, out=${blownOut}, away=${blownAway}`, g);
+    }),
+  },
+  {
+    id: 'TC-C110', name: '飞天水螅：高塔可被攻击，耐久归零坍塌', category: 'character', charId: 'water-snake', seed: 313,
+    desc: '塔外/塔内的同房间玩家都可攻击高塔；耐久归零后坍塌（塔内玩家被弹出，可重新造塔）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B'], 313);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      Object.assign(g.charState('A'), { towerBaseRoom: 'R1', towerHp: 1, buildProgress: 2, inTower: true });
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      const r = g.submitAction('B', { type: 'attackTower' });
+      const collapsed = g.charState('A').towerBaseRoom == null && g.charState('A').towerHp === 0;
+      const out = g.charState('A').inTower !== true;
+      return check(r.ok && collapsed && out, '高塔被打掉并坍塌',
+        `ok=${r.ok}, tower=${g.charState('A').towerBaseRoom}, hp=${g.charState('A').towerHp}`, g);
+    }),
+  },
+  {
+    id: 'TC-C111', name: '飞天水螅：吸/吹一次行动可针对多目标', category: 'character', charId: 'water-snake', seed: 314,
+    desc: '一次吸可同时把多名敌人拉近，一次吹可同时把多名塔内敌人吹出',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B', 'C'], 314);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      g.players.C.room = 'R3';
+      Object.assign(g.charState('A'), { towerBaseRoom: 'R1', towerHp: 6, buildProgress: 2, inTower: true });
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]);
+      g.submitAction('A', { type: 'inhale', targetIds: ['B', 'C'] });
+      const pulled = g.players.B.room === 'R1' && g.players.C.room === 'R1';
+      playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]);
+      g.submitAction('A', { type: 'blow', targetIds: ['B', 'C'] });
+      const blown = g.players.B.room !== 'R1' && g.players.C.room !== 'R1';
+      return check(pulled && blown, '多目标吸/吹生效',
+        `pulled=${pulled}, blown=${blown}`, g);
+    }),
+  },
 ];
 
 function insults2(g: ReturnType<typeof makeGame>): number {
