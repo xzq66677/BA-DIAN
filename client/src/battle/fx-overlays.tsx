@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { FxView } from './useBattlePresentation.js';
-import type { SlotReels } from './slot-machine-reels.js';
+import type { PresentationData } from './events.js';
 
 export interface FxOverlayView {
   key: number;
@@ -10,7 +10,7 @@ export interface FxOverlayView {
   room?: string;
   playerName?: string;
   durationMs?: number;
-  reels?: SlotReels;
+  presentation?: PresentationData;
 }
 
 export interface FxOverlayProps {
@@ -18,7 +18,7 @@ export interface FxOverlayProps {
   mode: '2d' | '3d';
   interactive: boolean;
   reducedMotion: boolean;
-  onPull?: () => void;
+  onSubmit?: () => void;
   onCancel?: () => void;
   onComplete?: () => void;
 }
@@ -47,6 +47,6 @@ export function fxOverlayView(view: FxView, playerName?: string): FxOverlayView 
     room: view.room,
     playerName,
     durationMs: view.durationMs,
-    reels: view.reels,
+    presentation: view.presentation,
   };
 }
