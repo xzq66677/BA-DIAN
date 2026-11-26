@@ -71,6 +71,28 @@ const readCharacter: PlayerStatusReader = (p, context) => {
   return items;
 };
 
+/**
+ * 公开状态效果（`PlayerState.effects`）：按 kind 白名单读取。
+ * 新增状态时只需在此登记读取器，无需修改血条/弹窗组件。
+ */
+const readStatusEffects: PlayerStatusReader = (p, context) => {
+  if (!p.alive) return [];
+  const items: PlayerStatusItem[] = [];
+  for (const effect of p.effects ?? []) {
+    if (effect.kind !== 'burning') continue; // 未知状态安全忽略
+    const source = effect.source ? context.players.find((other) => other.id === effect.source) : undefined;
+    items.push({
+      key: 'status-burning',
+      icon: '🔥',
+      label: '燃烧',
+      value: `每回合 ${formatHp(effect.severity ?? 0.5)} 伤害`,
+      detail: `无限持续，直到消耗一次行动扑灭；被点燃与扑灭的当回合不结算（平局回合同样结算）${source ? `；来源：${source.name}` : ''}。`,
+      tone: 'bad',
+    });
+  }
+  return items;
+};
+
 const readInsults: PlayerStatusReader = (p, context) => {
   if (!p.char.insults || typeof p.char.insults !== 'object') return [];
   const items: PlayerStatusItem[] = [];
@@ -88,6 +110,7 @@ const readInsults: PlayerStatusReader = (p, context) => {
 export const PLAYER_STATUS_READERS = [
   readLife,
   readStealth,
+  readStatusEffects,
   readDomain,
   readCharacter,
   readInsults,

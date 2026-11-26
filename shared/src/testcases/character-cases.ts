@@ -1241,6 +1241,59 @@ export const CHARACTER_CASES: TestCase[] = [
         `self=${self.error}, dead=${deadTarget.error}`, g);
     }),
   },
+  {
+    id: 'TC-C098', name: '佝偻弓箭手：远程点燃 + 当回合不结算，下一平局回合结算 0.5', category: 'character', charId: 'hunchback-archer', seed: 301,
+    desc: '远程攻击 1 伤并点燃；点燃当回合回合末不结算，下一回合（含平局回合）结算 0.5',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, 'B'], 301);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'attack', targetId: 'B' });
+      const ignited = g.getStatus('B', 'burning')?.severity === 0.5;
+      const hpAfterIgnite = hpOf(g, 'B'); // 只吃攻击 1 伤
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局回合仍结算燃烧
+      const ticked = hpOf(g, 'B') === hpAfterIgnite - 0.5;
+      return check(ignited && ticked, '点燃当回合不结算；下一平局回合结算 0.5',
+        `ignited=${ignited}, hp=${hpAfterIgnite}→${hpOf(g, 'B')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C099', name: '佝偻弓箭手：非精神致死倒地，下一回合半血复原', category: 'character', charId: 'hunchback-archer', seed: 302,
+    desc: '物理致死不会死亡：倒地期间仍参与猜拳，下一回合开始以生命上限一半复原',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, 'B'], 302);
+      g.players.A.hp = 1;
+      g.applyDamage({ target: 'A', amount: 5, source: 'B', dtype: 'physical', tag: 'attack' });
+      const downed = isAlive(g, 'A') && g.charState('A').downed === true && hpOf(g, 'A') === 0;
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 倒地仍参与猜拳（平局回合）
+      const revived = g.charState('A').downed !== true && hpOf(g, 'A') === g.players.A.maxHp / 2;
+      return check(downed && revived, '倒地不死并在下一回合半血复原',
+        `downed=${downed}, revived=${revived}, hp=${hpOf(g, 'A')}`, g);
+    }),
+  },
+  {
+    id: 'TC-C100', name: '佝偻弓箭手：取燃烧箭 2 次行动后近战 1 伤+点燃', category: 'character', charId: 'hunchback-archer', seed: 303,
+    desc: '同房间敌人花 2 次行动取箭，再花 1 次行动用燃烧箭近战：1 伤并点燃',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'hunchback-archer' }, 'B'], 303);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      g.submitAction('B', { type: 'takeArrow' });
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      g.submitAction('B', { type: 'takeArrow' });
+      const ready = (g.charState('B').pendingArrow as { progress?: number } | null)?.progress === 2;
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      const before = hpOf(g, 'A');
+      g.submitAction('B', { type: 'fireArrow', targetId: 'A' });
+      const damaged = hpOf(g, 'A') === before - 1;
+      const ignited = g.getStatus('A', 'burning') !== undefined;
+      const consumed = g.charState('B').pendingArrow == null;
+      return check(ready && damaged && ignited && consumed, '燃烧箭近战 1 伤 + 点燃并消耗箭',
+        `ready=${ready}, damaged=${damaged}, ignited=${ignited}, consumed=${consumed}`, g);
+    }),
+  },
 ];
 
 function insults2(g: ReturnType<typeof makeGame>): number {

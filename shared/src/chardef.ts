@@ -45,6 +45,13 @@ export interface GameLike {
    * 全部局数结束后回调 `resolve(wins, rounds)`（wins 为己方获胜局数）。
    */
   requestJudge(opts: import('./types.js').SkillJudgeOptions): void;
+  /** 施加状态效果（燃烧等）；同 kind 重复施加会刷新生命周期数据 */
+  addStatus(pid: PlayerId, effect: Omit<import('./types.js').ActiveStatusEffect, 'appliedRound'> & { appliedRound?: number }): import('./types.js').ActiveStatusEffect;
+  /** 移除指定状态；返回是否移除成功 */
+  removeStatus(pid: PlayerId, kind: string): boolean;
+  /** 读取玩家身上的指定状态 */
+  getStatus(pid: PlayerId, kind: string): import('./types.js').ActiveStatusEffect | undefined;
+  hasStatus(pid: PlayerId, kind: string): boolean;
   addDeferred(ev: Omit<import('./types.js').DeferredEvent, 'id'>): void;
   /** 生成新的事件组标识（AOE/多段演出分组用；同一次行动的全部伤害共享同一组） */
   nextGroupId(): string;
@@ -52,6 +59,8 @@ export interface GameLike {
   openDomain(pid: PlayerId): import('./types.js').ActionResult;
   /** 当前领域持有者（无则 null） */
   domainHolder: PlayerId | null;
+  /** 本回合重点事件摘要（角色钩子可追加，如倒地/复原） */
+  roundSummary: string[];
   queue: PlayerId[];
   actIndex: number;
   entrantOrder: PlayerId[];
@@ -72,6 +81,8 @@ export interface CharActionDef {
   name: string;
   label: string;
   desc: string;
+  /** 行动分类标签（附加行动展示用，如「状态」「环境」） */
+  typeLabel?: string;
   /** 需要目标玩家（同房间/任意） */
   targetHint?: 'anyPlayer' | 'sameRoomPlayer' | 'otherRoomPlayer' | 'none';
   /** 需要房间选择（如大伊万投掷） */
@@ -85,6 +96,14 @@ export interface DamageHookCtx {
   req: DamageRequest;
   /** 钩子所属角色玩家 */
   owner: PlayerId;
+}
+
+/** 致命伤害拦截上下文：角色可在自己血量归零时决定「不死亡」（倒地/复活等） */
+export interface LethalDamageCtx {
+  game: GameLike;
+  player: PlayerId;
+  req: DamageRequest;
+  cause: string;
 }
 
 export interface DeathHookCtx {
@@ -161,6 +180,23 @@ export interface CharDef {
   dataMissing?: string[];
   /** 初始化角色运行状态 */
   init?(): Record<string, unknown>;
+  /** 角色标签（供状态/其他角色的通用逻辑识别，如 'skeleton'） */
+  traits?: string[];
+  /** 普通攻击附带的状态效果（如点燃） */
+  attackEffects?: import('./types.js').DamageEffect[];
+  /** 致命伤害拦截：返回 'prevent' 阻止淘汰（角色自行处理倒地/复活），'die' 确认死亡 */
+  onLethalDamage?(ctx: LethalDamageCtx): 'prevent' | 'die' | void;
+  /** 回合开始钩子（新回合、出拳前；倒地复活等） */
+  onRoundStart?(ctx: { game: GameLike; player: PlayerId }): void;
+  /** 该角色当前是否跳过行动（倒地、被控制等） */
+  skipsAction?(ctx: { game: GameLike; player: PlayerId }): boolean;
+  /** 普通攻击命中后的回调（如打断对方取箭） */
+  onAttackLanded?(ctx: { game: GameLike; actor: PlayerId; target: PlayerId }): void;
+  /**
+   * 为**其他玩家**提供的附加行动（角色在场/状态环境类行动）。
+   * 例：骷髅弓箭手允许同房间敌人取箭；是否可用由返回的行动自行 validate。
+   */
+  extraActionsForOthers?(ctx: { game: GameLike; owner: PlayerId; viewer: PlayerId }): CharActionDef[];
   /** 伤害钩子可修改 req、返回 'skip' 取消，或返回 deferTo 等待出拳后再结算。 */
   onBeforeDamage?(ctx: DamageHookCtx): DamageRequest | 'skip' | { deferTo: SkillJudgeOptions } | void;
   /** 伤害钩子阶段：transfer=转移（先执行），defense=防御（后执行，仅对自身） */

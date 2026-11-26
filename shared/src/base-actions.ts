@@ -123,13 +123,18 @@ function actAttack(game: GameLike, pid: PlayerId, req: ActionRequest, map: Battl
       : (cd.meleeDamage ?? cd.attack ?? game.rules.defaultAttack));
   const decl: AttackDeclEventData = { declared: true, source: pid, target: targetId, amount, ranged, room: tp.room };
   game.log('damage', `${game.players[pid].name} ${ranged ? '远程' : '近战'}攻击 ${tp.name}（伤害 ${fmtNum(amount)}）`, { ...decl }, true);
-  game.applyDamage({
+  const applied = game.applyDamage({
     target: targetId,
     amount,
     source: pid,
     dtype: cd.attackDtype || 'physical',
     ignoreHide: cd.ignoreHide,
+    ...(cd.attackEffects && cd.attackEffects.length > 0 ? { effects: cd.attackEffects } : {}),
   });
+  // 命中后的角色回调（如骷髅弓箭手打断对方取箭）；反弹/未命中不触发
+  if (!applied.missed && !applied.deferred && applied.finalTarget !== pid) {
+    cd.onAttackLanded?.({ game, actor: pid, target: applied.finalTarget });
+  }
   return { ok: true };
 }
 

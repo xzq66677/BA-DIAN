@@ -261,6 +261,15 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         used,
       });
     }
+    // 状态 / 在场角色提供的附加行动（服务端权威列表：燃烧扑灭、引燃骷髅、取燃烧箭…）
+    for (const a of game.extraActions ?? []) {
+      list.push({
+        key: a.key, label: a.label, desc: a.desc,
+        typeLabel: a.typeLabel ?? '环境',
+        targetHint: a.targetHint,
+        roomHint: a.roomHint,
+      });
+    }
     return list;
   }, [game, actor]);
 

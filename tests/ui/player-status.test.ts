@@ -48,4 +48,27 @@ describe('角色公开状态', () => {
     expect(serialized).not.toContain('scissors');
     expect(serialized).not.toContain('secret');
   });
+
+  it('燃烧状态：展示每回合伤害与来源，忽略未知状态与私有字段', () => {
+    const p = player({
+      effects: [
+        { kind: 'burning', severity: 0.5, remainingRounds: null, source: 'B' },
+        { kind: 'unknown-future-status', severity: 3 },
+      ],
+    });
+    const items = playerStatusItems(p, [player(), player({ id: 'B', name: '弓箭手 B' })]);
+    const burning = items.find((item) => item.key === 'status-burning');
+    expect(burning).toBeTruthy();
+    expect(burning!.value).toBe('每回合 0.5 伤害');
+    expect(burning!.detail).toContain('弓箭手 B');
+    expect(burning!.tone).toBe('bad');
+    // 未知状态安全忽略，且不泄漏未知 kind
+    expect(JSON.stringify(items)).not.toContain('unknown-future-status');
+  });
+
+  it('淘汰后不展示燃烧等持续状态（死亡清理后的快照）', () => {
+    const p = player({ alive: false, hp: 0, effects: [{ kind: 'burning', severity: 0.5 }] });
+    const items = playerStatusItems(p);
+    expect(items.map((item) => item.key)).toEqual(['alive']);
+  });
 });

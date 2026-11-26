@@ -30,6 +30,35 @@ export interface CharRuntimeState {
   [key: string]: unknown;
 }
 
+/**
+ * 公开状态效果（下发客户端的最小投影）。
+ *
+ * 只包含展示与规则解释所需的公开字段：`kind`、`severity`、`remainingRounds`、
+ * `stacks` 和必要的公开来源；内部生命周期字段（如施加回合）只留在引擎侧。
+ */
+export interface PublicStatusEffect {
+  kind: string;
+  /** 严重度（例：燃烧每回合伤害 0.5） */
+  severity?: number;
+  /** 剩余回合数；null = 无限持续，直到主动移除 */
+  remainingRounds?: number | null;
+  stacks?: number;
+  /** 公开来源（点燃者等） */
+  source?: PlayerId;
+}
+
+/**
+ * 引擎权威状态效果：在公开投影之外携带生命周期数据。
+ * 新增负面状态必须走状态注册表（shared/src/statuses.ts），并实现
+ * 施加 / 回合推进 / 到期或移除 / 死亡清理的完整生命周期。
+ */
+export interface ActiveStatusEffect extends PublicStatusEffect {
+  /** 施加该状态的回合（用于「施加当回合不结算」等规则） */
+  appliedRound: number;
+  /** 状态私有数据（不下发快照） */
+  data?: Record<string, unknown>;
+}
+
 export interface PlayerState {
   id: PlayerId;
   name: string;
@@ -46,6 +75,8 @@ export interface PlayerState {
   hidden: boolean;
   /** 隐身状态（与躲藏类似但来源不同，如部分角色被动） */
   invisible: boolean;
+  /** 权威状态效果（燃烧等持续效果）；快照只投影公开字段 */
+  effects?: ActiveStatusEffect[];
   /** 角色私有运行状态（拔棍状态、领域、瞄准、辱骂层数、判定历史等） */
   char: CharRuntimeState;
 }
@@ -421,6 +452,19 @@ export interface ActionRequest {
 export interface ActionResult {
   ok: boolean;
   error?: string;
+}
+
+/**
+ * 由状态 / 其他角色提供的附加行动（快照下发当前行动者的可用列表）。
+ * 客户端只负责展示与选择，合法性由服务端重新校验。
+ */
+export interface ExtraActionView {
+  key: string;
+  label: string;
+  desc: string;
+  typeLabel: string;
+  targetHint?: 'anyPlayer' | 'sameRoomPlayer' | 'otherRoomPlayer';
+  roomHint?: boolean;
 }
 
 export interface GamePlayerConfig {

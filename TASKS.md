@@ -757,3 +757,18 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | T-61.4 | 角色特化修正 | DONE | `ai-strategies.ts`：`firstInRoom` 去掉难度门槛（硬核伍六七/大剑客可直接打躲藏者）；五条悟普通难度先过滤可见成员，不再盲打躲藏者 |
 | T-61.5 | 测试与验收 | DONE | `tests/pace.test.ts` +6（座位策略/覆盖/原型键/队列 pace 状态）；`tests/integration/ai-difficulty.test.ts` +10（三档 seek 首选/候选链/真实落地/规则关闭/隐身/异房间/淘汰/角色豁免/伍六七 AOE/五条悟）；e2e 混合局 `data-pace=slow` 断言 |
 | T-61.6 | 文档 | DONE | AGENTS.md「演出节奏与 AI 策略扩展点」、README 测试摘要、TASKS.md 登记 |
+
+## 二十八轮 · 新角色：佝偻弓箭手（Issue #71，2026-11-26，本地待评审）
+
+认领：Issue #71（4 位新角色）已指派给 wkdjdjskaksj、标签 status: in-progress；本轮只实现「佝偻弓箭手」，其余三位按用户后续指令处理。按要求**只在本地提交，不推送 GitHub**。
+
+| 编号 | 任务 | 说明 |
+|---|---|---|
+| T-2600 | 状态系统基础设施 | 新增 `shared/src/statuses.ts` 注册表（tick/actions/cleanup）与 `PlayerState.effects` 权威状态；引擎 `addStatus/removeStatus/getStatus/hasStatus/tickStatuses`、回合末统一结算（含平局回合）、死亡清理；快照只投影 `PublicStatusEffect`（kind/severity/remainingRounds/stacks/source）。 |
+| T-2601 | 附加行动框架 | `Game.extraActionsFor` 聚合「状态提供的行动 + 在场角色为他人提供的行动」，`submitAction` 统一校验/执行，快照 `extraActions` 下发当前行动者；客户端行动坞直接渲染（服务端权威），UI 不写死角色名。 |
+| T-2602 | 角色扩展点 | `CharDef` 新增 `traits / attackEffects / onLethalDamage / onRoundStart / skipsAction / onAttackLanded / extraActionsForOthers`；引擎在伤害结算、队列推进、回合开始、普攻命中处调用。 |
+| T-2603 | 佝偻弓箭手本体 | 血 3 远程 1；普攻点燃（燃烧 0.5/回合、无限、平局计入、点燃/扑灭当回合不结算）；骷髅身躯（非精神/非燃烧致死→倒地1回合、仍参与猜拳、不可行动、下一回合半血复原；燃烧致死永久死亡；精神致死正常死亡）；同房间燃烧者引燃骷髅；同房间敌人取箭2次+燃烧箭近战（1伤+点燃），取箭被其攻击中断。 |
+| T-2604 | 客户端 | 状态读取器新增「燃烧」（`status-readers.ts`，2D/3D 通用）；行动坞渲染 `extraActions`；`cards.ts` 占位卡面与文案；`palette.ts/rig.ts` 骨弓道具与配色。 |
+| T-2605 | 测试 | `tests/character-hunchback.test.ts` 13 例（点燃/结算/扑灭/引燃/取箭/中断/倒地复原/精神与燃烧致死/快照公开字段）；共享用例 TC-C098~C100；状态读取器 +2 例。`npm test` **45 文件 / 697 用例全过**，双端 `tsc` 0 错误，`npm run build` 通过。 |
+| T-2606 | 文档 | `docs/characters/hunchback-archer.md` 新增；GAME_RULES（角色条目 + A-20/A-21/A-22 假设）、README（角色表 / 3D 说明 / 测试数 697）、CHANGELOG 同步。 |
+| T-2607 | 交付边界 | 本地分支 + 本地提交，**未推送、未开 PR**；等待用户下一步指令（其余三位角色 / 后续调整）。 |

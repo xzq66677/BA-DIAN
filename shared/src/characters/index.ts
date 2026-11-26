@@ -7,9 +7,9 @@
  */
 
 import { characterAi } from './ai-strategies.js';
-import type { CharDef } from '../chardef.js';
+import type { CharActionDef, CharDef } from '../chardef.js';
 import { mentalKill } from '../mental.js';
-import { fmtNum } from '../types.js';
+import { fmtNum, type PlayerId } from '../types.js';
 
 /** 默认角色：无业游民（无被动，未选上角色者默认此角色）。血量2——速查表原稿+用户卡面确认 */
 const defaultChar: CharDef = {
@@ -487,6 +487,156 @@ const dapihuai: CharDef = {
   },
 };
 
+/**
+ * 12. 佝偻弓箭手：骷髅弓手（Issue #71）
+ *
+ * 规则要点：
+ * - 远程攻击造成 1 点伤害并**点燃**目标：燃烧每回合 0.5 伤害（含平局回合），无限持续，
+ *   直到目标消耗一次行动「扑灭」；点燃当回合与扑灭当回合不结算；
+ * - 骷髅身躯：非精神、非燃烧伤害致死时**不会死亡**——原地倒地 1 回合（仍参与猜拳，平局也计入），
+ *   下一回合开始时以生命上限一半复原；燃烧致死则彻底死亡（燃烧期间受到其他伤害仍可复原）；
+ * - 同房间的**燃烧敌人**可消耗一次行动引燃它；
+ * - 同房间的**任何敌人**可消耗 2 次行动取出燃烧箭，再消耗 1 次行动以燃烧箭近战攻击
+ *   （1 伤 + 点燃）；取箭期间被它攻击会中断（进度清零）。
+ */
+const hunchbackArcher: CharDef = {
+  id: 'hunchback-archer',
+  name: '佝偻弓箭手',
+  desc: '血量3。远程攻击造成1点伤害并点燃目标：燃烧每回合造成0.5伤害（平局回合同样结算、持续到目标消耗一次行动扑灭；点燃当回合与扑灭当回合不结算）。骷髅身躯：精神伤害以外的伤害导致血量归零时不会死亡，而是原地倒地1回合（仍参与猜拳、平局也计入），下一回合开始以生命上限一半复原；因燃烧导致血量归零则彻底死亡（燃烧期间受到其他伤害仍可复原）。同房间的燃烧敌人可消耗一次行动引燃它；同房间的任何敌人都可消耗两次行动取出燃烧箭、再消耗一次行动用其近战攻击（1伤+点燃），取箭期间被它攻击会中断。',
+  hp: 3,
+  attack: 1,
+  attackType: 'ranged',
+  rangedCapable: true,
+  rangedDamage: 1,
+  traits: ['skeleton'],
+  init: () => ({ downed: false, pendingArrow: null }),
+  /** 普攻（远程）命中后点燃目标 */
+  attackEffects: [{ kind: 'burning', severity: 0.5 }],
+  aiStrategy: ({ game, pid, alive }) => {
+    const targets = alive
+      .filter((p) => p !== pid && !game.isSameRoom(pid, p) && !(game.players[p].hidden || game.players[p].invisible))
+      .sort((a, b) => game.players[a].hp - game.players[b].hp);
+    return targets[0] ? { type: 'attack', targetId: targets[0], ranged: true } : undefined;
+  },
+  onLethalDamage: ({ game, player, req }) => {
+    const p = game.getPlayer(player);
+    const st = game.charState(player);
+    // 精神伤害：骷髅也会被震慑（正常死亡）
+    if (req.dtype === 'mental') return 'die';
+    // 燃烧致死：彻底焚毁（不可复原）
+    if (req.tag === 'burn') {
+      game.log('trigger', `🔥 ${p.name} 的骷髅被燃烧彻底焚毁`, { pid: player, cause: 'burn' }, true);
+      return 'die';
+    }
+    if (st.downed === true) {
+      p.hp = 0;
+      return 'prevent';
+    }
+    // 其余伤害：骨架散落，倒地 1 回合后复原
+    st.downed = true;
+    p.hp = 0;
+    const reviveHp = Math.round(p.maxHp * 0.5 * 10000) / 10000;
+    game.log('trigger', `🦴 ${p.name} 的骨架散落——不会死亡，倒地 1 回合（仍参与猜拳），下一回合开始以 ${fmtNum(reviveHp)} HP 复原`,
+      { pid: player, downed: true, reviveHp, reviveRound: game.roundNo + 1 }, true);
+    game.roundSummary.push(`${p.name} 倒地（下一回合半血复原）`);
+    return 'prevent';
+  },
+  skipsAction: ({ game, player }) => game.charState(player).downed === true,
+  onRoundStart: ({ game, player }) => {
+    const st = game.charState(player);
+    if (st.downed !== true) return;
+    st.downed = false;
+    const p = game.getPlayer(player);
+    if (!p.alive) return;
+    p.hp = Math.round(p.maxHp * 0.5 * 10000) / 10000;
+    game.log('trigger', `🦴 ${p.name} 重新拼合骨架，以 ${fmtNum(p.hp)} HP 复原（生命上限一半）`, { pid: player, hp: p.hp }, true);
+  },
+  onAttackLanded: ({ game, actor, target }) => {
+    const st = game.charState(target);
+    const pending = st.pendingArrow as { from: PlayerId; progress: number } | null | undefined;
+    if (!pending || pending.from !== actor || pending.progress <= 0) return;
+    st.pendingArrow = null;
+    game.log('trigger', `🏹 ${game.players[target].name} 取箭途中被 ${game.players[actor].name} 击中，燃烧箭脱手（取箭进度清零）`,
+      { pid: target, by: actor }, true);
+  },
+  extraActionsForOthers: ({ game, owner, viewer }) => {
+    const archer = game.players[owner];
+    if (!archer?.alive) return [];
+    if (!game.isSameRoom(owner, viewer)) return [];
+    const viewerState = game.charState(viewer);
+    const pending = viewerState.pendingArrow as { from: PlayerId; progress: number } | null | undefined;
+    const progress = pending && pending.from === owner ? pending.progress : 0;
+    const list: CharActionDef[] = [];
+
+    if (progress < 2) {
+      list.push({
+        name: 'takeArrow',
+        label: '取出燃烧箭',
+        desc: `消耗本次行动，从 ${archer.name} 的箭袋取一支燃烧箭（共需 2 次行动取出；取箭期间被它攻击会中断）。`,
+        typeLabel: '环境',
+        targetHint: 'none',
+        validate: (ctx) => {
+          if (!ctx.game.players[owner]?.alive) return '弓箭手已不在场';
+          if (!ctx.game.isSameRoom(ctx.actor, owner)) return '需要与弓箭手同房间';
+          const st = ctx.game.charState(ctx.actor);
+          const cur = st.pendingArrow as { from: PlayerId; progress: number } | null | undefined;
+          const curProgress = cur && cur.from === owner ? cur.progress : 0;
+          if (curProgress >= 2) return '已取出燃烧箭，先用它攻击';
+          return null;
+        },
+        execute: (ctx) => {
+          const st = ctx.game.charState(ctx.actor);
+          const cur = st.pendingArrow as { from: PlayerId; progress: number } | null | undefined;
+          const curProgress = cur && cur.from === owner ? cur.progress : 0;
+          const next = Math.min(2, curProgress + 1);
+          st.pendingArrow = { from: owner, progress: next };
+          ctx.game.log('action', `🏹 ${ctx.game.players[ctx.actor].name} 从 ${archer.name} 的箭袋取箭（${next}/2）`,
+            { pid: ctx.actor, from: owner, progress: next }, true);
+          if (next >= 2) {
+            ctx.game.log('trigger', `🏹 ${ctx.game.players[ctx.actor].name} 已取出燃烧箭——下一次行动可近战攻击（1 伤 + 点燃）`,
+              { pid: ctx.actor, from: owner }, true);
+          }
+        },
+      });
+    } else {
+      list.push({
+        name: 'fireArrow',
+        label: '燃烧箭近战',
+        desc: '消耗本次行动，用取出的燃烧箭近战攻击同房间目标：造成 1 点伤害并点燃（与弓箭手普攻效果相同）。',
+        typeLabel: '环境',
+        targetHint: 'sameRoomPlayer',
+        validate: (ctx) => {
+          const targetId = ctx.params.targetId;
+          if (!targetId || !ctx.game.players[targetId]?.alive) return '目标不存在或已淘汰';
+          if (targetId === ctx.actor) return '不能攻击自己';
+          if (!ctx.game.isSameRoom(ctx.actor, targetId)) return '只能近战攻击同房间目标';
+          const tp = ctx.game.players[targetId];
+          if (tp.hidden || tp.invisible) return '目标正在躲藏/隐身，无法命中';
+          const st = ctx.game.charState(ctx.actor);
+          const cur = st.pendingArrow as { from: PlayerId; progress: number } | null | undefined;
+          if (!cur || cur.from !== owner || cur.progress < 2) return '还没有取出燃烧箭';
+          return null;
+        },
+        execute: (ctx) => {
+          const targetId = ctx.params.targetId!;
+          ctx.game.charState(ctx.actor).pendingArrow = null;
+          ctx.game.log('damage', `🏹 ${ctx.game.players[ctx.actor].name} 用燃烧箭近战刺向 ${ctx.game.players[targetId].name}`,
+            { pid: ctx.actor, target: targetId, arrow: true }, true);
+          ctx.game.applyDamage({
+            target: targetId,
+            amount: 1,
+            source: ctx.actor,
+            dtype: 'physical',
+            tag: 'arrow',
+            effects: [{ kind: 'burning', severity: 0.5 }],
+          });
+        },
+      });
+    }
+    return list;
+  },
+};
+
 export const CHARACTERS: Record<string, CharDef> = {
   default: defaultChar,
   bagun,
@@ -499,6 +649,7 @@ export const CHARACTERS: Record<string, CharDef> = {
   'hero-today': jinriyongzhe,
   dajianke,
   dapihuai,
+  'hunchback-archer': hunchbackArcher,
 };
 
 export const CHARACTER_LIST: CharDef[] = Object.values(CHARACTERS);

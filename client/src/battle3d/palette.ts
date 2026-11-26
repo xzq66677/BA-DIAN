@@ -16,7 +16,7 @@ export function hex(c: number): RGB {
 
 export type CharPropKind =
   | 'none' | 'stick' | 'flute' | 'scissors' | 'bomb' | 'dice'
-  | 'taiji' | 'hat' | 'magnet' | 'small' | 'band';
+  | 'taiji' | 'hat' | 'magnet' | 'small' | 'band' | 'bow';
 
 export interface CharVisual {
   /** 棋子主体色 */
@@ -45,6 +45,7 @@ export const CHAR_VISUALS: Record<string, CharVisual> = {
   'hero-today': { color: 0x2f8f4f, accent: 0xbdf0cf, prop: 'dice', scale: 0.96 },// 今日勇者：绿+骰子
   dajianke: { color: 0x7a3f7d, accent: 0xe0b8e8, prop: 'magnet', scale: 1 },     // 大贱客：紫+磁环
   dapihuai: { color: 0xb5483f, accent: 0xffd2a8, prop: 'small', scale: 0.74 },   // 大屁孩：矮个
+  'hunchback-archer': { color: 0x6f7a5a, accent: 0xe8e2cf, prop: 'bow', scale: 0.96 }, // 佝偻弓箭手：骨灰绿+弓
 };
 
 export function charVisual(charId: string): CharVisual {

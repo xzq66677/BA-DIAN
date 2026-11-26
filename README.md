@@ -22,7 +22,7 @@
 # 1. 安装依赖
 npm install
 
-# 2. 全量自动化测试（653 用例，需 Node ≥ 22.15；见下方「测试」）
+# 2. 全量自动化测试（697 用例，需 Node ≥ 22.15；见下方「测试」）
 npm test
 
 # 3. 构建（服务端 tsc + 客户端 vite）
@@ -228,13 +228,14 @@ npm run deploy
 | 今日勇者 | 初始3血攻1；技能「抽取今日运势」（全局一次、不限回合）：掷0-9换面板，0/1暴毙；变身即满血（当前=新上限）并给出运势反馈 |
 | 大贱客 | 被动吸引全场非精神伤害（仅转移伤害不转移效果；转移后视为直击——无视自身躲藏；回合末爆发全吸）；辱骂无视距离与躲藏，同一目标累计3次致死 |
 | 大屁孩 | 血量20/攻击0；判定历史连续三不同→**回合最前暴走**（本人指定任意玩家，精神攻击·秒杀·无视躲藏/命数）；三连相同→回合最前自爆；多人同时暴走先二次判定排序；阵亡后不再触发 |
+| 佝偻弓箭手 | 血量3、远程1；命中**点燃**（燃烧 0.5/回合，含平局回合、无限持续，直到消耗一次行动扑灭；点燃/扑灭当回合不结算）。**骷髅身躯**：非精神/非燃烧致死→倒地1回合（仍参与猜拳、不可行动），下一回合半血复原；燃烧致死才彻底死亡。同房间燃烧者可**引燃骷髅**；同房间敌人可花2次行动**取燃烧箭**、再花1次行动近战（1伤+点燃），取箭途中被它攻击会中断 |
 | 无业游民 | 默认角色，无被动 |
 
 角色原始数据来自附件《拔典1/2_角色速查表》（OCR 整理版），存疑处已在 `docs/GAME_RULES.md` 标注规则假设。完整原始数据见 `docs/角色速查表-原始数据.md`。
 
 ## 角色 3D 视觉（全员专属）与新增角色指引
 
-全部 11 名角色都有专属程序化 3D 视觉（`<charId>-v1`，几何拼装原创、无外部模型资产）。逐角色规格/QA/取证帧：
+全部 11 名角色有专属程序化 3D rig；第 12 名「佝偻弓箭手」暂用 legacy Humanoid + 专属配色/骨弓道具（未做专属 rig，符合「新增角色不需要等 3D」）。逐角色规格/QA/取证帧：
 
 | 角色 | 记录 | 角色 | 记录 |
 |---|---|---|---|
@@ -243,7 +244,7 @@ npm run deploy
 | 吹箫哥 | [docs/characters/chuixiao.md](docs/characters/chuixiao.md) | 大贱客 | [docs/characters/dajianke.md](docs/characters/dajianke.md) |
 | 伍六七 | [docs/characters/wuliuqi.md](docs/characters/wuliuqi.md) | 大屁孩 | [docs/characters/dapihuai.md](docs/characters/dapihuai.md) |
 | 马保国 | [docs/characters/mabaoguo.md](docs/characters/mabaoguo.md) | 无业游民 | [docs/characters/nobody.md](docs/characters/nobody.md) |
-| 五条悟 | 交接样例见 `plugins/character-pipeline/examples/first-character/`（已验收 V5.0-B） | | |
+| 五条悟 | 交接样例见 `plugins/character-pipeline/examples/first-character/`（已验收 V5.0-B） | 佝偻弓箭手 | [docs/characters/hunchback-archer.md](docs/characters/hunchback-archer.md) |
 
 **新增角色时不需要等 3D**：把角色加进 `shared/src/characters/` 即可正常入局——客户端自动回退 legacy Humanoid（调色板未收录时用默认灰蓝、无道具）。后续要 3D 化时三步接入（见 `client/src/battle3d/characters/index.ts` 的 `registerCharacterRig`）：
 
@@ -316,7 +317,7 @@ scripts/
 
 ```bash
 npm test
-# 41 个测试文件 / 653 用例（Node ≥ 22.15），含真实 Chromium E2E。
+# 45 个测试文件 / 697 用例（Node ≥ 22.15），含真实 Chromium E2E。
 # 2026-11-25 验证：653/653 通过，npm run build 通过。
 # 近期回归：真人对 AI 慢速演出（座位组成策略）、AI 找出来策略、pace 演出节奏、
 #           房间人数上限、入口身份、播报 V2、生命状态白名单、

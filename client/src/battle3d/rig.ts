@@ -376,6 +376,18 @@ export function buildProp(kind: string): { hand?: THREE.Object3D; headTop?: THRE
       headTop = b;
       break;
     }
+    case 'bow': {
+      // 佝偻弓箭手：骨柄长弓 + 弓弦（程序化拼装）
+      const g = new THREE.Group();
+      const limb = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.02, 6, 20, Math.PI * 0.92), std(0x8a6a3f, 0.65, 0.08));
+      limb.rotation.z = Math.PI * 0.54;
+      const string = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.62, 4), std(0xe8e2cf, 0.8, 0));
+      string.rotation.z = 0.08;
+      g.add(limb, string);
+      g.rotation.set(0.15, 0, 0.25);
+      hand = g;
+      break;
+    }
     default: break;
   }
   return { hand, headTop, back, stick };
