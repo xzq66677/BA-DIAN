@@ -1,34 +1,53 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { SLOT_DROP_FX, SLOT_PULL_FX } from './action-presentation.js';
 import { registerFxOverlay, type FxOverlayProps } from './fx-overlays.js';
+import { SLOT_SYMBOLS, slotReelsFor, slotSymbolForDigit } from './slot-machine-reels.js';
+import { SlotSymbolIcon } from './slot-symbol-icon.js';
 import './slot-machine.css';
 
 type PullPhase = 'idle' | 'pulling' | 'spinning' | 'result';
 
-const REEL_SYMBOLS = [
-  ['7', '7', '7'],
-  ['7', '◆', '7'],
-  ['★', '7', '◆'],
-  ['◆', '★', '7'],
-] as const;
-
-function symbolsFor(key: number): readonly string[] {
-  return REEL_SYMBOLS[Math.abs(key) % REEL_SYMBOLS.length];
+function reelFrames(digit: number): readonly number[] {
+  return [(digit + 9) % 10, digit, (digit + 1) % 10];
 }
 
-function SlotMachineCabinet({ symbols, spinning, pull = 0 }: {
-  symbols: readonly string[];
+function SlotSymbolLegend() {
+  return (
+    <ul className="slot-symbol-legend" aria-label="老虎机数字符号对照">
+      {SLOT_SYMBOLS.map((symbol) => (
+        <li key={symbol.kind} data-symbol={symbol.kind}>
+          <SlotSymbolIcon kind={symbol.kind} />
+          <span><strong>{symbol.digits}</strong>{symbol.label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SlotMachineCabinet({ digits, spinning, pull = 0 }: {
+  digits: readonly number[];
   spinning: boolean;
   pull?: number;
 }) {
   return (
     <div className="slot-cabinet" style={{ '--pull': pull } as CSSProperties}>
-      <div className="slot-cabinet-crown"><span>LUCKY</span><strong>777</strong><span>LUCKY</span></div>
+      <div className="slot-cabinet-crown"><span>拔典</span><strong>好运</strong><span>拔典</span></div>
       <div className="slot-marquee">
         <div className="slot-reels" data-spinning={spinning ? '1' : '0'}>
-          {symbols.map((symbol, index) => (
-            <span className="slot-reel" key={index} aria-hidden="true">
-              <span>{symbol}</span><span>{symbol}</span><span>{symbol}</span>
+          {digits.map((digit, index) => (
+            <span
+              className="slot-reel"
+              key={index}
+              data-digit={digit}
+              data-symbol={slotSymbolForDigit(digit).kind}
+              aria-hidden="true"
+            >
+              {reelFrames(digit).map((frame, frameIndex) => (
+                <span className="slot-reel-cell" key={frameIndex}>
+                  <strong>{frame}</strong>
+                  <SlotSymbolIcon kind={slotSymbolForDigit(frame).kind} />
+                </span>
+              ))}
             </span>
           ))}
         </div>
@@ -38,7 +57,7 @@ function SlotMachineCabinet({ symbols, spinning, pull = 0 }: {
       </div>
       <div className="slot-cabinet-panel">
         <span className="slot-coin-slot" aria-hidden="true" />
-        <span className="slot-panel-mark">FORTUNE</span>
+        <span className="slot-panel-mark">LUCKY</span>
         <span className="slot-coin-return" aria-hidden="true" />
       </div>
       <div className="slot-cabinet-base"><span /><span /><span /></div>
@@ -57,7 +76,8 @@ function SlotPullOverlay({ view, interactive, reducedMotion, onPull, onCancel, o
   completeRef.current = onComplete;
   const spinning = phase === 'spinning';
   const presenting = phase === 'spinning' || phase === 'result';
-  const symbols = symbolsFor(view.key);
+  const { digits, source } = slotReelsFor(view);
+  const resultLabel = digits.map((digit) => `${digit} ${slotSymbolForDigit(digit).label}`).join('、');
 
   useEffect(() => {
     if (!presenting) return;
@@ -145,11 +165,12 @@ function SlotPullOverlay({ view, interactive, reducedMotion, onPull, onCancel, o
       data-kind={SLOT_PULL_FX}
       data-phase={phase}
       data-reduced-motion={reducedMotion ? '1' : '0'}
+      data-reel-source={source}
       role="group"
       aria-label={`${view.playerName ?? '玩家'}的老虎机演出`}
     >
       <div className="slot-machine-stage">
-        <SlotMachineCabinet symbols={symbols} spinning={spinning} pull={pull} />
+        <SlotMachineCabinet digits={digits} spinning={spinning} pull={pull} />
         <button
           type="button"
           className="slot-lever-handle"
@@ -171,8 +192,10 @@ function SlotPullOverlay({ view, interactive, reducedMotion, onPull, onCancel, o
         {phase === 'idle' && (interactive ? '向下拖动或点击拉杆' : '老虎机准备就绪')}
         {phase === 'pulling' && `拉杆 ${Math.round(pull * 100)}%`}
         {phase === 'spinning' && '卷轴转动中'}
-        {phase === 'result' && '卷轴演出完成'}
+        {phase === 'result' && `卷轴结果：${digits.join(' · ')}`}
       </div>
+      <SlotSymbolLegend />
+      <span className="sr-only" aria-live="polite">{phase === 'result' ? resultLabel : ''}</span>
       {interactive && phase === 'idle' && onCancel && (
         <button type="button" className="slot-machine-cancel" onClick={onCancel}>取消演出</button>
       )}
@@ -199,7 +222,7 @@ function SlotDropOverlay({ view, mode, reducedMotion, onComplete }: FxOverlayPro
     >
       <div className="slot-drop-trajectory">
         <div className="slot-machine-stage">
-          <SlotMachineCabinet symbols={symbolsFor(view.key)} spinning={false} />
+          <SlotMachineCabinet digits={slotReelsFor(view).digits} spinning={false} />
         </div>
         <span className="slot-impact-ring" aria-hidden="true" />
       </div>

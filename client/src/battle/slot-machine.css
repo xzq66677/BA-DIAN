@@ -5,11 +5,23 @@
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 76px 18px 112px;
   pointer-events: none;
   color: #ffe6a3;
   isolation: isolate;
+}
+
+.slot-machine-overlay .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .slot-machine-overlay::before {
@@ -105,22 +117,52 @@
   background: linear-gradient(180deg, #d6cbb0, #fff8df 28%, #fffdf2 50%, #fff8df 72%, #cfc3a7);
   box-shadow: inset 0 8px 9px rgba(0, 0, 0, 0.28), inset 0 -8px 9px rgba(0, 0, 0, 0.24);
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(28px, 5.4vw, 48px);
   font-weight: 900;
   line-height: 1;
-  text-shadow: 0 1px 0 #fff, 0 2px 0 #6f4326;
 }
 
-.slot-reel > span {
+.slot-reel[data-symbol='money'] { color: #9b6819; }
+.slot-reel[data-symbol='bomb'] { color: #a52b2d; }
+.slot-reel[data-symbol='attack'] { color: #17677b; }
+.slot-reel[data-symbol='key'] { color: #317052; }
+
+.slot-reel-cell {
   position: absolute;
   left: 0;
   right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1px, 0.5vw, 4px);
   text-align: center;
+  text-shadow: 0 1px 0 #fff, 0 2px 0 #6f4326;
 }
 
-.slot-reel > span:nth-child(1) { top: -105%; }
-.slot-reel > span:nth-child(2) { top: 0; bottom: 0; display: grid; place-items: center; }
-.slot-reel > span:nth-child(3) { bottom: -105%; }
+.slot-reel-cell strong {
+  font-size: clamp(28px, 5vw, 46px);
+  line-height: 0.92;
+}
+
+.slot-symbol-icon {
+  width: 1.2em;
+  height: 1.2em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.slot-reel-cell .slot-symbol-icon {
+  width: clamp(17px, 3.2vw, 29px);
+  height: clamp(17px, 3.2vw, 29px);
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.85));
+}
+
+.slot-reel-cell:nth-child(1) { top: -110%; }
+.slot-reel-cell:nth-child(2) { top: 0; bottom: 0; }
+.slot-reel-cell:nth-child(3) { bottom: -110%; }
 
 .slot-reels[data-spinning='1'] .slot-reel > span {
   animation: slot-reel-spin 0.52s steps(6) infinite;
@@ -145,6 +187,43 @@
   background: #ffe9a1;
   box-shadow: 0 0 7px #ffbf52;
 }
+
+.slot-symbol-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 10px;
+  max-width: min(430px, 92vw);
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid rgba(234, 192, 99, 0.3);
+  border-radius: 8px;
+  background: rgba(18, 13, 15, 0.82);
+  list-style: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.slot-symbol-legend li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.slot-symbol-legend li[data-symbol='money'] { color: #ffd46d; }
+.slot-symbol-legend li[data-symbol='bomb'] { color: #ff8c78; }
+.slot-symbol-legend li[data-symbol='attack'] { color: #80dcea; }
+.slot-symbol-legend li[data-symbol='key'] { color: #9de0ad; }
+
+.slot-symbol-legend .slot-symbol-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.slot-symbol-legend span { display: flex; gap: 3px; }
+.slot-symbol-legend strong { font-weight: 900; }
 
 .slot-cabinet-panel {
   position: absolute;

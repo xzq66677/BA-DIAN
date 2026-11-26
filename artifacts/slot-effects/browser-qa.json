@@ -1,9 +1,25 @@
 {
   "url": "http://127.0.0.1:5187/slot-preview.html",
-  "startedAt": "2026-11-26T07:49:55.503Z",
+  "startedAt": "2026-11-26T08:27:45.442Z",
   "checks": [
     {
+      "name": "three reels show digits from zero to nine",
+      "passed": true
+    },
+    {
+      "name": "each reel shows the mapped concrete symbol",
+      "passed": true
+    },
+    {
+      "name": "number and symbol legend is visible",
+      "passed": true
+    },
+    {
       "name": "desktop lever target is at least 44px",
+      "passed": true
+    },
+    {
+      "name": "drag enters spinning phase",
       "passed": true
     },
     {
@@ -11,7 +27,7 @@
       "passed": true
     },
     {
-      "name": "drag enters spinning phase",
+      "name": "result caption shows the three reel digits",
       "passed": true
     },
     {
@@ -76,7 +92,9 @@
     }
   ],
   "screenshots": [
+    "artifacts\\slot-effects\\desktop-pull-idle.png",
     "artifacts\\slot-effects\\desktop-pull-spinning.png",
+    "artifacts\\slot-effects\\desktop-pull-result.png",
     "artifacts\\slot-effects\\desktop-drop-2d-falling.png",
     "artifacts\\slot-effects\\desktop-drop-2d-reduced.png",
     "artifacts\\slot-effects\\desktop-drop-3d-impact.png",
@@ -130,5 +148,5 @@
     }
   },
   "passed": true,
-  "finishedAt": "2026-11-26T07:50:52.652Z"
+  "finishedAt": "2026-11-26T08:28:43.276Z"
 }

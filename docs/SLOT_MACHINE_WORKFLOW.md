@@ -75,8 +75,8 @@ slotMachineDropFx(target, { duration, reducedMotion, lowEffects, seed });
 ### 视觉方向
 
 - 装饰艺术机械侠，酒红珐琅、黄铜、象牙陶瓷、深青信号色。
-- 胸窗三滚轮、777 灯箱、右肩不对称拉杆，轮廓必须一眼可辨。
-- 滚轮符号只承担演出，不在客户端推算其玩法效果。
+- 胸窗三滚轮显示 0–9 数字及具体图标：0 钥匙、1–3 金钱、4–7 炸弹、8–9 攻击。
+- 卷轴数字只承担演出，不在客户端推算随机结果、四个同类符号效果、伤害或角色注册。
 
 ### 统一坐标与预算
 
@@ -142,6 +142,8 @@ slotMachineDropFx(target, { duration, reducedMotion, lowEffects, seed });
 - 未达到拖动阈值时回弹；点击无拖动时可直接完成；取消不发送网络请求。
 - 提交中防止重复触发。只有拉杆成功完成后才调用既有 `net.submitAction()`。
 - 状态至少包含 idle、pulling、spinning、result；卷轴结果只是演出，不覆盖快照或生成伤害。
+- 三个卷轴各自显示一个 0–9 数字及其图标。服务端可在行动日志的 `data.reels` 中传入恰好三个整数；缺失、长度错误或越界时使用事件 key 生成确定性预览数字，并标记为 `preview`，不得把它当作权威结果。
+- 数字映射与校验集中在 `client/src/battle/slot-machine-reels.ts`，SVG 图标集中在 `slot-symbol-icon.tsx`；新增符号时只扩展这两处，不在页面中堆具体数字分支。
 - reduced-motion 停止旋转/掉落等非必要运动，保留明确状态反馈。
 
 ### 通用注册表
@@ -201,6 +203,7 @@ registerActionPresentation('slotDrop', {
     label?: string,
     targetId?: string,
     room?: string,
+    reels?: [number, number, number],
   },
 }
 ```

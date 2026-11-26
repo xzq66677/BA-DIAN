@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { FxView } from './useBattlePresentation.js';
+import type { SlotReels } from './slot-machine-reels.js';
 
 export interface FxOverlayView {
   key: number;
@@ -9,6 +10,7 @@ export interface FxOverlayView {
   room?: string;
   playerName?: string;
   durationMs?: number;
+  reels?: SlotReels;
 }
 
 export interface FxOverlayProps {
@@ -45,5 +47,6 @@ export function fxOverlayView(view: FxView, playerName?: string): FxOverlayView 
     room: view.room,
     playerName,
     durationMs: view.durationMs,
+    reels: view.reels,
   };
 }

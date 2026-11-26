@@ -9,6 +9,7 @@
  */
 
 import type { SnapLog } from '../net.js';
+import { normalizeSlotReels, type SlotReels } from './slot-machine-reels.js';
 
 /** 最小日志形状（net.ts 的 SnapLog 与测试构造的日志都满足；type 可缺省=旧数据） */
 export interface LogLike {
@@ -60,6 +61,7 @@ export interface BattleEvent {
   segment?: { index: number; total: number };
   /** 事件房间（AOE 房间高亮） */
   room?: string;
+  reels?: SlotReels;
   fromRoom?: string;
   toRoom?: string;
   cause?: string;
@@ -92,6 +94,7 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
         label: str(d.label),
         targetId: str(d.targetId),
         room: str(d.room),
+        reels: normalizeSlotReels(d.reels) ?? undefined,
         important: log.important,
       };
     }

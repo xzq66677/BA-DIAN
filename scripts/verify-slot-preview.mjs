@@ -62,6 +62,14 @@ try {
   await ready(page);
 
   await page.getByTestId('preview-pull').click();
+  const initialDigits = await page.locator('.slot-reel').evaluateAll((reels) => reels.map((reel) => ({
+    digit: Number(reel.dataset.digit),
+    symbol: reel.dataset.symbol,
+  })));
+  record('three reels show digits from zero to nine', initialDigits.length === 3 && initialDigits.every(({ digit }) => digit >= 0 && digit <= 9));
+  record('each reel shows the mapped concrete symbol', initialDigits.every(({ digit, symbol }) => symbol === (digit === 0 ? 'key' : digit <= 3 ? 'money' : digit <= 7 ? 'bomb' : 'attack')));
+  record('number and symbol legend is visible', await page.getByRole('list', { name: '老虎机数字符号对照' }).isVisible());
+  await shot(page, 'desktop-pull-idle');
   const handle = page.getByRole('button', { name: '拉动老虎机拉杆' });
   const box = await handle.boundingBox();
   assert(box);
@@ -70,12 +78,15 @@ try {
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2, box.y + 70, { steps: 8 });
   await page.mouse.up();
+  await page.waitForFunction(() => document.querySelector('[data-testid="slot-pull-overlay"]')?.getAttribute('data-phase') === 'spinning', null, { timeout: 2000 });
+  record('drag enters spinning phase', true);
   await page.waitForFunction(() => window.__slotPreview.getState().status.includes('已受理'));
   record('desktop pointer drag submits once', (await state(page)).interactive === false);
-  await page.waitForTimeout(700);
-  record('drag enters spinning phase', await page.getByTestId('slot-pull-overlay').getAttribute('data-phase') === 'spinning');
   await shot(page, 'desktop-pull-spinning');
   await page.waitForFunction(() => window.__slotPreview.getState().status === '演出完成', null, { timeout: 5000 });
+  const resultText = await page.locator('.slot-machine-caption').textContent() ?? '';
+  record('result caption shows the three reel digits', initialDigits.every(({ digit }) => resultText.includes(String(digit))));
+  await shot(page, 'desktop-pull-result');
 
   await page.getByTestId('preview-pull').click();
   await page.getByRole('button', { name: '取消演出' }).click();
