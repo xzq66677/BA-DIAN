@@ -64,6 +64,14 @@ describe('对局回放', () => {
     expect(text).toContain('游戏结束');
     expect(text).toContain('获得行动资格');
 
+    const actions = frames.flatMap((f) => f.logs).filter((l) => l.type === 'action');
+    expect(actions.length).toBeGreaterThan(0);
+    for (const action of actions) {
+      expect(action.data).toEqual(expect.objectContaining({
+        pid: expect.any(String), actionName: expect.any(String), fx: expect.any(String),
+      }));
+    }
+
     // 每帧都带玩家血量/房间，且战绩随帧推进
     const last = frames[frames.length - 1];
     expect(last.players).toHaveLength(2);

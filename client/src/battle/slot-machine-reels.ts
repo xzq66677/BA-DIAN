@@ -1,4 +1,7 @@
-export type SlotReels = [number, number, number];
+export type SlotReelCount = 3 | 4;
+export type SlotReels =
+  | [number, number, number]
+  | [number, number, number, number];
 export type SlotSymbolKind = 'money' | 'bomb' | 'attack' | 'key';
 
 export interface SlotSymbolDefinition {
@@ -21,22 +24,28 @@ export function slotSymbolForDigit(digit: number): SlotSymbolDefinition {
   return SLOT_SYMBOLS[3];
 }
 
-export function normalizeSlotReels(value: unknown): SlotReels | null {
-  if (!Array.isArray(value) || value.length !== 3) return null;
-  if (!value.every((digit) => typeof digit === 'number' && Number.isInteger(digit) && digit >= 0 && digit <= 9)) return null;
-  return [value[0], value[1], value[2]];
+export function normalizeSlotReelCount(value: unknown): SlotReelCount | null {
+  return value === 3 || value === 4 ? value : null;
 }
 
-export function previewSlotReels(key: number): SlotReels {
+export function normalizeSlotReels(value: unknown): SlotReels | null {
+  if (!Array.isArray(value) || normalizeSlotReelCount(value.length) === null) return null;
+  if (!value.every((digit) => typeof digit === 'number' && Number.isInteger(digit) && digit >= 0 && digit <= 9)) return null;
+  return value.length === 3 ? [value[0], value[1], value[2]] : [value[0], value[1], value[2], value[3]];
+}
+
+export function previewSlotReels(key: number, count: SlotReelCount = 3): SlotReels {
   let state = (Math.trunc(key) ^ 0x51a7d00d) >>> 0;
   const next = (): number => {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
     return state % 10;
   };
-  return [next(), next(), next()];
+  const digits = [next(), next(), next()];
+  return count === 4 ? [...digits, next()] as SlotReels : digits as SlotReels;
 }
 
-export function slotReelsFor(view: { key: number; reels?: SlotReels }): { digits: SlotReels; source: 'event' | 'preview' } {
+export function slotReelsFor(view: { key: number; reels?: unknown; reelCount?: unknown }): { digits: SlotReels; source: 'event' | 'preview' } {
   const digits = normalizeSlotReels(view.reels);
-  return digits ? { digits, source: 'event' } : { digits: previewSlotReels(view.key), source: 'preview' };
+  if (digits) return { digits, source: 'event' };
+  return { digits: previewSlotReels(view.key, normalizeSlotReelCount(view.reelCount) ?? 3), source: 'preview' };
 }

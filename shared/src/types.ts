@@ -293,10 +293,14 @@ export interface ReviveEventData {
 
 export interface ActionEventData {
   pid: PlayerId;
+  /** 服务端权威行动名；演出层据此解析角色注册的 fx，不修改规则枚举。 */
+  actionName?: string;
   fx: BattleFxKind;
   label: string;
   targetId?: PlayerId;
   room?: RoomId;
+  /** 已由玩法层确认可公开的角色演出数据。 */
+  presentation?: Record<string, unknown>;
 }
 
 /** 延迟事件（回合末结算，如大伊万） */
@@ -425,7 +429,7 @@ export interface ReplayFrame {
   actIndex: number;
   aliveCount: number;
   winner: PlayerId | null;
-  logs: { seq: number; type: LogType; text: string; important?: boolean }[];
+  logs: { seq: number; type: LogType; text: string; important?: boolean; data?: Record<string, unknown> }[];
 }
 
 export interface ReplaySummary {
