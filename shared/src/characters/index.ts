@@ -757,56 +757,86 @@ function mountWildHunt(game: GameLike, owner: PlayerId, rounds: number): void {
 const wildHunt: CharDef = {
   id: 'wild-hunt',
   name: '狂猎',
-  desc: '血量4、攻击1。受到攻击时与来源猜拳判定（平局重掷直到分出胜负）：赢则抵消本次伤害并反击——未骑乘时反击1伤并上马1回合，已骑乘时反击改为6伤、用后下马；输则正常受伤。骑乘期间攻击无视距离并带位移（攻击后移动到目标房间）、伤害×2；骑乘的最后一回合攻击变为6伤单体。可消耗一次行动主动上马2回合。每次击杀敌人后攻击×1.5（可叠加）。',
+  desc: '血量4、攻击1。受到攻击时与来源猜拳判定（双方亲自出拳，平局重掷直到分出胜负）：赢则抵消本次伤害并反击——未骑乘时反击1伤并上马1回合，已骑乘时反击改为6伤、用后下马；输则正常受伤。骑乘期间攻击无视距离并带位移（攻击后移动到目标房间）、伤害×2；骑乘的最后一回合攻击变为6伤单体（可叠加击杀加成）。可消耗一次行动主动上马2回合。每次击杀敌人后攻击×1.5（可叠加）。',
   hp: 4,
   attack: 1,
   attackType: 'melee',
-  attackDesc: '近战攻击同房间目标（伤害 1）；骑乘期间可跨房间突进（攻击后移动到目标房间）、伤害×2，骑乘最后一回合攻击变为 6 伤单体',
+  attackDesc: '近战攻击同房间目标（伤害 1）；骑乘期间可跨房间突进（攻击后移动到目标房间）、伤害×2，骑乘最后一回合攻击变为 6 伤单体（可叠加击杀加成）',
   traits: ['hunter'],
   init: () => ({ mounted: false, mountExpiresRound: 0, kills: 0 }),
   /** 受击判定：只响应普通攻击（普攻/燃烧箭/操控攻击），不响应燃烧、爆炸、精神攻击等 */
   onBeforeDamage: ({ game, req, owner }) => {
     if (req.target !== owner) return;
     if (!req.isAttack) return;
+    if (req.judgeResolved) return; // 判定后补结算：不再触发受击判定
     const source = req.source;
     if (!source || source === owner || !game.players[source]?.alive) return;
     const st = game.charState(owner);
+    const self = owner;
     const throwName = (t: string) => (t === 'rock' ? '石头' : t === 'scissors' ? '剪刀' : '布');
-    let result: 'win' | 'lose' | 'tie' = 'tie';
-    let ties = 0;
-    let guard = 0;
-    let last = { a: 'rock', b: 'rock' };
-    // 平局重掷，直到分出胜负（安全上限防死循环）
-    while (result === 'tie' && guard++ < 50) {
-      const roll = game.rollJudgeThrows(owner, source);
-      last = { a: roll.a, b: roll.b };
-      result = roll.result;
-      if (result === 'tie') ties++;
+
+    /** 判定成功：本次伤害完全抵消 + 反击（未骑乘 1 伤+上马；已骑乘 6 伤+下马） */
+    const parryWin = (detail: string, ties: number) => {
+      const mountedNow = st.mounted === true;
+      const counterAmount = mountedNow ? 6 : 1;
+      game.log('trigger', `⚔ ${game.players[self].name} 受击判定成功：${detail} → 抵消伤害并反击 ${fmtNum(counterAmount)} 点${mountedNow ? '（用后下马）' : '（上马 1 回合）'}`,
+        { pid: self, source, counter: counterAmount, mounted: mountedNow, ties }, true);
+      // 反击：无视躲藏/隐身（反击不是普通攻击，不触发对方的受击判定）
+      game.applyDamage({
+        target: source,
+        amount: counterAmount,
+        source: self,
+        dtype: 'physical',
+        tag: 'counter',
+        ignoreHide: true,
+      });
+      if (mountedNow) game.removeStatus(self, 'mounted');
+      else mountWildHunt(game, self, 1);
+    };
+
+    if (game.rules.skillJudgeMode === 'serverRoll') {
+      // 即时结算（AI 对局 / 测试场）：平局重掷，直到分出胜负（安全上限防死循环）
+      let result: 'win' | 'lose' | 'tie' = 'tie';
+      let ties = 0;
+      let guard = 0;
+      let last = { a: 'rock', b: 'rock' };
+      while (result === 'tie' && guard++ < 50) {
+        const roll = game.rollJudgeThrows(self, source);
+        last = { a: roll.a, b: roll.b };
+        result = roll.result;
+        if (result === 'tie') ties++;
+      }
+      const detail = `狂猎 ${throwName(last.a)} vs ${throwName(last.b)}${ties > 0 ? `（平局重掷 ${ties} 次）` : ''}`;
+      if (result !== 'win') {
+        game.log('trigger', `⚔ ${game.players[self].name} 受击判定失败：${detail} → 正常受伤`, { pid: self, source, result, ties }, true);
+        return; // 正常承伤
+      }
+      parryWin(detail, ties);
+      return 'skip'; // 本次攻击伤害被完全抵消
     }
-    const detail = `狂猎 ${throwName(last.a)} vs ${throwName(last.b)}${ties > 0 ? `（平局重掷 ${ties} 次）` : ''}`;
-    if (result !== 'win') {
-      game.log('trigger', `⚔ ${game.players[owner].name} 受击判定失败：${detail} → 正常受伤`, { pid: owner, source, result, ties }, true);
-      return; // 正常承伤
-    }
-    const mountedNow = st.mounted === true;
-    const counterAmount = mountedNow ? 6 : 1;
-    game.log('trigger', `⚔ ${game.players[owner].name} 受击判定成功：${detail} → 抵消伤害并反击 ${fmtNum(counterAmount)} 点${mountedNow ? '（用后下马）' : '（上马 1 回合）'}`,
-      { pid: owner, source, result, ties, counter: counterAmount, mounted: mountedNow }, true);
-    // 反击：无视躲藏/隐身（反击不是普通攻击，不触发对方的受击判定）
-    game.applyDamage({
-      target: source,
-      amount: counterAmount,
-      source: owner,
-      dtype: 'physical',
-      tag: 'counter',
-      ignoreHide: true,
-    });
-    if (mountedNow) {
-      game.removeStatus(owner, 'mounted');
-    } else {
-      mountWildHunt(game, owner, 1);
-    }
-    return 'skip'; // 本次攻击伤害被完全抵消
+
+    // player 模式（对局默认）：挂起本次伤害，双方**亲自出拳**；平局自动重赛（再来一把）
+    req.judgeResolved = true;
+    game.log('trigger', `⚔ ${game.players[self].name} 受到 ${game.players[source].name} 攻击，进入受击判定（双方亲自出拳，平局再来一把）`,
+      { pid: self, source, isAttack: true }, true);
+    return {
+      deferTo: {
+        kind: 'wildhunt',
+        owner: self,
+        opponent: source,
+        rounds: 1,
+        rerollTie: true,
+        label: '狂猎受击判定',
+        resolve: (wins: number) => {
+          if (wins > 0) {
+            parryWin('猜拳胜利', 0);
+            return;
+          }
+          game.log('trigger', `⚔ ${game.players[self].name} 受击判定失败 → 正常受伤`, { pid: self, source }, true);
+          game.applyDamage(req); // req.judgeResolved 已置 true，补结算不会再触发判定
+        },
+      },
+    };
   },
   onAttackAction: ({ game, actor }, targetId) => {
     const p = game.getPlayer(actor);
@@ -825,9 +855,9 @@ const wildHunt: CharDef = {
     const finalRound = mounted && game.roundNo >= expires;
     const kills = typeof st.kills === 'number' ? st.kills : 0;
     const cd = game.charDef(actor);
-    // 击杀加成 1.5^kills；骑乘 ×2；骑乘最后一回合固定 6 伤单体
+    // 击杀加成 1.5^kills；骑乘 ×2；骑乘最后一回合 6 伤单体（同样吃击杀加成）
     const amount = finalRound
-      ? 6
+      ? Math.round(6 * Math.pow(1.5, kills) * 10000) / 10000
       : Math.round((cd.attack ?? 1) * (mounted ? 2 : 1) * Math.pow(1.5, kills) * 10000) / 10000;
     game.log('damage', `🌪 ${p.name} ${mounted ? (finalRound ? '在骑乘最后一回合发动致命冲锋' : '骑乘突进') : '攻击'} ${target.name}（伤害 ${fmtNum(amount)}${mounted ? '，位移至目标房间' : ''}）`,
       { pid: actor, target: targetId, amount, mounted, finalRound, room: target.room }, true);

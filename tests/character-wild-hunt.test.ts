@@ -23,7 +23,8 @@ function makeGame(
   return new Game({
     seed,
     chars: CHARACTERS,
-    ...(rules ? { rules: rules as never } : {}),
+    // 测试默认用即时判定（serverRoll）；player 模式用例显式覆盖
+    rules: { skillJudgeMode: 'serverRoll', ...(rules ?? {}) } as never,
     players: specs.map((s) => ({ id: s.id, name: s.id, charId: s.char ?? 'default', type: 'local' as const })),
   });
 }
@@ -109,6 +110,46 @@ describe('狂猎：受击猜拳判定', () => {
   });
 });
 
+describe('狂猎：双方亲自出拳的受击判定（player 模式）', () => {
+  it('进入 judge 阶段；胜利则抵消伤害、反击并上马', () => {
+    const g = makeGame([{ id: 'A', char: 'wild-hunt' }, { id: 'B' }], 41, { skillJudgeMode: 'player' });
+    setBAboutToAttackA(g);
+    g.submitAction('B', { type: 'attack', targetId: 'A' });
+    expect(g.phase).toBe('judge');
+    expect(g.skillJudgeView()?.label).toBe('狂猎受击判定');
+    expect(g.submitJudgeThrow('A', 'rock').ok).toBe(true);
+    expect(g.submitJudgeThrow('B', 'scissors').ok).toBe(true);
+    expect(g.players.A.hp).toBe(4);
+    expect(g.players.B.hp).toBe(1);
+    expect(g.hasStatus('A', 'mounted')).toBe(true);
+  });
+
+  it('平局「再来一把」：同一局继续出拳，直到分出胜负', () => {
+    const g = makeGame([{ id: 'A', char: 'wild-hunt' }, { id: 'B' }], 42, { skillJudgeMode: 'player' });
+    setBAboutToAttackA(g);
+    g.submitAction('B', { type: 'attack', targetId: 'A' });
+    expect(g.phase).toBe('judge');
+    g.submitJudgeThrow('A', 'rock');
+    g.submitJudgeThrow('B', 'rock'); // 平局
+    expect(g.phase).toBe('judge');
+    expect(g.skillJudgeView()?.round).toBe(1); // 不推进局数
+    g.submitJudgeThrow('A', 'rock');
+    g.submitJudgeThrow('B', 'scissors'); // 狂猎胜
+    expect(g.players.A.hp).toBe(4);
+    expect(g.players.B.hp).toBe(1);
+  });
+
+  it('失败则正常受伤', () => {
+    const g = makeGame([{ id: 'A', char: 'wild-hunt' }, { id: 'B' }], 43, { skillJudgeMode: 'player' });
+    setBAboutToAttackA(g);
+    g.submitAction('B', { type: 'attack', targetId: 'A' });
+    g.submitJudgeThrow('A', 'scissors');
+    g.submitJudgeThrow('B', 'rock');
+    expect(g.players.A.hp).toBe(3);
+    expect(g.hasStatus('A', 'mounted')).toBe(false);
+  });
+});
+
 describe('狂猎：骑乘突进与爆发', () => {
   it('骑乘攻击可跨房间突进：伤害×2 并移动到目标房间', () => {
     const g = makeGame([{ id: 'A', char: 'wild-hunt' }, { id: 'B' }]);
@@ -172,6 +213,36 @@ describe('狂猎：击杀成长', () => {
     throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
     g.submitAction('A', { type: 'attack', targetId: 'C' });
     expect(g.players.C.hp).toBe(28.5); // 1 × 1.5
+  });
+
+  it('骑乘最后一回合的 6 伤单体同样叠加击杀加成（1 杀 → 9 伤）', () => {
+    const g = makeGame([{ id: 'A', char: 'wild-hunt' }, { id: 'B' }, { id: 'C' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    g.players.C.room = 'R1';
+    g.players.B.hp = 1;
+    g.players.C.maxHp = 40;
+    g.players.C.hp = 40;
+
+    // 第 1 回合：击杀 B（攻击 ×1.5）
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    g.submitAction('A', { type: 'attack', targetId: 'B' });
+    expect(g.charState('A').kills).toBe(1);
+
+    // 第 2 回合：主动上马
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    expect(g.submitAction('A', { type: 'mount' }).ok).toBe(true);
+
+    // 第 3 回合：骑乘普通攻击 1×2×1.5 = 3
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    g.submitAction('A', { type: 'attack', targetId: 'C' });
+    expect(g.players.C.hp).toBe(37);
+
+    // 第 4 回合：骑乘最后一回合 6×1.5 = 9
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    g.submitAction('A', { type: 'attack', targetId: 'C' });
+    expect(g.players.C.hp).toBe(28);
+    expect(g.hasStatus('A', 'mounted')).toBe(false);
   });
 });
 

@@ -82,12 +82,12 @@ export interface PlayerState {
 }
 
 /** 技能内判定（马保国系能力）的类别 */
-export type SkillJudgeKind = 'taiji' | 'whip5' | 'bujiangwude';
+export type SkillJudgeKind = 'taiji' | 'whip5' | 'bujiangwude' | 'wildhunt';
 
 /** 一次技能内判定的请求（由角色钩子发起，引擎负责暂停对局收拳与逐局结算） */
 export interface SkillJudgeOptions {
   kind: SkillJudgeKind;
-  /** 判定发起者（「己方」：太极/五连鞭/不讲武德都是马保国） */
+  /** 判定发起者（「己方」：太极/五连鞭/不讲武德/狂猎受击判定） */
   owner: PlayerId;
   /** 对手（伤害来源 / 五连鞭目标 / 击杀者） */
   opponent: PlayerId;
@@ -95,6 +95,8 @@ export interface SkillJudgeOptions {
   rounds: number;
   /** 日志与界面标题，如「太极判定」「五连鞭第 3 鞭」 */
   label: string;
+  /** 平局是否立即重赛（不消耗局数）：狂猎受击判定「再来一把」 */
+  rerollTie?: boolean;
   /** 全部局数结算后的回调（wins = 己方获胜局数） */
   resolve: (wins: number, rounds: number) => void;
 }

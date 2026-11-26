@@ -1047,7 +1047,8 @@ export class Game implements GameLike {
     const pt = j.pending[j.opponent];
     const result: 'win' | 'lose' | 'tie' = !ot || !pt ? 'tie' : beats(ot, pt) ? 'win' : beats(pt, ot) ? 'lose' : 'tie';
     if (result === 'win') j.wins++;
-    const replayTie = j.kind === 'whip5' && result === 'tie';
+    // 平局重赛：五连鞭「平局不计局数」、狂猎受击判定「平局再来一把」均不推进局数
+    const replayTie = result === 'tie' && (j.kind === 'whip5' || j.rerollTie === true);
     j.last = { round: j.round, ownerThrow: ot as Throw, opponentThrow: pt as Throw, result };
     j.records.push({
       kind: j.kind, label: j.label, round: j.round, owner: j.owner, opponent: j.opponent,
