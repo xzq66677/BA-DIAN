@@ -503,7 +503,12 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         >
           📣 播报{announceUnread > 0 ? <span className="unread-badge">{announceUnread > 99 ? '99+' : announceUnread}</span> : ''}
         </button>
-        <button className={`tcg-btn ghost tiny ${logOpen ? '' : 'off'} ${logUnread > 0 ? 'has-unread' : ''}`} onClick={() => setLogOpen((v) => !v)}>
+        <button
+          className={`tcg-btn ghost tiny ${logOpen ? '' : 'off'} ${logUnread > 0 ? 'has-unread' : ''}`}
+          aria-expanded={logOpen}
+          aria-controls="battle-log"
+          onClick={() => setLogOpen((v) => !v)}
+        >
           📜 日志{logUnread > 0 ? <span className="unread-badge">{logUnread > 99 ? '99+' : logUnread}</span> : ''}
         </button>
         <button className={`tcg-btn ghost tiny ${chatOpen ? '' : 'off'}`} onClick={() => setChatOpen((v) => !v)}>
@@ -714,8 +719,12 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
           )}
         </section>
 
-        <aside className={`log-side ${logOpen ? 'log-open' : 'log-closed'}`}>
-          <LogPanel logs={logs} />
+        <aside
+          id="battle-log"
+          aria-hidden={!logOpen}
+          className={`log-side ${logOpen ? 'log-open' : 'log-closed'}`}
+        >
+          <LogPanel logs={logs} onClose={() => setLogOpen(false)} />
         </aside>
 
         {announceOpen && <AnnounceDrawer items={announces ?? []} onClose={() => setAnnounceOpen(false)} />}
@@ -1365,7 +1374,10 @@ function CardDetail({ p, players, onClose, canKick, onKick, stats, onInteract, g
 
 // ── 日志面板 ─────────────────────────────────────────────
 
-function LogPanel({ logs }: { logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[] }) {
+function LogPanel({ logs, onClose }: {
+  logs: { seq: number; text: string; important?: boolean; type?: string; data?: Record<string, unknown> }[];
+  onClose: () => void;
+}) {
   const [onlyKey, setOnlyKey] = useState(false);
   const ICON: Record<string, string> = {
     phase: '⏱️', judge: '🎲', order: '🔀', action: '🎬', damage: '⚔️',
@@ -1380,6 +1392,7 @@ function LogPanel({ logs }: { logs: { seq: number; text: string; important?: boo
         <div className="btn-row">
           <button className={`tcg-btn ${onlyKey ? '' : 'ghost'}`} style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setOnlyKey(true)}>⭐ 重点</button>
           <button className={`tcg-btn ${!onlyKey ? '' : 'ghost'}`} style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setOnlyKey(false)}>全部</button>
+          <button className="tcg-btn ghost tiny" aria-label="关闭日志" title="关闭日志" onClick={onClose}>×</button>
         </div>
       </div>
       <div className="log-scroll">

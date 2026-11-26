@@ -72,6 +72,7 @@
 .s3d-mode .log-side .log-scroll {
   max-height: calc(46vh - 52px);
 }
+.s3d-mode .log-side.log-closed { display: none; }
 /* 操作坞：底部悬浮（操作层融合 3D 舞台） */
 .s3d-mode .action-dock {
   position: absolute;

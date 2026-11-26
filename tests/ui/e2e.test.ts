@@ -113,6 +113,95 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     await page.close();
   });
 
+  it('战斗日志可自主开关，2D / 3D / 手机窄屏与横屏关闭后不遮挡', async () => {
+    const page = await newPage(browser);
+    await page.addInitScript(() => localStorage.setItem('badian-renderer', '2d'));
+    await page.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
+    await page.getByText(/拔 典/).waitFor({ timeout: 15000 });
+    await page.locator('input[placeholder="输入昵称"]').fill('日志验收员');
+    await page.locator('select').nth(2).selectOption('1');
+    await page.getByRole('button', { name: /单人开局/ }).click();
+    await page.getByText(/行动坞/).waitFor({ timeout: 20000 });
+
+    const log = page.locator('.log-side');
+    const toggle = page.getByRole('button', { name: /📜 日志/ });
+    await expect(log).toBeVisible();
+    await toggle.click();
+    await expect(log).toBeHidden();
+    await expect(page.locator('.tcg-main')).toHaveClass(/no-log/);
+    await toggle.click();
+    await expect(log).toBeVisible();
+
+    await page.getByRole('button', { name: '3D', exact: true }).click();
+    await expect(page.locator('.tcg-app')).toHaveClass(/s3d-mode/);
+    await expect(log).toBeHidden();
+    await toggle.click();
+    await expect(log).toBeVisible();
+    await toggle.click();
+    await expect(log).toBeHidden();
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(log).toBeHidden();
+    await toggle.click();
+    await expect(log).toBeVisible();
+    await log.getByRole('button', { name: '关闭日志' }).click();
+    await expect(log).toBeHidden();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(log).toBeHidden();
+    await toggle.click();
+    await expect(log).toBeVisible();
+    await toggle.click();
+    await expect(log).toBeHidden();
+    expect(await log.boundingBox()).toBeNull();
+    await page.close();
+  });
+
+  it('房主创建房间 → 另一玩家从列表加入 → 双向聊天 → 双方进入对局', async () => {
+    const host = await newPage(browser);
+    const guest = await newPage(browser);
+    const jsErrors: string[] = [];
+    host.on('pageerror', (e) => jsErrors.push(`host: ${String(e)}`));
+    guest.on('pageerror', (e) => jsErrors.push(`guest: ${String(e)}`));
+    try {
+      await host.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
+      await host.getByText(/拔 典/).waitFor({ timeout: 15000 });
+      await host.locator('input[placeholder="输入昵称"]').fill('联机房主');
+      await host.getByRole('button', { name: '仅创建（邀请好友）' }).click();
+      await host.getByText(/玩家卡位/).waitFor({ timeout: 20000 });
+      const code = (await host.locator('.tcg-panel').first().innerText()).match(/\b[A-Z2-9]{4}\b/)?.[0];
+      expect(code).toBeTruthy();
+
+      await guest.goto(baseUrl + '/?entrance=classic', { waitUntil: 'domcontentloaded' });
+      await guest.getByText(/拔 典/).waitFor({ timeout: 15000 });
+      await guest.locator('input[placeholder="输入昵称"]').fill('联机客人');
+      const roomItem = guest.locator('.room-item').filter({ hasText: code! });
+      await expect(roomItem).toBeVisible({ timeout: 10000 });
+      await roomItem.getByRole('button', { name: '加入', exact: true }).click();
+      await expect(host.locator('.seat-slot')).toHaveCount(2);
+      await expect(guest.locator('.seat-slot')).toHaveCount(2);
+      await expect(host.locator('.seat-slots')).toContainText('联机客人');
+      await expect(guest.locator('.seat-slots')).toContainText('联机房主');
+
+      await host.getByPlaceholder('输入消息…').fill('房主欢迎你');
+      await host.getByRole('button', { name: '发送', exact: true }).click();
+      await expect(guest.locator('.chat-log')).toContainText('房主欢迎你');
+      await guest.getByPlaceholder('输入消息…').fill('客人已加入');
+      await guest.getByRole('button', { name: '发送', exact: true }).click();
+      await expect(host.locator('.chat-log')).toContainText('客人已加入');
+
+      await host.getByRole('button', { name: /开始对局/ }).click();
+      await expect(host.locator('.battlefield')).toBeVisible({ timeout: 20000 });
+      await expect(guest.locator('.battlefield')).toBeVisible({ timeout: 20000 });
+      await expect(host.locator('.tcg-header')).toContainText(code!);
+      await expect(guest.locator('.tcg-header')).toContainText(code!);
+      expect(jsErrors).toEqual([]);
+    } finally {
+      await guest.close();
+      await host.close();
+    }
+  });
+
   it('战斗演出：结构化事件驱动受击斩击 / 演出控制条 / HP条 / 无JS错误', async () => {
     const page = await newPage(browser);
     const jsErrors: string[] = [];
