@@ -46,14 +46,18 @@ function ghostPossessingB(): Game {
 }
 
 describe('鬼影：数值与受伤上限', () => {
-  it('血量 2 / 攻击 1.5，单次受伤上限 0.5（含秒杀）', () => {
+  it('血量 2 / 攻击 1.5，普通单次伤害上限 0.5；秒杀类精神攻击无视上限', () => {
     const g = makeGame([{ id: 'A', char: 'ghost' }, { id: 'B' }]);
     expect(g.players.A.maxHp).toBe(2);
     expect(g.charDef('A').attack).toBe(1.5);
     g.applyDamage({ target: 'A', amount: 5, source: 'B', dtype: 'physical' });
     expect(g.players.A.hp).toBe(1.5);
+    // 大伊万式普通高伤秒杀：压到 0.5
+    g.applyDamage({ target: 'A', amount: 999999, source: 'B', dtype: 'special' });
+    expect(g.players.A.hp).toBe(1);
+    // 精神攻击秒杀（大屁孩暴走 / 大贱客辱骂 / 不讲武德）：无视上限，直接淘汰
     g.applyDamage({ target: 'A', amount: 999, source: 'B', dtype: 'mental', instakill: true, ignoreLives: true });
-    expect(g.players.A.hp).toBe(1); // 秒杀也被压到 0.5
+    expect(g.players.A.alive).toBe(false);
   });
 
   it('无法主动「回复」回满血', () => {

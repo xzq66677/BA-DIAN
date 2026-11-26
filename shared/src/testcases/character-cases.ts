@@ -1275,18 +1275,20 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C102', name: '鬼影：单次受伤上限 0.5（含秒杀），无法主动回复', category: 'character', charId: 'ghost', seed: 305,
-    desc: '任何单次伤害最多 0.5；基础「回复」被禁用',
+    id: 'TC-C102', name: '鬼影：普通单次伤害上限 0.5，秒杀类精神攻击无视上限', category: 'character', charId: 'ghost', seed: 305,
+    desc: '大伊万式高伤压到 0.5；大屁孩暴走/辱骂/不讲武德等精神秒杀直接淘汰；基础「回复」被禁用',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'ghost' }, 'B'], 305);
       g.players.A.hp = 2;
       const heal = g.submitAction('A', { type: 'heal' });
       g.applyDamage({ target: 'A', amount: 5, source: 'B', dtype: 'physical' });
       const capped = g.players.A.hp === 1.5;
+      g.applyDamage({ target: 'A', amount: 999999, source: 'B', dtype: 'special' });
+      const ivanCapped = g.players.A.hp === 1 && g.players.A.alive;
       g.applyDamage({ target: 'A', amount: 999, source: 'B', dtype: 'mental', instakill: true, ignoreLives: true });
-      const instakillCapped = g.players.A.hp === 1 && g.players.A.alive;
-      return check(!heal.ok && capped && instakillCapped, '单次伤害被压到 0.5，秒杀也无效',
-        `heal=${heal.ok}, hp=${g.players.A.hp}`, g);
+      const mentalKills = !g.players.A.alive;
+      return check(!heal.ok && capped && ivanCapped && mentalKills, '普通伤害被压到 0.5，精神秒杀无视上限',
+        `heal=${heal.ok}, capped=${capped}, ivan=${ivanCapped}, mental=${mentalKills}`, g);
     }),
   },
   {
