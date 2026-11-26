@@ -1,5 +1,6 @@
 import type { BattleEvent } from '../battle/events.js';
 import type { BattleScene3D, SnapLite } from './scene.js';
+import { playActionPresenter } from './action-presenters.js';
 
 type Deferred = NonNullable<SnapLite['deferred']>[number];
 
@@ -79,12 +80,15 @@ export function projectMapSnapshot(
 
 export type MapPlaybackScene = Pick<BattleScene3D,
   'playAction' | 'playAttackDecl' | 'playAreaAlert' | 'playHit' | 'playHeal' | 'playMiss' |
-  'playWalk' | 'playEliminate' | 'playRevive' | 'playIvanThrow' | 'playIvanBoom' | 'playDomain' | 'playTrigger'>;
+  'playWalk' | 'playEliminate' | 'playRevive' | 'playSlotDrop' | 'playIvanThrow' | 'playIvanBoom' | 'playDomain' | 'playTrigger'>;
 
 export function playMapEvent(scene: MapPlaybackScene, event: BattleEvent, durationMs: number): void {
   switch (event.kind) {
     case 'action':
-      if (event.pid && event.fx && event.fx !== 'move') scene.playAction(event.pid, event.fx, event.targetId);
+      if (event.pid && event.fx && event.fx !== 'move'
+          && !playActionPresenter(scene, event.pid, event.fx, event.targetId, durationMs)) {
+        scene.playAction(event.pid, event.fx, event.targetId);
+      }
       break;
     case 'attackDecl':
       if (event.sourceId && event.targetId) scene.playAttackDecl(event.sourceId, event.targetId);

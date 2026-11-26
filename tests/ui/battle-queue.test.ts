@@ -223,6 +223,7 @@ describe('队列播放', () => {
 
   it('AOE 分组：事件按段序播放且全部演出', async () => {
     const { q, started } = collect();
+    q.setSpeed(4);
     const logs: LogLike[] = [log(1, 'action', { pid: 'A', fx: 'attack', label: '三段AOE' })];
     let seq = 1;
     for (let seg = 1; seg <= 3; seg++) {
