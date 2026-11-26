@@ -1,0 +1,134 @@
+{
+  "url": "http://127.0.0.1:5187/slot-preview.html",
+  "startedAt": "2026-11-26T07:49:55.503Z",
+  "checks": [
+    {
+      "name": "desktop lever target is at least 44px",
+      "passed": true
+    },
+    {
+      "name": "desktop pointer drag submits once",
+      "passed": true
+    },
+    {
+      "name": "drag enters spinning phase",
+      "passed": true
+    },
+    {
+      "name": "cancel does not submit",
+      "passed": true
+    },
+    {
+      "name": "window blur cancels drag without submit",
+      "passed": true
+    },
+    {
+      "name": "blur returns lever to idle",
+      "passed": true
+    },
+    {
+      "name": "keyboard activation submits",
+      "passed": true
+    },
+    {
+      "name": "2D drop overlay is visible",
+      "passed": true
+    },
+    {
+      "name": "reduced-motion disables falling animation",
+      "passed": true
+    },
+    {
+      "name": "3D drop active in renderer",
+      "passed": true
+    },
+    {
+      "name": "3D effect resources return to baseline",
+      "passed": true
+    },
+    {
+      "name": "390px layout has no horizontal overflow",
+      "passed": true
+    },
+    {
+      "name": "mobile lever target is at least 44px",
+      "passed": true
+    },
+    {
+      "name": "real touch drag submits",
+      "passed": true
+    },
+    {
+      "name": "mobile 2D drop is visible",
+      "passed": true
+    },
+    {
+      "name": "no browser console errors",
+      "passed": true
+    },
+    {
+      "name": "no browser page errors",
+      "passed": true
+    },
+    {
+      "name": "no failed network requests",
+      "passed": true
+    }
+  ],
+  "screenshots": [
+    "artifacts\\slot-effects\\desktop-pull-spinning.png",
+    "artifacts\\slot-effects\\desktop-drop-2d-falling.png",
+    "artifacts\\slot-effects\\desktop-drop-2d-reduced.png",
+    "artifacts\\slot-effects\\desktop-drop-3d-impact.png",
+    "artifacts\\slot-effects\\desktop-drop-3d-low-effects.png",
+    "artifacts\\slot-effects\\mobile-pull-idle.png",
+    "artifacts\\slot-effects\\mobile-pull-spinning.png",
+    "artifacts\\slot-effects\\mobile-drop-2d.png"
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "requestFailures": [],
+  "stats": {
+    "desktop3dImpact": {
+      "fx": 1,
+      "slotDrops": 1,
+      "tweens": 1,
+      "walks": 0,
+      "entities": 0,
+      "rooms": 1,
+      "bodiesHidden": 0,
+      "calls": 112,
+      "triangles": 12938,
+      "geometries": 75,
+      "textures": 1
+    },
+    "desktop3dSettled": {
+      "fx": 0,
+      "slotDrops": 0,
+      "tweens": 1,
+      "walks": 0,
+      "entities": 0,
+      "rooms": 1,
+      "bodiesHidden": 0,
+      "calls": 47,
+      "triangles": 7464,
+      "geometries": 47,
+      "textures": 1
+    },
+    "desktop3dSecondSettled": {
+      "fx": 0,
+      "slotDrops": 0,
+      "tweens": 1,
+      "walks": 0,
+      "entities": 0,
+      "rooms": 1,
+      "bodiesHidden": 0,
+      "calls": 47,
+      "triangles": 7464,
+      "geometries": 47,
+      "textures": 1
+    }
+  },
+  "passed": true,
+  "finishedAt": "2026-11-26T07:50:52.652Z"
+}

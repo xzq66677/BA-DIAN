@@ -18,6 +18,7 @@ import {
   flashLightFx, dustFx, domainBurstFx, type FxInstance,
 } from './fx.js';
 import { gllog } from './gllog.js';
+import { slotMachineDropFx } from './slot-drop-fx.js';
 import { B3D_RESTORE_WAIT_MS } from './gl-policy.js';
 
 // ── 大贱客辱骂演出计数 ──────────────────────────────────────
@@ -946,6 +947,33 @@ export class BattleScene3D {
     this.focusRoom('major', room);
   }
 
+  playSlotDrop(pid: string, room: string, seconds: number): void {
+    const target = this.rooms.get(room);
+    if (!target) return;
+    const duration = Math.max(0.8, seconds);
+    const position = target.pos.clone().setY(PLATFORM_H);
+    const fx = slotMachineDropFx(position, {
+      duration,
+      reducedMotion: this.reduced,
+      lowEffects: this.lowEffects,
+    });
+    this.spawnFx(fx, position, duration * 1000 + 200);
+    const actor = this.entities.get(pid);
+    if (actor && canAct(actor)) actor.pose = { kind: 'attack', t: 0, dur: Math.min(0.7, duration * 0.3) };
+    this.spawnFloat(position.clone().setY(PLATFORM_H + 2.25), '<span class="b3-ticker boom">老虎机从天而降</span>');
+    this.focusRoom('major', room);
+    if (this.reduced) return;
+    this.tweens.push({
+      el: 0,
+      dur: duration * 0.62,
+      fn: () => {},
+      done: () => {
+        this.pulseRoom(room, 'blast', 0.85);
+        this.shake(this.lowEffects ? 0.08 : 0.28);
+      },
+    });
+  }
+
   playIvanBoom(room: string): void {
     const to = this.rooms.get(room);
     if (!to) return;
@@ -1221,6 +1249,7 @@ export class BattleScene3D {
     }
     return {
       fx: this.fxList.length,
+      slotDrops: this.fxList.filter(({ fx }) => fx.object.userData.kind === 'slot-drop').length,
       tweens: this.tweens.length,
       walks,
       entities: this.entities.size,

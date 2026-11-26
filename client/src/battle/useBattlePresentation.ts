@@ -14,9 +14,10 @@ import { BattleEventQueue, DEFAULT_PACE, paceFromLocation, type PaceProfile, typ
 import type { BattleEvent, LogLike } from './events.js';
 import { sfx, type SfxKind } from '../audio/sfx.js';
 import { condenseAnnounceQueue, type AnnounceItem } from '../../../shared/src/announce.js';
+import { actionPresentationDuration } from './action-presentation.js';
 
 /** 行动者卡 fx（⚔️/💊/🚶/✨ 弹出动画）；targetId 供 3D 场景确定动作朝向（2D 不使用） */
-export interface FxView { kind: string; key: number; targetId?: string }
+export interface FxView { kind: string; key: number; pid?: string; targetId?: string; room?: string; durationMs?: number }
 
 /** 攻击宣告（出手意向：来源 → 目标）；2D 不使用，3D 场景据此画预警光束 */
 export interface DeclView { key: number; targetId: string; amount?: number; room?: string }
@@ -263,8 +264,15 @@ export function useBattlePresentation(
       case 'attackDecl': {
         const pid = e.pid ?? e.sourceId;
         if (!pid) break;
-        next.fx = { ...prev.fx, [pid]: { kind: e.fx ?? (e.kind === 'attackDecl' ? 'attack' : 'skill'), key: e.seq, targetId: e.targetId } };
-        scheduleExpiry('fx', pid, e.kind === 'attackDecl' ? 420 : FX_MS);
+        next.fx = { ...prev.fx, [pid]: {
+          kind: e.fx ?? (e.kind === 'attackDecl' ? 'attack' : 'skill'),
+          key: e.seq,
+          pid,
+          targetId: e.targetId,
+          room: e.room,
+          durationMs,
+        } };
+        scheduleExpiry('fx', pid, e.kind === 'attackDecl' ? 420 : Math.max(FX_MS, actionPresentationDuration(e.fx) ?? 0, durationMs));
         if (e.kind === 'attackDecl' && e.targetId) {
           next.decls = { ...prev.decls, [pid]: { key: e.seq, targetId: e.targetId, amount: e.amount, room: e.room } };
           scheduleExpiry('decls', pid, 520);
