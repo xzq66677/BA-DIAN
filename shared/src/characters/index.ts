@@ -899,6 +899,199 @@ const wildHunt: CharDef = {
   ],
 };
 
+type WaterSnakeState = {
+  /** 高塔所在的原房间（null = 未建成） */
+  towerBaseRoom: string | null;
+  /** 造塔进度：0/1/2 */
+  buildProgress: number;
+  /** 是否位于高塔内部 */
+  inTower: boolean;
+  /** 死后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹 */
+  posthumous: boolean;
+};
+
+function waterSnakeState(game: GameLike, pid: PlayerId): WaterSnakeState {
+  return game.charState(pid) as unknown as WaterSnakeState;
+}
+
+/**
+ * 15. 飞天水螅（Issue #71）
+ *
+ * - 血量 3、攻击 1.5；
+ * - 消耗一次行动造玄武岩高塔（需 2 次行动造完）：塔内外隔绝、算作新房间（塔 6 点耐久，暂不可被摧毁）；
+ * - 自身与敌人同处塔内时，敌人行动前须判定：胜→正常行动、平→本次行动无效、负→攻击自己；
+ * - 吸/吹各消耗一次行动，只把敌人移动一格：
+ *   吸 = 其他房间→自己房间 / 自己房间→塔内；吹 = 塔内→自己房间 / 自己房间→其他房间；
+ * - 死后化为亡魂：不可被攻击，仍参与猜拳、可使用吸/吹。
+ */
+const waterSnake: CharDef = {
+  id: 'water-snake',
+  name: '飞天水螅',
+  desc: '血量3、攻击1.5。消耗一次行动在当前房间造玄武岩高塔（需2次行动造完）：塔内外隔绝、算作新房间。自身与敌人同处塔内时，敌人行动前须判定——胜则正常行动、平局本次不行动、输了攻击自己。吸/吹各消耗一次行动，只把敌人移动一格：吸=其他房间→自己房间、自己房间→塔内；吹=塔内→自己房间、自己房间→其他房间。死后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹。',
+  hp: 3,
+  attack: 1.5,
+  attackType: 'melee',
+  attackDesc: '近战攻击同房间目标（伤害 1.5）；高塔内外隔绝，无法直接攻击塔壁另一端的目标',
+  traits: ['tower'],
+  init: () => ({ towerBaseRoom: null, buildProgress: 0, inTower: false, posthumous: false }),
+  /** 亡魂免疫：化为亡魂后不再受到伤害（也避免了被反复击杀） */
+  onBeforeDamage: ({ game, req, owner }) => {
+    if (req.target !== owner) return;
+    const st = waterSnakeState(game, owner);
+    if (st.posthumous === true) return 'skip';
+  },
+  /** 首次致死 → 化为亡魂（不死亡，继续参与对局） */
+  onLethalDamage: ({ game, player }) => {
+    const st = waterSnakeState(game, player);
+    const p = game.getPlayer(player);
+    if (st.posthumous === true) {
+      p.hp = 0;
+      return 'prevent';
+    }
+    st.posthumous = true;
+    p.hp = 0;
+    p.invisible = true;
+    game.log('trigger', `👻 ${p.name} 被杀后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹`, { pid: player, posthumous: true }, true);
+    return 'prevent';
+  },
+  /** 亡魂状态只能使用吸/吹（或跳过） */
+  validateAction: ({ game, player, action }) => {
+    const st = waterSnakeState(game, player);
+    if (st.posthumous !== true) return null;
+    if (action.type === 'inhale' || action.type === 'blow' || action.type === 'skip') return null;
+    return '亡魂状态只能使用吸/吹（或跳过）';
+  },
+  /** 塔内压制：与飞天水螅同处塔内的敌人行动前须判定（胜=正常、平=无效、负=打自己） */
+  onBeforeAction: ({ game, owner, player }) => {
+    if (!game.players[owner]?.alive) return;
+    const snake = waterSnakeState(game, owner);
+    if (snake.towerBaseRoom == null || snake.inTower !== true) return;
+    const actor = game.players[player];
+    if (actor.char.inTower !== true) return;
+    if (actor.room !== snake.towerBaseRoom) return;
+    const throwName = (t: string) => (t === 'rock' ? '石头' : t === 'scissors' ? '剪刀' : '布');
+    const roll = game.rollJudgeThrows(player, owner); // 敌人视角：win=敌人胜
+    const detail = `${actor.name} ${throwName(roll.a)} vs ${game.players[owner].name} ${throwName(roll.b)}`;
+    if (roll.result === 'win') {
+      game.log('trigger', `🗼 塔内判定：${detail} → ${actor.name} 正常行动`, { pid: player, owner, ...roll }, true);
+      return;
+    }
+    if (roll.result === 'tie') {
+      game.log('trigger', `🗼 塔内判定：${detail} → 平局，${actor.name} 本次行动无效`, { pid: player, owner, ...roll }, true);
+      return 'block';
+    }
+    game.log('trigger', `🗼 塔内判定：${detail} → ${actor.name} 输了，攻击自己`, { pid: player, owner, ...roll }, true);
+    return 'selfAttack';
+  },
+  aiStrategy: ({ game, pid, alive, st }) => {
+    const snake = st as unknown as WaterSnakeState;
+    const visible = alive.filter((p) => p !== pid && !(game.players[p].hidden || game.players[p].invisible));
+    if (snake.posthumous === true || snake.towerBaseRoom != null) {
+      const outsider = visible.find((p) => game.players[p].room === game.players[pid].room && game.players[p].char.inTower !== true);
+      if (outsider) return { type: 'inhale', targetId: outsider };
+      const insider = visible.find((p) => game.players[p].char.inTower === true);
+      if (insider) return { type: 'blow', targetId: insider };
+      if (visible[0]) return { type: 'inhale', targetId: visible[0] };
+      return undefined;
+    }
+    return { type: 'buildTower' };
+  },
+  actions: [
+    {
+      name: 'buildTower',
+      label: '造玄武岩高塔',
+      desc: '消耗本次行动建造高塔（需 2 次行动造完）：塔内外隔绝、算作新房间；建成后自身进入塔内。',
+      targetHint: 'none',
+      validate: (ctx) => {
+        const st = waterSnakeState(ctx.game, ctx.actor);
+        if (st.towerBaseRoom != null) return '高塔已经建成';
+        if (st.posthumous === true) return '亡魂状态无法造塔';
+        return null;
+      },
+      execute: (ctx) => {
+        const st = waterSnakeState(ctx.game, ctx.actor);
+        const p = ctx.game.getPlayer(ctx.actor);
+        st.buildProgress += 1;
+        if (st.buildProgress < 2) {
+          ctx.game.log('action', `🗼 ${p.name} 开始建造玄武岩高塔（1/2，需再消耗一次行动）`, { pid: ctx.actor, progress: 1 }, true);
+          return;
+        }
+        st.buildProgress = 2;
+        st.towerBaseRoom = p.room;
+        st.inTower = true;
+        ctx.game.log('trigger', `🗼 ${p.name} 在 ${p.room} 建成玄武岩高塔并进入塔内（塔内外隔绝、算作新房间）`,
+          { pid: ctx.actor, room: p.room, towerBaseRoom: p.room }, true);
+      },
+    },
+    {
+      name: 'inhale',
+      label: '吸',
+      desc: '消耗本次行动，把一名敌人吸近一格：其他房间 → 自己房间；自己房间 → 高塔内部。',
+      targetHint: 'anyPlayer',
+      validate: (ctx) => {
+        const st = waterSnakeState(ctx.game, ctx.actor);
+        const targetId = ctx.params.targetId;
+        const target = targetId ? ctx.game.players[targetId] : undefined;
+        const p = ctx.game.getPlayer(ctx.actor);
+        if (!target?.alive) return '目标不存在或已淘汰';
+        if (targetId === ctx.actor) return '不能吸自己';
+        if (target.hidden || target.invisible) return '无法锁定躲藏/隐身的玩家';
+        if (target.char.inTower === true) return '目标已经在塔内';
+        if (target.room !== p.room) return null; // 其他房间 → 自己房间
+        // 同房间：需要有塔才能吸进塔内
+        if (st.towerBaseRoom == null || st.towerBaseRoom !== p.room) return '当前房间没有高塔，无法把人吸进塔内';
+        return null;
+      },
+      execute: (ctx) => {
+        const targetId = ctx.params.targetId!;
+        const p = ctx.game.getPlayer(ctx.actor);
+        const target = ctx.game.players[targetId];
+        if (target.room !== p.room) {
+          const from = target.room;
+          target.room = p.room;
+          ctx.game.log('trigger', `🌀 ${p.name} 一吸：${target.name} 被从 ${from} 吸到 ${p.room}（拉近一格）`, { pid: targetId, source: ctx.actor, from, to: p.room }, true);
+          return;
+        }
+        target.char.inTower = true;
+        ctx.game.log('trigger', `🌀 ${p.name} 一吸：${target.name} 被吸进高塔内部（塔内外隔绝）`, { pid: targetId, source: ctx.actor }, true);
+      },
+    },
+    {
+      name: 'blow',
+      label: '吹',
+      desc: '消耗本次行动，把一名敌人吹远一格：塔内 → 自己房间；自己房间 → 其他房间。',
+      targetHint: 'anyPlayer',
+      validate: (ctx) => {
+        const targetId = ctx.params.targetId;
+        const target = targetId ? ctx.game.players[targetId] : undefined;
+        const p = ctx.game.getPlayer(ctx.actor);
+        if (!target?.alive) return '目标不存在或已淘汰';
+        if (targetId === ctx.actor) return '不能吹自己';
+        if (target.hidden || target.invisible) return '无法锁定躲藏/隐身的玩家';
+        if (target.char.inTower === true) return null; // 塔内 → 塔外
+        if (target.room === p.room) return null; // 自己房间 → 其他房间
+        return '只能吹塔内或自己房间里的敌人';
+      },
+      execute: (ctx) => {
+        const targetId = ctx.params.targetId!;
+        const p = ctx.game.getPlayer(ctx.actor);
+        const target = ctx.game.players[targetId];
+        if (target.char.inTower === true) {
+          target.char.inTower = false;
+          ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从塔内吹回 ${target.room}（拉远一格）`, { pid: targetId, source: ctx.actor, to: target.room }, true);
+          return;
+        }
+        const dest = target.originRoom !== p.room
+          ? target.originRoom
+          : (ctx.game.roomIds.find((room) => room !== p.room) ?? p.room);
+        const from = target.room;
+        target.room = dest;
+        ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从 ${from} 吹到 ${dest}（拉远一格）`, { pid: targetId, source: ctx.actor, from, to: dest }, true);
+      },
+    },
+  ],
+};
+
 export const CHARACTERS: Record<string, CharDef> = {
   default: defaultChar,
   bagun,
@@ -914,6 +1107,7 @@ export const CHARACTERS: Record<string, CharDef> = {
   'hunchback-archer': hunchbackArcher,
   ghost,
   'wild-hunt': wildHunt,
+  'water-snake': waterSnake,
 };
 
 export const CHARACTER_LIST: CharDef[] = Object.values(CHARACTERS);

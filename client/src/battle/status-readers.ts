@@ -68,6 +68,23 @@ const readCharacter: PlayerStatusReader = (p, context) => {
     key: 'taiji', icon: '🛡', label: '混元形意太极', value: p.char.taijiAuto ? '自动反弹开启' : '自动反弹关闭',
     detail: p.char.taijiAuto ? '受到可判定伤害时自动进行太极判定。' : '当前不再自动触发太极反弹判定。', tone: p.char.taijiAuto ? 'good' : 'warn',
   });
+  // 飞天水螅 / 高塔：塔内外隔绝、造塔进度、亡魂
+  if (typeof p.char.towerBaseRoom === 'string' && p.char.towerBaseRoom) items.push({
+    key: 'tower-built', icon: '🗼', label: '高塔', value: `建于 ${p.char.towerBaseRoom}`,
+    detail: '塔内外算作两个房间（隔绝）；塔有 6 点耐久（暂不可摧毁）。', tone: 'neutral',
+  });
+  if (typeof p.char.buildProgress === 'number' && p.char.buildProgress === 1) items.push({
+    key: 'tower-building', icon: '🧱', label: '造塔中', value: '1/2',
+    detail: '再消耗一次行动即可建成玄武岩高塔。', tone: 'neutral',
+  });
+  if (p.char.inTower === true) items.push({
+    key: 'tower-inside', icon: '🗼', label: '塔内', value: '隔绝中',
+    detail: '高塔内外隔绝：无法被外部锁定，AOE/房间级效果也不穿透塔壁；可用吸/吹进出。', tone: 'warn',
+  });
+  if (p.char.posthumous === true) items.push({
+    key: 'posthumous', icon: '👻', label: '亡魂', value: '不可被攻击',
+    detail: '死后仍参与猜拳，只能使用吸/吹（或跳过）。', tone: 'bad',
+  });
   return items;
 };
 

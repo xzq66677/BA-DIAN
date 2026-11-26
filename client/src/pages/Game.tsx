@@ -282,8 +282,10 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     const hiddenOthers = others.filter((p) => p.room === actor.room && (p.hidden || p.invisible));
     switch (selAction.targetHint) {
       case 'attack': {
+        // 高塔内外隔绝：只有同侧（同在塔内或同在塔外）才能互相攻击
+        const sameTowerSide = (p: SnapPlayer) => (p.char.inTower === true) === (actor.char.inTower === true);
         // 骑乘中（如狂猎）：攻击无视距离，可突进任意房间
-        if (actor.char.mounted === true) return others.filter((p) => !p.hidden && !p.invisible);
+        if (actor.char.mounted === true) return others.filter((p) => !p.hidden && !p.invisible && sameTowerSide(p));
         const at = cd.attackType || 'both';
         const meleeOk = at !== 'ranged' && at !== 'none';
         const rangedOk = !!cd.rangedCapable && at !== 'none';
@@ -291,16 +293,18 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         if (cd.attackAllRooms) {
           return meleeOk ? others.filter((p) => !p.hidden || cd.ignoreHide) : [];
         }
-        const sameRoomMelee = meleeOk ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible) : [];
+        const sameRoomMelee = meleeOk ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible && sameTowerSide(p)) : [];
         // 允许远程打同房间的角色（如佝偻弓箭手近距离放箭）
         const sameRoomRanged = rangedOk && cd.rangedSameRoom
-          ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible)
+          ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible && sameTowerSide(p))
           : [];
         const sameRoom = [
           ...sameRoomMelee,
           ...sameRoomRanged.filter((p) => !sameRoomMelee.some((m) => m.id === p.id)),
         ];
-        const otherRoom = rangedOk ? others.filter((p) => p.room !== actor.room && !p.hidden) : [];
+        const otherRoom = rangedOk
+          ? others.filter((p) => p.room !== actor.room && !p.hidden && p.char.inTower !== true && actor.char.inTower !== true)
+          : [];
         return [...sameRoom, ...otherRoom];
       }
       case 'aim': return others.filter((p) => !p.hidden && !p.invisible);

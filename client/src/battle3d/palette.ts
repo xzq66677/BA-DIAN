@@ -16,7 +16,7 @@ export function hex(c: number): RGB {
 
 export type CharPropKind =
   | 'none' | 'stick' | 'flute' | 'scissors' | 'bomb' | 'dice'
-  | 'taiji' | 'hat' | 'magnet' | 'small' | 'band' | 'bow' | 'ghost' | 'lance';
+  | 'taiji' | 'hat' | 'magnet' | 'small' | 'band' | 'bow' | 'ghost' | 'lance' | 'tentacle';
 
 export interface CharVisual {
   /** 棋子主体色 */
@@ -48,6 +48,7 @@ export const CHAR_VISUALS: Record<string, CharVisual> = {
   'hunchback-archer': { color: 0x6f7a5a, accent: 0xe8e2cf, prop: 'bow', scale: 0.96 }, // 佝偻弓箭手：骨灰绿+弓
   ghost: { color: 0x3b4d5e, accent: 0xbfe8ff, prop: 'ghost', scale: 1.02 }, // 鬼影：雾青+幽光
   'wild-hunt': { color: 0x7a2f2f, accent: 0xd8b04a, prop: 'lance', scale: 1.02 }, // 狂猎：暗红+金枪
+  'water-snake': { color: 0x2f6f7a, accent: 0x9fd8e8, prop: 'tentacle', scale: 1.04 }, // 飞天水螅：水青+触手
 };
 
 export function charVisual(charId: string): CharVisual {

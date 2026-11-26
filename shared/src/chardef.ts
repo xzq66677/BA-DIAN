@@ -28,6 +28,8 @@ export interface GameLike {
   charDef(pid: PlayerId): CharDef;
   roomMembers(room: RoomId): PlayerId[];
   isSameRoom(a: PlayerId, b: PlayerId): boolean;
+  /** 是否位于高塔内部（塔内外隔绝） */
+  isInTower(pid: PlayerId): boolean;
   isOver(): boolean;
   applyDamage(req: DamageRequest): import('./types.js').AppliedDamage;
   eliminate(pid: PlayerId, cause: string, killer?: PlayerId, opts?: { ignoreLives?: boolean }): void;
@@ -209,6 +211,13 @@ export interface CharDef {
   onDeath?(ctx: DeathHookCtx): void;
   /** 击杀钩子：killer 为本角色时触发（击杀后攻击提升等） */
   onKill?(ctx: { game: GameLike; killer: PlayerId; target: PlayerId; cause: string }): void;
+  /**
+   * 行动前压制钩子：本角色可在**其他玩家**行动前施加判定/限制。
+   * 返回 'block' 本次行动无效（仍消耗行动）、'selfAttack' 该玩家改为攻击自己（仍消耗行动）。
+   */
+  onBeforeAction?(ctx: { game: GameLike; owner: PlayerId; player: PlayerId }): 'block' | 'selfAttack' | void;
+  /** 行动合法性附加校验（角色自身状态限制，如亡魂只能使用吸/吹） */
+  validateAction?(ctx: { game: GameLike; player: PlayerId; action: ActionRequest }): string | null;
   /** 回合末钩子（所有行动完成后） */
   onRoundEnd?(ctx: { game: GameLike }): void;
   /** 判定历史追加钩子（大屁孩） */

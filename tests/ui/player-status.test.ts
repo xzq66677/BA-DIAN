@@ -101,4 +101,19 @@ describe('角色公开状态', () => {
     expect(mounted!.detail).toContain('6 伤');
     expect(mounted!.tone).toBe('good');
   });
+
+  it('高塔/亡魂：展示塔内外隔绝、造塔进度与亡魂状态', () => {
+    const inside = player({ charId: 'water-snake', char: { towerBaseRoom: 'R1', buildProgress: 2, inTower: true } });
+    const insideKeys = playerStatusItems(inside, [inside]).map((item) => item.key);
+    expect(insideKeys).toEqual(expect.arrayContaining(['tower-built', 'tower-inside']));
+
+    const building = player({ charId: 'water-snake', char: { buildProgress: 1 } });
+    expect(playerStatusItems(building, [building]).map((item) => item.key)).toContain('tower-building');
+
+    const dead = player({ charId: 'water-snake', hp: 0, char: { posthumous: true } });
+    const deadItems = playerStatusItems(dead, [dead]);
+    const undead = deadItems.find((item) => item.key === 'posthumous');
+    expect(undead).toBeTruthy();
+    expect(undead!.value).toBe('不可被攻击');
+  });
 });

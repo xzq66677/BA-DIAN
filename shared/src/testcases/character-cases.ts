@@ -1408,6 +1408,71 @@ export const CHARACTER_CASES: TestCase[] = [
         `mounted=${mounted}, dash=${dash}, crossed=${crossed}, first=${firstHit}, final=${finalHit}, off=${dismounted}`, g);
     }),
   },
+  {
+    id: 'TC-C107', name: '飞天水螅：两次行动造塔，塔内外隔绝', category: 'character', charId: 'water-snake', seed: 310,
+    desc: '造塔需 2 次行动；建成后自身入塔，塔内玩家不计入原房间成员',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B'], 310);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'buildTower' });
+      const half = g.charState('A').buildProgress === 1 && g.charState('A').towerBaseRoom == null;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'buildTower' });
+      const built = g.charState('A').towerBaseRoom === 'R1' && g.charState('A').inTower === true;
+      g.charState('B').inTower = true;
+      const isolated = g.roomMembers('R1').length === 0;
+      return check(half && built && isolated, '两次行动造塔；塔内玩家从原房间成员中隔离',
+        `half=${half}, built=${built}, isolated=${isolated}`, g);
+    }),
+  },
+  {
+    id: 'TC-C108', name: '飞天水螅：塔内压制判定平局 → 本次行动无效', category: 'character', charId: 'water-snake', seed: 311,
+    desc: '敌人与飞天水螅同处塔内，行动前判定；平局本次行动不生效（仍消耗行动）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B'], 311);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      Object.assign(g.charState('A'), { towerBaseRoom: 'R1', buildProgress: 2, inTower: true });
+      g.charState('B').inTower = true;
+      playThrows(g, [{ B: 'rock', A: 'scissors' }]);
+      let i = 0;
+      const seq = [0, 0];
+      const original = g.rng.int.bind(g.rng);
+      (g.rng as unknown as { int: (n: number) => number }).int = (n: number) => (i < seq.length ? Math.min(seq[i++], n - 1) : original(n));
+      g.submitAction('B', { type: 'attack', targetId: 'A' });
+      const noDamage = hpOf(g, 'A') === 3;
+      const consumed = g.roundNo === 2;
+      return check(noDamage && consumed, '平局压制：目标未受伤且行动被消耗',
+        `hpA=${hpOf(g, 'A')}, round=${g.roundNo}`, g);
+    }),
+  },
+  {
+    id: 'TC-C109', name: '飞天水螅：吸/吹只移动一格', category: 'character', charId: 'water-snake', seed: 312,
+    desc: '吸：其他房间→自己房间、自己房间→塔内；吹：塔内→自己房间、自己房间→其他房间',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B'], 312);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      g.players.B.originRoom = 'R2';
+      Object.assign(g.charState('A'), { towerBaseRoom: 'R1', buildProgress: 2, inTower: true });
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'inhale', targetId: 'B' });
+      const pulledRoom = g.players.B.room === 'R1';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'inhale', targetId: 'B' });
+      const pulledTower = g.charState('B').inTower === true;
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'blow', targetId: 'B' });
+      const blownOut = g.charState('B').inTower !== true && g.players.B.room === 'R1';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'blow', targetId: 'B' });
+      const blownAway = g.players.B.room === 'R2';
+      return check(pulledRoom && pulledTower && blownOut && blownAway, '吸/吹各移动一格',
+        `room=${pulledRoom}, tower=${pulledTower}, out=${blownOut}, away=${blownAway}`, g);
+    }),
+  },
 ];
 
 function insults2(g: ReturnType<typeof makeGame>): number {

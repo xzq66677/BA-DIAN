@@ -223,11 +223,23 @@ export class Game implements GameLike {
   }
 
   roomMembers(room: RoomId): PlayerId[] {
-    return this.aliveIds().filter((pid) => this.players[pid].room === room);
+    // 高塔内部视为独立房间：塔内玩家不计入原房间成员（AOE/三刀等房间级效果不穿透塔壁）
+    return this.aliveIds().filter((pid) => this.players[pid].room === room
+      && this.players[pid].char.inTower !== true);
   }
 
   isSameRoom(a: PlayerId, b: PlayerId): boolean {
-    return this.players[a].room === this.players[b].room;
+    const pa = this.players[a];
+    const pb = this.players[b];
+    if (!pa || !pb) return false;
+    if (pa.room !== pb.room) return false;
+    // 高塔内外隔绝：同在塔内或同在塔外才算同房间
+    return (pa.char.inTower === true) === (pb.char.inTower === true);
+  }
+
+  /** 该玩家是否位于高塔内部 */
+  isInTower(pid: PlayerId): boolean {
+    return this.players[pid]?.char.inTower === true;
   }
 
   isOver(): boolean {
@@ -1172,6 +1184,31 @@ export class Game implements GameLike {
       return { ok: false, error: `${p.name} 当前无法行动` };
     }
 
+    // 行动前压制（高塔等）：其他角色的 onBeforeAction 可让本次行动无效或改为自伤（均消耗行动）
+    for (const owner of this.playerIds) {
+      if (owner === pid) continue;
+      const def = this.charDef(owner);
+      const pre = def.onBeforeAction?.({ game: this, owner, player: pid });
+      if (!pre) continue;
+      if (pre === 'block') {
+        this.log('trigger', `🗼 ${p.name} 的行动被高塔压制，本次行动无效`, { pid, owner }, true);
+        return this.consumeSuppressedAction(pid, '行动被压制（无效）');
+      }
+      const selfDef = this.charDef(pid);
+      const amount = selfDef.meleeDamage ?? selfDef.attack ?? this.rules.defaultAttack;
+      this.log('trigger', `🗼 ${p.name} 在塔内判定失败，攻击了自己（${fmtNum(amount)} 伤）`, { pid, owner, amount }, true);
+      this.applyDamage({
+        target: pid, amount, source: pid,
+        dtype: selfDef.attackDtype || 'physical',
+        tag: 'tower-self', ignoreHide: true, isAttack: true,
+      });
+      return this.consumeSuppressedAction(pid, '被高塔压制，攻击了自己');
+    }
+
+    // 角色状态限制（如亡魂状态只能使用吸/吹）
+    const actionError = this.charDef(pid).validateAction?.({ game: this, player: pid, action: req });
+    if (actionError) return { ok: false, error: actionError };
+
     const res = this.executeAction(pid, req);
     if (!res.ok) return res; // 非法行动：不修改状态、不消耗行动
     const st = this.stats[pid];
@@ -1198,6 +1235,18 @@ export class Game implements GameLike {
     this.roundSummary.push(`${p.name} ${this.actionLabel(req)}`);
     if ((this.phase as GamePhase) === 'over') return { ok: true };
     // 技能内判定（马保国五连鞭等）：先暂停收拳，等判定结算完再消耗行动/推进队列
+    if (this.enterJudgeIfPending('afterAction')) return { ok: true };
+    this.actIndex++;
+    this.advanceQueue();
+    return { ok: true };
+  }
+
+  /** 行动被压制（无效/自伤）仍消耗行动并推进队列 */
+  private consumeSuppressedAction(pid: PlayerId, label: string): ActionResult {
+    const st = this.stats[pid];
+    if (st) st.actions++;
+    this.roundSummary.push(`${this.players[pid].name} ${label}`);
+    if ((this.phase as GamePhase) === 'over') return { ok: true };
     if (this.enterJudgeIfPending('afterAction')) return { ok: true };
     this.actIndex++;
     this.advanceQueue();

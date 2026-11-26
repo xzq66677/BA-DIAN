@@ -413,6 +413,20 @@ export function buildProp(kind: string): { hand?: THREE.Object3D; headTop?: THRE
       hand = g;
       break;
     }
+    case 'tentacle': {
+      // 飞天水螅：背后两条摆动的水螅触手
+      const g = new THREE.Group();
+      for (const side of [-1, 1]) {
+        const t = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.045, 0.55, 6), std(0x2f6f7a, 0.55, 0.1));
+        t.position.set(side * 0.12, 0.12, -0.1);
+        t.rotation.z = side * 0.38;
+        t.rotation.x = 0.55;
+        g.add(t);
+      }
+      g.name = 'spin';
+      back = g;
+      break;
+    }
     default: break;
   }
   return { hand, headTop, back, stick };

@@ -42,6 +42,11 @@ function actMove(game: GameLike, pid: PlayerId, req: ActionRequest, map: BattleM
   if (movementError) return { ok: false, error: movementError };
   const from = p.room;
   p.room = room;
+  // 离开高塔内部：恢复为普通房间状态（塔仍留在原房间）
+  if (p.char.inTower === true) {
+    p.char.inTower = false;
+    game.log('state', `${p.name} 离开高塔内部`);
+  }
   if (p.hidden) {
     p.hidden = false;
     game.log('state', `${p.name} 移动后现身（离开躲藏）`);
@@ -92,6 +97,10 @@ function actAttack(game: GameLike, pid: PlayerId, req: ActionRequest, map: Battl
 
   const sameRoom = game.isSameRoom(pid, targetId);
   const ranged = req.ranged ?? !sameRoom;
+  // 高塔内外隔绝：塔内与塔外不能直接互相攻击（只能靠吸/吹改变位置）
+  if (!sameRoom && (game.isInTower(pid) || game.isInTower(targetId))) {
+    return { ok: false, error: '高塔内外隔绝，无法直接攻击' };
+  }
   const at = cd.attackType || 'both';
   // 远程能力：默认角色仅近战；远程需要角色具备 rangedCapable（吹箫哥/五条悟/老大爷等）
   if (ranged && !cd.rangedCapable) return { ok: false, error: '该角色无法远程攻击' };
