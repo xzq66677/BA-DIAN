@@ -380,8 +380,8 @@ export class Game implements GameLike {
     if (!p || !p.effects) return false;
     const idx = p.effects.findIndex((e) => e.kind === kind);
     if (idx < 0) return false;
-    p.effects.splice(idx, 1);
-    statusDef(kind)?.cleanup?.({ game: this, owner: pid });
+    const [removed] = p.effects.splice(idx, 1);
+    statusDef(kind)?.cleanup?.({ game: this, owner: pid, effect: removed });
     return true;
   }
 
@@ -1275,7 +1275,7 @@ export class Game implements GameLike {
     p.hp = 0;
     // 死亡清理：状态效果随持有者退场全部移除（生命周期要求）
     if (p.effects && p.effects.length > 0) {
-      for (const effect of [...p.effects]) statusDef(effect.kind)?.cleanup?.({ game: this, owner: pid });
+      for (const effect of [...p.effects]) statusDef(effect.kind)?.cleanup?.({ game: this, owner: pid, effect });
       p.effects = [];
     }
     // 领域随持有者退场而消失（游戏中唯一会"自然失效"的路径；不含被覆盖）

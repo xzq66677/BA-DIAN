@@ -79,16 +79,41 @@ const readStatusEffects: PlayerStatusReader = (p, context) => {
   if (!p.alive) return [];
   const items: PlayerStatusItem[] = [];
   for (const effect of p.effects ?? []) {
-    if (effect.kind !== 'burning') continue; // 未知状态安全忽略
     const source = effect.source ? context.players.find((other) => other.id === effect.source) : undefined;
-    items.push({
-      key: 'status-burning',
-      icon: '🔥',
-      label: '燃烧',
-      value: `每回合 ${formatHp(effect.severity ?? 0.5)} 伤害`,
-      detail: `无限持续，直到消耗一次行动扑灭；被点燃与扑灭的当回合不结算（平局回合同样结算）${source ? `；来源：${source.name}` : ''}。`,
-      tone: 'bad',
-    });
+    if (effect.kind === 'burning') {
+      items.push({
+        key: 'status-burning',
+        icon: '🔥',
+        label: '燃烧',
+        value: `每回合 ${formatHp(effect.severity ?? 0.5)} 伤害`,
+        detail: `无限持续，直到消耗一次行动扑灭；被点燃与扑灭的当回合不结算（平局回合同样结算）${source ? `；来源：${source.name}` : ''}。`,
+        tone: 'bad',
+      });
+      continue;
+    }
+    if (effect.kind === 'possessed') {
+      items.push({
+        key: 'status-possessed',
+        icon: '👻',
+        label: '被附身',
+        value: `每回合 ${formatHp(effect.severity ?? 1)} 伤害`,
+        detail: `附身当回合与驱赶当回合不结算（平局回合同样结算）；可消耗一次行动「驱逐鬼影」${source ? `；来源：${source.name}` : ''}。`,
+        tone: 'bad',
+      });
+      continue;
+    }
+    if (effect.kind === 'possessing') {
+      items.push({
+        key: 'status-possessing',
+        icon: '🌫',
+        label: '附身中',
+        value: '无法被锁定',
+        detail: '附身期间无法被敌人锁定（AOE 仍可命中）；赢下判定后可「折磨宿主」或「操控宿主」。',
+        tone: 'good',
+      });
+      continue;
+    }
+    // 未知状态安全忽略
   }
   return items;
 };

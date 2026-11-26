@@ -129,7 +129,7 @@ export interface JudgeAppendCtx {
 }
 
 export interface CharacterAiContext {
-  game: Pick<GameLike, 'roundNo' | 'players' | 'roomIds' | 'roomMembers' | 'isSameRoom'>;
+  game: Pick<GameLike, 'roundNo' | 'players' | 'roomIds' | 'roomMembers' | 'isSameRoom' | 'getStatus' | 'hasStatus'>;
   difficulty: 'normal' | 'hard';
   pid: PlayerId;
   me: PlayerState;

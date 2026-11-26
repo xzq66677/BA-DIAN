@@ -1275,6 +1275,57 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
+    id: 'TC-C102', name: '鬼影：单次受伤上限 0.5（含秒杀），无法主动回复', category: 'character', charId: 'ghost', seed: 305,
+    desc: '任何单次伤害最多 0.5；基础「回复」被禁用',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ghost' }, 'B'], 305);
+      g.players.A.hp = 2;
+      const heal = g.submitAction('A', { type: 'heal' });
+      g.applyDamage({ target: 'A', amount: 5, source: 'B', dtype: 'physical' });
+      const capped = g.players.A.hp === 1.5;
+      g.applyDamage({ target: 'A', amount: 999, source: 'B', dtype: 'mental', instakill: true, ignoreLives: true });
+      const instakillCapped = g.players.A.hp === 1 && g.players.A.alive;
+      return check(!heal.ok && capped && instakillCapped, '单次伤害被压到 0.5，秒杀也无效',
+        `heal=${heal.ok}, hp=${g.players.A.hp}`, g);
+    }),
+  },
+  {
+    id: 'TC-C103', name: '鬼影：无视距离附身并不可被锁定', category: 'character', charId: 'ghost', seed: 306,
+    desc: '消耗一次行动移动到目标房间并附身；附身期间指向性伤害未命中',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ghost' }, 'B'], 306);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R2';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      const pos = g.submitAction('A', { type: 'possess', targetId: 'B' });
+      const moved = g.players.A.room === g.players.B.room;
+      const status = g.getStatus('B', 'possessed')?.source === 'A';
+      const hpBefore = g.players.A.hp;
+      g.applyDamage({ target: 'A', amount: 1, source: 'B', dtype: 'physical' });
+      const untargetable = g.players.A.hp === hpBefore;
+      return check(pos.ok && moved && status && untargetable, '附身后移动到目标房间、宿主被标记、鬼影不可锁定',
+        `pos=${pos.ok}, moved=${moved}, status=${status}, untargetable=${untargetable}`, g);
+    }),
+  },
+  {
+    id: 'TC-C104', name: '鬼影：附身每回合 1 伤（平局也结算）并等量回血', category: 'character', charId: 'ghost', seed: 307,
+    desc: '附身当回合不结算；下一平局回合宿主 -1、鬼影 +1（上限内）',
+    run: () => run(() => {
+      const g = makeGame([{ id: 'A', char: 'ghost' }, 'B'], 307);
+      g.players.A.room = 'R1';
+      g.players.B.room = 'R1';
+      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
+      g.submitAction('A', { type: 'possess', targetId: 'B' });
+      const noTickYet = hpOf(g, 'B') === 2;
+      g.players.A.hp = 1;
+      playThrows(g, [{ A: 'rock', B: 'rock' }]); // 平局回合
+      const damaged = hpOf(g, 'B') === 1;
+      const healed = hpOf(g, 'A') === 2;
+      return check(noTickYet && damaged && healed, '附身当回合不结算；平局回合 -1 并等量回血',
+        `noTick=${noTickYet}, B=${hpOf(g, 'B')}, A=${hpOf(g, 'A')}`, g);
+    }),
+  },
+  {
     id: 'TC-C101', name: '佝偻弓箭手：可射击同房间目标，且无法主动回复', category: 'character', charId: 'hunchback-archer', seed: 304,
     desc: '远程攻击允许同房间目标（1 伤 + 点燃）；基础「回复」被禁用',
     run: () => run(() => {

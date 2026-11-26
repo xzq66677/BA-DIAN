@@ -289,7 +289,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         if (cd.attackAllRooms) {
           return meleeOk ? others.filter((p) => !p.hidden || cd.ignoreHide) : [];
         }
-        const sameRoomMelee = meleeOk ? others.filter((p) => p.room === actor.room && (!p.hidden || cd.ignoreHide)) : [];
+        const sameRoomMelee = meleeOk ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible) : [];
         // 允许远程打同房间的角色（如佝偻弓箭手近距离放箭）
         const sameRoomRanged = rangedOk && cd.rangedSameRoom
           ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible)

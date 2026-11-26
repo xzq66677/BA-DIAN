@@ -388,6 +388,18 @@ export function buildProp(kind: string): { hand?: THREE.Object3D; headTop?: THRE
       hand = g;
       break;
     }
+    case 'ghost': {
+      // 鬼影：背后一圈幽光+漂浮灵体核心（缓慢自转）
+      const g = new THREE.Group();
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.018, 6, 20), std(0xbfe8ff, 0.5, 0.1));
+      halo.rotation.x = Math.PI / 2.2;
+      const core = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), std(0x9fd8ff, 0.3));
+      core.position.y = 0.06;
+      g.add(halo, core);
+      g.name = 'spin';
+      back = g;
+      break;
+    }
     default: break;
   }
   return { hand, headTop, back, stick };

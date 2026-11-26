@@ -35,11 +35,13 @@ export interface StatusDef {
   tick?(ctx: StatusTickCtx): void;
   /** 状态拥有者可用的附加行动 */
   actions?(ctx: StatusActionCtx): CharActionDef[];
-  /** 状态移除/持有者淘汰时的清理（引擎调用） */
-  cleanup?(ctx: { game: GameLike; owner: PlayerId }): void;
+  /** 状态移除/持有者淘汰时的清理（引擎调用；`effect` 在移除前传入，仍含 source/data） */
+  cleanup?(ctx: { game: GameLike; owner: PlayerId; effect: ActiveStatusEffect }): void;
 }
 
 export const BURNING_KIND = 'burning';
+export const POSSESSED_KIND = 'possessed';
+export const POSSESSING_KIND = 'possessing';
 
 /** 同一房间内、带指定标签的存活角色（状态/环境行动用，避免写死角色 id） */
 export function findTraitInRoom(
@@ -135,8 +137,146 @@ const burning: StatusDef = {
   },
 };
 
+/**
+ * 被附身：每回合 1 点伤害（含平局回合），附身当回合与驱赶当回合不结算；
+ * 被附身者可用一次行动「驱逐鬼影」解除。
+ */
+const possessed: StatusDef = {
+  kind: POSSESSED_KIND,
+  label: '被附身',
+  icon: '👻',
+  tick: ({ game, owner, effect }) => {
+    const host = game.players[owner];
+    if (!host || !host.alive) return;
+    const ghost = effect.source;
+    if (!ghost || !game.players[ghost]?.alive) {
+      // 鬼影已不在场：附身自然消失
+      game.removeStatus(owner, POSSESSED_KIND);
+      return;
+    }
+    if (effect.appliedRound >= game.roundNo) {
+      game.log('state', `👻 ${host.name} 本回合刚被附身，回合末不结算附身伤害`, { pid: owner, effect: POSSESSED_KIND });
+      return;
+    }
+    const amount = effect.severity ?? 1;
+    game.log('state', `👻 ${host.name} 被 ${game.players[ghost].name} 附身，受到 ${fmtNum(amount)} 点伤害`, { pid: owner, source: ghost, effect: POSSESSED_KIND, amount }, true);
+    const applied = game.applyDamage({
+      target: owner,
+      amount,
+      source: ghost,
+      dtype: 'special',
+      tag: 'possess',
+      noReflect: true,
+    });
+    // 附身期间造成的伤害等量给鬼影回血
+    if (!applied.missed && !applied.deferred) game.heal(ghost, applied.amount);
+  },
+  actions: ({ game, owner }) => [{
+    name: 'expelGhost',
+    label: '驱逐鬼影',
+    desc: '消耗本次行动解除附身（本回合不再受到附身伤害）。',
+    typeLabel: '状态',
+    targetHint: 'none',
+    validate: (ctx) => (ctx.game.getStatus(ctx.actor, POSSESSED_KIND) ? null : '当前没有被附身'),
+    execute: (ctx) => {
+      if (ctx.game.removeStatus(ctx.actor, POSSESSED_KIND)) {
+        ctx.game.log('action', `🌫 ${ctx.game.players[ctx.actor].name} 花费一次行动驱散了附身的鬼影`, { pid: ctx.actor, effect: POSSESSED_KIND }, true);
+      }
+    },
+  }],
+  cleanup: ({ game, owner, effect }) => {
+    // 解除附身：鬼影现形并清除它的「附身中」状态
+    const ghost = effect.source;
+    if (!ghost || !game.players[ghost]) return;
+    const gst = game.charState(ghost);
+    gst.possessing = null;
+    if (game.players[ghost].alive) game.players[ghost].invisible = false;
+    game.removeStatus(ghost, POSSESSING_KIND);
+    game.log('trigger', `🌫 鬼影 ${game.players[ghost].name} 从 ${game.players[owner]?.name ?? owner} 身上脱离，重新现形`,
+      { ghost, host: owner, effect: POSSESSED_KIND }, true);
+  },
+};
+
+/** 附身中（鬼影本体状态）：提供「折磨」与「操控宿主」两个附加行动 */
+const possessing: StatusDef = {
+  kind: POSSESSING_KIND,
+  label: '附身中',
+  icon: '👻',
+  actions: ({ game, owner, effect }) => {
+    const hostId = (effect.data as { host?: PlayerId } | undefined)?.host;
+    if (!hostId || !game.players[hostId]?.alive) return [];
+    const host = game.players[hostId];
+    return [
+      {
+        name: 'possessStrike',
+        label: '折磨宿主',
+        desc: `消耗本次行动：对被附身的 ${host.name} 额外造成 1 点伤害（等量回血给鬼影）。`,
+        typeLabel: '状态',
+        targetHint: 'none',
+        validate: (ctx) => {
+          const hid = (ctx.game.getStatus(ctx.actor, POSSESSING_KIND)?.data as { host?: PlayerId } | undefined)?.host;
+          if (!hid || !ctx.game.players[hid]?.alive) return '没有可折磨的宿主';
+          return null;
+        },
+        execute: (ctx) => {
+          const hid = (ctx.game.getStatus(ctx.actor, POSSESSING_KIND)?.data as { host?: PlayerId } | undefined)?.host;
+          if (!hid) return;
+          ctx.game.log('damage', `🌫 鬼影折磨 ${ctx.game.players[hid].name}（额外 1 点伤害）`, { pid: hid, source: ctx.actor, effect: POSSESSING_KIND }, true);
+          const applied = ctx.game.applyDamage({ target: hid, amount: 1, source: ctx.actor, dtype: 'special', tag: 'possess-extra', noReflect: true });
+          if (!applied.missed && !applied.deferred) ctx.game.heal(ctx.actor, applied.amount);
+        },
+      },
+      {
+        name: 'possessControl',
+        label: '操控宿主',
+        desc: `消耗本次行动：操控被附身的 ${host.name} 攻击其同房间的一名玩家（使用宿主自身的攻击力）。`,
+        typeLabel: '状态',
+        targetHint: 'sameRoomPlayer',
+        validate: (ctx) => {
+          const hid = (ctx.game.getStatus(ctx.actor, POSSESSING_KIND)?.data as { host?: PlayerId } | undefined)?.host;
+          if (!hid || !ctx.game.players[hid]?.alive) return '没有可操控的宿主';
+          const targetId = ctx.params.targetId;
+          if (!targetId || !ctx.game.players[targetId]?.alive) return '目标不存在或已淘汰';
+          if (targetId === hid) return '不能操控宿主攻击自己';
+          if (targetId === ctx.actor) return '不能操控宿主攻击鬼影自己';
+          if (!ctx.game.isSameRoom(hid, targetId)) return '只能操控宿主攻击其同房间目标';
+          return null;
+        },
+        execute: (ctx) => {
+          const hid = (ctx.game.getStatus(ctx.actor, POSSESSING_KIND)?.data as { host?: PlayerId } | undefined)?.host;
+          const targetId = ctx.params.targetId;
+          if (!hid || !targetId) return;
+          const hostDef = ctx.game.charDef(hid);
+          const amount = hostDef.meleeDamage ?? hostDef.rangedDamage ?? hostDef.attack ?? ctx.game.rules.defaultAttack;
+          ctx.game.log('damage', `🌫 鬼影操控 ${ctx.game.players[hid].name} 攻击 ${ctx.game.players[targetId].name}（伤害 ${fmtNum(amount)}）`,
+            { pid: targetId, host: hid, source: ctx.actor, effect: POSSESSING_KIND }, true);
+          ctx.game.applyDamage({
+            target: targetId,
+            amount,
+            source: hid,
+            dtype: hostDef.attackDtype || 'physical',
+            tag: 'controlled',
+            ...(hostDef.attackEffects && hostDef.attackEffects.length > 0 ? { effects: hostDef.attackEffects } : {}),
+          });
+        },
+      },
+    ];
+  },
+  cleanup: ({ game, owner, effect }) => {
+    // 鬼影侧清理：宿主仍有附身状态时一并解除（removeStatus 先行移除，互不递归）
+    const hostId = (effect.data as { host?: PlayerId } | undefined)?.host;
+    if (!hostId) return;
+    if (game.getStatus(hostId, POSSESSED_KIND)) game.removeStatus(hostId, POSSESSED_KIND);
+    const gst = game.charState(owner);
+    gst.possessing = null;
+    if (game.players[owner]?.alive) game.players[owner].invisible = false;
+  },
+};
+
 export const STATUS_REGISTRY: Record<string, StatusDef> = {
   [BURNING_KIND]: burning,
+  [POSSESSED_KIND]: possessed,
+  [POSSESSING_KIND]: possessing,
 };
 
 export function statusDef(kind: string): StatusDef | undefined {

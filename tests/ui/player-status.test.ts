@@ -71,4 +71,24 @@ describe('角色公开状态', () => {
     const items = playerStatusItems(p);
     expect(items.map((item) => item.key)).toEqual(['alive']);
   });
+
+  it('鬼影附身：展示被附身来源与附身中宿主', () => {
+    const host = player({ effects: [{ kind: 'possessed', severity: 1, source: 'G' }] });
+    const ghost = player({
+      id: 'G', name: '鬼影', char: { possessing: 'A' },
+      effects: [{ kind: 'possessing', severity: 0 }],
+    });
+    const hostItems = playerStatusItems(host, [host, ghost]);
+    const possessed = hostItems.find((item) => item.key === 'status-possessed');
+    expect(possessed).toBeTruthy();
+    expect(possessed!.value).toBe('每回合 1 伤害');
+    expect(possessed!.detail).toContain('鬼影');
+    expect(possessed!.tone).toBe('bad');
+
+    const ghostItems = playerStatusItems(ghost, [host, ghost]);
+    const possessing = ghostItems.find((item) => item.key === 'status-possessing');
+    expect(possessing).toBeTruthy();
+    expect(possessing!.value).toBe('无法被锁定');
+    expect(possessing!.detail).toContain('折磨');
+  });
 });

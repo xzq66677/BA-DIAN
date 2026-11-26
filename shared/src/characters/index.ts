@@ -653,6 +653,81 @@ const hunchbackArcher: CharDef = {
   },
 };
 
+/**
+ * 13. 鬼影：附身型幽灵（Issue #71）
+ *
+ * - 血量 2、攻击 1.5；**单次受伤上限 0.5**（任何单次伤害最多 0.5，含秒杀）；无法主动「回复」；
+ * - 消耗一次行动，**无视距离**移动到目标所在房间并附身（无法锁定躲藏/隐身者）；
+ * - 被附身者每回合受到 1 点伤害（含平局回合；附身当回合与驱赶当回合不结算）；
+ * - 鬼影赢下判定后，可用一次行动「折磨宿主」（+1 伤害）或「操控宿主」行动一次；
+ * - 附身期间造成的伤害等量回血给鬼影；附身期间鬼影类似于躲藏，无法被敌人锁定（AOE 仍可命中）；
+ * - 被附身者可消耗一次行动「驱逐鬼影」解除附身。
+ */
+const ghost: CharDef = {
+  id: 'ghost',
+  name: '鬼影',
+  desc: '血量2、攻击1.5；单次受到的任何伤害最多 0.5（含秒杀），无法主动回复。消耗一次行动可无视距离移动到目标房间并附身（不能锁定躲藏/隐身者）：被附身者每回合受到1点伤害（平局回合也结算，附身当回合与驱赶当回合不结算）；鬼影赢下判定后可用一次行动额外折磨（+1伤害）或操控宿主行动一次；附身期间造成的伤害等量回血给鬼影，且鬼影类似躲藏无法被敌人锁定（AOE仍可命中）。被附身者可消耗一次行动驱逐鬼影。',
+  hp: 2,
+  attack: 1.5,
+  attackType: 'both',
+  rangedCapable: true,
+  traits: ['undead'],
+  /** 无法主动回血：只能靠附身期间造成的伤害回血 */
+  blockBaseActions: ['heal'],
+  init: () => ({ possessing: null }),
+  /** 单次受伤上限 0.5（任何伤害，含秒杀） */
+  onBeforeDamage: ({ game, req, owner }) => {
+    if (req.target !== owner) return;
+    if (req.amount <= 0.5 && !req.instakill) return;
+    const before = req.instakill ? '秒杀' : fmtNum(req.amount);
+    req.amount = 0.5;
+    if (req.instakill) req.instakill = false;
+    game.log('state', `🌫 ${game.players[owner].name} 的单次受伤上限为 0.5（原伤害 ${before}）`, { pid: owner, capped: 0.5 }, false);
+  },
+  aiStrategy: ({ game, pid, alive }) => {
+    if (game.hasStatus(pid, 'possessing')) return { type: 'possessStrike' };
+    const target = alive.find((p) => p !== pid && !game.players[p].hidden && !game.players[p].invisible);
+    return target ? { type: 'possess', targetId: target } : undefined;
+  },
+  actions: [
+    {
+      name: 'possess',
+      label: '附身',
+      desc: '消耗本次行动，无视距离移动到目标所在房间并附身：被附身者每回合受到 1 点伤害（附身当回合不结算），期间鬼影无法被锁定。',
+      targetHint: 'anyPlayer',
+      validate: (ctx) => {
+        const t = ctx.params.targetId;
+        if (!t || !ctx.game.players[t]) return '目标不存在';
+        if (!ctx.game.players[t].alive) return '目标已淘汰';
+        if (t === ctx.actor) return '不能附身自己';
+        if (ctx.game.hasStatus(ctx.actor, 'possessing')) return '已经处于附身中';
+        const target = ctx.game.players[t];
+        if (target.hidden || target.invisible) return '无法锁定躲藏/隐身的玩家';
+        return null;
+      },
+      execute: (ctx) => {
+        const targetId = ctx.params.targetId!;
+        const p = ctx.game.getPlayer(ctx.actor);
+        const target = ctx.game.players[targetId];
+        p.room = target.room; // 无视距离移动到目标房间
+        if (p.hidden) p.hidden = false;
+        p.invisible = true; // 附身期间类似躲藏：无法被敌人锁定
+        ctx.game.charState(ctx.actor).possessing = targetId;
+        ctx.game.addStatus(targetId, {
+          kind: 'possessed', severity: 1, remainingRounds: null, source: ctx.actor,
+          data: { ghost: ctx.actor },
+        });
+        ctx.game.addStatus(ctx.actor, {
+          kind: 'possessing', severity: 0, remainingRounds: null,
+          data: { host: targetId },
+        });
+        ctx.game.log('trigger', `👻 ${p.name} 附身了 ${target.name}（移动到 ${target.room}；附身期间无法被锁定）`,
+          { ghost: ctx.actor, host: targetId, room: target.room }, true);
+      },
+    },
+  ],
+};
+
 export const CHARACTERS: Record<string, CharDef> = {
   default: defaultChar,
   bagun,
@@ -666,6 +741,7 @@ export const CHARACTERS: Record<string, CharDef> = {
   dajianke,
   dapihuai,
   'hunchback-archer': hunchbackArcher,
+  ghost,
 };
 
 export const CHARACTER_LIST: CharDef[] = Object.values(CHARACTERS);
