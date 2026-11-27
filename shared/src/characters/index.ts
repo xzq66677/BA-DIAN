@@ -983,6 +983,7 @@ const waterSnake: CharDef = {
     game.log('trigger', `👻 ${p.name} 被杀后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹`, { pid: player, posthumous: true }, true);
     return 'prevent';
   },
+  countsAsAliveForWin: ({ game, player }) => waterSnakeState(game, player).posthumous !== true,
   /** 亡魂状态只能使用吸/吹（或跳过） */
   validateAction: ({ game, player, action }) => {
     const st = waterSnakeState(game, player);

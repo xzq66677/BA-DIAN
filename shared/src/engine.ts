@@ -1479,7 +1479,8 @@ export class Game implements GameLike {
     // 只在本回合**已分出胜负**时为炸弹让路：平局回合的炸弹会顺延、本回合不会引爆，
     // 若此时仍让路，「只剩 1 人 + 待爆炸弹 + 连续平局」会让对局永远无法终局（AI 自动对局回归暴露）。
     if (this.hasArmedIvan() && this.roundResolved) return false;
-    const alive = this.aliveIds();
+    const alive = this.aliveIds().filter((pid) =>
+      this.charDef(pid).countsAsAliveForWin?.({ game: this, player: pid }) ?? true);
     // 待判定的「不讲武德」可能带走最后一名幸存者（如击杀马保国者）：先让判定结算完再定胜负，
     // 否则会先判胜、判定被 phase==='over' 短路（守旧行为：双方同时死亡 → 平局）。
     if (alive.length === 1 && this.hasPendingBujiangwude(alive[0])) return false;

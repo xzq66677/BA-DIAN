@@ -1,6 +1,6 @@
 import type { Game } from '../../shared/src/engine.js';
 import { randomThrow } from '../../shared/src/rng.js';
-import type { ActionRequest, AiDifficulty, PlayerId, Throw } from '../../shared/src/types.js';
+import type { ActionRequest, AiDifficulty, PlayerId, RoomId, Throw } from '../../shared/src/types.js';
 
 // ═══════════════════ AI 决策（与规则引擎分离，只提交合法行动） ═══════════════════
 
@@ -34,12 +34,20 @@ function threatOf(g: Game, pid: PlayerId): number {
   return atk * 2 + p.hp;
 }
 
+function livingIds(g: Game): PlayerId[] {
+  return g.aliveIds().filter((pid) => g.players[pid].hp > 0);
+}
+
+function livingRoomMembers(g: Game, room: RoomId): PlayerId[] {
+  return g.roomMembers(room).filter((pid) => g.players[pid].hp > 0);
+}
+
 /** 同房间可被「找出来」的躲藏目标；隐身无法靠 seek 解除，不浪费行动。 */
 function seekTargets(g: Game, pid: PlayerId): PlayerId[] {
   if (!g.rules.allowSeek) return [];
   const me = g.players[pid];
   return g.roomMembers(me.room).filter((id) =>
-    id !== pid && g.players[id].alive && g.players[id].hidden && !g.players[id].invisible);
+    id !== pid && g.players[id].hp > 0 && g.players[id].hidden && !g.players[id].invisible);
 }
 
 /** 可无视躲藏、AOE/辱骂接管攻击、纯远程或零攻击角色不需要找出来。 */
@@ -72,7 +80,7 @@ export function aiDecideActions(g: Game, pid: PlayerId, difficulty: AiDifficulty
   };
   // 回退链：保证一定有一个能被接受的行动（最差为跳过）
   const me = g.players[pid];
-  const sameRoom = g.roomMembers(me.room).filter((p) => p !== pid && !g.players[p].hidden && !g.players[p].invisible);
+  const sameRoom = livingRoomMembers(g, me.room).filter((p) => p !== pid && !g.players[p].hidden && !g.players[p].invisible);
   for (const t of sameRoom) push({ type: 'attack', targetId: t });
   if (shouldSeekHidden(g, pid)) {
     for (const t of seekTargets(g, pid)) push({ type: 'seek', targetId: t });
@@ -82,7 +90,7 @@ export function aiDecideActions(g: Game, pid: PlayerId, difficulty: AiDifficulty
   for (const extra of g.extraActionsFor(pid)) {
     if (!extra.targetHint || extra.targetHint === 'none') push({ type: extra.name });
   }
-  const otherRoom = g.roomIds.find((r) => r !== me.room && !g.isMoveBlocked(pid, r) && g.roomMembers(r).length > 0);
+  const otherRoom = g.roomIds.find((r) => r !== me.room && !g.isMoveBlocked(pid, r) && livingRoomMembers(g, r).length > 0);
   if (otherRoom) push({ type: 'move', room: otherRoom });
   if (g.rules.allowHide && !me.hidden) push({ type: 'hide' });
   push({ type: 'skip' });
@@ -92,7 +100,7 @@ export function aiDecideActions(g: Game, pid: PlayerId, difficulty: AiDifficulty
 /** 休闲：随性而为，常常做些没用的事 */
 function easyDecide(g: Game, pid: PlayerId): ActionRequest {
   const me = g.players[pid];
-  const members = g.roomMembers(me.room).filter((p) => p !== pid);
+  const members = livingRoomMembers(g, me.room).filter((p) => p !== pid);
   const visible = members.filter((m) => !(g.players[m].hidden || g.players[m].invisible));
   const hidden = seekTargets(g, pid);
   const roll = g.rng.next();
@@ -106,7 +114,7 @@ function easyDecide(g: Game, pid: PlayerId): ActionRequest {
   if (hidden.length > 0 && shouldSeekHidden(g, pid) && roll < 0.65) {
     return { type: 'seek', targetId: g.rng.pick(hidden) };
   }
-  const rooms = g.roomIds.filter((r) => r !== me.room && !g.isMoveBlocked(pid, r));
+  const rooms = g.roomIds.filter((r) => r !== me.room && !g.isMoveBlocked(pid, r) && livingRoomMembers(g, r).length > 0);
   if (rooms.length > 0) return { type: 'move', room: g.rng.pick(rooms) };
   return { type: 'skip' };
 }
@@ -115,8 +123,8 @@ function easyDecide(g: Game, pid: PlayerId): ActionRequest {
 function normalDecide(g: Game, pid: PlayerId): ActionRequest {
   const me = g.players[pid];
   const cd = g.charDef(pid);
-  const members = g.roomMembers(me.room).filter((p) => p !== pid);
-  const alive = g.aliveIds().filter((p) => p !== pid);
+  const members = livingRoomMembers(g, me.room).filter((p) => p !== pid);
+  const alive = livingIds(g).filter((p) => p !== pid);
 
   // 血量低且同房间有威胁 → 优先回复
   if (me.hp < me.maxHp && me.hp <= 1 && members.length > 0) {
@@ -147,7 +155,7 @@ function normalDecide(g: Game, pid: PlayerId): ActionRequest {
   if (me.hp < me.maxHp) return { type: 'heal' };
   const roomScores = g.roomIds
     .filter((r) => r !== me.room && !g.isMoveBlocked(pid, r))
-    .map((r) => ({ r, n: g.roomMembers(r).length }))
+    .map((r) => ({ r, n: livingRoomMembers(g, r).length }))
     .sort((a, b) => b.n - a.n);
   if (roomScores.length > 0 && roomScores[0].n > 0) {
     return { type: 'move', room: roomScores[0].r };
@@ -167,8 +175,8 @@ function hardDecide(g: Game, pid: PlayerId): ActionRequest {
   const me = g.players[pid];
   const cd = g.charDef(pid);
   const st = g.charState(pid);
-  const sameRoom = g.roomMembers(me.room).filter((p) => p !== pid);
-  const aliveOthers = g.aliveIds().filter((p) => p !== pid);
+  const sameRoom = livingRoomMembers(g, me.room).filter((p) => p !== pid);
+  const aliveOthers = livingIds(g).filter((p) => p !== pid);
   const visibleSame = sameRoom.filter((p) => !(g.players[p].hidden || g.players[p].invisible));
   const myAtk = cd.meleeDamage ?? cd.attack ?? g.rules.defaultAttack;
   const domainExempt = cd.aimExemptWhenDomain && st.domain === true;
@@ -229,7 +237,7 @@ function hardDecide(g: Game, pid: PlayerId): ActionRequest {
   const rooms = g.roomIds
     .filter((r) => r !== me.room && !g.isMoveBlocked(pid, r))
     .map((r) => {
-      const mem = g.roomMembers(r);
+      const mem = livingRoomMembers(g, r);
       const weak = mem.filter((m) => g.players[m].hp <= myAtk).length;
       return { r, n: mem.length, weak };
     })
@@ -245,7 +253,7 @@ function hardDecide(g: Game, pid: PlayerId): ActionRequest {
  * AI 与自动化对局回归共用；返回 null 表示没有可选目标。
  */
 export function aiBerserkTarget(g: Game, pid: PlayerId): PlayerId | null {
-  const others = g.aliveIds().filter((p) => p !== pid);
+  const others = livingIds(g).filter((p) => p !== pid);
   if (others.length === 0) return null;
   return others.sort((a, b) => (g.players[a].hp - g.players[b].hp) || (g.playerIds.indexOf(a) - g.playerIds.indexOf(b)))[0];
 }
