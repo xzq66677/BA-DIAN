@@ -378,11 +378,12 @@ describe('飞天水螅：塔内压制（双方亲自出拳）', () => {
 
 describe('飞天水螅：亡魂（死后继续参与）', () => {
   it('致死 → 化为亡魂：hp 0、不可被攻击、仍参与猜拳、只能吸/吹', () => {
-    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
     g.players.A.room = 'R1';
     g.players.B.room = 'R1';
+    g.players.C.room = 'R3';
     g.players.A.hp = 1;
-    throws(g, { B: 'rock', A: 'scissors' });
+    throws(g, { B: 'rock', A: 'scissors', C: 'scissors' });
     expect(g.submitAction('B', { type: 'attack', targetId: 'A' }).ok).toBe(true);
     expect(g.players.A.alive).toBe(true); // 没有真正死亡
     expect(g.players.A.hp).toBe(0);
@@ -396,10 +397,41 @@ describe('飞天水螅：亡魂（死后继续参与）', () => {
 
     // 亡魂仍参与猜拳；不能用普通攻击，但可以吸
     g.players.B.room = 'R2';
-    throws(g, { A: 'rock', B: 'scissors' });
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
     expect(g.phase).toBe('act');
     expect(g.submitAction('A', { type: 'attack', targetId: 'B' }).ok).toBe(false);
     expect(g.submitAction('A', { type: 'inhale', targetId: 'B' }).ok).toBe(true);
     expect(g.players.B.room).toBe('R1');
+  });
+
+  it('血量归零且仅剩一名幸存者时立即获胜', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    g.players.A.hp = 1;
+
+    throws(g, { B: 'rock', A: 'scissors' });
+    expect(g.submitAction('B', { type: 'attack', targetId: 'A' }).ok).toBe(true);
+
+    expect(g.players.A.alive).toBe(true);
+    expect(g.players.A.hp).toBe(0);
+    expect(g.charState('A').posthumous).toBe(true);
+    expect(g.phase).toBe('over');
+    expect(g.winner).toBe('B');
+  });
+
+  it('血量归零但仍有其他幸存者时继续对局', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    g.players.C.room = 'R2';
+    g.players.A.hp = 1;
+
+    throws(g, { B: 'rock', A: 'scissors', C: 'scissors' });
+    expect(g.submitAction('B', { type: 'attack', targetId: 'A' }).ok).toBe(true);
+
+    expect(g.players.A.hp).toBe(0);
+    expect(g.isOver()).toBe(false);
+    expect(g.aliveIds()).toEqual(expect.arrayContaining(['A', 'B', 'C']));
   });
 });

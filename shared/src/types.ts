@@ -31,8 +31,47 @@ export interface CharRuntimeState {
 }
 
 /**
+/**
+ * 行动封印（钥匙类来源）：被封印的行动无法执行。
+ * 生命周期：施加 → 生效 → 到期/移除 → 死亡清理。当前规则为永久封印，
+ * 移除路径为「持有人淘汰」与对局重置；新增限时封印时增加 `remainingRounds` 即可。
+ */
+export interface ActionLock {
+  /** 被封禁的行动名（BASE_ACTIONS / 地图行动 / 角色 actions 的 name；`attack` 不可封印） */
+  action: string;
+  /** 展示用标签（封印瞬间记录，避免后续改名影响历史日志） */
+  label: string;
+  /** 施加者（可无） */
+  source?: PlayerId;
+  /** 施加回合（展示用） */
+  round: number;
+  /** 剩余回合数：undefined = 永久（当前规则） */
+  remainingRounds?: number;
+}
+
+/**
+ * 通用玩家状态（公开）：可以施加在任何角色身上。
+ * 生命周期：施加 → 生效 → 到期/移除 → 死亡清理（见 shared/src/player-statuses.ts）。
+ */
+export interface PlayerStatus {
+  /** 状态种类（如 `crippled`）；行为由注册的处理器决定，UI 由状态读取器白名单渲染 */
+  kind: string;
+  /** 展示文案（施加时记录） */
+  label?: string;
+  /** 施加者 */
+  source?: PlayerId;
+  /** 施加回合 */
+  round: number;
+  /** 剩余回合数：undefined = 永久 */
+  remainingRounds?: number;
+  /** 是否允许重复叠加（默认 false） */
+  stackable?: boolean;
+  /** 附加公开数据 */
+  data?: Record<string, unknown>;
+}
+
+/**
  * 公开状态效果（下发客户端的最小投影）。
- *
  * 只包含展示与规则解释所需的公开字段：`kind`、`severity`、`remainingRounds`、
  * `stacks` 和必要的公开来源；内部生命周期字段（如施加回合）只留在引擎侧。
  */
@@ -58,7 +97,6 @@ export interface ActiveStatusEffect extends PublicStatusEffect {
   /** 状态私有数据（不下发快照） */
   data?: Record<string, unknown>;
 }
-
 export interface PlayerState {
   id: PlayerId;
   name: string;
@@ -79,6 +117,10 @@ export interface PlayerState {
   effects?: ActiveStatusEffect[];
   /** 角色私有运行状态（拔棍状态、领域、瞄准、辱骂层数、判定历史等） */
   char: CharRuntimeState;
+  /** 行动封印（公开信息：谁被封了什么，场上所有人都能看到） */
+  actionLocks?: ActionLock[];
+  /** 通用状态（公开：废人弱、中毒、燃烧等后续状态走这里） */
+  statuses?: PlayerStatus[];
 }
 
 /** 技能内判定（马保国系能力）的类别 */
@@ -467,6 +509,11 @@ export interface ActionRequest {
 export interface ActionResult {
   ok: boolean;
   error?: string;
+  /**
+   * 行动附带的**公开**演出数据（角色插件用）：引擎把它原样写进 action 日志的
+   * `presentation` 字段，角色注册的 fx 插件据此渲染，不需要改引擎或演出层。
+   */
+  presentation?: Record<string, unknown>;
 }
 
 /**
