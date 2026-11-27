@@ -43,6 +43,7 @@ export interface Battle3DProps {
   roomPickMode: boolean;
   selectedRoom: string;
   blockedRoom?: string;
+  excludedRoom?: string;
   selectedPlayer: string;
   reducedMotion: boolean;
   lowEffects: boolean;
@@ -54,7 +55,7 @@ export interface Battle3DProps {
 }
 
 export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed: boolean; resetView: () => void } {
-  const { active, game, gameNo, resync, myIds, playback, finaleReady, targetablePids, roomPickMode, selectedRoom, blockedRoom,
+  const { active, game, gameNo, resync, myIds, playback, finaleReady, targetablePids, roomPickMode, selectedRoom, blockedRoom, excludedRoom,
     selectedPlayer, reducedMotion, lowEffects, automaticCamera } = props;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<BattleScene3D | null>(null);
@@ -172,8 +173,8 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
     const scene = sceneRef.current;
     if (!scene) return;
     scene.setTargetable(targetablePids);
-    scene.setSelection(roomPickMode, selectedRoom, selectedPlayer, blockedRoom);
-  }, [active, sceneModule, targetablePids, roomPickMode, selectedRoom, selectedPlayer, blockedRoom]);
+    scene.setSelection(roomPickMode, selectedRoom, selectedPlayer, blockedRoom, excludedRoom);
+  }, [active, sceneModule, targetablePids, roomPickMode, selectedRoom, selectedPlayer, blockedRoom, excludedRoom]);
 
   useLayoutEffect(() => {
     const scene = sceneRef.current;
