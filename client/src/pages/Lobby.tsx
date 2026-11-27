@@ -13,6 +13,8 @@ export default function Lobby({ lobby, session, onExit }: {
   const isHost = lobby.hostSeat === me.playerId;
   const [copied, setCopied] = useState(false);
   const [aiCharId, setAiCharId] = useState('random');
+  const [characterError, setCharacterError] = useState('');
+  const isRematch = lobby.state === 'lobby' && (lobby.gameNo ?? 0) > 0;
   const [chatText, setChatText] = useState('');
   const chatLogRef = useRef<HTMLDivElement | null>(null);
   const chat: { name: string; text: string; ts: number }[] = lobby.chat || [];
@@ -34,6 +36,16 @@ export default function Lobby({ lobby, session, onExit }: {
     if (!text) return;
     setChatText('');
     await net.chat(lobby.code, me.playerId, me.token, text);
+  }
+
+  async function chooseCharacter(identity: SessionInfo['identities'][number], charId: string, targetId?: string) {
+    setCharacterError('');
+    try {
+      const result = await net.setChar(lobby.code, identity.playerId, identity.token, charId, targetId);
+      if (!result.ok) setCharacterError(typeof result.error === 'string' ? result.error : '选角失败');
+    } catch {
+      setCharacterError('选角失败，请重试');
+    }
   }
 
   async function leave() {
@@ -67,28 +79,32 @@ export default function Lobby({ lobby, session, onExit }: {
       <div className="hall-grid">
         <div className="tcg-panel">
           <h2>🎴 玩家卡位（{lobby.seats.length}）</h2>
+          {isRematch && <p>下一局选角。每位玩家可以在自己的卡位换角色，选好后由房主开始。</p>}
+          {characterError && <p role="alert" className="error-banner">{characterError}</p>}
           <div className="seat-slots">
             {lobby.seats.map((s) => {
-              const mine = session.identities.some((i) => i.playerId === s.playerId);
+              const identity = session.identities.find((i) => i.playerId === s.playerId);
               const cd = CHARACTER_LIST.find((c) => c.id === s.charId);
               const thumb = thumbOf(s.charId);
               return (
                 <div key={s.playerId} className={`seat-slot ${lobby.hostSeat === s.playerId ? 'host' : ''} ${s.connected ? '' : 'offline'}`}>
                   {thumb ? <img src={thumb} alt={cd?.name} /> : <div className="ss-ph">拔</div>}
-                  <div className="ss-name">{s.name}{mine ? '（我）' : ''}</div>
+                  <div className="ss-name">{s.name}{identity ? '（我）' : ''}</div>
                   <div className="ss-role">
-                    {mine && s.type !== 'ai' ? (
+                    {identity && s.type !== 'ai' ? (
                       <select
+                        aria-label={`${s.name}的角色`}
                         value={s.charId}
-                        onChange={(e) => net.setChar(lobby.code, s.playerId, session.identities.find((i) => i.playerId === s.playerId)!.token, e.target.value)}
+                        onChange={(e) => { void chooseCharacter(identity, e.target.value); }}
                         style={{ width: '100%', minHeight: 24, fontSize: 11, padding: '2px' }}
                       >
                         {CHARACTER_LIST.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                     ) : isHost && s.type === 'ai' ? (
                       <select
+                        aria-label={`${s.name}的角色`}
                         value={s.charId}
-                        onChange={(e) => net.setChar(lobby.code, me.playerId, me.token, e.target.value, s.playerId)}
+                        onChange={(e) => { void chooseCharacter(me, e.target.value, s.playerId); }}
                         style={{ width: '100%', minHeight: 24, fontSize: 11, padding: '2px' }}
                         title="房主可为AI改角色"
                       >

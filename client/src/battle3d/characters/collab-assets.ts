@@ -3,21 +3,24 @@ import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import type { SnapPlayer } from '../../../../shared/src/protocol.js';
 import type { CharacterRig } from './index.js';
+import { slotMachineState } from '../../battle/slot-machine-state.js';
 const ghostUrl = new URL('../../../../artifacts/collab/ghost/model/ghost.glb', import.meta.url).href;
 const huntUrl = new URL('../../../../artifacts/collab/wild-hunt-heathcliff/model/wild-hunt-heathcliff-wraith.glb', import.meta.url).href;
 const archerUrl = new URL('../../../../artifacts/collab/skeleton-archer/model/skeleton-archer.glb', import.meta.url).href;
 const snakeUrl = new URL('../../../../artifacts/collab/flying-leech/model/flying-leech.glb', import.meta.url).href;
 const towerUrl = new URL('../../../../artifacts/collab/flying-leech/model/basalt-tower.glb', import.meta.url).href;
 const windUrl = new URL('../../../../artifacts/collab/flying-leech/model/wind-vortex.glb', import.meta.url).href;
+const slotHeroUrl = new URL('../../../../artifacts/collab/slot-hero/model/slot-hero.glb', import.meta.url).href;
 
 type VisualState = Pick<SnapPlayer, 'alive' | 'char' | 'effects'>;
 export interface RoomDecoration {
   room: string;
-  asset: 'basalt-tower';
+  asset: 'basalt-tower' | 'slot-machine';
   progress: number;
 }
 export interface RigPresentation {
   readonly actionClip?: string;
+  attachmentAnchor?(): THREE.Object3D | undefined;
   updateState(state: VisualState, immediate: boolean): void;
   play(clip: string, duration: number, keepStationary?: boolean): boolean;
   update(dt: number, findHost: (id: string) => THREE.Object3D | undefined): void;
@@ -28,19 +31,25 @@ type Options = {
   url: string;
   id: string;
   height: number;
-  clips?: Partial<Record<'attackSwing' | 'reviveRise', string>>;
+  clips?: Partial<Record<'attackSwing' | 'reviveRise' | 'cheer', string>>;
   mounted?: boolean;
   possession?: boolean;
   skeleton?: boolean;
   spectral?: boolean;
   props?: readonly string[];
+  decoration?(room: string, state: VisualState): RoomDecoration | undefined;
 };
 const characters: Readonly<Record<string, Options>> = {
   ghost: { url: ghostUrl, id: 'ghost-v1', height: 1.91, clips: { attackSwing: 'drain' }, possession: true },
   'wild-hunt': { url: huntUrl, id: 'wild-hunt-heathcliff-wraith', height: 1.85, mounted: true },
   'hunchback-archer': { url: archerUrl, id: 'skeleton-archer-v1', height: 2.145, clips: { attackSwing: 'shoot' }, skeleton: true },
   'water-snake': { url: snakeUrl, id: 'flying-leech-v2', height: 1.95, clips: { attackSwing: 'attack', reviveRise: 'revive' }, spectral: true,
-    props: ['basalt-tower', 'wind-vortex'] },
+    props: ['basalt-tower', 'wind-vortex'], decoration: towerDecoration },
+  'slot-hero': { url: slotHeroUrl, id: 'slot-hero-v1', height: 1.865, clips: { attackSwing: 'slot_pull', cheer: 'victory' },
+    decoration: (_room, state) => {
+      const machine = slotMachineState({ charId: 'slot-hero', char: state.char });
+      if (machine?.landed) return { room: machine.room, asset: 'slot-machine', progress: 1 };
+    } },
 };
 const urls: Readonly<Record<string, string>> = {
   ...Object.fromEntries(Object.entries(characters).map(([id, opt]) => [id, opt.url])),
@@ -131,7 +140,10 @@ export function motionTrack(id: string, clip: string, name: string) {
 }
 
 export function roomDecoration(id: string, room: string, state: VisualState): RoomDecoration | undefined {
-  if (!characters[id]?.props?.includes('basalt-tower')) return;
+  return characters[id]?.decoration?.(room, state);
+}
+
+function towerDecoration(room: string, state: VisualState): RoomDecoration | undefined {
   if (typeof state.char.towerBaseRoom === 'string' && Number(state.char.towerHp) > 0) {
     return { room: state.char.towerBaseRoom, asset: 'basalt-tower', progress: 1 };
   }
@@ -163,6 +175,7 @@ export function makeCollaborationRig(id: string, scale: number): CharacterRig | 
   let burning = false;
   let hostId: string | undefined;
   let attachProgress = 0;
+  let anchoredToHost = false;
   let opacity = 1;
   let active: { clip: string; duration: number; time: number; stationary: boolean } | undefined;
 
@@ -199,6 +212,7 @@ export function makeCollaborationRig(id: string, scale: number): CharacterRig | 
   }
   const presentation: RigPresentation = {
     actionClip: opt.clips?.attackSwing ?? 'attackSwing',
+    attachmentAnchor: () => anchoredToHost ? asset.scene : undefined,
     updateState(player, immediate) {
       const nextMounted = !!opt.mounted && (player.effects?.some(effect => effect.kind === 'mounted') || player.char.mounted === true);
       const nextDowned = !!opt.skeleton && player.char.downed === true;
@@ -234,6 +248,7 @@ export function makeCollaborationRig(id: string, scale: number): CharacterRig | 
         if (active.time >= active.duration) active = undefined;
       }
       const host = hostId && findHost(hostId);
+      anchoredToHost = !!host;
       if (host) {
         attachProgress = Math.min(1, attachProgress + dt / .72);
         host.updateWorldMatrix(true, false);
@@ -269,7 +284,10 @@ export function makeCollaborationRig(id: string, scale: number): CharacterRig | 
     cast: time => { if (!active) sample('cast', Math.min(time, length('cast'))); },
     drink: time => idle(time),
     crouch: time => { if (!active) sample('crouch', time % length('crouch')); },
-    cheer: time => { if (!active) sample('cheer', time % length('cheer')); },
+    cheer: time => {
+      const clip = opt.clips?.cheer ?? 'cheer';
+      if (!active) sample(clip, time % length(clip));
+    },
     dead: progress => once('dead', progress),
     reviveRise: progress => once(opt.clips?.reviveRise ?? 'reviveRise', progress),
   };

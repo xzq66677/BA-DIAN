@@ -526,9 +526,7 @@ export class Room {
 
   /**
    * 重置房间（重开游戏）。
-   * @param autoStart true = 重置后立即以原座位开局（对局结束「再来一局」直达新局，
-   *                  无需回大厅再点开始）；缺省保持旧行为（回大厅等待房主开始）。
-   *                  自动开局只广播一次 playing 态，客户端不闪大厅中间页。
+   * @param autoStart true 时立即以原座位开局。否则回到同一房间等待选角和开局。
    */
   restart(opts?: { autoStart?: boolean }): { ok: boolean; error?: string } {
     if (this.state === 'lobby') return { ok: false, error: '房间尚未开始过' };

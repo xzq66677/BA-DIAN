@@ -10,9 +10,14 @@ registerActionPresentation(SLOT_PULL_FX, {
   major: true,
 });
 
-// 老虎机侠的两种抽奖：都复用同一套拉杆演出（3 格 / 4 格由 presentation.reelCount 决定）
-for (const spin of ['slotSpin3', 'slotSpin4']) {
-  registerActionPresentation(spin, { fx: SLOT_PULL_FX, mode: 'manual', durationMs: 2600, major: true });
+// 格数和停轮节奏随行动固定，预览仍使用通用拉杆。
+export const SLOT_SPIN_PRESENTATIONS = [
+  { action: 'slotSpin3', fx: 'slotPull3', reelCount: 3, durationMs: 2600, stopAt: [.52, .62, .72] },
+  { action: 'slotSpin4', fx: 'slotPull4', reelCount: 4, durationMs: 3300, stopAt: [.44, .54, .64, .78] },
+] as const;
+
+for (const { action, fx, durationMs } of SLOT_SPIN_PRESENTATIONS) {
+  registerActionPresentation(action, { fx, mode: 'manual', durationMs, major: true });
 }
 
 registerActionPresentation(SLOT_DROP_FX, {

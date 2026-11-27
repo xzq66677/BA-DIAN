@@ -556,6 +556,20 @@
   animation: banner-in 1.25s ease forwards;
   pointer-events: none;
 }
+.battle-movement {
+  position: absolute;
+  z-index: 9;
+  bottom: 28%;
+  left: 50%;
+  translate: -50% 0;
+  width: max-content;
+  max-width: calc(100% - 20px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 12px;
+}
+.tcg-chip.slot-machine-location { color: #ffe0a4; border-color: #8d663b; background: #352616; }
 @keyframes banner-in {
   0% { opacity: 0; transform: translateY(-6px); }
   18% { opacity: 1; transform: translateY(0); }
@@ -2325,6 +2339,7 @@
   min-height: 86px;
 }
 .bt-room.empty { opacity: 0.6; }
+.bt-room.empty:has(.room-slot-machine) { opacity: 1; }
 /* 房间状态聚焦（沿用既有动画类） */
 .bt-room.zone-acting { border-color: rgba(240, 214, 138, 0.75); box-shadow: 0 0 24px rgba(216, 176, 74, 0.3); }
 .bt-room.zone-alert { animation: zone-alert-pulse 0.95s ease; border-color: rgba(226, 61, 48, 0.85); }
@@ -2912,3 +2927,6 @@
 @media (orientation: landscape) and (max-height: 560px) {
   .announce-drawer { max-height: 68vh; }
 }
+.player-inventory { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; font-size: .75rem; }
+.player-inventory > span, .room-slot-machine { padding: 2px 5px; border: 1px solid #8d663b; border-radius: 5px; color: #ffe0a4; background: #352616; }
+.room-slot-machine { font-size: .6875rem; }

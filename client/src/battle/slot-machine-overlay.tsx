@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { SLOT_DROP_FX, SLOT_PULL_FX } from './slot-machine-presentation.js';
+import { SLOT_DROP_FX, SLOT_PULL_FX, SLOT_SPIN_PRESENTATIONS } from './slot-machine-presentation.js';
 import { registerFxOverlay, type FxOverlayProps } from './fx-overlays.js';
 import { normalizeSlotReelCount, normalizeSlotReels, SLOT_SYMBOLS, slotReelsFor, slotSymbolForDigit, type SlotReelCount } from './slot-machine-reels.js';
 import { SlotSymbolIcon } from './slot-symbol-icon.js';
@@ -24,10 +24,12 @@ function SlotSymbolLegend() {
   );
 }
 
-function SlotMachineCabinet({ digits, spinning, pull = 0 }: {
+function SlotMachineCabinet({ digits, spinning, pull = 0, stopped = 0, concealed = false }: {
   digits: readonly number[];
   spinning: boolean;
   pull?: number;
+  stopped?: number;
+  concealed?: boolean;
 }) {
   return (
     <div className="slot-cabinet" style={{ '--pull': pull } as CSSProperties}>
@@ -40,6 +42,8 @@ function SlotMachineCabinet({ digits, spinning, pull = 0 }: {
               key={index}
               data-digit={digit}
               data-symbol={slotSymbolForDigit(digit).kind}
+              data-stopped={index < stopped ? '1' : '0'}
+              data-concealed={concealed ? '1' : '0'}
               aria-hidden="true"
             >
               {reelFrames(digit).map((frame, frameIndex) => (
@@ -89,10 +93,12 @@ function SlotReelModeSelector({ value, disabled, onChange }: {
 }
 
 function SlotPullOverlay({ view, interactive, reducedMotion, onSubmit, onCancel, onComplete }: FxOverlayProps) {
+  const spin = SLOT_SPIN_PRESENTATIONS.find(mode => mode.fx === view.kind);
   const [phase, setPhase] = useState<PullPhase>(interactive ? 'idle' : 'spinning');
   const [reelCount, setReelCount] = useState<SlotReelCount>(() => (
-    normalizeSlotReels(view.presentation?.reels)?.length ?? normalizeSlotReelCount(view.presentation?.reelCount) ?? 3
+    spin?.reelCount ?? normalizeSlotReels(view.presentation?.reels)?.length ?? normalizeSlotReelCount(view.presentation?.reelCount) ?? 3
   ));
+  const [stopped, setStopped] = useState(0);
   const [pull, setPull] = useState(0);
   const pullRef = useRef(0);
   const committed = useRef(false);
@@ -101,19 +107,23 @@ function SlotPullOverlay({ view, interactive, reducedMotion, onSubmit, onCancel,
   completeRef.current = onComplete;
   const spinning = phase === 'spinning';
   const presenting = phase === 'spinning' || phase === 'result';
-  const { digits, source } = slotReelsFor({ key: view.key, reels: view.presentation?.reels, reelCount });
+  const eventReels = normalizeSlotReels(view.presentation?.reels);
+  const { digits, source } = slotReelsFor({ key: view.key, reels: spin && eventReels?.length !== reelCount ? null : eventReels, reelCount });
+  const awaitingResult = !!spin && source !== 'event';
   const resultLabel = digits.map((digit) => `${digit} ${slotSymbolForDigit(digit).label}`).join('、');
 
   useEffect(() => {
-    if (!presenting) return;
-    const duration = reducedMotion ? 520 : Math.max(1500, view.durationMs ?? 2600);
-    const resultTimer = window.setTimeout(() => setPhase('result'), duration * 0.72);
+    if (!presenting || (interactive && awaitingResult)) return;
+    const duration = reducedMotion ? 520 : Math.max(1500, view.durationMs ?? spin?.durationMs ?? 2600);
+    const stops = !reducedMotion && spin ? spin.stopAt.map((at, index) => window.setTimeout(() => setStopped(index + 1), duration * at)) : [];
+    const resultTimer = window.setTimeout(() => setPhase('result'), duration * (reducedMotion ? .72 : spin?.stopAt.at(-1) ?? .72));
     const completeTimer = window.setTimeout(() => completeRef.current?.(), duration);
     return () => {
       window.clearTimeout(resultTimer);
       window.clearTimeout(completeTimer);
+      stops.forEach(timer => window.clearTimeout(timer));
     };
-  }, [presenting, reducedMotion, view.durationMs, view.key]);
+  }, [presenting, reducedMotion, view.durationMs, view.key, spin, interactive, awaitingResult]);
 
   useEffect(() => {
     const cancel = () => {
@@ -187,16 +197,17 @@ function SlotPullOverlay({ view, interactive, reducedMotion, onSubmit, onCancel,
     <div
       className="slot-machine-overlay slot-pull-overlay"
       data-testid="slot-pull-overlay"
-      data-kind={SLOT_PULL_FX}
+      data-kind={view.kind}
       data-phase={phase}
       data-reduced-motion={reducedMotion ? '1' : '0'}
       data-reel-source={source}
       data-reel-count={digits.length}
       role="group"
-      aria-label={`${view.playerName ?? '玩家'}的老虎机演出`}
+      aria-label={`${view.playerName ?? '玩家'}的${spin ? `${spin.reelCount} 格` : ''}老虎机演出`}
     >
+      {spin && <div className="slot-spin-title">{spin.reelCount} 格摇奖</div>}
       <div className="slot-machine-stage">
-        <SlotMachineCabinet digits={digits} spinning={spinning} pull={pull} />
+        <SlotMachineCabinet digits={digits} spinning={spinning} pull={pull} stopped={stopped} concealed={awaitingResult} />
         <button
           type="button"
           className="slot-lever-handle"
@@ -217,10 +228,10 @@ function SlotPullOverlay({ view, interactive, reducedMotion, onSubmit, onCancel,
       <div className="slot-machine-caption" aria-live="polite">
         {phase === 'idle' && (interactive ? '向下拖动或点击拉杆' : '老虎机准备就绪')}
         {phase === 'pulling' && `拉杆 ${Math.round(pull * 100)}%`}
-        {phase === 'spinning' && '卷轴转动中'}
-        {phase === 'result' && `卷轴结果：${digits.join(' · ')}`}
+        {phase === 'spinning' && (awaitingResult ? '等待结算' : '卷轴转动中')}
+        {phase === 'result' && (awaitingResult ? '结果未同步' : `卷轴结果：${digits.join(' · ')}`)}
       </div>
-      {interactive && phase === 'idle' && (
+      {interactive && !spin && phase === 'idle' && (
         <SlotReelModeSelector value={digits.length} disabled={source === 'event'} onChange={setReelCount} />
       )}
       <SlotSymbolLegend />
@@ -271,4 +282,5 @@ function SlotMachineOverlay(props: FxOverlayProps) {
 }
 
 registerFxOverlay(SLOT_PULL_FX, SlotMachineOverlay);
+for (const { fx } of SLOT_SPIN_PRESENTATIONS) registerFxOverlay(fx, SlotMachineOverlay);
 registerFxOverlay(SLOT_DROP_FX, SlotMachineOverlay);

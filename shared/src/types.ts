@@ -320,6 +320,14 @@ export interface MoveEventData {
   pid: PlayerId;
   from: RoomId;
   to: RoomId;
+  presentation?: { moves: PlayerRelocation[] };
+}
+
+export interface PlayerRelocation {
+  pid: PlayerId;
+  fromRoom: RoomId;
+  toRoom: RoomId;
+  tower?: 'enter' | 'exit';
 }
 
 export interface EliminateEventData {

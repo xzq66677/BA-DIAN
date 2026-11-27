@@ -1,12 +1,37 @@
 import * as THREE from 'three';
 import { cloneAsset, motionTrack, type RoomDecoration } from './characters/collab-assets.js';
 import type { FxInstance } from './fx.js';
+import { createSlotMachineModel } from './slot-machine-model.js';
+
+interface DecorationModel {
+  scene: THREE.Object3D;
+  setProgress(progress: number): void;
+  dispose(): void;
+}
 
 const TOWER_SCALE = 0.44;
 
+const modelFactories: Record<RoomDecoration['asset'], () => DecorationModel | undefined> = {
+  'basalt-tower': () => {
+    const model = cloneAsset('basalt-tower');
+    if (!model) return;
+    model.scene.name = 'basalt-tower';
+    model.scene.scale.setScalar(TOWER_SCALE);
+    return { scene: model.scene, dispose: model.dispose,
+      setProgress: progress => model.sample('build', progress * (model.clips.get('build')?.duration ?? 1)) };
+  },
+  'slot-machine': () => {
+    const model = createSlotMachineModel();
+    model.root.name = 'landed-slot-machine';
+    return { scene: model.root, setProgress: progress => model.root.scale.setScalar(.65 * progress),
+      dispose() { model.root.removeFromParent(); model.dispose(); } };
+  },
+};
+
 export class RoomDecorations {
   private items = new Map<string, {
-    model: NonNullable<ReturnType<typeof cloneAsset>>;
+    model: DecorationModel;
+    asset: RoomDecoration['asset'];
     room: string;
     progress: number;
     target: number;
@@ -15,6 +40,10 @@ export class RoomDecorations {
     collapseTime?: number;
   }>();
 
+  objectFor(id: string): THREE.Object3D | undefined {
+    return this.items.get(id)?.model.scene;
+  }
+
   sync(wanted: ReadonlyMap<string, RoomDecoration>, findRoom: (room: string) => THREE.Object3D | undefined,
     floor: number, immediate: boolean): void {
     for (const [id, item] of this.items) {
@@ -22,27 +51,33 @@ export class RoomDecorations {
         item.model.dispose();
         this.items.delete(id);
       } else if (!wanted.has(id)) {
-        item.collapseTime = 0;
+        if (item.asset === 'basalt-tower' && item.collapseTime === undefined) item.collapseTime = 0;
         item.target = 0;
       }
     }
+    const machinesPerRoom = new Map<string, number>();
     for (const [id, request] of wanted) {
       const room = findRoom(request.room);
       if (!room) continue;
       let item = this.items.get(id);
       if (!item) {
-        const model = cloneAsset(request.asset);
+        const model = modelFactories[request.asset]();
         if (!model) continue;
-        model.scene.name = 'basalt-tower';
-        model.scene.scale.setScalar(TOWER_SCALE);
-        model.scene.position.set(0, floor, 0);
-        item = { model, room: request.room, progress: 0, target: request.progress, baseY: floor };
+        const progress = request.asset === 'slot-machine' ? request.progress : 0;
+        model.setProgress(progress);
+        item = { model, asset: request.asset, room: request.room, progress, target: request.progress, baseY: floor };
         this.items.set(id, item);
         room.add(model.scene);
       } else if (item.room !== request.room) {
         room.add(item.model.scene);
         item.room = request.room;
       }
+      if (request.asset === 'slot-machine') {
+        const index = machinesPerRoom.get(request.room) ?? 0;
+        const angle = Math.PI / 4 + index * Math.PI / 5;
+        item.model.scene.position.set(1.65 * Math.sin(angle), floor + .1, -1.65 * Math.cos(angle));
+        machinesPerRoom.set(request.room, index + 1);
+      } else item.model.scene.position.set(0, floor, 0);
       item.target = request.progress;
     }
     if (immediate) this.update(2);
@@ -50,13 +85,13 @@ export class RoomDecorations {
 
   hit(room: string): void {
     for (const item of this.items.values()) {
-      if (item.room === room && item.collapseTime === undefined) item.hitTime = 0;
+      if (item.asset === 'basalt-tower' && item.room === room && item.collapseTime === undefined) item.hitTime = 0;
     }
   }
 
   collapse(room: string): boolean {
     for (const item of this.items.values()) {
-      if (item.room !== room || item.collapseTime !== undefined) continue;
+      if (item.asset !== 'basalt-tower' || item.room !== room || item.collapseTime !== undefined) continue;
       item.collapseTime = 0;
       item.target = 0;
       return true;
@@ -102,7 +137,7 @@ export class RoomDecorations {
         item.model.dispose();
         this.items.delete(id);
       } else {
-        item.model.sample('build', item.progress * (item.model.clips.get('build')?.duration ?? 1));
+        item.model.setProgress(item.progress);
         moving ||= item.progress !== item.target;
       }
     }

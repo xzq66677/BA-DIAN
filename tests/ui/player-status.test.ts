@@ -13,6 +13,18 @@ function player(overrides: Partial<SnapPlayer> = {}): SnapPlayer {
 }
 
 describe('角色公开状态', () => {
+  it('区分同回合的手持与已投掷炸弹，并显示老虎机的目标房间和落地回合', () => {
+    const items = playerStatusItems(player({ charId: 'slot-hero', char: {
+      money: 5, keys: 2, machine: { thrown: true, landed: false, room: 'R3', at: 8 },
+      bombs: [{ id: 'a', at: 9, kind: 'small', room: null }, { id: 'b', at: 9, kind: 'ivan', room: 'R2' }],
+    } }));
+    expect(items.filter(item => item.inventory).map(item => item.key)).toEqual([
+      'slot-money', 'slot-keys', 'slot-bomb-a', 'slot-machine',
+    ]);
+    expect(items.find(item => item.key === 'slot-bomb-b')?.label).toBe('已投掷大伊万');
+    expect(items.find(item => item.key === 'slot-machine')).toMatchObject({ value: 'R3 · 飞行中', detail: expect.stringContaining('第 8 回合') });
+  });
+
   it('格式化小数血量且只保留两位小数', () => {
     expect(formatHp(3)).toBe('3');
     expect(formatHp(1.234)).toBe('1.23');

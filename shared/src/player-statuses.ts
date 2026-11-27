@@ -10,6 +10,7 @@
  */
 
 import type { GameLike } from './chardef.js';
+import { acceptsStatuses } from './statuses.js';
 import type { JudgeStep, PlayerId, PlayerStatus } from './types.js';
 
 /** 状态在「判定追加」时机的处理器 */
@@ -47,8 +48,7 @@ export function addStatus(
   pid: PlayerId,
   status: Omit<PlayerStatus, 'round'> & { round?: number },
 ): PlayerStatus | null {
-  const p = game.players[pid];
-  if (!p || !p.alive) return null;
+  if (!acceptsStatuses(game, pid)) return null;
   const list = listOf(game, pid);
   if (!status.stackable && list.some((s) => s.kind === status.kind)) return null;
   const entry: PlayerStatus = { ...status, round: status.round ?? game.roundNo };

@@ -174,8 +174,8 @@ class Net {
   kick(code: string, playerId: string, token: string, targetId: string) {
     return this.emit('room:kick', { code, playerId, token, targetId });
   }
-  restart(code: string, playerId: string, token: string) {
-    return this.emit('room:restart', { code, playerId, token });
+  restart(code: string, playerId: string, token: string, autoStart?: boolean) {
+    return this.emit('room:restart', { code, playerId, token, autoStart });
   }
   leave(code: string, playerId: string, token: string) {
     return this.emit('room:leave', { code, playerId, token });

@@ -11,6 +11,8 @@
 import { describe, it, expect } from 'vitest';
 import { Game } from '../shared/src/engine.js';
 import { CHARACTERS } from '../shared/src/characters/index.js';
+import { addStatus } from '../shared/src/player-statuses.js';
+import { sealAction } from '../shared/src/effects.js';
 import { aiDecideAction } from '../server/src/ai.js';
 import type { Throw } from '../shared/src/types.js';
 
@@ -225,6 +227,26 @@ describe('飞天水螅：塔内压制判定', () => {
 });
 
 describe('飞天水螅：吸 / 吹', () => {
+  it('吹走宿主时，鬼影一起移动到指定落点', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C', char: 'ghost' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    g.players.C.room = 'R3';
+    throws(g, { A: 'scissors', B: 'scissors', C: 'rock' });
+    expect(g.submitAction('C', { type: 'possess', targetId: 'B' }).ok).toBe(true);
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    expect(g.submitAction('A', { type: 'blow', targetId: 'B', room: 'R3' }).ok).toBe(true);
+    expect(g.players.B.room).toBe('R3');
+    expect(g.players.C.room).toBe('R3');
+    expect(g.logs.find(log => log.data?.actionName === 'blow')?.data?.presentation).toMatchObject({
+      room: 'R3',
+      moves: [
+        { pid: 'B', fromRoom: 'R1', toRoom: 'R3' },
+        { pid: 'C', fromRoom: 'R1', toRoom: 'R3' },
+      ],
+    });
+  });
+
   it('吸：其他房间 → 自己房间，再吸 → 塔内', () => {
     const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
     g.players.A.room = 'R1';
@@ -424,6 +446,30 @@ describe('飞天水螅：塔内压制（双方亲自出拳）', () => {
 });
 
 describe('飞天水螅：亡魂（死后继续参与）', () => {
+  it('化为亡魂时解除燃烧、附身、封印和废人弱，后续也不再施加', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B', char: 'ghost' }, { id: 'C' }]);
+    g.addStatus('A', { kind: 'burning', severity: .5, appliedRound: 0 });
+    g.addStatus('A', { kind: 'possessed', source: 'B' });
+    g.addStatus('B', { kind: 'possessing', data: { host: 'A' } });
+    g.players.B.invisible = true;
+    g.charState('B').possessing = 'A';
+    expect(sealAction(g, 'A', 'inhale').ok).toBe(true);
+    expect(addStatus(g, 'A', { kind: 'crippled' })).not.toBeNull();
+
+    g.applyDamage({ target: 'A', amount: 3, dtype: 'special', aoe: true });
+    expect(g.charState('A').posthumous).toBe(true);
+    expect(g.players.A.invisible).toBe(true);
+    expect(g.players.B.invisible).toBe(false);
+    expect(g.hasStatus('B', 'possessing')).toBe(false);
+
+    g.addStatus('A', { kind: 'burning', severity: .5, appliedRound: 0 });
+    expect(addStatus(g, 'A', { kind: 'crippled' })).toBeNull();
+    expect(sealAction(g, 'A', 'inhale').ok).toBe(false);
+    g.tickStatuses();
+    expect(g.snapshot().players.find(p => p.id === 'A')).toMatchObject({ effects: [], statuses: [], actionLocks: [] });
+    expect(g.logs.some(log => log.text.includes('燃烧结算'))).toBe(false);
+  });
+
   it('致死 → 化为亡魂：hp 0、不可被攻击、仍参与猜拳、只能吸/吹', () => {
     const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
     g.players.A.room = 'R1';

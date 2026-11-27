@@ -11,7 +11,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BattleEventQueue, DEFAULT_PACE, paceFromLocation, type PaceProfile, type QueueState, type Speed } from './queue.js';
-import type { BattleEvent, LogLike, PresentationData } from './events.js';
+import { presentationMoves, type BattleEvent, type LogLike, type PresentationData, type PresentationMove } from './events.js';
 import { sfx, type SfxKind } from '../audio/sfx.js';
 import { condenseAnnounceQueue, type AnnounceItem } from '../../../shared/src/announce.js';
 import { actionPresentationDuration } from './action-presentation.js';
@@ -39,7 +39,7 @@ export interface HealView { key: number; amount?: number; hpBefore?: number; hpA
 export interface DeathView { key: number; cause?: string }
 export interface ReviveView { key: number; livesLeft: number }
 export interface ZoneAlertView { key: number; groupId?: string; room: string; kind: 'aoe' | 'ivan' }
-export interface MoveBannerView { key: number; pid: string; from: string; to: string }
+export interface MoveBannerView { key: number; pid: string; from: string; to: string; moves: PresentationMove[] }
 /** 大伊万投掷（V3）：投掷者 → 目标房间的飞行演出 */
 export interface IvanThrowView { key: number; pid: string; room: string }
 /** 大伊万爆炸落点（V3）：房间冲击波 */
@@ -310,12 +310,7 @@ export function useBattlePresentation(
         scheduleExpiry('misses', t, MISS_MS);
         break;
       }
-      case 'move': {
-        const pid = e.pid!;
-        next.moveBanner = { key: e.seq, pid, from: e.fromRoom!, to: e.toRoom! };
-        scheduleExpiry('moveBanner', 'banner', BANNER_MS);
-        break;
-      }
+      case 'move': break;
       case 'ivanThrow': {
         const pid = e.pid!;
         const room = e.room;
@@ -355,6 +350,15 @@ export function useBattlePresentation(
       case 'trigger':
         // 触发：日志面板有完整信息，战场层不额外阻挡
         break;
+    }
+    const moves = presentationMoves(e.presentation);
+    if (!moves.length && e.kind === 'move' && e.pid && e.fromRoom && e.toRoom) {
+      moves.push({ pid: e.pid, fromRoom: e.fromRoom, toRoom: e.toRoom });
+    }
+    if (moves.length) {
+      const [first] = moves;
+      next.moveBanner = { key: e.seq, pid: first.pid, from: first.fromRoom, to: first.toRoom, moves };
+      scheduleExpiry('moveBanner', 'banner', BANNER_MS);
     }
     publish(next);
     for (const listen of listenersRef.current) listen({ event: e, durationMs });
