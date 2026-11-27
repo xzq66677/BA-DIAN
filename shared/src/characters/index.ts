@@ -7,6 +7,7 @@
  */
 
 import { characterAi } from './ai-strategies.js';
+import { slotHeroChar } from './slot-hero.js';
 import type { CharActionDef, CharDef, GameLike } from '../chardef.js';
 import { mentalKill } from '../mental.js';
 import { fmtNum, type PlayerId } from '../types.js';
@@ -1203,6 +1204,7 @@ export const CHARACTERS: Record<string, CharDef> = {
   ghost,
   'wild-hunt': wildHunt,
   'water-snake': waterSnake,
+  [slotHeroChar.id]: slotHeroChar,
 };
 
 export const CHARACTER_LIST: CharDef[] = Object.values(CHARACTERS);

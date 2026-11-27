@@ -49,6 +49,28 @@ interface ActionOption {
   manual?: boolean;
   /** 本局已消耗的技能（如今日勇者运势全局一次）：卡面灰化不可再点 */
   used?: boolean;
+  /** 已被钥匙封印：卡面灰化不可再点 */
+  locked?: boolean;
+  /** 需要二级选择：要封印的目标行动（钥匙） */
+  sealHint?: boolean;
+}
+
+/** 钥匙封印候选：与引擎 sealableActions 对齐（攻击不可封印；已封印的排除） */
+function sealCandidates(target: SnapPlayer | undefined): { action: string; label: string }[] {
+  if (!target) return [];
+  const cd = CHARACTERS[target.charId] || CHARACTERS['default'];
+  const items: { action: string; label: string }[] = [
+    { action: 'move', label: '移动' },
+    { action: 'heal', label: '回复' },
+    { action: 'milk', label: '喝牛奶' },
+    { action: 'hide', label: '躲藏' },
+    { action: 'seek', label: '找出来' },
+    { action: 'skip', label: '跳过' },
+  ];
+  if (cd.rangedNeedsAim) items.push({ action: 'aim', label: '瞄准' });
+  for (const a of cd.actions ?? []) items.push({ action: a.name, label: a.label });
+  const sealed = new Set((target.actionLocks ?? []).map((l) => l.action));
+  return items.filter((x) => !sealed.has(x.action));
 }
 
 export default function GamePage({ lobby, game, session, logs, announces, resync, onExit, onBackToLobby }: {
@@ -107,6 +129,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
 
   // 行动坞交互状态（纯 UI 状态；最终合法性由服务器校验）
   const [selAction, setSelAction] = useState<ActionOption | null>(null);
+  /** 钥匙封印的二级选择：要封禁的目标行动名 */
+  const [selSeal, setSelSeal] = useState('');
   const [selTarget, setSelTarget] = useState('');
   /** 多目标行动的已选玩家（如吸/吹） */
   const [selTargets, setSelTargets] = useState<string[]>([]);
@@ -233,29 +257,34 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   const options: ActionOption[] = useMemo(() => {
     if (!actor) return [];
     const cd = CHARACTERS[actor.charId] || CHARACTERS['default'];
+    const locks = actor.actionLocks ?? [];
+    const isLocked = (key: string) => locks.some((l) => l.action === key);
     const list: ActionOption[] = [
       { key: 'attack', label: '攻击', desc: cd.attackDesc ?? `近战攻击同房间目标（伤害 ${atkOf(actor)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? ((cd.aimExemptWhenDomain && actor.char.domain === true) ? '（领域生效免瞄准）' : '（远程需先瞄准）') : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', ...(cd.attackRoomHint ? { roomHint: true } : { targetHint: 'attack' as const }) },
-      { key: 'move', label: '移动', desc: '移动到任意玩家的初始房间（移动后现身）', typeLabel: '基础', roomHint: true },
-      { key: 'heal', label: '回复', desc: '回复至满血', typeLabel: '基础' },
-      { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础' },
-      { key: 'hide', label: '躲藏', desc: '指向性攻击无法锁定；AOE与无视躲避攻击仍可命中', typeLabel: '基础' },
+      { key: 'move', label: '移动', desc: '移动到任意玩家的初始房间（移动后现身）', typeLabel: '基础', roomHint: true, locked: isLocked('move') },
+      { key: 'heal', label: '回复', desc: '回复至满血', typeLabel: '基础', locked: isLocked('heal') },
+      { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础', locked: isLocked('milk') },
+      { key: 'hide', label: '躲藏', desc: '指向性攻击无法锁定；AOE与无视躲避攻击仍可命中', typeLabel: '基础', locked: isLocked('hide') },
     ];
     if (actor.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标（伤害1），无需瞄准；无法近战';
     if (canOpenSluice(game.ruins, actor.room)) {
       list.push({ key: 'openSluice', label: '开启泄水闸', desc: '排空本房积水，解除下一回合的泥潭预警。消耗本次行动。', typeLabel: '地图' });
     }
-    if (hiddenSameRoomCount(game, actor.id) > 0) list.push({ key: 'seek', label: '找出来', desc: '找出同房间躲藏的玩家', typeLabel: '基础', targetHint: 'seek' });
+    if (hiddenSameRoomCount(game, actor.id) > 0) list.push({ key: 'seek', label: '找出来', desc: '找出同房间躲藏的玩家', typeLabel: '基础', targetHint: 'seek', locked: isLocked('seek') });
     if (cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && actor.char.domain === true)) {
-      list.push({ key: 'aim', label: '瞄准', desc: '锁定一名玩家（远程攻击前必须瞄准）', typeLabel: '基础', targetHint: 'aim' });
+      list.push({ key: 'aim', label: '瞄准', desc: '锁定一名玩家（远程攻击前必须瞄准）', typeLabel: '基础', targetHint: 'aim', locked: isLocked('aim') });
     }
-    list.push({ key: 'skip', label: '跳过', desc: '不做任何事', typeLabel: '基础' });
+    list.push({ key: 'skip', label: '跳过', desc: '不做任何事', typeLabel: '基础', locked: isLocked('skip') });
     for (const a of cd.actions || []) {
       // 今日勇者「抽取今日运势」全局仅一次：已用则卡面灰化（快照 char.fortuneUsed 为权威状态）
       const used = a.name === 'rollFortune' && actor.char.fortuneUsed === true;
+      const locked = isLocked(a.name);
       const presentation = resolveActionPresentation(a.name);
       list.push({
         key: a.name, label: a.label,
-        desc: used ? `${a.desc}（本局已使用）` : a.desc,
+        desc: used ? `${a.desc}（本局已使用）` : locked ? `${a.desc}（已被封印）` : a.desc,
+        locked,
+        sealHint: a.name === 'slotKey',
         typeLabel: '技能',
         // 'none' 表示自身技能（领域展开 / 抽取今日运势 / 强化攻击等）：不选目标、不设房间，直接确认发动
         targetHint: a.targetHint && a.targetHint !== 'none' ? a.targetHint : undefined,
@@ -324,6 +353,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   useEffect(() => {
     setSelTarget('');
     setSelTargets([]);
+    setSelSeal('');
   }, [selAction]);
 
   function resetSelection() {
@@ -367,6 +397,10 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
       const targetRoom = validTargets.find((t) => t.id === selTarget)?.room;
       // 异房间远程，或角色支持「远程打同房间」（如佝偻弓箭手）
       if (targetRoom !== actor?.room || (cd?.rangedSameRoom && cd.rangedCapable)) action.ranged = true;
+    }
+    if (selAction.sealHint) {
+      if (!selSeal) { setActMsg('请选择要封印的行动'); return null; }
+      action.params = { action: selSeal };
     }
     return action;
   }
@@ -1000,8 +1034,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                     {options.map((o) => (
                       <button
                         key={o.key}
-                        className={`scard ${selAction?.key === o.key ? 'selected' : ''} ${o.used ? 'is-used' : ''}`}
-                        disabled={o.used}
+                        className={`scard ${selAction?.key === o.key ? 'selected' : ''} ${o.used || o.locked ? 'is-used' : ''}`}
+                        disabled={o.used || o.locked}
                         onClick={() => { setManualCue(null); setManualAction(null); setSelAction(o); setActMsg(''); }}
                       >
                         <div className="scard-head">
@@ -1009,7 +1043,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                           <span className="scard-type">{o.typeLabel}</span>
                         </div>
                         <div className="scard-desc">{o.desc.length > 44 ? o.desc.slice(0, 44) + '…' : o.desc}</div>
-                        <div className="scard-need">{o.used ? '🚫 本局已使用' : o.manual ? '🎰 手动拉杆' : o.targetHint ? (o.multiTarget ? '🎯 可多选目标' : '🎯 需选择目标') : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
+                        <div className="scard-need">{o.locked ? '🔒 已被封印' : o.used ? '🚫 本局已使用' : o.manual ? '🎰 手动拉杆' : o.targetHint ? (o.multiTarget ? '🎯 可多选目标' : '🎯 需选择目标') : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
                       </button>
                     ))}
                   </div>
@@ -1069,8 +1103,16 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                           </span>
                         );
                       })()}
+                      {selAction.sealHint && (
+                        <select aria-label="要封印的行动" value={selSeal} onChange={(e) => setSelSeal(e.target.value)}>
+                          <option value="">选择要封印的行动</option>
+                          {sealCandidates(game.players.find((p) => p.id === selTarget)).map((a) => (
+                            <option key={a.action} value={a.action}>{a.label}</option>
+                          ))}
+                        </select>
+                      )}
                       {blockedRoom && <span className="ruins-mud-chip" data-active="true">{blockedRoom} 泥潭封路，下回合恢复</span>}
-                      <button className="tcg-btn" disabled={(!!selAction.targetHint && (selAction.multiTarget ? selTargets.length === 0 : !selTarget)) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom))} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
+                      <button className="tcg-btn" disabled={(!!selAction.targetHint && (selAction.multiTarget ? selTargets.length === 0 : !selTarget)) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom)) || (!!selAction.sealHint && !selSeal)} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
                       <button className="tcg-btn ghost" onClick={resetSelection}>取消</button>
                       {actMsg && <span className="error-text">{actMsg}</span>}
                     </div>
