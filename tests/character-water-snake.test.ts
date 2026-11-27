@@ -11,6 +11,8 @@
 import { describe, it, expect } from 'vitest';
 import { Game } from '../shared/src/engine.js';
 import { CHARACTERS } from '../shared/src/characters/index.js';
+import { addStatus } from '../shared/src/player-statuses.js';
+import { sealAction } from '../shared/src/effects.js';
 import type { Throw } from '../shared/src/types.js';
 
 function makeGame(
@@ -290,6 +292,30 @@ describe('飞天水螅：塔内压制（双方亲自出拳）', () => {
 });
 
 describe('飞天水螅：亡魂（死后继续参与）', () => {
+  it('化为亡魂时解除燃烧、附身、封印和废人弱，后续也不再施加', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B', char: 'ghost' }, { id: 'C' }]);
+    g.addStatus('A', { kind: 'burning', severity: .5, appliedRound: 0 });
+    g.addStatus('A', { kind: 'possessed', source: 'B' });
+    g.addStatus('B', { kind: 'possessing', data: { host: 'A' } });
+    g.players.B.invisible = true;
+    g.charState('B').possessing = 'A';
+    expect(sealAction(g, 'A', 'inhale').ok).toBe(true);
+    expect(addStatus(g, 'A', { kind: 'crippled' })).not.toBeNull();
+
+    g.applyDamage({ target: 'A', amount: 3, dtype: 'special', aoe: true });
+    expect(g.charState('A').posthumous).toBe(true);
+    expect(g.players.A.invisible).toBe(true);
+    expect(g.players.B.invisible).toBe(false);
+    expect(g.hasStatus('B', 'possessing')).toBe(false);
+
+    g.addStatus('A', { kind: 'burning', severity: .5, appliedRound: 0 });
+    expect(addStatus(g, 'A', { kind: 'crippled' })).toBeNull();
+    expect(sealAction(g, 'A', 'inhale').ok).toBe(false);
+    g.tickStatuses();
+    expect(g.snapshot().players.find(p => p.id === 'A')).toMatchObject({ effects: [], statuses: [], actionLocks: [] });
+    expect(g.logs.some(log => log.text.includes('燃烧结算'))).toBe(false);
+  });
+
   it('致死 → 化为亡魂：hp 0、不可被攻击、仍参与猜拳、只能吸/吹', () => {
     const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
     g.players.A.room = 'R1';

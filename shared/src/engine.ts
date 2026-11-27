@@ -29,7 +29,7 @@ import { sealedAction, clearActionLocks, tickActionLocks } from './effects.js';
 import { deferredHandler, deferredPriority } from './deferred-registry.js';
 import { dispatchStatusJudge, clearStatuses as clearPlayerStatuses, tickStatuses as tickPlayerStatuses } from './player-statuses.js';
 import { serializeSnapshot } from './snapshot.js';
-import { STATUS_REGISTRY, publicStatusEffects, statusDef } from './statuses.js';
+import { acceptsStatusEffect, statusBlockedActions, STATUS_REGISTRY, statusDef } from './statuses.js';
 import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats, type SubRoundOutcome } from './judge.js';
 import type { CharDef, GameLike, CharActionContext, CharActionDef } from './chardef.js';
 
@@ -248,6 +248,31 @@ export class Game implements GameLike {
     return (pa.char.inTower === true) === (pb.char.inTower === true);
   }
 
+  /** Update a room and its followers before later rules read room membership. */
+  relocatePlayer(pid: PlayerId, room: RoomId, inTower = false): import('./types.js').PlayerRelocation[] {
+    const moves: import('./types.js').PlayerRelocation[] = [];
+    const visited = new Set<PlayerId>();
+    const pending = [pid];
+    for (const id of pending) {
+      const player = this.players[id];
+      if (!player?.alive || visited.has(id)) continue;
+      visited.add(id);
+      const fromRoom = player.room;
+      const wasInTower = this.isInTower(id);
+      if (fromRoom !== room || wasInTower !== inTower) {
+        player.room = room;
+        if (wasInTower !== inTower) player.char.inTower = inTower;
+        moves.push({ pid: id, fromRoom, toRoom: room,
+          ...(wasInTower !== inTower ? { tower: inTower ? 'enter' : 'exit' } : {}) });
+      }
+      for (const effect of player.effects ?? []) {
+        const follower = statusDef(effect.kind)?.roomFollower?.(this, id, effect);
+        if (follower) pending.push(follower);
+      }
+    }
+    return moves;
+  }
+
   /** 该玩家是否位于高塔内部 */
   isInTower(pid: PlayerId): boolean {
     return this.players[pid]?.char.inTower === true;
@@ -387,7 +412,7 @@ export class Game implements GameLike {
   ): ActiveStatusEffect {
     const p = this.players[pid];
     const next: ActiveStatusEffect = { ...effect, appliedRound: effect.appliedRound ?? this.roundNo };
-    if (!p) return next;
+    if (!p || !acceptsStatusEffect(this, pid, next.kind)) return next;
     p.effects = p.effects ?? [];
     const existing = p.effects.find((e) => e.kind === next.kind);
     if (existing) Object.assign(existing, next);
@@ -408,6 +433,10 @@ export class Game implements GameLike {
     return true;
   }
 
+  clearStatusEffects(pid: PlayerId): void {
+    for (const { kind } of [...(this.players[pid]?.effects ?? [])]) this.removeStatus(pid, kind);
+  }
+
   getStatus(pid: PlayerId, kind: string): ActiveStatusEffect | undefined {
     return this.players[pid]?.effects?.find((e) => e.kind === kind);
   }
@@ -426,6 +455,11 @@ export class Game implements GameLike {
       if (!p?.alive) continue;
       for (const effect of [...(p.effects ?? [])]) {
         if (!this.players[pid]?.alive) break;
+        if (this.getStatus(pid, effect.kind) !== effect) continue;
+        if (!acceptsStatusEffect(this, pid, effect.kind)) {
+          this.removeStatus(pid, effect.kind);
+          continue;
+        }
         STATUS_REGISTRY[effect.kind]?.tick?.({ game: this, owner: pid, effect });
         if (typeof effect.remainingRounds === 'number') {
           effect.remainingRounds -= 1;
@@ -1211,6 +1245,9 @@ export class Game implements GameLike {
     // 角色状态限制（如亡魂状态只能使用吸/吹）
     const actionError = this.charDef(pid).validateAction?.({ game: this, player: pid, action: req });
     if (actionError) return { ok: false, error: actionError };
+    if (statusBlockedActions(p.effects).includes(req.type)) {
+      return { ok: false, error: '当前状态下无法使用该行动' };
+    }
 
     // 行动前压制（高塔等）：其他角色的 onBeforeAction 可让本次行动无效、改为自伤，
     // 或进入双方亲自出拳的判定（player 模式），判定后再继续/取消本次行动（均消耗行动）
@@ -1266,8 +1303,10 @@ export class Game implements GameLike {
   private performSubmittedAction(pid: PlayerId, req: ActionRequest): ActionResult {
     const p = this.players[pid];
     const presentation: Record<string, unknown> = {};
+    const extraLabel = this.extraActionsFor(pid).find(action => action.name === req.type)?.label;
     const res = this.executeAction(pid, req, data => Object.assign(presentation, data));
     if (!res.ok) return res; // 非法行动：不修改状态、不消耗行动
+    Object.assign(presentation, res.presentation);
     const st = this.stats[pid];
     if (st) {
       st.actions++;
@@ -1283,14 +1322,15 @@ export class Game implements GameLike {
       : req.type === 'seek' ? 'seek'
       : req.type === 'skip' ? 'skip'
       : 'skill';
+    const label = extraLabel ?? this.actionLabel(req);
     const actionData: ActionEventData = {
-      pid, actionName: req.type, fx, label: this.actionLabel(req),
+      pid, actionName: req.type, fx, label,
       ...(req.targetId ? { targetId: req.targetId } : {}),
       ...(req.room ? { room: req.room } : {}),
       ...(Object.keys(presentation).length ? { presentation } : {}),
     };
-    this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, { ...actionData }, true);
-    this.roundSummary.push(`${p.name} ${this.actionLabel(req)}`);
+    this.log('action', `${p.name} 执行行动：${label}`, { ...actionData }, true);
+    this.roundSummary.push(`${p.name} ${label}`);
     if ((this.phase as GamePhase) === 'over') return { ok: true };
     // 技能内判定（马保国五连鞭等）：先暂停收拳，等判定结算完再消耗行动/推进队列
     if (this.enterJudgeIfPending('afterAction')) return { ok: true };
@@ -1411,10 +1451,7 @@ export class Game implements GameLike {
     clearActionLocks(this, pid);
     clearPlayerStatuses(this, pid);
     // 死亡清理：状态效果随持有者退场全部移除（生命周期要求）
-    if (p.effects && p.effects.length > 0) {
-      for (const effect of [...p.effects]) statusDef(effect.kind)?.cleanup?.({ game: this, owner: pid, effect });
-      p.effects = [];
-    }
+    this.clearStatusEffects(pid);
     // 领域随持有者退场而消失（游戏中唯一会"自然失效"的路径；不含被覆盖）
     if (this.domainHolder === pid) {
       this.domainHolder = null;

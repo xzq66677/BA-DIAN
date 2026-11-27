@@ -28,6 +28,7 @@ export interface GameLike {
   charDef(pid: PlayerId): CharDef;
   roomMembers(room: RoomId): PlayerId[];
   isSameRoom(a: PlayerId, b: PlayerId): boolean;
+  relocatePlayer(pid: PlayerId, room: RoomId, inTower?: boolean): import('./types.js').PlayerRelocation[];
   /** 是否位于高塔内部（塔内外隔绝） */
   isInTower(pid: PlayerId): boolean;
   isOver(): boolean;
@@ -49,6 +50,7 @@ export interface GameLike {
   requestJudge(opts: import('./types.js').SkillJudgeOptions): void;
   /** 施加状态效果（燃烧等）；同 kind 重复施加会刷新生命周期数据 */
   addStatus(pid: PlayerId, effect: Omit<import('./types.js').ActiveStatusEffect, 'appliedRound'> & { appliedRound?: number }): import('./types.js').ActiveStatusEffect;
+  clearStatusEffects(pid: PlayerId): void;
   /** 移除指定状态；返回是否移除成功 */
   removeStatus(pid: PlayerId, kind: string): boolean;
   /** 读取玩家身上的指定状态 */
@@ -219,6 +221,8 @@ export interface CharDef {
   init?(): Record<string, unknown>;
   /** 角色标签（供状态/其他角色的通用逻辑识别，如 'skeleton'） */
   traits?: string[];
+  /** Active form cannot receive persistent statuses or action locks. */
+  ignoresStatuses?(ctx: { game: GameLike; player: PlayerId }): boolean;
   /** 普通攻击附带的状态效果（如点燃） */
   attackEffects?: import('./types.js').DamageEffect[];
   /** 致命伤害拦截：返回 'prevent' 阻止淘汰（角色自行处理倒地/复活），'die' 确认死亡 */

@@ -418,6 +418,7 @@
 .b3-rl-icon { font-size: 13px; }
 .b3-rl-count { color: var(--text-dim, #9aa0a8); font-size: 11px; font-weight: 600; }
 .b3-rl-pending { color: #ffb36a; font-size: 10px; font-weight: 800; }
+.b3-rl-objects { color: #ffe0a4; font-size: 10px; font-weight: 800; white-space: normal; }
 .ruins-weather-chip[data-weather='wind'],
 .ruins-weather-chip[data-weather='mist'],
 .ruins-weather-chip[data-weather='rain'] { color: #bde3f3; border-color: #52899e; }
@@ -432,6 +433,7 @@
   line-height: 1.25;
 }
 .b3-roomlabel.is-empty { opacity: 0.55; }
+.b3-roomlabel.is-empty:has(.b3-rl-objects:not([hidden])) { opacity: 1; }
 .b3-roomlabel.is-acting {
   border-color: var(--gold-2, #f0d68a);
   box-shadow: 0 0 10px rgba(216, 176, 74, 0.4);

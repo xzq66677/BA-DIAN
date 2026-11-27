@@ -9,6 +9,7 @@ export interface PlayerStatusItem {
   value: string;
   detail: string;
   tone: StatusTone;
+  inventory?: boolean;
 }
 
 export interface PlayerStatusContext {

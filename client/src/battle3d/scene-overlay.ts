@@ -6,7 +6,7 @@ import type { RoomView } from './room-view.js';
 interface OverlayEntity {
   pid: string;
   group: THREE.Group;
-  rig: { headHeight(): number };
+  rig: { headHeight(): number; presentation?: { attachmentAnchor?(): THREE.Object3D | undefined } };
   curRoom: string;
   plateSlot: number;
   plate: HTMLDivElement;
@@ -71,8 +71,9 @@ export function positionOverlay({
   const byRoom = new Map<string, PlatePos[]>();
   for (const e of entities.values()) {
     const world = new THREE.Vector3();
-    e.group.getWorldPosition(world);
-    world.y += PLATFORM_H + e.rig.headHeight() + 0.55;
+    const anchor = e.rig.presentation?.attachmentAnchor?.();
+    (anchor ?? e.group).getWorldPosition(world);
+    world.y += (anchor ? 0 : PLATFORM_H) + e.rig.headHeight() + 0.55;
     const p = proj(world);
     const item: PlatePos = {
       e, x: (p.x * 0.5 + 0.5) * w, y: (-p.y * 0.5 + 0.5) * h,

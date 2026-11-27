@@ -10,6 +10,9 @@ import { characterAi } from './ai-strategies.js';
 import { slotHeroChar } from './slot-hero.js';
 import type { CharActionDef, CharDef, GameLike } from '../chardef.js';
 import { mentalKill } from '../mental.js';
+import { clearActionLocks } from '../effects.js';
+import { clearStatuses } from '../player-statuses.js';
+import { acceptsStatusEffect, POSSESSED_KIND } from '../statuses.js';
 import { fmtNum, type PlayerId } from '../types.js';
 
 /** 默认角色：无业游民（无被动，未选上角色者默认此角色）。血量2——速查表原稿+用户卡面确认 */
@@ -690,7 +693,8 @@ const ghost: CharDef = {
   },
   aiStrategy: ({ game, pid, alive }) => {
     if (game.hasStatus(pid, 'possessing')) return { type: 'possessStrike' };
-    const target = alive.find((p) => p !== pid && !game.players[p].hidden && !game.players[p].invisible);
+    const target = alive.find((p) => p !== pid && !game.players[p].hidden && !game.players[p].invisible
+      && !game.hasStatus(p, POSSESSED_KIND));
     return target ? { type: 'possess', targetId: target } : undefined;
   },
   actions: [
@@ -704,7 +708,9 @@ const ghost: CharDef = {
         if (!t || !ctx.game.players[t]) return '目标不存在';
         if (!ctx.game.players[t].alive) return '目标已淘汰';
         if (t === ctx.actor) return '不能附身自己';
+        if (!acceptsStatusEffect(ctx.game, t, POSSESSED_KIND)) return '无法附身该目标';
         if (ctx.game.hasStatus(ctx.actor, 'possessing')) return '已经处于附身中';
+        if (ctx.game.hasStatus(t, POSSESSED_KIND)) return '该目标已经被附身';
         const target = ctx.game.players[t];
         if (target.hidden || target.invisible) return '无法锁定躲藏/隐身的玩家';
         return null;
@@ -713,7 +719,8 @@ const ghost: CharDef = {
         const targetId = ctx.params.targetId!;
         const p = ctx.game.getPlayer(ctx.actor);
         const target = ctx.game.players[targetId];
-        p.room = target.room; // 无视距离移动到目标房间
+        const moves = ctx.game.relocatePlayer(ctx.actor, target.room, ctx.game.isInTower(targetId));
+        ctx.present?.({ moves });
         if (p.hidden) p.hidden = false;
         p.invisible = true; // 附身期间类似躲藏：无法被敌人锁定
         ctx.game.charState(ctx.actor).possessing = targetId;
@@ -854,7 +861,7 @@ const wildHunt: CharDef = {
     if (target.hidden || target.invisible) return { ok: false, error: '目标正在躲藏/隐身，无法锁定' };
 
     const fromRoom = p.room;
-    if (mounted) p.room = target.room; // 攻击带位移：突进到目标房间
+    const moves = mounted ? game.relocatePlayer(actor, target.room, game.isInTower(actor)) : [];
     const expires = typeof st.mountExpiresRound === 'number' ? st.mountExpiresRound : 0;
     const finalRound = mounted && game.roundNo >= expires;
     const kills = typeof st.kills === 'number' ? st.kills : 0;
@@ -865,7 +872,7 @@ const wildHunt: CharDef = {
       : Math.round((cd.attack ?? 1) * (mounted ? 2 : 1) * Math.pow(1.5, kills) * 10000) / 10000;
     game.log('damage', `🌪 ${p.name} ${mounted ? (finalRound ? '在骑乘最后一回合发动致命冲锋' : '骑乘突进') : '攻击'} ${target.name}（伤害 ${fmtNum(amount)}${mounted ? '，位移至目标房间' : ''}）`,
       { pid: actor, declared: true, source: actor, target: targetId, amount, mounted, finalRound, room: target.room,
-        presentation: { mounted, fromRoom, toRoom: target.room } }, true);
+        presentation: { mounted, fromRoom, toRoom: target.room, ...(moves.length ? { moves } : {}) } }, true);
     const applied = game.applyDamage({
       target: targetId,
       amount,
@@ -933,7 +940,7 @@ function collapseTower(game: GameLike, owner: PlayerId): void {
   if (!base) return;
   for (const pid of game.playerIds) {
     if (game.players[pid].char.inTower === true && game.players[pid].room === base) {
-      game.players[pid].char.inTower = false;
+      game.relocatePlayer(pid, base);
       game.log('trigger', `🗼 高塔坍塌：${game.players[pid].name} 被弹出塔外`, { pid, tower: base }, true);
     }
   }
@@ -963,6 +970,7 @@ const waterSnake: CharDef = {
   attackType: 'melee',
   attackDesc: '近战攻击同房间目标（伤害 1.5）；高塔内外隔绝，无法直接攻击塔壁另一端的目标',
   traits: ['tower'],
+  ignoresStatuses: ({ game, player }) => waterSnakeState(game, player).posthumous === true,
   init: () => ({ towerBaseRoom: null, towerHp: 0, buildProgress: 0, inTower: false, posthumous: false }),
   /** 亡魂免疫：化为亡魂后不再受到伤害（也避免了被反复击杀） */
   onBeforeDamage: ({ game, req, owner }) => {
@@ -979,6 +987,9 @@ const waterSnake: CharDef = {
       return 'prevent';
     }
     st.posthumous = true;
+    game.clearStatusEffects(player);
+    clearActionLocks(game, player);
+    clearStatuses(game, player);
     p.hp = 0;
     p.invisible = true;
     game.log('trigger', `👻 ${p.name} 被杀后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹`, { pid: player, posthumous: true }, true);
@@ -1092,7 +1103,7 @@ const waterSnake: CharDef = {
         st.buildProgress = 2;
         st.towerBaseRoom = p.room;
         st.towerHp = 6;
-        st.inTower = true;
+        ctx.present?.({ moves: ctx.game.relocatePlayer(ctx.actor, p.room, true) });
         ctx.game.log('trigger', `🗼 ${p.name} 在 ${p.room} 建成玄武岩高塔并进入塔内（塔内外隔绝、算作新房间）`,
           { pid: ctx.actor, room: p.room, towerBaseRoom: p.room }, true);
       },
@@ -1129,13 +1140,11 @@ const waterSnake: CharDef = {
           if (!target) continue;
           if (target.room !== p.room) {
             const from = target.room;
-            target.room = p.room;
-            moves.push({ pid: targetId, fromRoom: from, toRoom: p.room });
+            moves.push(...ctx.game.relocatePlayer(targetId, p.room));
             ctx.game.log('trigger', `🌀 ${p.name} 一吸：${target.name} 被从 ${from} 吸到 ${p.room}（拉近一格）`, { pid: targetId, source: ctx.actor, from, to: p.room }, true);
             continue;
           }
-          target.char.inTower = true;
-          moves.push({ pid: targetId, fromRoom: target.room, toRoom: target.room, tower: 'enter' });
+          moves.push(...ctx.game.relocatePlayer(targetId, target.room, true));
           ctx.game.log('trigger', `🌀 ${p.name} 一吸：${target.name} 被吸进高塔内部（塔内外隔绝）`, { pid: targetId, source: ctx.actor }, true);
         }
         ctx.present?.({ targetIds: ids, moves });
@@ -1170,8 +1179,7 @@ const waterSnake: CharDef = {
           const target = ctx.game.players[targetId];
           if (!target) continue;
           if (target.char.inTower === true) {
-            target.char.inTower = false;
-            moves.push({ pid: targetId, fromRoom: target.room, toRoom: target.room, tower: 'exit' });
+            moves.push(...ctx.game.relocatePlayer(targetId, target.room));
             ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从塔内吹回 ${target.room}（拉远一格）`, { pid: targetId, source: ctx.actor, to: target.room }, true);
             continue;
           }
@@ -1179,8 +1187,7 @@ const waterSnake: CharDef = {
             ? target.originRoom
             : (ctx.game.roomIds.find((room) => room !== p.room) ?? p.room);
           const from = target.room;
-          target.room = dest;
-          moves.push({ pid: targetId, fromRoom: from, toRoom: dest });
+          moves.push(...ctx.game.relocatePlayer(targetId, dest));
           ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从 ${from} 吹到 ${dest}（拉远一格）`, { pid: targetId, source: ctx.actor, from, to: dest }, true);
         }
         ctx.present?.({ targetIds: ids, moves });

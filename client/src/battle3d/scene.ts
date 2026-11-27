@@ -12,6 +12,7 @@ import { GOLD, STATE_COLORS } from './palette.js';
 import { buildRoomView, releaseRoomObject, type RoomView } from './room-view.js';
 import { positionOverlay, type FloatingLabel } from './scene-overlay.js';
 import { cardMeta } from '../cards.js';
+import { slotMachineRoomLabel, slotMachineState } from '../battle/slot-machine-state.js';
 import { createCharacterAsset, releaseMeshes, type CharacterRig } from './characters/index.js';
 import {
   slashFx, ringBurst, beamFx, projectileFx, explosionFx, healFx, skillAuraFx,
@@ -470,6 +471,7 @@ export class BattleScene3D {
     }
 
     // 房间状态
+    const machines = snap.players.map(slotMachineState);
     for (const room of this.rooms.values()) {
       const members = snap.players.filter((x) => x.room === room.rid && x.alive);
       const acting = !!snap.currentActor && members.some((m) => m.id === snap.currentActor);
@@ -483,8 +485,11 @@ export class BattleScene3D {
       room.labelPending.textContent = pending ? `💣 预计第 ${pendingD!.explodeRound} 回合末爆炸（平局顺延）` : '';
       room.labelMud.hidden = !mudHere;
       room.labelMud.textContent = mudHere?.active ? '泥潭' : mudHere ? '积水' : '';
+      const objects = machines.flatMap(machine => machine?.room === room.rid ? [slotMachineRoomLabel(machine)] : []);
+      room.labelObjects.textContent = objects.join(' · ');
+      room.labelObjects.hidden = !objects.length;
       room.label.classList.toggle('is-muddy', !!mudHere?.active);
-      room.label.setAttribute('aria-label', `房间 ${room.rid}${mudHere?.active ? '，泥潭封路' : mudHere ? `，第 ${mudHere.activeRound} 回合泥潭预警` : ''}`);
+      room.label.setAttribute('aria-label', [`房间 ${room.rid}`, mudHere?.active ? '泥潭封路' : mudHere ? `第 ${mudHere.activeRound} 回合泥潭预警` : '', ...objects].filter(Boolean).join('，'));
       room.label.classList.toggle('is-empty', members.length === 0);
       room.label.classList.toggle('is-pending', pending);
       room.label.classList.toggle('is-acting', acting);
@@ -567,6 +572,7 @@ export class BattleScene3D {
     e.plateCount = memberIds.length;
     // 名牌
     e.nameEl.textContent = p.name;
+    e.plate.dataset.room = p.room;
     e.pickButton.setAttribute('aria-label', `${p.name}，${p.room}，生命 ${fmtN(p.hp)}/${fmtN(p.maxHp)}，点击选择或查看详情`);
     e.hpButton.setAttribute('aria-label', `查看 ${p.name} 的生命与状态（${fmtN(p.hp)}/${fmtN(p.maxHp)}）`);
     const hpPct = Math.max(0, Math.min(100, (p.hp / Math.max(1, p.maxHp)) * 100));
@@ -602,7 +608,9 @@ export class BattleScene3D {
     if (this.myIds.includes(p.id)) parts.push('<span class="b3-bdg mine">我</span>');
     if (snap.currentActor === p.id && p.alive) parts.push('<span class="b3-bdg act">行动中</span>');
     if (p.hidden && p.alive) parts.push('<span class="b3-bdg">🙈</span>');
-    if (p.invisible && p.alive) parts.push('<span class="b3-bdg">👻</span>');
+    if (p.alive && p.effects?.some(effect => effect.kind === 'possessing')) parts.push('<span class="b3-bdg">👻 附身中</span>');
+    else if (p.invisible && p.alive) parts.push('<span class="b3-bdg">👻</span>');
+    if (p.alive && p.effects?.some(effect => effect.kind === 'possessed')) parts.push('<span class="b3-bdg">被附身</span>');
     if (p.char.domain === true && p.alive) parts.push('<span class="b3-bdg dom">✨领域</span>');
     if (typeof p.char.livesLeft === 'number' && (p.char.livesLeft as number) > 1 && p.alive) parts.push(`<span class="b3-bdg">💫${p.char.livesLeft}</span>`);
     if (snap.submittedIds?.includes(p.id) && (snap.phase === 'rps1' || snap.phase === 'rps2') && p.alive) parts.push('<span class="b3-bdg">已出拳</span>');
@@ -1020,13 +1028,18 @@ export class BattleScene3D {
     const target = this.rooms.get(room);
     if (!target) return;
     const duration = Math.max(0.8, seconds);
-    const position = target.pos.clone().setY(PLATFORM_H);
+    const landed = this.decorations.objectFor(pid);
+    const position = landed?.getWorldPosition(new THREE.Vector3()) ?? target.pos.clone().setY(PLATFORM_H);
     const fx = slotMachineDropFx(position, {
       duration,
       reducedMotion: this.reduced,
       lowEffects: this.lowEffects,
     });
-    this.spawnFx(fx, position, duration * 1000 + 200);
+    if (landed) landed.visible = false;
+    this.spawnFx({ ...fx, dispose() {
+      if (landed) landed.visible = true;
+      fx.dispose();
+    } }, position, duration * 1000 + 200);
     const actor = this.entities.get(pid);
     if (actor && canAct(actor)) actor.pose = { kind: 'attack', t: 0, dur: Math.min(0.7, duration * 0.3) };
     this.spawnFloat(position.clone().setY(PLATFORM_H + 2.25), '<span class="b3-ticker boom">老虎机从天而降</span>');
@@ -1509,9 +1522,19 @@ export class BattleScene3D {
       }
     }
 
-    for (const entity of this.entities.values()) {
-      entity.rig.presentation?.update(poseDt, id => this.entities.get(id)?.rig.root);
-    }
+    const updatedRigs = new Set<string>();
+    const updateRig = (entity: Entity): void => {
+      const presentation = entity.rig.presentation;
+      if (!presentation || updatedRigs.has(entity.pid)) return;
+      updatedRigs.add(entity.pid);
+      presentation.update(poseDt, id => {
+        const host = this.entities.get(id);
+        if (!host?.alive || host.curRoom !== entity.curRoom) return;
+        updateRig(host);
+        return host.rig.presentation?.attachmentAnchor?.() ?? host.rig.root;
+      });
+    };
+    for (const entity of this.entities.values()) updateRig(entity);
     const movingDecorations = this.decorations.update(poseDt);
 
     // 房间动画

@@ -1,5 +1,6 @@
 import { presentationMoves, type PresentationMove } from '../battle/events.js';
 import { characterActionPresentations } from '../battle/collaboration-presentations.js';
+import { SLOT_SPIN_PRESENTATIONS } from '../battle/slot-machine-presentation.js';
 import { registerActionPresenter, type ActionPresentationScene } from './action-presenters.js';
 
 export interface AssetCue {
@@ -18,7 +19,10 @@ export function publicTargets(presentation: Readonly<Record<string, unknown>> | 
   return [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0))];
 }
 
-for (const { fx, clip, durationMs: nominal } of characterActionPresentations) {
+const assetPresentations = [...characterActionPresentations,
+  ...SLOT_SPIN_PRESENTATIONS.map(({ fx, durationMs }) => ({ fx, durationMs, clip: 'slot_pull' }))];
+
+for (const { fx, clip, durationMs: nominal } of assetPresentations) {
   registerActionPresenter(fx, ({ scene, event, durationMs }) => {
     const capable: AssetPresentationScene = scene;
     if (!event.pid || !capable.playAssetCue) return false;

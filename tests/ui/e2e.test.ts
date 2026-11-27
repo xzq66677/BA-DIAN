@@ -15,6 +15,7 @@ import { expect } from '@playwright/test';
 import { attachBrowserTransport } from '../support/browser-transport.js';
 import { startTestServer, type TestServer } from '../support/test-server.js';
 import { ALL_CASES } from '../../shared/src/testcases/index.js';
+import type { SlotState } from '../../shared/src/characters/slot-hero.js';
 
 let browser: Browser;
 let server: TestServer;
@@ -333,6 +334,125 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
       await expect(page.getByLabel('角色状态')).toBeVisible();
       await page.getByRole('button', { name: '关闭状态详情' }).click();
       await expect(page.getByRole('dialog')).toHaveCount(0);
+      expect(jsErrors).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('双鬼影在 3D 播报实际移动者，附身名牌跟随宿主', async () => {
+    const host = await newPage(browser);
+    const guest = await newPage(browser);
+    try {
+      await host.goto(baseUrl + '/?entrance=classic&r=3d');
+      await host.getByPlaceholder('输入昵称').fill('移动鬼影');
+      await host.getByLabel('选择角色卡').selectOption('ghost');
+      await host.getByRole('button', { name: '仅创建（邀请好友）' }).click();
+      await host.getByText(/玩家卡位/).waitFor();
+      const code = (await host.locator('.tcg-panel').first().innerText()).match(/\b[A-Z2-9]{4}\b/)?.[0];
+      expect(code).toBeTruthy();
+      await guest.goto(baseUrl + '/?entrance=classic&r=2d');
+      await guest.getByPlaceholder('输入昵称').fill('宿主鬼影');
+      await guest.getByLabel('选择角色卡').selectOption('ghost');
+      await guest.locator('.room-item').filter({ hasText: code! }).getByRole('button', { name: '加入', exact: true }).click();
+      await expect(host.locator('.seat-slot')).toHaveCount(2);
+      await host.getByRole('button', { name: /开始对局/ }).click();
+      await expect(host.getByTestId('battle3d').locator('canvas')).toBeVisible({ timeout: 20000 });
+
+      const { rooms } = await import('../../server/src/index.js');
+      const room = rooms.get(code!)!;
+      const game = room.game!;
+      const [a, b] = game.playerIds;
+      expect(game.playerIds.map(id => game.players[id].charId)).toEqual(['ghost', 'ghost']);
+      const from = game.players[a].room;
+      const to = game.players[b].room;
+      expect(from).not.toBe(to);
+      expect(room.submitThrow(a, 'rock').ok).toBe(true);
+      expect(room.submitThrow(b, 'scissors').ok).toBe(true);
+      expect(room.submitAction(a, { type: 'possess', targetId: b }).ok).toBe(true);
+
+      const aPlate = host.locator(`.b3-plate[data-pid="${a}"]`);
+      const bPlate = host.locator(`.b3-plate[data-pid="${b}"]`);
+      await expect(host.locator('.battle-movement')).toContainText(`移动鬼影 ${from} → ${to}`);
+      await expect(aPlate).toHaveAttribute('data-room', to);
+      await expect(aPlate).toContainText('附身中');
+      await expect(bPlate).toContainText('被附身');
+
+      expect(room.submitThrow(a, 'scissors').ok).toBe(true);
+      expect(room.submitThrow(b, 'rock').ok).toBe(true);
+      expect(room.submitAction(b, { type: 'move', room: from }).ok).toBe(true);
+      await expect(host.locator('.battle-movement')).toContainText(`宿主鬼影 ${to} → ${from}`);
+      await expect(host.locator('.battle-movement')).toContainText(`移动鬼影 ${to} → ${from}`);
+      await expect(aPlate).toHaveAttribute('data-room', from);
+      await expect(bPlate).toHaveAttribute('data-room', from);
+
+      expect(room.submitThrow(a, 'rock').ok).toBe(true);
+      expect(room.submitThrow(b, 'scissors').ok).toBe(true);
+      const detach = host.locator('.scard').filter({ hasText: '主动脱离' });
+      await expect(detach).toBeVisible();
+      await expect(host.locator('.scard-name').filter({ hasText: /^攻击$/ })).toHaveCount(0);
+      await detach.click();
+      await host.getByRole('button', { name: '确认发动' }).click();
+      await expect(aPlate).not.toContainText('附身中');
+      await expect(bPlate).not.toContainText('被附身');
+      await expect(aPlate).toHaveAttribute('data-room', from);
+    } finally {
+      await guest.close();
+      await host.close();
+    }
+  });
+
+  it('老虎机侠在 2D 和 3D 显示持有物、落点和落地模型', async () => {
+    const page = await newPage(browser);
+    const jsErrors: string[] = [];
+    page.on('pageerror', error => jsErrors.push(String(error)));
+    try {
+      await page.goto(baseUrl + '/?entrance=classic&r=2d', { waitUntil: 'domcontentloaded' });
+      await page.getByPlaceholder('输入昵称').fill('老虎机落点测试');
+      await page.getByLabel('选择角色卡').selectOption('slot-hero');
+      await page.locator('select').nth(2).selectOption('1');
+      await page.getByRole('button', { name: /单人开局/ }).click();
+      const inventory = page.locator('.player-inventory');
+      await expect(inventory).toContainText('余额 5 块');
+      await expect(inventory).toContainText('钥匙 0 把');
+
+      const { rooms } = await import('../../server/src/index.js');
+      const room = [...rooms.values()].find(room => room.game?.playerIds.some(id => room.game?.players[id].name === '老虎机落点测试'))!;
+      const game = room.game!;
+      const player = game.playerIds.find(id => game.players[id].name === '老虎机落点测试')!;
+      const destination = game.roomIds.find(id => id !== game.players[player].room)!;
+      const state = game.charState(player) as unknown as SlotState;
+      state.keys = 2;
+      state.machine = { thrown: true, landed: false, room: destination, at: 4, invested: 5 };
+      room.onBroadcast(room);
+      await expect(inventory).toContainText('钥匙 2 把');
+      const target = page.locator(`[data-room="${destination}"]`);
+      await expect(target.locator('.room-slot-machine')).toHaveText(/第 4 回合末落地/);
+      const location = page.locator('.tcg-header .slot-machine-location');
+      await expect(location).toContainText(`${destination} · 老虎机`);
+
+      await page.getByRole('button', { name: '3D', exact: true }).click();
+      const label = page.locator(`.b3-roomlabel[data-room="${destination}"]`);
+      await expect(label).toContainText('第 4 回合末落地', { timeout: 20000 });
+      await expect.poll(() => page.evaluate(() => {
+        const probe = window as unknown as { __b3scene?: { scene: { getObjectByName(name: string): unknown } } };
+        return !!probe.__b3scene?.scene.getObjectByName('slot-hero-v1');
+      })).toBe(true);
+
+      state.machine.landed = true;
+      state.machine.at = null;
+      room.onBroadcast(room);
+      await expect(label).toContainText('老虎机已落地');
+      await expect(location).toContainText(`${destination} · 老虎机已落地`);
+      await expect.poll(() => page.evaluate(() => {
+        const probe = window as unknown as { __b3scene?: { scene: { getObjectByName(name: string): { parent: { userData: { room?: string } } } | undefined } } };
+        return probe.__b3scene?.scene.getObjectByName('landed-slot-machine')?.parent.userData.room;
+      })).toBe(destination);
+
+      await page.getByRole('button', { name: '2D', exact: true }).click();
+      await expect(target.locator('.room-slot-machine')).toHaveText(/老虎机已落地/);
+      await page.reload();
+      await expect(location).toContainText('老虎机已落地', { timeout: 20000 });
       expect(jsErrors).toEqual([]);
     } finally {
       await page.close();

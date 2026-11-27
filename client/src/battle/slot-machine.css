@@ -164,13 +164,17 @@
 .slot-reel-cell:nth-child(2) { top: 0; bottom: 0; }
 .slot-reel-cell:nth-child(3) { bottom: -110%; }
 
-.slot-reels[data-spinning='1'] .slot-reel > span {
+.slot-reels[data-spinning='1'] .slot-reel[data-stopped='0'] > span {
   animation: slot-reel-spin 0.52s steps(6) infinite;
 }
 
 .slot-reels[data-spinning='1'] .slot-reel:nth-child(2) > span { animation-delay: -0.17s; }
 .slot-reels[data-spinning='1'] .slot-reel:nth-child(3) > span { animation-delay: -0.31s; }
 .slot-reels[data-spinning='1'] .slot-reel:nth-child(4) > span { animation-delay: -0.43s; }
+.slot-reel[data-concealed='1'] > span { visibility: hidden; }
+.slot-reel[data-concealed='1']::after { content: '–'; color: #7c2027; }
+.slot-spin-title { font-size: .875rem; font-weight: 800; margin-bottom: 18px; }
+.slot-pull-overlay[data-kind='slotPull4'] .slot-machine-stage { width: clamp(220px, 33vw, 304px); aspect-ratio: 1.04; }
 
 .slot-marquee-lights {
   position: absolute;

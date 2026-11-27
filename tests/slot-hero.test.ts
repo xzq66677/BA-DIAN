@@ -88,6 +88,8 @@ describe('老虎机侠 · 基础', () => {
     expect(s.money).toBe(2);
     expect(s.machine.invested).toBe(5);
     expect(s.reels).toEqual([1, 2, 0, 5]);
+    expect(g.logs.find(log => log.data?.actionName === 'slotSpin4')?.data?.presentation)
+      .toEqual({ reels: [1, 2, 0, 5], reelCount: 4 });
     const snap = g.snapshot() as unknown as { players: { id: string; char: { reels: number[] } }[] };
     expect(snap.players.find((p) => p.id === 'A')!.char.reels).toEqual([1, 2, 0, 5]);
   });
@@ -103,7 +105,10 @@ describe('老虎机侠 · 基础', () => {
     expect(g.stats.A.actions).toBe(before);
     expect(g.currentActor()).toBe('A');
     // 4 块够抽 3 格
+    forceDigits(g, [0, 4, 9]);
     expect(spin(g, 'slotSpin3').ok).toBe(true);
+    expect(g.logs.find(log => log.data?.actionName === 'slotSpin3')?.data?.presentation)
+      .toEqual({ reels: [0, 4, 9], reelCount: 3 });
   });
 });
 
@@ -294,6 +299,9 @@ describe('老虎机侠 · 老虎机', () => {
     const r = spin(g, 'slotSpin4');
     expect(r.ok).toBe(false);
     expect(r.error).toContain('同房间');
+    g.players.A.room = s.machine.room!;
+    expect(spin(g, 'slotSpin4').ok).toBe(true);
+    expect(s.machine.invested).toBe(0);
   });
 });
 

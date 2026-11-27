@@ -3,6 +3,18 @@ import type { SnapPlayer } from '../../../shared/src/protocol.js';
 import { playerStatusItems } from './status-readers.js';
 import { formatHp } from './status-types.js';
 
+export function PlayerInventory({ p }: { p: SnapPlayer }) {
+  const items = playerStatusItems(p).filter(item => item.inventory);
+  if (!items.length) return null;
+  return (
+    <div className="player-inventory" aria-label={`${p.name}的持有物`}>
+      {items.map(item => (
+        <span key={item.key} title={item.detail}><span aria-hidden>{item.icon} </span>{item.label} {item.value}</span>
+      ))}
+    </div>
+  );
+}
+
 export function PlayerStatusList({ p, players }: { p: SnapPlayer; players?: readonly SnapPlayer[] }) {
   return (
     <div className="player-status-list" aria-label="角色状态">
