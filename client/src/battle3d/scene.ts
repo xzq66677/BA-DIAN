@@ -15,7 +15,7 @@ import { cardMeta } from '../cards.js';
 import { createCharacterAsset, releaseMeshes, type CharacterRig } from './characters/index.js';
 import {
   slashFx, ringBurst, beamFx, projectileFx, explosionFx, healFx, skillAuraFx,
-  flashLightFx, dustFx, domainBurstFx, type FxInstance,
+  flashLightFx, dustFx, domainBurstFx, towerCollapseFx, type FxInstance,
 } from './fx.js';
 import { gllog } from './gllog.js';
 import { slotMachineDropFx } from './slot-drop-fx.js';
@@ -406,6 +406,7 @@ export class BattleScene3D {
       baseScale: rig.root.scale.clone(),
       plateSlot: 0, plateCount: 1,
     };
+    e.group.visible = !e.inRoomStructure;
     this.entities.set(p.id, e);
     return e;
   }
@@ -552,6 +553,7 @@ export class BattleScene3D {
     const toRoom = this.rooms.get(p.room)!;
     const structureChanged = e.inRoomStructure !== (p.char.inTower === true);
     e.inRoomStructure = p.char.inTower === true;
+    e.group.visible = !e.inRoomStructure;
     const slot = this.spawnFor(p.id, toRoom);
     if (e.curRoom !== p.room || structureChanged) {
       const worldFrom = e.group.getWorldPosition(new THREE.Vector3());
@@ -1053,6 +1055,27 @@ export class BattleScene3D {
     this.spawnFloat(to.pos.clone().setY(PLATFORM_H + 2.4), '<span class="b3-ticker boom">💥 大伊万爆炸！</span>');
     this.shake(this.reduced ? 0.05 : 0.34);
     this.pulseRoom(room, 'blast', 1.5);
+    this.focusRoom('major', room);
+  }
+
+  playTowerHit(room: string, amount: number, hpAfter: number): void {
+    const to = this.rooms.get(room);
+    if (!to) return;
+    if (hpAfter <= 0) this.decorations.collapse(room);
+    else this.decorations.hit(room);
+    this.spawnFx(ringBurst(0xb8a78c, 1.15, 0.5, { y: PLATFORM_H + 0.15, tube: 0.045 }), to.pos.clone().setY(0), 650);
+    this.spawnFloat(to.pos.clone().setY(PLATFORM_H + 2.1), `<span class="b3-ticker">🗼 高塔 -${amount}（${hpAfter}/6）</span>`);
+  }
+
+  playTowerCollapse(room: string): void {
+    const to = this.rooms.get(room);
+    if (!to) return;
+    this.decorations.collapse(room);
+    const pos = to.pos.clone().setY(PLATFORM_H + 0.25);
+    this.spawnFx(towerCollapseFx(), pos, 1500);
+    this.spawnFloat(to.pos.clone().setY(PLATFORM_H + 2.5), '<span class="b3-ticker boom">🗼 玄武岩高塔坍塌！</span>');
+    this.shake(this.reduced ? 0.08 : 0.42);
+    this.pulseRoom(room, 'blast', 1.2);
     this.focusRoom('major', room);
   }
 

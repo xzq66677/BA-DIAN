@@ -94,7 +94,8 @@ export function projectMapSnapshot(
 
 export type MapPlaybackScene = Pick<BattleScene3D,
   'playAction' | 'playAttackDecl' | 'playAreaAlert' | 'playHit' | 'playHeal' | 'playMiss' |
-  'playWalk' | 'playEliminate' | 'playRevive' | 'playIvanThrow' | 'playIvanBoom' | 'playDomain' | 'playTrigger'>;
+  'playWalk' | 'playEliminate' | 'playRevive' | 'playIvanThrow' | 'playIvanBoom' | 'playTowerHit' |
+  'playTowerCollapse' | 'playDomain' | 'playTrigger'>;
 
 export function playMapEvent(scene: MapPlaybackScene, event: BattleEvent, durationMs: number): void {
   switch (event.kind) {
@@ -134,6 +135,12 @@ export function playMapEvent(scene: MapPlaybackScene, event: BattleEvent, durati
       break;
     case 'ivanBoom':
       if (event.room) scene.playIvanBoom(event.room);
+      break;
+    case 'towerHit':
+      if (event.room) scene.playTowerHit(event.room, event.amount ?? 0, event.hpAfter ?? 0);
+      break;
+    case 'towerCollapse':
+      if (event.room) scene.playTowerCollapse(event.room);
       break;
     case 'domain':
       if (event.targetId) scene.playDomain(event.targetId);

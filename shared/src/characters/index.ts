@@ -925,8 +925,32 @@ function actionTargetIds(req: { targetId?: PlayerId; targetIds?: PlayerId[] }): 
   return [...new Set([...(req.targetIds ?? []), ...(req.targetId ? [req.targetId] : [])])];
 }
 
+/** 高塔承受伤害：实际吸收量不超过剩余耐久，归零时坍塌。 */
+function damageTower(
+  game: GameLike,
+  owner: PlayerId,
+  amount: number,
+  meta: { source?: PlayerId; tag?: string } = {},
+): number {
+  const st = waterSnakeState(game, owner);
+  const base = st.towerBaseRoom;
+  if (!base || !(st.towerHp > 0) || !(amount > 0)) return 0;
+  const before = st.towerHp;
+  const absorbed = Math.min(before, amount);
+  st.towerHp = Math.max(0, Math.round((before - absorbed) * 10000) / 10000);
+  game.log('trigger', `🗼 玄武岩高塔吸收 ${fmtNum(absorbed)} 点伤害：${fmtNum(before)} → ${fmtNum(st.towerHp)} 血`,
+    {
+      tower: base, towerHit: true, amount: absorbed,
+      hpBefore: before, hpAfter: st.towerHp,
+      ...(meta.source ? { source: meta.source } : {}),
+      ...(meta.tag ? { tag: meta.tag } : {}),
+    }, true);
+  if (st.towerHp <= 0) collapseTower(game, owner, meta.source);
+  return absorbed;
+}
+
 /** 高塔坍塌：塔内所有玩家被弹出塔外，塔回到未建造状态 */
-function collapseTower(game: GameLike, owner: PlayerId): void {
+function collapseTower(game: GameLike, owner: PlayerId, source?: PlayerId): void {
   const st = waterSnakeState(game, owner);
   const base = st.towerBaseRoom;
   if (!base) return;
@@ -940,14 +964,16 @@ function collapseTower(game: GameLike, owner: PlayerId): void {
   st.towerHp = 0;
   st.buildProgress = 0;
   st.inTower = false;
-  game.log('trigger', `🗼 ${base} 的玄武岩高塔坍塌！`, { tower: base }, true);
+  game.log('trigger', `🗼 ${base} 的玄武岩高塔坍塌！`,
+    { tower: base, towerCollapse: true, ...(source ? { source } : {}) }, true);
 }
 
 /**
  * 15. 飞天水螅（Issue #71）
  *
  * - 血量 3、攻击 1.5；
- * - 消耗一次行动造玄武岩高塔（需 2 次行动造完）：塔内外隔绝、算作新房间（塔 6 点耐久，暂不可被摧毁）；
+ * - 消耗一次行动造玄武岩高塔（需 2 次行动造完）：塔 6 点耐久，吸收所在房间的房间级伤害；
+ *   塔内外隔绝、算作新房间，建成后自身进入塔内；
  * - 自身与敌人同处塔内时，敌人行动前须判定：胜→正常行动、平→本次行动无效、负→攻击自己；
  * - 吸/吹各消耗一次行动，只把敌人移动一格：
  *   吸 = 其他房间→自己房间 / 自己房间→塔内；吹 = 塔内→自己房间 / 自己房间→其他房间；
@@ -956,11 +982,12 @@ function collapseTower(game: GameLike, owner: PlayerId): void {
 const waterSnake: CharDef = {
   id: 'water-snake',
   name: '飞天水螅',
-  desc: '血量3、攻击1.5。消耗一次行动在当前房间造玄武岩高塔（需2次行动造完）：塔内外隔绝、算作新房间。自身与敌人同处塔内时，敌人行动前须判定——胜则正常行动、平局本次不行动、输了攻击自己。吸/吹各消耗一次行动，只把敌人移动一格：吸=其他房间→自己房间、自己房间→塔内；吹=塔内→自己房间、自己房间→其他房间。死后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹。',
+  desc: '血量3、攻击1.5，无法主动回复。消耗一次行动在当前房间造玄武岩高塔（需2次行动造完）：塔6点耐久并吸收房间级伤害，塔内外隔绝、算作新房间，建成后自身进入塔内。自身与敌人同处塔内时，敌人行动前须判定——胜则正常行动、平局本次不行动、输了攻击自己。吸/吹各消耗一次行动，只把敌人移动一格：吸=其他房间→自己房间、自己房间→塔内；吹=塔内→自己房间、自己房间→其他房间。死后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹。',
   hp: 3,
   attack: 1.5,
   attackType: 'melee',
   attackDesc: '近战攻击同房间目标（伤害 1.5）；高塔内外隔绝，无法直接攻击塔壁另一端的目标',
+  blockBaseActions: ['heal'],
   traits: ['tower'],
   init: () => ({ towerBaseRoom: null, towerHp: 0, buildProgress: 0, inTower: false, posthumous: false }),
   /** 亡魂免疫：化为亡魂后不再受到伤害（也避免了被反复击杀） */
@@ -968,6 +995,13 @@ const waterSnake: CharDef = {
     if (req.target !== owner) return;
     const st = waterSnakeState(game, owner);
     if (st.posthumous === true) return 'skip';
+  },
+  /** 高塔吸收所在房间的房间级伤害，塔内玩家由塔壁保护。 */
+  absorbRoomDamage: ({ game, owner, room, amount, source, tag }) => {
+    const st = waterSnakeState(game, owner);
+    if (st.towerBaseRoom !== room || !(st.towerHp > 0)) return false;
+    damageTower(game, owner, amount, { source, tag });
+    return true;
   },
   /** 首次致死 → 化为亡魂（不死亡，继续参与对局） */
   onLethalDamage: ({ game, player }) => {
@@ -1042,15 +1076,10 @@ const waterSnake: CharDef = {
       },
       execute: (ctx) => {
         const st = waterSnakeState(ctx.game, owner);
-        const baseRoom = st.towerBaseRoom;
-        if (!baseRoom) return;
+        if (!st.towerBaseRoom) return;
         const def = ctx.game.charDef(ctx.actor);
         const amount = def.meleeDamage ?? def.attack ?? ctx.game.rules.defaultAttack;
-        const before = typeof st.towerHp === 'number' ? st.towerHp : 0;
-        st.towerHp = Math.max(0, Math.round((before - amount) * 10000) / 10000);
-        ctx.game.log('damage', `🗼 ${ctx.game.players[ctx.actor].name} 攻击高塔：${fmtNum(before)} → ${fmtNum(st.towerHp)} 血`,
-          { pid: ctx.actor, tower: baseRoom, hp: st.towerHp }, true);
-        if (st.towerHp <= 0) collapseTower(ctx.game, owner);
+        damageTower(ctx.game, owner, amount, { source: ctx.actor, tag: 'attack-tower' });
       },
     }];
   },
@@ -1071,7 +1100,7 @@ const waterSnake: CharDef = {
     {
       name: 'buildTower',
       label: '造玄武岩高塔',
-      desc: '消耗本次行动建造高塔（需 2 次行动造完）：塔内外隔绝、算作新房间；建成后自身进入塔内。',
+      desc: '消耗本次行动建造高塔（需 2 次行动造完）：塔 6 点耐久并吸收房间级伤害，塔内外隔绝、算作新房间；建成后自身进入塔内。',
       targetHint: 'none',
       validate: (ctx) => {
         const st = waterSnakeState(ctx.game, ctx.actor);
@@ -1091,6 +1120,7 @@ const waterSnake: CharDef = {
         st.towerBaseRoom = p.room;
         st.towerHp = 6;
         st.inTower = true;
+        p.char.inTower = true;
         ctx.game.log('trigger', `🗼 ${p.name} 在 ${p.room} 建成玄武岩高塔并进入塔内（塔内外隔绝、算作新房间）`,
           { pid: ctx.actor, room: p.room, towerBaseRoom: p.room }, true);
       },

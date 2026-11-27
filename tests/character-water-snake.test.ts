@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { Game } from '../shared/src/engine.js';
 import { CHARACTERS } from '../shared/src/characters/index.js';
+import { aiDecideAction } from '../server/src/ai.js';
 import type { Throw } from '../shared/src/types.js';
 
 function makeGame(
@@ -44,6 +45,7 @@ function forceThrows(g: Game, seq: number[]): void {
 function buildTowerDirectly(g: Game, baseRoom = 'R1', owner = 'A'): void {
   const st = g.charState(owner);
   st.towerBaseRoom = baseRoom;
+  st.towerHp = 6;
   st.buildProgress = 2;
   st.inTower = true;
 }
@@ -52,7 +54,7 @@ describe('飞天水螅：造塔', () => {
   it('消耗两次行动造完；建成后进入塔内并算作新房间', () => {
     const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
     g.players.A.room = 'R1';
-    g.players.B.room = 'R2';
+    g.players.B.room = 'R1';
 
     throws(g, { A: 'rock', B: 'scissors' });
     expect(g.submitAction('A', { type: 'buildTower' }).ok).toBe(true);
@@ -64,6 +66,9 @@ describe('飞天水螅：造塔', () => {
     expect(g.charState('A').buildProgress).toBe(2);
     expect(g.charState('A').towerBaseRoom).toBe('R1');
     expect(g.charState('A').inTower).toBe(true);
+    expect(g.players.A.char.inTower).toBe(true);
+    expect(g.roomMembers('R1')).toEqual(['B']);
+    expect(g.isSameRoom('A', 'B')).toBe(false);
   });
 
   it('塔内外隔绝：塔内玩家不计入房间成员，也不能被塔外直接攻击', () => {
@@ -94,6 +99,88 @@ describe('飞天水螅：造塔', () => {
     expect(g.submitAction('A', { type: 'move', room: 'R2' }).ok).toBe(true);
     expect(g.charState('A').inTower).toBe(false);
     expect(g.players.A.room).toBe('R2');
+  });
+});
+
+describe('飞天水螅：高塔耐久与禁疗', () => {
+  it('无法主动回复，AI 也不会选择回复', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    g.players.A.hp = 1;
+    throws(g, { A: 'rock', B: 'scissors' });
+
+    for (const difficulty of ['easy', 'normal', 'hard'] as const) {
+      expect(aiDecideAction(g, 'A', difficulty).type).not.toBe('heal');
+    }
+    expect(aiDecideAction(g, 'A', 'normal')).toMatchObject({ type: 'buildTower' });
+    const result = g.submitAction('A', { type: 'heal' });
+    expect(result.ok).toBe(false);
+    expect(String(result.error)).toContain('无法使用该行动');
+    expect(g.players.A.hp).toBe(1);
+    expect(g.phase).toBe('act');
+  });
+
+  it('伍六七三刀先被高塔吸收，塔内玩家安全且塔只扣 3 耐久', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    buildTowerDirectly(g, 'R1');
+    g.addDeferred({ kind: 'wuliuqi-slash', room: 'R1', explodeRound: g.roundNo, createdAtRound: g.roundNo });
+
+    throws(g, { A: 'rock', B: 'scissors' });
+    expect(g.submitAction('A', { type: 'skip' }).ok).toBe(true);
+
+    expect(g.players.A.hp).toBe(3);
+    expect(g.players.A.alive).toBe(true);
+    expect(g.players.A.char.inTower).toBe(true);
+    expect(g.charState('A').towerHp).toBe(3);
+    expect(g.players.B.alive).toBe(false);
+    expect(g.logs.find((log) => log.data?.towerHit === true)?.data).toMatchObject({
+      tower: 'R1', amount: 3, hpBefore: 6, hpAfter: 3, tag: 'wuliuqi-slash',
+    });
+  });
+
+  it('三刀打塌高塔时，被弹出的塔内玩家也不会吃该批剩余伤害', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    buildTowerDirectly(g, 'R1');
+    g.charState('A').towerHp = 2;
+    g.addDeferred({ kind: 'wuliuqi-slash', room: 'R1', explodeRound: g.roundNo, createdAtRound: g.roundNo });
+
+    throws(g, { A: 'rock', B: 'scissors' });
+    expect(g.submitAction('A', { type: 'skip' }).ok).toBe(true);
+
+    expect(g.players.A.hp).toBe(3);
+    expect(g.players.A.alive).toBe(true);
+    expect(g.players.A.char.inTower).toBe(false);
+    expect(g.charState('A').towerBaseRoom).toBeNull();
+    expect(g.players.B.alive).toBe(false);
+  });
+
+  it('大伊万爆炸被 6 耐久高塔吸收，塔内玩家无事发生，塔坍塌并弹出玩家', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    buildTowerDirectly(g, 'R1');
+    g.addDeferred({ kind: 'ivan', room: 'R1', source: 'B', explodeRound: g.roundNo, createdAtRound: g.roundNo });
+
+    throws(g, { A: 'rock', B: 'scissors' });
+    expect(g.submitAction('A', { type: 'skip' }).ok).toBe(true);
+
+    expect(g.players.A.hp).toBe(3);
+    expect(g.players.A.alive).toBe(true);
+    expect(g.players.A.char.inTower).toBe(false);
+    expect(g.charState('A').towerBaseRoom).toBeNull();
+    expect(g.charState('A').towerHp).toBe(0);
+    expect(g.players.B.alive).toBe(false);
+    expect(g.logs.find((log) => log.data?.towerHit === true)?.data).toMatchObject({
+      tower: 'R1', amount: 6, hpBefore: 6, hpAfter: 0, tag: 'ivan',
+    });
+    expect(g.logs.find((log) => log.data?.towerCollapse === true)?.data).toMatchObject({
+      tower: 'R1', source: 'B',
+    });
   });
 });
 
