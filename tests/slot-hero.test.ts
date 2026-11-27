@@ -98,6 +98,14 @@ describe('老虎机侠 · 基础', () => {
     const g = makeGame([{ id: 'A', char: 'slot-hero' }, { id: 'B', char: 'default' }], 3);
     st(g).money = 4;
     toAct(g);
+    expect(g.snapshot().actionDisabledReasons).toMatchObject({
+      slotSpin4: expect.stringContaining('钱不够'),
+      slotKey: expect.stringContaining('没有钥匙'),
+      slotThrowSmall: '手里没有小炸弹',
+      slotThrowMachine: expect.stringContaining('余额需归零'),
+      slotKick: '老虎机还没有落地',
+    });
+    expect(g.snapshot().actionDisabledReasons?.slotSpin3).toBeUndefined();
     const before = g.stats.A.actions;
     const r = spin(g, 'slotSpin4');
     expect(r.ok).toBe(false);
@@ -196,6 +204,9 @@ describe('老虎机侠 · 炸弹', () => {
     expect(g.submitAction('A', { type: 'slotThrowSmall', room: target }).ok).toBe(true);
     expect(st(g).bombs[0].room).toBe(target);
     expect(st(g).bombs[0].at).toBe(at);
+    nextAct(g);
+    expect(g.snapshot().actionDisabledReasons?.slotThrowSmall).toBe('手里没有小炸弹');
+    expect(g.submitAction('A', { type: 'slotThrowSmall', room: target }).ok).toBe(false);
   });
 
   it('4 炸弹能力：指定房间立刻 999999 AOE，且能炸到自己', () => {

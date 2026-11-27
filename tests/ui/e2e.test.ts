@@ -390,12 +390,21 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
       expect(room.submitThrow(b, 'scissors').ok).toBe(true);
       const detach = host.locator('.scard').filter({ hasText: '主动脱离' });
       await expect(detach).toBeVisible();
-      await expect(host.locator('.scard-name').filter({ hasText: /^攻击$/ })).toHaveCount(0);
+      const attackCard = host.locator('.scard').filter({ has: host.getByText('攻击', { exact: true }) });
+      await expect(attackCard).toBeDisabled();
+      await expect(attackCard).toContainText('附身中');
+      const healCard = host.locator('.scard').filter({ has: host.getByText('回复', { exact: true }) });
+      await expect(healCard).toBeDisabled();
+      await expect(healCard).toContainText('该角色无法使用');
       await detach.click();
       await host.getByRole('button', { name: '确认发动' }).click();
       await expect(aPlate).not.toContainText('附身中');
       await expect(bPlate).not.toContainText('被附身');
       await expect(aPlate).toHaveAttribute('data-room', from);
+      expect(room.submitThrow(a, 'rock').ok).toBe(true);
+      expect(room.submitThrow(b, 'scissors').ok).toBe(true);
+      await expect(attackCard).toBeEnabled();
+      await expect(healCard).toBeDisabled();
     } finally {
       await guest.close();
       await host.close();

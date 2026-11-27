@@ -98,6 +98,8 @@ export interface CharActionDef {
   roomHint?: boolean;
   /** 房间选择排除角色当前房间（如吹飞落点） */
   roomExcludeCurrent?: boolean;
+  /** Public prerequisite that can be checked before choosing any targets. */
+  unavailableReason?(ctx: Pick<CharActionContext, 'game' | 'actor'>): string | null;
   validate?(ctx: CharActionContext): string | null;
   /** 执行行动；返回 `{ presentation }` 时引擎把它写进 action 日志（公开演出数据） */
   execute(ctx: CharActionContext): void | { presentation?: Record<string, unknown> };
@@ -224,6 +226,7 @@ export interface CharDef {
   rangedSameRoom?: boolean;
   /** 禁止使用的基础行动（如骷髅无法主动「回复」回满血） */
   blockBaseActions?: string[];
+  attackUnavailableReason?(ctx: Pick<CharActionContext, 'game' | 'actor'>): string | null;
   /** 领域生效后远程免瞄准（五条悟） */
   aimExemptWhenDomain?: boolean;
   /** 是否允许攻击自己（默认否） */

@@ -234,16 +234,16 @@ function throwBombAction(kind: SlotBomb['kind']): CharActionDef {
     label,
     desc: `把手中的${kind === 'ivan' ? '大伊万（999999 伤）' : '小炸弹（3 伤）'}丢到任意房间，引信不重置。`,
     roomHint: true,
+    unavailableReason: ({ game, actor }) => st(game, actor).bombs.some(b => b.kind === kind && b.room === null)
+      ? null : `手里没有${kind === 'ivan' ? '大伊万' : '小炸弹'}`,
     validate: (ctx) => {
-      const s = st(ctx.game, ctx.actor);
-      if (!s.bombs.some((b) => b.kind === kind)) return `手里没有${kind === 'ivan' ? '大伊万' : '小炸弹'}`;
       const room = ctx.params.room;
       if (!room || !ctx.game.roomIds.includes(room)) return `非法目标房间：${room}`;
       return null;
     },
     execute: (ctx) => {
       const s = st(ctx.game, ctx.actor);
-      const bomb = s.bombs.find((b) => b.kind === kind)!;
+      const bomb = s.bombs.find(b => b.kind === kind && b.room === null)!;
       const room = ctx.params.room!;
       bomb.room = room; // 引信不重置
       ctx.game.log('deferred', `💣 ${ctx.game.getPlayer(ctx.actor).name} 把${kind === 'ivan' ? '大伊万' : '小炸弹'}扔到 ${room}（第 ${bomb.at} 回合末爆炸）`, { pid: ctx.actor, room }, true);
@@ -303,9 +303,13 @@ const slotHero: CharDef = {
       label: '使用钥匙（封印）',
       desc: '消耗一把钥匙，永久封印任意一人一个「除攻击之外」的行动（任意距离、无视躲藏）。',
       targetHint: 'anyPlayer',
+      unavailableReason: ({ game, actor }) => {
+        if (st(game, actor).keys <= 0) return '没有钥匙（抽奖出现 2 个及以上钥匙符号可获得）';
+        const canSeal = game.aliveIds().some(pid => pid !== actor
+          && sealableActions(game, pid).some(({ action }) => !sealedAction(game, pid, action)));
+        return canSeal ? null : '当前没有可封印的行动';
+      },
       validate: (ctx) => {
-        const s = st(ctx.game, ctx.actor);
-        if (s.keys <= 0) return '没有钥匙（抽奖出现 2 个及以上钥匙符号可获得）';
         const t = ctx.params.targetId;
         if (!t || !ctx.game.players[t]) return '目标不存在';
         if (!ctx.game.players[t].alive) return '目标已淘汰';
@@ -335,9 +339,8 @@ const slotHero: CharDef = {
       label: '特殊大伊万（4 炸弹）',
       desc: '永久能力：消耗一次行动，指定任意房间立刻产生 999999 伤害的 AOE 爆炸（会炸到自己）。',
       roomHint: true,
+      unavailableReason: ({ game, actor }) => st(game, actor).bigIvan ? null : '尚未获得该能力（抽奖出现 4 个炸弹符号解锁）',
       validate: (ctx) => {
-        const s = st(ctx.game, ctx.actor);
-        if (!s.bigIvan) return '尚未获得该能力（抽奖出现 4 个炸弹符号解锁）';
         const room = ctx.params.room;
         if (!room || !ctx.game.roomIds.includes(room)) return `非法目标房间：${room}`;
         return null;
@@ -353,10 +356,13 @@ const slotHero: CharDef = {
       label: '扔出老虎机（余额归零后·仅一次）',
       desc: '把钱花光后才能使用（仅一次）：把老虎机扔到任意房间，第 3 回合末落地，对该房间所有人造成「累计投入金额」的伤害。落地后可与之同房间踹机 +1 块。',
       roomHint: true,
-      validate: (ctx) => {
-        const s = st(ctx.game, ctx.actor);
+      unavailableReason: ({ game, actor }) => {
+        const s = st(game, actor);
         if (s.machine.thrown) return '老虎机已经扔出去了（仅一次）';
         if (s.money > 0) return `余额需归零才能扔出老虎机（当前 ${fmtNum(s.money)} 块）`;
+        return null;
+      },
+      validate: (ctx) => {
         const room = ctx.params.room;
         if (!room || !ctx.game.roomIds.includes(room)) return `非法目标房间：${room}`;
         return null;
@@ -461,7 +467,7 @@ export function slotHeroAi(ctx: CharacterAiContext): ActionRequest | undefined {
 
   const canSpin = !s.machine.thrown || (s.machine.landed && me.room === s.machine.room);
   if (canSpin && s.money >= SPIN_COST[4]) return { type: 'slotSpin4' };
-  const bomb = s.bombs[0];
+  const bomb = s.bombs.find(b => b.room === null);
   if (bomb) {
     const best = busyRoom();
     if (best) return { type: bomb.kind === 'ivan' ? 'slotThrowIvan' : 'slotThrowSmall', room: best.room };

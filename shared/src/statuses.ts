@@ -48,8 +48,11 @@ export const POSSESSED_KIND = 'possessed';
 export const POSSESSING_KIND = 'possessing';
 export const MOUNTED_KIND = 'mounted';
 
-export function statusBlockedActions(effects?: readonly Pick<PublicStatusEffect, 'kind'>[]): string[] {
-  return effects?.flatMap(effect => statusDef(effect.kind)?.blockedActions ?? []) ?? [];
+export function statusBlockingAction(effects: readonly Pick<PublicStatusEffect, 'kind'>[] | undefined, action: string): string | undefined {
+  for (const { kind } of effects ?? []) {
+    const def = statusDef(kind);
+    if (def?.blockedActions?.includes(action)) return def.label;
+  }
 }
 
 /** A player can be defeated even when a character rule restores their life. */
@@ -284,7 +287,7 @@ const possessing: StatusDef = {
         validate: (ctx) => {
           const hid = (ctx.game.getStatus(ctx.actor, POSSESSING_KIND)?.data as { host?: PlayerId } | undefined)?.host;
           if (!hid || !ctx.game.players[hid]?.alive) return '没有可操控的宿主';
-          if (statusBlockedActions(ctx.game.players[hid].effects).includes('attack')) return '宿主当前无法攻击';
+          if (statusBlockingAction(ctx.game.players[hid].effects, 'attack')) return '宿主当前无法攻击';
           const targetId = ctx.params.targetId;
           if (!targetId || !ctx.game.players[targetId]?.alive) return '目标不存在或已淘汰';
           if (targetId === hid) return '不能操控宿主攻击自己';

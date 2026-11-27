@@ -671,14 +671,6 @@
   z-index: 8;
 }
 
-/* ── 已消耗技能卡灰化（今日勇者运势全局一次） ── */
-.scard.is-used {
-  opacity: 0.45;
-  filter: grayscale(0.9);
-  cursor: not-allowed;
-}
-.scard.is-used .scard-name { text-decoration: line-through; }
-
 /* ── 3D 房间选择提示（confirm-bar 内，替代下拉框） ── */
 .room-pick-hint {
   font-size: 12px;
