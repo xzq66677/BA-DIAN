@@ -41,17 +41,17 @@ function actMove(game: GameLike, pid: PlayerId, req: ActionRequest, map: BattleM
   const movementError = map.movementError?.(p.room, room);
   if (movementError) return { ok: false, error: movementError };
   const from = p.room;
-  p.room = room;
+  const wasInTower = game.isInTower(pid);
+  const moves = game.relocatePlayer(pid, room);
   // 离开高塔内部：恢复为普通房间状态（塔仍留在原房间）
-  if (p.char.inTower === true) {
-    p.char.inTower = false;
+  if (wasInTower) {
     game.log('state', `${p.name} 离开高塔内部`);
   }
   if (p.hidden) {
     p.hidden = false;
     game.log('state', `${p.name} 移动后现身（离开躲藏）`);
   }
-  const moveData: MoveEventData = { pid, from, to: room };
+  const moveData: MoveEventData = { pid, from, to: room, ...(moves.length ? { presentation: { moves } } : {}) };
   game.log('move', `${p.name} 从 ${from} 移动到 ${room}`, { ...moveData }, true);
   return { ok: true };
 }
@@ -69,12 +69,12 @@ function actAttack(game: GameLike, pid: PlayerId, req: ActionRequest, map: Battl
       const movementError = map.movementError?.(p.room, room);
       if (movementError) return { ok: false, error: movementError };
       const from = p.room;
-      p.room = room;
+      const moves = game.relocatePlayer(pid, room);
       if (p.hidden) {
         p.hidden = false;
         game.log('state', `${p.name} 移动后现身（离开躲藏）`);
       }
-      game.log('move', `${p.name} 从 ${from} 移动到 ${room}（准备三刀）`, { pid, from, to: room }, true);
+      game.log('move', `${p.name} 从 ${from} 移动到 ${room}（准备三刀）`, { pid, from, to: room, presentation: { moves } }, true);
     }
     game.addDeferred({
       kind: 'wuliuqi-slash', room, source: pid,

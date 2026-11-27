@@ -20,6 +20,7 @@ export interface RoomView {
   labelCount: HTMLSpanElement;
   labelPending: HTMLSpanElement;
   labelMud: HTMLSpanElement;
+  labelObjects: HTMLSpanElement;
   pos: THREE.Vector3;
   pendingIvan: boolean;
   bombMarker: THREE.Group | null;
@@ -128,7 +129,10 @@ export function buildRoomView(anchor: RoomAnchor, controls: RoomLabelControls): 
   labelMud.hidden = true;
   const labelPending = document.createElement('span');
   labelPending.className = 'b3-rl-pending';
-  label.append(icon, name, labelCount, labelMud, labelPending);
+  const labelObjects = document.createElement('span');
+  labelObjects.className = 'b3-rl-objects';
+  labelObjects.hidden = true;
+  label.append(icon, name, labelCount, labelMud, labelPending, labelObjects);
   label.addEventListener('click', (event) => {
     event.stopPropagation();
     if (controls.canPick(rid)) controls.pick(rid);
@@ -144,7 +148,7 @@ export function buildRoomView(anchor: RoomAnchor, controls: RoomLabelControls): 
   return {
     rid, anchor, slots: new Map(), bridge: null, pulse: null,
     group, beaconMat, edgeMat, dome: null,
-    label, labelCount, labelPending, labelMud,
+    label, labelCount, labelPending, labelMud, labelObjects,
     pos: new THREE.Vector3(pos0.x, 0, pos0.z),
     pendingIvan: false, bombMarker: null,
   };

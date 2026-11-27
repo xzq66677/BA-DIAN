@@ -1,4 +1,5 @@
 import type { SnapPlayer } from '../../../shared/src/protocol.js';
+import { slotMachineRoomLabel, slotMachineState } from './slot-machine-state.js';
 import {
   type StatusTone,
   formatHp,
@@ -124,12 +125,13 @@ const readStatusEffects: PlayerStatusReader = (p, context) => {
       continue;
     }
     if (effect.kind === 'possessing') {
+      const host = context.players.find(player => player.id === p.char.possessing);
       items.push({
         key: 'status-possessing',
         icon: '🌫',
         label: '附身中',
         value: '无法被锁定',
-        detail: '附身期间无法被敌人锁定（AOE 仍可命中）；赢下判定后可「折磨宿主」或「操控宿主」。',
+        detail: `${host ? `随宿主 ${host.name} 移动。` : '随宿主移动。'}附身中无法普攻，可折磨、操控宿主或主动脱离。`,
         tone: 'good',
       });
       continue;
@@ -167,38 +169,42 @@ const readInsults: PlayerStatusReader = (p, context) => {
 
 /** 老虎机侠：货币 / 钥匙 / 炸弹 / 老虎机状态（快照 char 中为公开数据） */
 const readSlotHero: PlayerStatusReader = (p) => {
-  if (!p.alive) return [];
+  if (!p.alive || p.charId !== 'slot-hero') return [];
   const c = p.char as Record<string, unknown>;
   if (typeof c.money !== 'number') return [];
   const items: PlayerStatusItem[] = [];
   items.push({
-    key: 'slot-money', icon: '🪙', label: '块钱', value: `${formatHp(c.money)} 块`,
+    key: 'slot-money', icon: '🪙', label: '余额', value: `${formatHp(c.money)} 块`, inventory: true,
     detail: '抽老虎机花费：3 格 1 块、4 格 5 块。钱花光后才能扔出老虎机。', tone: 'neutral',
   });
   if (typeof c.attackBonus === 'number' && c.attackBonus > 0) items.push({
-    key: 'slot-attack', icon: '⚔', label: '攻击加成', value: `+${formatHp(c.attackBonus)}`,
+    key: 'slot-attack', icon: '⚔', label: '攻击加成', value: `+${formatHp(c.attackBonus)}`, inventory: true,
     detail: '抽奖出现 2/3/4 个攻击符号的永久加成。', tone: 'good',
   });
-  if (typeof c.keys === 'number' && c.keys > 0) items.push({
-    key: 'slot-keys', icon: '🔑', label: '钥匙', value: `${formatHp(c.keys)} 把`,
-    detail: '消耗一把钥匙 + 一次行动，永久封印任意一人一个除攻击外的行动。', tone: 'good',
+  if (typeof c.keys === 'number') items.push({
+    key: 'slot-keys', icon: '🔑', label: '钥匙', value: `${formatHp(c.keys)} 把`, inventory: true,
+    detail: '消耗一把钥匙 + 一次行动，永久封印任意一人一个除攻击外的行动。', tone: c.keys > 0 ? 'good' : 'neutral',
   });
-  const bombs = Array.isArray(c.bombs) ? c.bombs as { kind: string; at: number; room: string | null }[] : [];
-  for (const b of bombs) {
+  const bombs = Array.isArray(c.bombs) ? c.bombs as { id?: string; kind: string; at: number; room: string | null }[] : [];
+  for (const [index, b] of bombs.entries()) {
+    if (!b || (b.kind !== 'ivan' && b.kind !== 'small') || typeof b.at !== 'number') continue;
+    const name = b.kind === 'ivan' ? '大伊万' : '小炸弹';
     items.push({
-      key: `slot-bomb-${b.at}`, icon: '💣', label: b.kind === 'ivan' ? '手持大伊万' : '手持小炸弹',
+      key: `slot-bomb-${b.id ?? `${b.at}-${index}`}`, icon: '💣', label: b.room ? `已投掷${name}` : `手持${name}`, inventory: !b.room,
       value: `第 ${b.at} 回合末`, detail: b.room ? `已扔到 ${b.room}，引信不重置。` : '在持有者所在房间爆炸（会自伤）。', tone: 'bad',
     });
   }
   if (c.bigIvan === true) items.push({
-    key: 'slot-bigivan', icon: '💥', label: '特殊大伊万', value: '已解锁',
+    key: 'slot-bigivan', icon: '💥', label: '特殊大伊万', value: '已解锁', inventory: true,
     detail: '消耗一次行动，指定任意房间立刻产生 999999 伤害的 AOE。', tone: 'good',
   });
-  const machine = c.machine as { room: string | null; thrown: boolean; landed: boolean; invested: number } | undefined;
-  if (machine?.thrown) items.push({
+  const machine = slotMachineState(p);
+  if (machine) items.push({
     key: 'slot-machine', icon: '🎰', label: '老虎机',
-    value: machine.landed ? `已落地 · ${machine.room ?? '?'}` : '飞行中',
-    detail: machine.landed ? `落地伤害 ${formatHp(machine.invested)}；同房间可踹一脚 +1 块，也可继续抽奖。` : '第 3 回合末落地。',
+    value: `${machine.room} · ${machine.landed ? '已落地' : '飞行中'}`, inventory: true,
+    detail: machine.landed
+      ? `${typeof machine.invested === 'number' ? `落地伤害 ${formatHp(machine.invested)}。` : ''}同房间可踹一脚 +1 块，也可继续抽奖。`
+      : slotMachineRoomLabel(machine),
     tone: machine.landed ? 'neutral' : 'warn',
   });
   return items;

@@ -124,6 +124,19 @@ describe('老虎机数字与符号', () => {
 });
 
 describe('中央老虎机手动拉杆', () => {
+  it.each([3, 4])('真实 %i 格行动在拉杆前就锁定格数，等待服务端结果', (count) => {
+    const event = parseBattleEvent({ seq: 9, type: 'action', data: { pid: 'A', actionName: `slotSpin${count}` } });
+    const onSubmit = vi.fn();
+    host({ views: [view(event!.fx)], onSubmit });
+    expect(screen.getByTestId('slot-pull-overlay').dataset.reelCount).toBe(String(count));
+    expect(screen.queryByRole('button', { name: /数字/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '拉动老虎机拉杆' }));
+    act(() => { vi.advanceTimersByTime(4000); });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('等待结算')).toBeTruthy();
+    expect(screen.queryByText(/卷轴结果/)).toBeNull();
+  });
+
   it('点击拉杆只提交一次并进入卷轴演出', () => {
     const onSubmit = vi.fn();
     host({ onSubmit });

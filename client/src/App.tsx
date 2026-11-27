@@ -38,7 +38,7 @@ export default function App() {
     const off = net.onUpdate((u) => {
       if (u.catchUp) setResync({ cursor: Math.max(0, ...u.newLogs.map(l => l.seq)) });
       setLobby(u.lobby);
-      if (u.game) setGame(u.game);
+      setGame(u.game);
       // 局号变化 = 同一房间开新一局：丢弃上一局日志（服务端 seq 已跨局续接，
       // 若不清理会看到两局日志首尾相接，且 [R1] 之类回合号重复，容易误以为「日志不再更新」）
       const gNo = u.lobby.gameNo ?? null;

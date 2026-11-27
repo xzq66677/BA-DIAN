@@ -19,7 +19,9 @@ import { resolvePresentationPace } from '../battle/pace-policy.js';
 import { resolveActionPresentation } from '../battle/action-presentation.js';
 import { FxOverlayHost, fxOverlayView, type FxOverlayView } from '../battle/fx-overlays.js';
 import '../battle/presentation-plugins.js';
-import { PlayerStatusList, PlayerStatusModal } from '../battle/player-status.js';
+import { PlayerInventory, PlayerStatusList, PlayerStatusModal } from '../battle/player-status.js';
+import { slotMachineRoomLabel, slotMachineState } from '../battle/slot-machine-state.js';
+import { statusBlockedActions } from '../../../shared/src/statuses.js';
 import { formatHp as fmtHp } from '../battle/status-types.js';
 import { sfx } from '../audio/sfx.js';
 import { Battle3D, detectWebGL, preferredRenderer, setPreferredRenderer } from '../battle3d/Battle3D.js';
@@ -141,6 +143,22 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   const [manualCue, setManualCue] = useState<FxOverlayView | null>(null);
   const [manualAction, setManualAction] = useState<ActionRequest | null>(null);
   const [manualBusy, setManualBusy] = useState(false);
+  const [rematchPending, setRematchPending] = useState(false);
+  const [rematchError, setRematchError] = useState('');
+
+  async function prepareRematch() {
+    if (!isHost || game.phase !== 'over' || rematchPending) return;
+    setRematchPending(true);
+    setRematchError('');
+    try {
+      const result = await net.restart(lobby.code, meId, myIds[0].token, false);
+      if (!result.ok) setRematchError(typeof result.error === 'string' ? result.error : '无法进入下一局选角');
+    } catch {
+      setRematchError('无法进入下一局选角，请重试');
+    } finally {
+      setRematchPending(false);
+    }
+  }
 
   // 战绩面板 / 回放
   const [statsOpen, setStatsOpen] = useState(false);
@@ -308,7 +326,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
       });
     }
     // 角色禁用的基础行动（如骷髅无法主动回复）
-    return list.filter((o) => !cd.blockBaseActions?.includes(o.key));
+    const statusBlocked = statusBlockedActions(actor.effects);
+    return list.filter((o) => !cd.blockBaseActions?.includes(o.key) && !statusBlocked.includes(o.key));
   }, [game, actor]);
 
   // 选中行动的合法目标（客户端提示；服务器重新校验）
@@ -640,6 +659,15 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         <span className="tcg-chip">第 <b>{game.roundNo}</b> 回合</span>
         <span className="tcg-chip hot">{phaseText()}</span>
         <span className="tcg-chip">存活 {game.aliveCount}</span>
+        {game.players.map(player => {
+          const machine = slotMachineState(player);
+          if (!machine) return null;
+          return (
+            <span key={player.id} className="tcg-chip slot-machine-location" data-room={machine.room} title={player.name}>
+              <span aria-hidden>🎰 </span><b>{machine.room}</b> · {slotMachineRoomLabel(machine)}
+            </span>
+          );
+        })}
         {game.ruins && (
           <span className="tcg-chip ruins-weather-chip" data-weather={game.ruins.weather} role="status">
             {RUINS_WEATHER_NAME[game.ruins.weather]}
@@ -686,7 +714,10 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
           <button className="tcg-btn ghost tiny" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 回放</button>
         )}
         {isHost && game.phase === 'over' && (
-          <button className="tcg-btn" onClick={() => net.restart(lobby.code, meId, myIds[0].token)}>重新开始</button>
+          <button className="tcg-btn" onClick={prepareRematch} disabled={rematchPending}>再来一局 · 重新选角</button>
+        )}
+        {rematchError && (winDismissed || !finaleReady || finaleCameraPending) && (
+          <span role="alert" className="error-banner">{rematchError}</span>
         )}
         <button className="tcg-btn ghost" onClick={onExit}>退出房间</button>
       </header>
@@ -725,7 +756,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
               </>
             )}
             <div className="win-btns">
-              {isHost && <button className="tcg-btn" onClick={() => { setWinDismissed(true); net.restart(lobby.code, meId, myIds[0].token); }}>🔄 再来一局</button>}
+              {isHost && <button className="tcg-btn" onClick={prepareRematch} disabled={rematchPending}>再来一局 · 重新选角</button>}
               {REPLAY_ENABLED && (
                 <button className="tcg-btn ghost" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 观看回放</button>
               )}
@@ -733,6 +764,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
               <button className="tcg-btn ghost" onClick={onExit}>离开房间</button>
               <button className="tcg-btn ghost" onClick={() => setWinDismissed(true)}>查看战场</button>
             </div>
+            {rematchError && <p role="alert" className="error-banner">{rematchError}</p>}
           </div>
         </div>
       )}
@@ -749,6 +781,16 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         <section className={`battlefield ${use3d ? 'bt3d-stage' : 'bt-table'} anim-in ${game.phase === 'over' ? 'is-over' : ''}`} data-pace={queueState.pace}>
           {/* 全局播报：所有公开动作的战场中央横幅（服务端权威，带时间戳与停留时长） */}
           {pres.globalAnnounce && <GlobalAnnounceBanner item={pres.globalAnnounce} />}
+          {pres.moveBanner && (
+            <div className="move-banner battle-movement" key={pres.moveBanner.key} role="status">
+              {pres.moveBanner.moves.map(move => (
+                <span key={move.pid}>🚶 <b>{game.players.find(p => p.id === move.pid)?.name ?? move.pid}</b>{' '}
+                  {move.tower === 'enter' ? `进入 ${move.toRoom} 的高塔` : move.tower === 'exit' && move.fromRoom === move.toRoom
+                    ? `离开 ${move.toRoom} 的高塔` : `${move.fromRoom} → ${move.toRoom}`}
+                </span>
+              ))}
+            </div>
+          )}
           <FxOverlayHost
             views={presentationOverlays}
             mode={use3d ? '3d' : '2d'}
@@ -824,12 +866,6 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
           {/* 中央桌：出拳揭示（rps 完整 / act 收缩）+ 事件播报 + 移动横幅 */}
           <div className="bt-center">
             <RevealBoard game={game} />
-            {pres.moveBanner && (
-              <div className="move-banner" key={pres.moveBanner.key}>
-                🚶 <b>{game.players.find((p) => p.id === pres.moveBanner?.pid)?.name || '?'}</b>
-                &nbsp;{pres.moveBanner.from} → {pres.moveBanner.to}
-              </div>
-            )}
             {eventTicker && (
               <div className="bt-ticker" key={tickerKey}>{eventTicker}</div>
             )}
@@ -846,6 +882,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                 <span>◈ {me.room} · 我的房间</span>
                 <span className="zone-n">{myRoomMembers.length} 人{myRoomMembers.some((m) => m.id === game.currentActor) ? ' · 行动中' : ''}</span>
                 {mud?.room === me.room && <span className="ruins-mud-chip" data-active={mud.active}>{mud.active ? '泥潭封路' : '积水预警'}</span>}
+                <RoomSlotMachines room={me.room} players={game.players} />
                 {myRoomPendingIvan && (
                   <span className="ivan-pending bt-mine-pending" title={`大伊万预计在第 ${myRoomPendingIvan.explodeRound} 回合末爆炸（平局回合顺延）`}>
                     💣 预计第 {myRoomPendingIvan.explodeRound} 回合末爆炸
@@ -918,6 +955,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
           <div className="hand-layout">
             <MySeat p={me} isHost={isHost} acting={game.currentActor === meId} throwView={me ? throwViewOf(game, me.id) : null} hit={pres.hits[meId]} />
             <div className="hand-main">
+              {myTurnId && actor && actor.id !== meId && <PlayerInventory p={actor} />}
               <div className="dock-title">
                 ⚔ 行动坞 · 手牌
                 {game.phase === 'act' && (
@@ -1308,6 +1346,7 @@ function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTarge
         <span className="bt-room-name">◈ {rid}</span>
         <span className="zone-n">{members.length > 0 ? `${members.length} 人${hasActor ? ' · 行动中' : ''}` : '空房间'}</span>
         {mud && <span className="ruins-mud-chip" data-active={mud.active}>{mud.active ? '泥潭封路' : '积水预警'}</span>}
+        <RoomSlotMachines room={rid} players={game.players} />
       </div>
       <div className="bt-room-cards">
         {members.length === 0 && <div className="zone-empty">{pendingIvan ? '💣 待爆炸' : '空房间'}</div>}
@@ -1346,6 +1385,16 @@ function BtRoom({ rid, pos, arcLen, game, pres, myIds, selActionHint, validTarge
 
 // ── 我的席位（底部手牌左侧） ───────────────────────────
 
+function RoomSlotMachines({ room, players }: { room: string; players: readonly SnapPlayer[] }) {
+  return players.map(player => {
+    const machine = slotMachineState(player);
+    if (machine?.room !== room) return null;
+    return <span key={player.id} className="room-slot-machine" data-landed={machine.landed} title={player.name}>
+      <span aria-hidden>🎰 </span>{slotMachineRoomLabel(machine)}
+    </span>;
+  });
+}
+
 function MySeat({ p, isHost, acting, throwView, hit }: { p?: SnapPlayer; isHost: boolean; acting: boolean; throwView: ThrowView | null; hit?: HitView }) {
   if (!p) return <div className="my-seat is-empty">未入座</div>;
   const meta = cardMeta(p.charId);
@@ -1363,6 +1412,7 @@ function MySeat({ p, isHost, acting, throwView, hit }: { p?: SnapPlayer; isHost:
         <div className="ms-name">{p.name}{isHost && <span className="seat-tag">房主</span>}</div>
         <div className="ms-char">{p.charName}</div>
         <div className="ms-hp">❤ {fmtHp(p.hp)}/{fmtHp(p.maxHp)} · 📍{p.room}</div>
+        <PlayerInventory p={p} />
         {p.alive && p.char?.domain === true && <div className="ms-domain">✨ 领域生效中</div>}
         {!p.alive && <div className="ms-dead">已淘汰</div>}
       </div>

@@ -219,7 +219,7 @@ function spinAction(count: 3 | 4): CharActionDef {
     execute: (ctx) => {
       const s = st(ctx.game, ctx.actor);
       s.money -= SPIN_COST[count];
-      s.machine.invested += SPIN_COST[count];
+      if (!s.machine.thrown) s.machine.invested += SPIN_COST[count];
       return drawBombs(ctx.game, ctx.actor, count);
     },
   };

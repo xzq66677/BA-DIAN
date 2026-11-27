@@ -12,6 +12,7 @@
  */
 
 import type { GameLike } from './chardef.js';
+import { acceptsStatuses } from './statuses.js';
 import type { ActionLock, ActionResult, PlayerId } from './types.js';
 
 /** 不可封印的行动：攻击（规则硬约束） */
@@ -46,8 +47,7 @@ function locksOf(game: GameLike, pid: PlayerId): ActionLock[] {
  * UI 用它渲染封印菜单；规则层用它校验合法性，避免封一个该角色根本没有的行动。
  */
 export function sealableActions(game: GameLike, pid: PlayerId): SealableAction[] {
-  const p = game.players[pid];
-  if (!p || !p.alive) return [];
+  if (!acceptsStatuses(game, pid)) return [];
   const out: SealableAction[] = [];
   const push = (action: string, label: string): void => {
     if (UNSEALABLE.has(action)) return;

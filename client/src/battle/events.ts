@@ -189,7 +189,9 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
       const to = str(d.to);
       const from = str(d.from);
       if (pid && to && from) {
-        return { kind: 'move', seq: log.seq, pid, fromRoom: from, toRoom: to, important: log.important };
+        const presentation = presentationData(d.presentation);
+        return { kind: 'move', seq: log.seq, pid, fromRoom: from, toRoom: to, important: log.important,
+          ...(presentation ? { presentation } : {}) };
       }
       // 旧格式降级：只有 {pid} → 移动者卡提示
       if (pid) return { kind: 'action', seq: log.seq, pid, fx: 'move', important: log.important };
