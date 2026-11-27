@@ -160,6 +160,7 @@ export class BattleScene3D {
   private finaleWinner: string | null = null;
   private roomPickMode = false;
   private blockedRoom = '';
+  private excludedRoom = '';
   private lastRender = 0;
   private camMoving = true;
   private targetablePids = new Set<string>();
@@ -305,7 +306,7 @@ export class BattleScene3D {
     const existing = this.rooms.get(anchor.id);
     if (existing) return existing;
     const room = buildRoomView(anchor, {
-      canPick: (rid) => this.roomPickMode && rid !== this.blockedRoom,
+      canPick: (rid) => this.roomPickMode && rid !== this.blockedRoom && rid !== this.excludedRoom,
       pick: (rid) => this.hooks.onPickRoom(rid),
       hover: (rid) => { this.hoveredRoom = rid; },
     });
@@ -532,7 +533,7 @@ export class BattleScene3D {
   }
 
   private paintRoom(room: RoomView): void {
-    const pickable = this.roomPickMode && this.blockedRoom !== room.rid;
+    const pickable = this.roomPickMode && this.blockedRoom !== room.rid && this.excludedRoom !== room.rid;
     const selected = pickable && this.selectedRoom === room.rid;
     const hovered = pickable && this.hoveredRoom === room.rid;
     const acting = room.label.classList.contains('is-acting');
@@ -1220,7 +1221,7 @@ export class BattleScene3D {
     const id = object?.userData[field] as string | undefined;
     if (!id) return;
     if (this.roomPickMode) {
-      if (id !== this.blockedRoom) this.hooks.onPickRoom(id);
+      if (id !== this.blockedRoom && id !== this.excludedRoom) this.hooks.onPickRoom(id);
     } else this.hooks.onPickPlayer(id);
   }
 
@@ -1228,9 +1229,10 @@ export class BattleScene3D {
 
   setTargetable(pids: string[]): void { this.targetablePids = new Set(pids); }
 
-  setSelection(roomPickMode: boolean, room: string, player: string, blockedRoom = ''): void {
+  setSelection(roomPickMode: boolean, room: string, player: string, blockedRoom = '', excludedRoom = ''): void {
     this.roomPickMode = roomPickMode;
     this.blockedRoom = blockedRoom;
+    this.excludedRoom = excludedRoom;
     this.selectedRoom = room;
     this.selectedPlayer = player;
     for (const r of this.rooms.values()) this.paintRoom(r);

@@ -4,7 +4,7 @@
  * 覆盖：
  *  - 造塔（2 次行动）、塔内外隔绝（算作新房间、房间级效果不穿透）；
  *  - 塔内压制：敌人行动前判定（胜=正常、平=行动无效、负=攻击自己）；
- *  - 吸/吹：只移动一格（其他房间↔自己房间↔塔内）；
+ *  - 吸/吹：吸拉近一格；吹把塔内或同房间敌人统一吹到指定其他房间；
  *  - 亡魂：死后不可被攻击、仍参与猜拳、只能使用吸/吹。
  */
 
@@ -13,6 +13,7 @@ import { Game } from '../shared/src/engine.js';
 import { CHARACTERS } from '../shared/src/characters/index.js';
 import { addStatus } from '../shared/src/player-statuses.js';
 import { sealAction } from '../shared/src/effects.js';
+import { aiDecideAction } from '../server/src/ai.js';
 import type { Throw } from '../shared/src/types.js';
 
 function makeGame(
@@ -140,6 +141,26 @@ describe('飞天水螅：塔内压制判定', () => {
 });
 
 describe('飞天水螅：吸 / 吹', () => {
+  it('吹走宿主时，鬼影一起移动到指定落点', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C', char: 'ghost' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    g.players.C.room = 'R3';
+    throws(g, { A: 'scissors', B: 'scissors', C: 'rock' });
+    expect(g.submitAction('C', { type: 'possess', targetId: 'B' }).ok).toBe(true);
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    expect(g.submitAction('A', { type: 'blow', targetId: 'B', room: 'R3' }).ok).toBe(true);
+    expect(g.players.B.room).toBe('R3');
+    expect(g.players.C.room).toBe('R3');
+    expect(g.logs.find(log => log.data?.actionName === 'blow')?.data?.presentation).toMatchObject({
+      room: 'R3',
+      moves: [
+        { pid: 'B', fromRoom: 'R1', toRoom: 'R3' },
+        { pid: 'C', fromRoom: 'R1', toRoom: 'R3' },
+      ],
+    });
+  });
+
   it('吸：其他房间 → 自己房间，再吸 → 塔内', () => {
     const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
     g.players.A.room = 'R1';
@@ -156,22 +177,52 @@ describe('飞天水螅：吸 / 吹', () => {
     expect(g.charState('B').inTower).toBe(true);
   });
 
-  it('吹：塔内 → 自己房间，再吹 → 其他房间', () => {
-    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }]);
+  it('吹：塔内敌人 → 玩家指定房间', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
     g.players.A.room = 'R1';
     g.players.B.room = 'R1';
-    g.players.B.originRoom = 'R2';
+    g.players.C.room = 'R3';
     buildTowerDirectly(g, 'R1');
     g.charState('B').inTower = true;
 
-    throws(g, { A: 'rock', B: 'scissors' });
-    expect(g.submitAction('A', { type: 'blow', targetId: 'B' }).ok).toBe(true);
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    expect(g.submitAction('A', { type: 'blow', targetId: 'B', room: 'R2' }).ok).toBe(true);
     expect(g.charState('B').inTower).toBe(false);
-    expect(g.players.B.room).toBe('R1');
+    expect(g.players.B.room).toBe('R2');
+    expect(g.logs.find(log => log.type === 'action' && log.data?.actionName === 'blow')?.data).toMatchObject({
+      presentation: { room: 'R2', moves: [{ pid: 'B', fromRoom: 'R1', toRoom: 'R2', tower: 'exit' }] },
+    });
+  });
 
-    throws(g, { A: 'rock', B: 'scissors' });
-    expect(g.submitAction('A', { type: 'blow', targetId: 'B' }).ok).toBe(true);
-    expect(g.players.B.room).toBe('R2'); // 吹到其他房间（一格）
+  it('吹：同房间敌人 → 玩家指定房间', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    g.players.C.room = 'R3';
+
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+    expect(CHARACTERS['water-snake'].actions?.find((a) => a.name === 'blow')).toMatchObject({
+      roomHint: true,
+      roomExcludeCurrent: true,
+      targetHint: 'sameRoomOrTowerPlayer',
+    });
+    expect(g.submitAction('A', { type: 'blow', targetId: 'B', room: 'R2' }).ok).toBe(true);
+    expect(g.players.B.room).toBe('R2');
+  });
+
+  it('吹：拒绝缺少落点、当前房间、不存在房间和异房间目标', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    g.players.C.room = 'R3';
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+
+    expect(g.submitAction('A', { type: 'blow', targetId: 'B' })).toMatchObject({ ok: false, error: expect.stringContaining('落点') });
+    expect(g.submitAction('A', { type: 'blow', targetId: 'B', room: 'R1' })).toMatchObject({ ok: false, error: expect.stringContaining('当前房间') });
+    expect(g.submitAction('A', { type: 'blow', targetId: 'B', room: 'R404' })).toMatchObject({ ok: false, error: expect.stringContaining('不存在') });
+    expect(g.submitAction('A', { type: 'blow', targetId: 'C', room: 'R2' })).toMatchObject({ ok: false, error: expect.stringContaining('只能吹') });
+    expect(g.players.B.room).toBe('R1');
+    expect(g.players.C.room).toBe('R3');
   });
 });
 
@@ -234,7 +285,7 @@ describe('飞天水螅：吸/吹多目标', () => {
     });
   });
 
-  it('一次吹可同时把多名塔内敌人吹出塔外', () => {
+  it('一次吹可同时把多名塔内敌人吹到指定房间', () => {
     const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
     g.players.A.room = 'R1';
     g.players.B.room = 'R1';
@@ -244,9 +295,26 @@ describe('飞天水螅：吸/吹多目标', () => {
     g.charState('C').inTower = true;
 
     throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
-    expect(g.submitAction('A', { type: 'blow', targetIds: ['B', 'C'] }).ok).toBe(true);
+    expect(g.submitAction('A', { type: 'blow', targetIds: ['B', 'C'], room: 'R2' }).ok).toBe(true);
     expect(g.players.B.char.inTower === true).toBe(false);
     expect(g.players.C.char.inTower === true).toBe(false);
+    expect(g.players.B.room).toBe('R2');
+    expect(g.players.C.room).toBe('R2');
+  });
+
+  it('AI 吹飞时会选择合法落点房间', () => {
+    const g = makeGame([{ id: 'A', char: 'water-snake' }, { id: 'B' }, { id: 'C' }]);
+    g.players.A.room = 'R1';
+    g.players.B.room = 'R1';
+    g.players.C.room = 'R3';
+    buildTowerDirectly(g, 'R1');
+    g.charState('B').inTower = true;
+    throws(g, { A: 'rock', B: 'scissors', C: 'scissors' });
+
+    const action = aiDecideAction(g, 'A', 'normal');
+    expect(action).toMatchObject({ type: 'blow', targetId: 'B', room: 'R2' });
+    expect(g.submitAction('A', action).ok).toBe(true);
+    expect(g.players.B.room).toBe('R2');
   });
 });
 

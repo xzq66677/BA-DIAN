@@ -503,6 +503,7 @@ export class Game implements GameLike {
       typeLabel: action.typeLabel ?? '环境',
       ...(action.targetHint && action.targetHint !== 'none' ? { targetHint: action.targetHint } : {}),
       ...(action.roomHint ? { roomHint: true } : {}),
+      ...(action.roomExcludeCurrent ? { roomExcludeCurrent: true } : {}),
     }));
   }
 

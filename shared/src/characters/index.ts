@@ -958,14 +958,14 @@ function collapseTower(game: GameLike, owner: PlayerId): void {
  * - 血量 3、攻击 1.5；
  * - 消耗一次行动造玄武岩高塔（需 2 次行动造完）：塔内外隔绝、算作新房间（塔 6 点耐久，暂不可被摧毁）；
  * - 自身与敌人同处塔内时，敌人行动前须判定：胜→正常行动、平→本次行动无效、负→攻击自己；
- * - 吸/吹各消耗一次行动，只把敌人移动一格：
- *   吸 = 其他房间→自己房间 / 自己房间→塔内；吹 = 塔内→自己房间 / 自己房间→其他房间；
+ * - 吸/吹各消耗一次行动：
+ *   吸 = 其他房间→自己房间 / 自己房间→塔内；吹 = 塔内或自己房间→指定其他房间；
  * - 死后化为亡魂：不可被攻击，仍参与猜拳、可使用吸/吹。
  */
 const waterSnake: CharDef = {
   id: 'water-snake',
   name: '飞天水螅',
-  desc: '血量3、攻击1.5。消耗一次行动在当前房间造玄武岩高塔（需2次行动造完）：塔内外隔绝、算作新房间。自身与敌人同处塔内时，敌人行动前须判定——胜则正常行动、平局本次不行动、输了攻击自己。吸/吹各消耗一次行动，只把敌人移动一格：吸=其他房间→自己房间、自己房间→塔内；吹=塔内→自己房间、自己房间→其他房间。死后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹。',
+  desc: '血量3、攻击1.5。消耗一次行动在当前房间造玄武岩高塔（需2次行动造完）：塔内外隔绝、算作新房间。自身与敌人同处塔内时，敌人行动前须判定——胜则正常行动、平局本次不行动、输了攻击自己。吸/吹各消耗一次行动：吸把其他房间的敌人吸到自己房间、再吸进塔内；吹把塔内或自己房间的敌人统一吹到指定的其他房间。死后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹。',
   hp: 3,
   attack: 1.5,
   attackType: 'melee',
@@ -1075,7 +1075,8 @@ const waterSnake: CharDef = {
       const outsider = visible.find((p) => game.players[p].room === game.players[pid].room && game.players[p].char.inTower !== true);
       if (outsider) return { type: 'inhale', targetId: outsider };
       const insider = visible.find((p) => game.players[p].char.inTower === true);
-      if (insider) return { type: 'blow', targetId: insider };
+      const destination = game.roomIds.find((room) => room !== game.players[pid].room);
+      if (insider && destination) return { type: 'blow', targetId: insider, room: destination };
       if (visible[0]) return { type: 'inhale', targetId: visible[0] };
       return undefined;
     }
@@ -1154,44 +1155,42 @@ const waterSnake: CharDef = {
     {
       name: 'blow',
       label: '吹',
-      desc: '消耗本次行动，把一名或多名敌人吹远一格：塔内 → 自己房间；自己房间 → 其他房间。',
-      targetHint: 'anyPlayer',
+      desc: '消耗本次行动，把一名或多名塔内或同房间敌人统一吹到指定的其他房间。',
+      targetHint: 'sameRoomOrTowerPlayer',
+      roomHint: true,
+      roomExcludeCurrent: true,
       multiTarget: true,
       validate: (ctx) => {
         const ids = actionTargetIds(ctx.params);
         const p = ctx.game.getPlayer(ctx.actor);
+        const destination = ctx.params.room;
+        if (!destination) return '请选择吹飞落点房间';
+        if (!ctx.game.roomIds.includes(destination)) return '吹飞落点房间不存在';
+        if (destination === p.room) return '吹飞落点不能是当前房间';
         if (ids.length === 0) return '请选择至少一个目标';
         for (const targetId of ids) {
           const target = ctx.game.players[targetId];
           if (!target?.alive) return '目标不存在或已淘汰';
           if (targetId === ctx.actor) return '不能吹自己';
           if (target.hidden || target.invisible) return '无法锁定躲藏/隐身的玩家';
-          if (target.char.inTower === true) continue; // 塔内 → 塔外
-          if (target.room === p.room) continue; // 自己房间 → 其他房间
-          return '只能吹塔内或自己房间里的敌人';
+          if (target.room !== p.room) return '只能吹塔内或自己房间里的敌人';
         }
         return null;
       },
       execute: (ctx) => {
         const ids = actionTargetIds(ctx.params);
         const p = ctx.game.getPlayer(ctx.actor);
+        const destination = ctx.params.room as string;
         const moves: { pid: string; fromRoom: string; toRoom: string; tower?: 'enter' | 'exit' }[] = [];
         for (const targetId of ids) {
           const target = ctx.game.players[targetId];
           if (!target) continue;
-          if (target.char.inTower === true) {
-            moves.push(...ctx.game.relocatePlayer(targetId, target.room));
-            ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从塔内吹回 ${target.room}（拉远一格）`, { pid: targetId, source: ctx.actor, to: target.room }, true);
-            continue;
-          }
-          const dest = target.originRoom !== p.room
-            ? target.originRoom
-            : (ctx.game.roomIds.find((room) => room !== p.room) ?? p.room);
           const from = target.room;
-          moves.push(...ctx.game.relocatePlayer(targetId, dest));
-          ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从 ${from} 吹到 ${dest}（拉远一格）`, { pid: targetId, source: ctx.actor, from, to: dest }, true);
+          const wasInTower = target.char.inTower === true;
+          moves.push(...ctx.game.relocatePlayer(targetId, destination));
+          ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从 ${wasInTower ? '塔内' : from} 吹到 ${destination}`, { pid: targetId, source: ctx.actor, from, to: destination, tower: wasInTower ? 'exit' : undefined }, true);
         }
-        ctx.present?.({ targetIds: ids, moves });
+        ctx.present?.({ targetIds: ids, room: destination, moves });
       },
     },
   ],

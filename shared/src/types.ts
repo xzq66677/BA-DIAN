@@ -533,8 +533,9 @@ export interface ExtraActionView {
   label: string;
   desc: string;
   typeLabel: string;
-  targetHint?: 'anyPlayer' | 'sameRoomPlayer' | 'otherRoomPlayer';
+  targetHint?: 'anyPlayer' | 'sameRoomPlayer' | 'sameRoomOrTowerPlayer' | 'otherRoomPlayer';
   roomHint?: boolean;
+  roomExcludeCurrent?: boolean;
 }
 
 export interface GamePlayerConfig {

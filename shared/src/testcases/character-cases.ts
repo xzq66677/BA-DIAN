@@ -1449,8 +1449,8 @@ export const CHARACTER_CASES: TestCase[] = [
     }),
   },
   {
-    id: 'TC-C109', name: '飞天水螅：吸/吹只移动一格', category: 'character', charId: 'water-snake', seed: 312,
-    desc: '吸：其他房间→自己房间、自己房间→塔内；吹：塔内→自己房间、自己房间→其他房间',
+    id: 'TC-C109', name: '飞天水螅：吸拉近、吹到指定房间', category: 'character', charId: 'water-snake', seed: 312,
+    desc: '吸：其他房间→自己房间、自己房间→塔内；吹：塔内→玩家指定其他房间',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B'], 312);
       g.players.A.room = 'R1';
@@ -1464,13 +1464,10 @@ export const CHARACTER_CASES: TestCase[] = [
       g.submitAction('A', { type: 'inhale', targetId: 'B' });
       const pulledTower = g.charState('B').inTower === true;
       playThrows(g, [{ A: 'rock', B: 'scissors' }]);
-      g.submitAction('A', { type: 'blow', targetId: 'B' });
-      const blownOut = g.charState('B').inTower !== true && g.players.B.room === 'R1';
-      playThrows(g, [{ A: 'rock', B: 'scissors' }]);
-      g.submitAction('A', { type: 'blow', targetId: 'B' });
-      const blownAway = g.players.B.room === 'R2';
-      return check(pulledRoom && pulledTower && blownOut && blownAway, '吸/吹各移动一格',
-        `room=${pulledRoom}, tower=${pulledTower}, out=${blownOut}, away=${blownAway}`, g);
+      g.submitAction('A', { type: 'blow', targetId: 'B', room: 'R2' });
+      const blownAway = g.charState('B').inTower !== true && g.players.B.room === 'R2';
+      return check(pulledRoom && pulledTower && blownAway, '吸拉近、吹到指定房间',
+        `room=${pulledRoom}, tower=${pulledTower}, away=${blownAway}`, g);
     }),
   },
   {
@@ -1491,7 +1488,7 @@ export const CHARACTER_CASES: TestCase[] = [
   },
   {
     id: 'TC-C111', name: '飞天水螅：吸/吹一次行动可针对多目标', category: 'character', charId: 'water-snake', seed: 314,
-    desc: '一次吸可同时把多名敌人拉近，一次吹可同时把多名塔内敌人吹出',
+    desc: '一次吸可同时把多名敌人拉近，一次吹可同时把多名同房间/塔内敌人吹到指定房间',
     run: () => run(() => {
       const g = makeGame([{ id: 'A', char: 'water-snake' }, 'B', 'C'], 314);
       g.players.A.room = 'R1';
@@ -1502,8 +1499,8 @@ export const CHARACTER_CASES: TestCase[] = [
       g.submitAction('A', { type: 'inhale', targetIds: ['B', 'C'] });
       const pulled = g.players.B.room === 'R1' && g.players.C.room === 'R1';
       playThrows(g, [{ A: 'rock', B: 'scissors', C: 'scissors' }]);
-      g.submitAction('A', { type: 'blow', targetIds: ['B', 'C'] });
-      const blown = g.players.B.room !== 'R1' && g.players.C.room !== 'R1';
+      g.submitAction('A', { type: 'blow', targetIds: ['B', 'C'], room: 'R3' });
+      const blown = g.players.B.room === 'R3' && g.players.C.room === 'R3';
       return check(pulled && blown, '多目标吸/吹生效',
         `pulled=${pulled}, blown=${blown}`, g);
     }),
