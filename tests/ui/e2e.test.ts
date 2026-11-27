@@ -433,7 +433,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
       await expect(host.getByText('下一局选角。', { exact: false })).toBeVisible();
       await expect(guest.getByText('下一局选角。', { exact: false })).toBeVisible();
       expect(room.game).toBeNull();
-      expect(room.gameNo).toBe(1);
+      expect(room.lobbySnapshot().gameNo).toBe(1);
       expect(room.seats.map(seat => seat.playerId)).toEqual([a, b]);
 
       await host.getByLabel('重赛房主的角色').selectOption('ghost');
@@ -441,7 +441,7 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
       await expect(host.locator('.seat-slot').filter({ hasText: '重赛客人' })).toContainText('五条悟');
       await start.click();
       await expect(host.getByTestId('battle3d').locator('canvas')).toBeVisible({ timeout: 20000 });
-      expect(room.gameNo).toBe(2);
+      expect(room.lobbySnapshot().gameNo).toBe(2);
       expect(room.game?.playerIds.map(pid => room.game?.players[pid].charId)).toEqual(['ghost', 'gojo']);
       await expect(guest.locator('.battlefield')).toBeVisible();
     } finally {
