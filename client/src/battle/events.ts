@@ -209,6 +209,14 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
       // 旧格式无 data → 跳过演出（日志面板照常显示），不猜测。
       const room = str(d.room);
       const pid = str(d.pid);
+      // 角色注册的延迟演出：引擎显式给出 fx（如老虎机砸落），无需在客户端写死角色分支
+      const fx = str(d.fx);
+      if (fx) {
+        return {
+          kind: 'action', seq: log.seq, pid: pid ?? str(d.source) ?? '', fx, room,
+          presentation: presentationData(d.presentation), important: log.important,
+        };
+      }
       if (pid && room) {
         return { kind: 'ivanThrow', seq: log.seq, pid, room, explodeRound: num(d.explodeRound), important: true };
       }

@@ -24,6 +24,9 @@ import { MAPS, type BattleMap, type MapId } from './maps.js';
 import { BASE_ACTIONS } from './base-actions.js';
 import { resolveDamage } from './damage.js';
 import { mentalKill } from './mental.js';
+import { sealedAction, clearActionLocks, tickActionLocks } from './effects.js';
+import { deferredHandler, deferredPriority } from './deferred-registry.js';
+import { dispatchStatusJudge, clearStatuses, tickStatuses } from './statuses.js';
 import { serializeSnapshot } from './snapshot.js';
 import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats, type SubRoundOutcome } from './judge.js';
 import type { CharDef, GameLike, CharActionContext } from './chardef.js';
@@ -362,6 +365,8 @@ export class Game implements GameLike {
     if (cd.onJudgeAppend) {
       cd.onJudgeAppend({ game: this, player: pid, step, stage, sub });
     }
+    // 通用状态（不绑定角色，如「废人弱」）：由注册的处理器决定行为
+    dispatchStatusJudge(this, pid, { step, stage, sub });
   }
 
   // ─── 初次判定（隐藏提交） ─────────────────────────────────────
@@ -1051,7 +1056,7 @@ export class Game implements GameLike {
 
   // ─── 行动提交 ────────────────────────────────────────────────
 
-  submitAction(pid: PlayerId, req: ActionRequest): ActionResult {
+  submitAction(pid: PlayerId, req: ActionRequest, forced = false): ActionResult {
     if (this.phase !== 'act') return { ok: false, error: '当前不是行动阶段' };
     const cur = this.currentActor();
     if (!cur) return { ok: false, error: '当前没有待行动玩家' };
@@ -1059,7 +1064,7 @@ export class Game implements GameLike {
     const p = this.players[pid];
     if (!p.alive) return { ok: false, error: '已淘汰玩家不能行动' };
 
-    const res = this.executeAction(pid, req);
+    const res = this.executeAction(pid, req, forced);
     if (!res.ok) return res; // 非法行动：不修改状态、不消耗行动
     const st = this.stats[pid];
     if (st) {
@@ -1080,6 +1085,7 @@ export class Game implements GameLike {
       pid, actionName: req.type, fx, label: this.actionLabel(req),
       ...(req.targetId ? { targetId: req.targetId } : {}),
       ...(req.room ? { room: req.room } : {}),
+      ...(res.presentation ? { presentation: res.presentation } : {}),
     };
     this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, { ...actionData }, true);
     this.roundSummary.push(`${p.name} ${this.actionLabel(req)}`);
@@ -1093,7 +1099,8 @@ export class Game implements GameLike {
 
   /** 超时强制跳过（服务端调用） */
   forceSkipAction(pid: PlayerId): ActionResult {
-    return this.submitAction(pid, { type: 'skip' });
+    // 超时兜底：跳过本身可能被封印，但引擎强制跳过不受封印影响（否则对局会无限等待）
+    return this.submitAction(pid, { type: 'skip' }, true);
   }
 
   private actionLabel(req: ActionRequest): string {
@@ -1105,7 +1112,12 @@ export class Game implements GameLike {
     return cd.actions?.find((action) => action.name === req.type)?.label ?? req.type;
   }
 
-  private executeAction(pid: PlayerId, req: ActionRequest): ActionResult {
+  private executeAction(pid: PlayerId, req: ActionRequest, forced = false): ActionResult {
+    // 行动封印（钥匙类来源）：统一在此拦截，角色与地图行动无需各自判断
+    if (!forced) {
+      const lock = sealedAction(this, pid, req.type);
+      if (lock) return { ok: false, error: `「${lock.label}」已被封印，无法使用` };
+    }
     const base = BASE_ACTIONS.get(req.type);
     if (base) return base.execute(this, pid, req, this.map);
     const mapAction = this.map.actions?.get(req.type);
@@ -1119,7 +1131,8 @@ export class Game implements GameLike {
     const ctx: CharActionContext = { game: this, actor: pid, params: req };
     const error = act.validate?.(ctx);
     if (error) return { ok: false, error };
-    act.execute(ctx);
+    const out = act.execute(ctx);
+    if (out && typeof out === 'object' && out.presentation) return { ok: true, presentation: out.presentation };
     return { ok: true };
   }
 
@@ -1153,6 +1166,8 @@ export class Game implements GameLike {
     p.hidden = false;
     p.invisible = false;
     p.hp = 0;
+    clearActionLocks(this, pid); // 封印随持有人退场失效（快照不再下发）
+    clearStatuses(this, pid);    // 通用状态随退场清理
     // 领域随持有者退场而消失（游戏中唯一会"自然失效"的路径；不含被覆盖）
     if (this.domainHolder === pid) {
       this.domainHolder = null;
@@ -1311,6 +1326,10 @@ export class Game implements GameLike {
     }
     this.log('phase', `第 ${this.roundNo} 回合行动结束，进入回合末结算`);
 
+    // 限时封印到期结算（当前规则为永久封印，此处为空转；保留生命周期入口）
+    for (const pid of this.aliveIds()) tickActionLocks(this, pid);
+    for (const pid of this.aliveIds()) tickStatuses(this, pid);
+
     // 角色回合末钩子
     for (const pid of this.aliveIds()) {
       const cd = this.charDef(pid);
@@ -1320,7 +1339,8 @@ export class Game implements GameLike {
 
     // 延迟事件：伍六七三刀 → 其他延迟伤害 → 大伊万爆炸（作者确认的结算顺序）。
     // settlingDeferred 期间淘汰不定胜负（同一发爆炸连杀两人时须统一判平局，见 checkWin）
-    const priority = (kind: string) => (kind === 'wuliuqi-slash' ? 0 : kind === 'ivan' ? 2 : 1);
+    const priority = (kind: string) =>
+      deferredPriority(kind) ?? (kind === 'wuliuqi-slash' ? 0 : kind === 'ivan' ? 2 : 1);
     const due = this.deferred
       .filter((d) => d.explodeRound <= this.roundNo)
       .sort((a, b) => priority(a.kind) - priority(b.kind));
@@ -1330,6 +1350,13 @@ export class Game implements GameLike {
       if (ev.kind === 'ivan' && !this.roundResolved) continue;
       this.deferred = this.deferred.filter((d) => d.id !== ev.id);
       // 伍六七三刀：对刀落瞬间房间内的存活玩家逐段 1 伤（平局回合同样落刀）
+      // 角色注册的延迟事件（如老虎机炸弹/机子落地）
+      const custom = deferredHandler(ev.kind);
+      if (custom) {
+        custom(this, ev);
+        if ((this.phase as GamePhase) === 'over') break;
+        continue;
+      }
       if (ev.kind === 'wuliuqi-slash') {
         this.resolveSlash(ev);
         if ((this.phase as GamePhase) === 'over') break;

@@ -30,7 +30,7 @@ export interface CharVisual {
 }
 
 /**
- * 角色视觉注册表：覆盖 shared/src/characters 全部 11 名角色。
+ * 角色视觉注册表：覆盖 shared/src/characters 全部已注册角色（新增角色必须在此登记）。
  * 颜色语义保持角色卡面主色调的一致性（卡面为用户提供素材，这里做低饱和呼应）。
  */
 export const CHAR_VISUALS: Record<string, CharVisual> = {
@@ -45,6 +45,7 @@ export const CHAR_VISUALS: Record<string, CharVisual> = {
   'hero-today': { color: 0x2f8f4f, accent: 0xbdf0cf, prop: 'dice', scale: 0.96 },// 今日勇者：绿+骰子
   dajianke: { color: 0x7a3f7d, accent: 0xe0b8e8, prop: 'magnet', scale: 1 },     // 大贱客：紫+磁环
   dapihuai: { color: 0xb5483f, accent: 0xffd2a8, prop: 'small', scale: 0.74 },   // 大屁孩：矮个
+  'slot-hero': { color: 0xc0392b, accent: 0xf0c040, prop: 'dice', scale: 1 },     // 老虎机侠：红金+摇奖
 };
 
 export function charVisual(charId: string): CharVisual {

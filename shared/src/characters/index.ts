@@ -7,6 +7,7 @@
  */
 
 import { characterAi } from './ai-strategies.js';
+import { slotHeroChar } from './slot-hero.js';
 import type { CharDef } from '../chardef.js';
 import { mentalKill } from '../mental.js';
 import { fmtNum } from '../types.js';
@@ -499,6 +500,7 @@ export const CHARACTERS: Record<string, CharDef> = {
   'hero-today': jinriyongzhe,
   dajianke,
   dapihuai,
+  [slotHeroChar.id]: slotHeroChar,
 };
 
 export const CHARACTER_LIST: CharDef[] = Object.values(CHARACTERS);

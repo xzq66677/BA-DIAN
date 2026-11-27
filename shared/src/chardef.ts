@@ -66,6 +66,7 @@ export interface CharActionContext {
 export interface CharActionResult {
   ok: boolean;
   error?: string;
+  presentation?: Record<string, unknown>;
 }
 
 export interface CharActionDef {
@@ -77,7 +78,8 @@ export interface CharActionDef {
   /** 需要房间选择（如大伊万投掷） */
   roomHint?: boolean;
   validate?(ctx: CharActionContext): string | null;
-  execute(ctx: CharActionContext): void;
+  /** 执行行动；返回 `{ presentation }` 时引擎把它写进 action 日志（公开演出数据） */
+  execute(ctx: CharActionContext): void | { presentation?: Record<string, unknown> };
 }
 
 export interface DamageHookCtx {

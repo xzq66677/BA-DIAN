@@ -11,6 +11,10 @@ export function serializeSnapshot(game: Game, mapFields?: Pick<GameSnapshot, 'ru
       alive: p.alive, type: p.type, hidden: p.hidden, invisible: p.invisible,
       char: { ...p.char }, // 判定历史（完整记录）单独剥离，只下发最近 3 条公开结果
       judgeStreak: game.judgeHistory(pid).slice(-3),
+      /** 行动封印：公开信息（谁被封了什么行动），UI 据此置灰行动 */
+      actionLocks: (p.actionLocks ?? []).map((l) => ({ ...l })),
+      /** 通用状态：公开信息，UI 通过状态读取器白名单渲染 */
+      statuses: (p.statuses ?? []).map((s) => ({ ...s })),
     };
   });
   return {

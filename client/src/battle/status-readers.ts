@@ -1,5 +1,6 @@
 import type { SnapPlayer } from '../../../shared/src/protocol.js';
 import {
+  type StatusTone,
   formatHp,
   type PlayerStatusContext,
   type PlayerStatusItem,
@@ -85,12 +86,83 @@ const readInsults: PlayerStatusReader = (p, context) => {
   return items;
 };
 
+/** 老虎机侠：货币 / 钥匙 / 炸弹 / 老虎机状态（快照 char 中为公开数据） */
+const readSlotHero: PlayerStatusReader = (p) => {
+  if (!p.alive) return [];
+  const c = p.char as Record<string, unknown>;
+  if (typeof c.money !== 'number') return [];
+  const items: PlayerStatusItem[] = [];
+  items.push({
+    key: 'slot-money', icon: '🪙', label: '块钱', value: `${formatHp(c.money)} 块`,
+    detail: '抽老虎机花费：3 格 1 块、4 格 5 块。钱花光后才能扔出老虎机。', tone: 'neutral',
+  });
+  if (typeof c.attackBonus === 'number' && c.attackBonus > 0) items.push({
+    key: 'slot-attack', icon: '⚔', label: '攻击加成', value: `+${formatHp(c.attackBonus)}`,
+    detail: '抽奖出现 2/3/4 个攻击符号的永久加成。', tone: 'good',
+  });
+  if (typeof c.keys === 'number' && c.keys > 0) items.push({
+    key: 'slot-keys', icon: '🔑', label: '钥匙', value: `${formatHp(c.keys)} 把`,
+    detail: '消耗一把钥匙 + 一次行动，永久封印任意一人一个除攻击外的行动。', tone: 'good',
+  });
+  const bombs = Array.isArray(c.bombs) ? c.bombs as { kind: string; at: number; room: string | null }[] : [];
+  for (const b of bombs) {
+    items.push({
+      key: `slot-bomb-${b.at}`, icon: '💣', label: b.kind === 'ivan' ? '手持大伊万' : '手持小炸弹',
+      value: `第 ${b.at} 回合末`, detail: b.room ? `已扔到 ${b.room}，引信不重置。` : '在持有者所在房间爆炸（会自伤）。', tone: 'bad',
+    });
+  }
+  if (c.bigIvan === true) items.push({
+    key: 'slot-bigivan', icon: '💥', label: '特殊大伊万', value: '已解锁',
+    detail: '消耗一次行动，指定任意房间立刻产生 999999 伤害的 AOE。', tone: 'good',
+  });
+  const machine = c.machine as { room: string | null; thrown: boolean; landed: boolean; invested: number } | undefined;
+  if (machine?.thrown) items.push({
+    key: 'slot-machine', icon: '🎰', label: '老虎机',
+    value: machine.landed ? `已落地 · ${machine.room ?? '?'}` : '飞行中',
+    detail: machine.landed ? `落地伤害 ${formatHp(machine.invested)}；同房间可踹一脚 +1 块，也可继续抽奖。` : '第 3 回合末落地。',
+    tone: machine.landed ? 'neutral' : 'warn',
+  });
+  return items;
+};
+
+/** 通用状态与行动封印（不绑定具体角色，任何角色中了都会显示） */
+const GENERIC_STATUS_PRESENTATION: Record<string, { icon: string; detail: string; tone: StatusTone }> = {
+  crippled: {
+    icon: '💀',
+    detail: '「废人弱」：每回合初次判定输掉即当场自爆淘汰。',
+    tone: 'bad',
+  },
+};
+
+const readGenericStatuses: PlayerStatusReader = (p) => {
+  if (!p.alive) return [];
+  const items: PlayerStatusItem[] = [];
+  for (const s of p.statuses ?? []) {
+    const known = GENERIC_STATUS_PRESENTATION[s.kind];
+    items.push({
+      key: `status-${s.kind}`,
+      icon: known?.icon ?? '🔹',
+      label: s.label ?? s.kind,
+      value: '生效中',
+      detail: known?.detail ?? '该状态正在生效。',
+      tone: known?.tone ?? 'warn',
+    });
+  }
+  for (const lock of p.actionLocks ?? []) items.push({
+    key: `lock-${lock.action}`, icon: '🔒', label: `${lock.label} 被封印`, value: '永久',
+    detail: '被钥匙封印，本局无法再使用该行动（攻击不受封印影响）。', tone: 'bad',
+  });
+  return items;
+};
+
 export const PLAYER_STATUS_READERS = [
   readLife,
   readStealth,
   readDomain,
   readCharacter,
   readInsults,
+  readSlotHero,
+  readGenericStatuses,
 ] as const satisfies readonly PlayerStatusReader[];
 
 export function playerStatusItems(
