@@ -10,6 +10,7 @@
 |---|---|---|---|
 | #85 | 飞天水螅「吹」支持指定落点房间 | REVIEW | 多目标 + 房间组合选择；塔内/同房间目标统一吹到指定其他房间；AI 自动补合法落点；README/CHANGELOG/规则文档同步。 [Issue #85](https://github.com/xzq66677/BA-DIAN/issues/85) · [PR #86](https://github.com/xzq66677/BA-DIAN/pull/86) |
 | #77 | 四角色正式资产、战斗演出适配与交接 | REVIEW | 鬼影、狂猎、佝偻弓箭手、飞天水螅采用正式角色 ID 接入 GLB。 [接入说明](docs/FOUR_CHARACTER_INTEGRATION.md) · [Issue #77](https://github.com/xzq66677/BA-DIAN/issues/77) |
+| #83 | 飞天水蛭归零终局与 AI 目标过滤 | REVIEW | 亡魂不再阻止唯一幸存者获胜；AI 目标与暴走选择统一排除血量归零角色。 [Issue #83](https://github.com/xzq66677/BA-DIAN/issues/83) |
 | T-13 / #43 | 本地多人无法攻击 1P、单人局 AI 五连鞭要求玩家代判 | TODO（P0） | 复现两个场景，核对目标选择和判定参与者，确认是否同源。 [Issue #43](https://github.com/xzq66677/BA-DIAN/issues/43) |
 | T-11 / #23 | 完善五条悟技能和机制 | IN_PROGRESS（MMR12345） | 2026-11-24 已定案并落地：近战始终 1 伤、领域平局含三人循环、**领域只给平局回合行动权（不把平局改判为胜）**、无量=领域展开、被覆盖后可再展开；「血量≥20 叠伤×2」「完全体领域远程必中」暂缓（见 CHANGELOG 2026-11-24）。 [Issue #23](https://github.com/xzq66677/BA-DIAN/issues/23) |
 | T-12 / #31 | 完善精神攻击定义与逻辑 | TODO（P1） | 统一核对大贱客、大屁孩、马保国的精神攻击语义及太极反弹优先级。 [Issue #31](https://github.com/xzq66677/BA-DIAN/issues/31) |
@@ -850,3 +851,4 @@ t+2667ms 冲击波结束（持续 ≈1.1s）；随后逐目标 斩击+伤害飘�
 | T-3203 | 回归测试 | `tests/character-water-snake.test.ts` 19 例：单/多目标指定房间、塔内离塔、非法落点/目标拒绝、AI 合法落点；共享用例 TC-C109 / TC-C111 更新。 |
 | T-3204 | 文档 | README 新增 V6.1 章节并更新角色表/测试数；CHANGELOG 记录 Issue #85；角色文档与 GAME_RULES A-28 同步。 |
 | T-3205 | 验证 | `npm test` **48 文件 / 765 用例全过**；`npm run typecheck:client`、`npm run build:server` 与生产构建通过；浏览器 QA 确认当前房间禁用、合法落点预选与无目标禁用确认；已推送并创建 [PR #86](https://github.com/xzq66677/BA-DIAN/pull/86)。 |
+| T-3206 | 主线冲突合并验证 | 合并最新 `main` 后保留「目标 + 房间」与老虎机侠钥匙封印交互；`npm test -- --minWorkers=1 --maxWorkers=1` **50 文件 / 805 用例全过**，`npm run build` 通过。默认并行运行两次仅在 E2E 清理钩子触发 10 秒超时，单独 E2E 9 项通过。 |

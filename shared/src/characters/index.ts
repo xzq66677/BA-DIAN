@@ -7,6 +7,7 @@
  */
 
 import { characterAi } from './ai-strategies.js';
+import { slotHeroChar } from './slot-hero.js';
 import type { CharActionDef, CharDef, GameLike } from '../chardef.js';
 import { mentalKill } from '../mental.js';
 import { fmtNum, type PlayerId } from '../types.js';
@@ -983,6 +984,7 @@ const waterSnake: CharDef = {
     game.log('trigger', `👻 ${p.name} 被杀后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹`, { pid: player, posthumous: true }, true);
     return 'prevent';
   },
+  countsAsAliveForWin: ({ game, player }) => waterSnakeState(game, player).posthumous !== true,
   /** 亡魂状态只能使用吸/吹（或跳过） */
   validateAction: ({ game, player, action }) => {
     const st = waterSnakeState(game, player);
@@ -1202,6 +1204,7 @@ export const CHARACTERS: Record<string, CharDef> = {
   ghost,
   'wild-hunt': wildHunt,
   'water-snake': waterSnake,
+  [slotHeroChar.id]: slotHeroChar,
 };
 
 export const CHARACTER_LIST: CharDef[] = Object.values(CHARACTERS);
