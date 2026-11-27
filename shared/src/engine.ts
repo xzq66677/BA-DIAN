@@ -29,7 +29,7 @@ import { sealedAction, clearActionLocks, tickActionLocks } from './effects.js';
 import { deferredHandler, deferredPriority } from './deferred-registry.js';
 import { dispatchStatusJudge, clearStatuses as clearPlayerStatuses, tickStatuses as tickPlayerStatuses } from './player-statuses.js';
 import { serializeSnapshot } from './snapshot.js';
-import { acceptsStatusEffect, clearDefeatStatusEffects, statusBlockedActions, STATUS_REGISTRY, statusDef } from './statuses.js';
+import { acceptsStatusEffect, clearDefeatStatusEffects, statusBlockingAction, STATUS_REGISTRY, statusDef } from './statuses.js';
 import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats, type SubRoundOutcome } from './judge.js';
 import type { CharDef, GameLike, CharActionContext, CharActionDef } from './chardef.js';
 
@@ -505,6 +505,38 @@ export class Game implements GameLike {
       ...(action.roomHint ? { roomHint: true } : {}),
       ...(action.roomExcludeCurrent ? { roomExcludeCurrent: true } : {}),
     }));
+  }
+
+  /** Public reasons for the current actor's disabled action cards. */
+  actionDisabledReasons(pid: PlayerId | null): Record<string, string> {
+    if (!pid) return {};
+    const skills = [...(this.charDef(pid).actions ?? []), ...this.extraActionsFor(pid)];
+    const byName = new Map(skills.map(action => [action.name, action]));
+    const keys = new Set([...BASE_ACTIONS.keys(), ...(this.map.actions?.keys() ?? []), ...byName.keys()]);
+    const reasons: [string, string][] = [];
+    for (const type of keys) {
+      const reason = this.actionRestriction(pid, { type })
+        ?? BASE_ACTIONS.get(type)?.unavailableReason?.(this, pid)
+        ?? this.skillUnavailableReason(pid, byName.get(type));
+      if (reason) reasons.push([type, reason]);
+    }
+    return Object.fromEntries(reasons);
+  }
+
+  private skillUnavailableReason(actor: PlayerId, action?: CharActionDef): string | null | undefined {
+    if (!action) return;
+    const game = this;
+    if (action.unavailableReason) return action.unavailableReason({ game, actor });
+    const validate = action.validate;
+    if (!validate) return;
+    const type = action.name;
+    const needsTarget = !!action.targetHint && action.targetHint !== 'none';
+    if (!needsTarget && !action.roomHint) return validate({ game, actor, params: { type } });
+
+    const targets = needsTarget ? this.aliveIds().filter(id => id !== actor) : [undefined];
+    const rooms = action.roomHint ? this.roomIds : [undefined];
+    const hasChoice = targets.some(targetId => rooms.some(room => !validate({ game, actor, params: { type, targetId, room } })));
+    return hasChoice ? null : needsTarget ? '当前没有可选目标' : '当前没有可选房间';
   }
 
   appendJudgeHistory(pid: PlayerId, step: JudgeStep, stage: 'rps1' | 'rps2', sub: number): void {
@@ -1233,22 +1265,8 @@ export class Game implements GameLike {
     if (pid !== cur) return { ok: false, error: `当前轮到 ${this.players[cur].name} 行动` };
     const p = this.players[pid];
     if (!p.alive) return { ok: false, error: '已淘汰玩家不能行动' };
-    // 行动封印（钥匙类来源）：统一在此拦截；超时兜底的强制跳过（forced）豁免
-    if (!forced) {
-      const lock = sealedAction(this, pid, req.type);
-      if (lock) return { ok: false, error: `「${lock.label}」已被封印，无法使用` };
-    }
-    // 倒地/被控制等无法行动状态：拒绝行动（正常流程中 advanceQueue 已跳过）
-    if (this.charDef(pid).skipsAction?.({ game: this, player: pid })) {
-      return { ok: false, error: `${p.name} 当前无法行动` };
-    }
-
-    // 角色状态限制（如亡魂状态只能使用吸/吹）
-    const actionError = this.charDef(pid).validateAction?.({ game: this, player: pid, action: req });
+    const actionError = this.actionRestriction(pid, req, forced);
     if (actionError) return { ok: false, error: actionError };
-    if (statusBlockedActions(p.effects).includes(req.type)) {
-      return { ok: false, error: '当前状态下无法使用该行动' };
-    }
 
     // 行动前压制（高塔等）：其他角色的 onBeforeAction 可让本次行动无效、改为自伤，
     // 或进入双方亲自出拳的判定（player 模式），判定后再继续/取消本次行动（均消耗行动）
@@ -1298,6 +1316,20 @@ export class Game implements GameLike {
     }
 
     return this.performSubmittedAction(pid, req);
+  }
+
+  private actionRestriction(pid: PlayerId, req: ActionRequest, forced = false): string | null {
+    const cd = this.charDef(pid);
+    const p = this.players[pid];
+    const lock = forced ? undefined : sealedAction(this, pid, req.type);
+    if (lock) return `「${lock.label}」已被封印`;
+    if (cd.skipsAction?.({ game: this, player: pid })) return `${p.name} 当前无法行动`;
+    const error = cd.validateAction?.({ game: this, player: pid, action: req });
+    if (error) return error;
+    const status = statusBlockingAction(p.effects, req.type);
+    if (status) return `${status}时无法使用该行动`;
+    if (cd.blockBaseActions?.includes(req.type)) return '该角色无法使用该行动';
+    return null;
   }
 
   /** 正常执行一次已通过前置校验的行动（含消耗行动、推进队列） */
@@ -1395,12 +1427,11 @@ export class Game implements GameLike {
   }
 
   private executeAction(pid: PlayerId, req: ActionRequest, present: NonNullable<CharActionContext['present']>): ActionResult {
-    // 角色禁用的基础行动（如骷髅无法主动「回复」回满血）
-    if (this.charDef(pid).blockBaseActions?.includes(req.type)) {
-      return { ok: false, error: `${this.players[pid].name} 无法使用该行动` };
-    }
     const base = BASE_ACTIONS.get(req.type);
-    if (base) return base.execute(this, pid, req, this.map);
+    if (base) {
+      const error = base.unavailableReason?.(this, pid);
+      return error ? { ok: false, error } : base.execute(this, pid, req, this.map);
+    }
     const mapAction = this.map.actions?.get(req.type);
     if (mapAction) {
       const { note, ...result } = mapAction.execute(this.players[pid], req);
@@ -1411,7 +1442,7 @@ export class Game implements GameLike {
       ?? this.extraActionsFor(pid).find((a) => a.name === req.type);
     if (!act) return { ok: false, error: `未知行动：${req.type}` };
     const ctx: CharActionContext = { game: this, actor: pid, params: req, present };
-    const error = act.validate?.(ctx);
+    const error = act.unavailableReason?.(ctx) ?? act.validate?.(ctx);
     if (error) return { ok: false, error };
     const out = act.execute(ctx);
     if (out && typeof out === 'object' && out.presentation) return { ok: true, presentation: out.presentation };

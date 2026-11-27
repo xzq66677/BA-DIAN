@@ -34,7 +34,7 @@ const bagun: CharDef = {
   attackType: 'melee',
   ignoreHide: true,
   init: () => ({ stickDrawn: false }),
-  validateAttack: (ctx) => {
+  attackUnavailableReason: (ctx) => {
     if (!ctx.game.charState(ctx.actor).stickDrawn) return '未拔棍，无法造成伤害（先使用「拔棍」行动）';
     return null;
   },

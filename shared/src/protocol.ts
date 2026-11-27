@@ -103,6 +103,8 @@ export interface GameSnapshot {
   judge?: SkillJudgeView | null;
   /** 当前行动者由状态 / 在场角色提供的附加行动（服务端权威，客户端只展示） */
   extraActions?: ExtraActionView[];
+  /** 当前行动者被禁用的行动及公开原因。 */
+  actionDisabledReasons?: Record<string, string>;
   /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
   orderGroup?: string[];
   orderSubmittedIds?: string[];
