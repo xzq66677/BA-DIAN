@@ -20,6 +20,10 @@ import {
 import { gllog } from './gllog.js';
 import { slotMachineDropFx } from './slot-drop-fx.js';
 import { B3D_RESTORE_WAIT_MS } from './gl-policy.js';
+import { loadedCollaborationVisualId, roomDecoration } from './characters/collab-assets.js';
+import { RoomDecorations, windAssetFx, windTravel } from './collaboration-props.js';
+import type { AssetCue } from './collaboration-presenters.js';
+export { preloadCollaborationAssets } from './characters/collab-assets.js';
 
 // ── 大贱客辱骂演出计数 ──────────────────────────────────────
 // 2D/3D 视图切换会 dispose 并重建 BattleScene3D 实例，实例字段会丢计数；
@@ -37,7 +41,7 @@ export function setInsultGeneration(gen: string): void {
 
 // ── 对外数据契约（与 net.ts 的 GameSnapshot 字段对齐的最小子集） ──
 export type SnapPlayerLite = Pick<SnapPlayer,
-  'id' | 'name' | 'charId' | 'charName' | 'hp' | 'maxHp' | 'room' | 'alive' | 'hidden' | 'invisible' | 'char'>;
+  'id' | 'name' | 'charId' | 'charName' | 'hp' | 'maxHp' | 'room' | 'alive' | 'hidden' | 'invisible' | 'char' | 'effects'>;
 export type SnapLite = Pick<GameSnapshot, 'roomIds' | 'currentActor' | 'phase' | 'winner' | 'domainHolder' | 'ruins'> & {
   players: SnapPlayerLite[];
   deferred?: Pick<DeferredEvent, 'id' | 'kind' | 'room' | 'explodeRound'>[];
@@ -86,11 +90,12 @@ interface Entity {
   bobPhase: number;
   pose: PoseTask;              // 当前动作
   curRoom: string;
+  inRoomStructure: boolean;
   shownHp: number;
   deadPose: boolean;
   invisible: boolean;
   alive: boolean;
-  walk: { from: THREE.Vector3; to: THREE.Vector3; ctrl: THREE.Vector3; t: number; dur: number } | null;
+  walk: { from: THREE.Vector3; to: THREE.Vector3; ctrl: THREE.Vector3; t: number; dur: number; curve?: (t: number) => THREE.Vector3 } | null;
   lunge: { dir: THREE.Vector3; t: number; dur: number; base: THREE.Vector3 } | null;
   /** 进行中的受击挤压补间（连续受击时取消前一个） */
   squash: Tween | null;
@@ -158,6 +163,27 @@ export class BattleScene3D {
   private camMoving = true;
   private targetablePids = new Set<string>();
   private lastSnapshot: SnapLite | null = null;
+  private readonly decorations = new RoomDecorations();
+
+  refreshCollaborationAssets(): void {
+    const snapshot = this.lastSnapshot;
+    if (this.disposed || !snapshot) return;
+    const upgrade = snapshot.players.some(player => {
+      const id = loadedCollaborationVisualId(player.charId);
+      return id && this.entities.get(player.id)?.asset.id !== id;
+    });
+    if (upgrade) this.syncSnapshot(snapshot, true);
+    else this.syncDecorations(snapshot, true);
+  }
+
+  private syncDecorations(snapshot: SnapLite, immediate: boolean): void {
+    const requests = new Map<string, NonNullable<ReturnType<typeof roomDecoration>>>();
+    for (const player of snapshot.players) {
+      const request = roomDecoration(player.charId, player.room, player);
+      if (request && snapshot.roomIds.includes(request.room)) requests.set(player.id, request);
+    }
+    this.decorations.sync(requests, room => this.map.rooms.has(room) ? this.rooms.get(room)?.group : undefined, PLATFORM_H, immediate);
+  }
   private selectedRoom = '';
   private selectedPlayer = '';
   private hoveredRoom = '';
@@ -292,7 +318,8 @@ export class BattleScene3D {
 
   private ensureEntity(p: SnapPlayerLite): Entity {
     let e = this.entities.get(p.id);
-    if (e?.charId === p.charId) return e;
+    const available = loadedCollaborationVisualId(p.charId);
+    if (e?.charId === p.charId && (!available || e.asset.id === available)) return e;
     if (e) this.removeEntity(e);
     const room = this.rooms.get(p.room)!;
     const asset = createCharacterAsset(p.charId);
@@ -375,7 +402,7 @@ export class BattleScene3D {
       stick: asset.stick,
       bobPhase: Math.random() * Math.PI * 2,
       pose: { kind: 'idle', t: 0, dur: Infinity },
-      curRoom: p.room, shownHp: p.hp, deadPose: false, invisible: false, alive: p.alive, walk: null, lunge: null, squash: null,
+      curRoom: p.room, inRoomStructure: p.char.inTower === true, shownHp: p.hp, deadPose: false, invisible: false, alive: p.alive, walk: null, lunge: null, squash: null,
       baseScale: rig.root.scale.clone(),
       plateSlot: 0, plateCount: 1,
     };
@@ -409,7 +436,8 @@ export class BattleScene3D {
   }
 
   private spawnFor(pid: string, room: RoomView) {
-    return room.anchor.spawns[room.slots.get(pid) ?? 0];
+    const spawn = room.anchor.spawns[room.slots.get(pid) ?? 0];
+    return this.entities.get(pid)?.inRoomStructure ? { x: spawn.x * .40, z: spawn.z * .40 } : spawn;
   }
 
   // ── 快照同步（显示权威） ───────────────────────────────────
@@ -432,6 +460,7 @@ export class BattleScene3D {
     const players = new Map(snap.players.filter(p => this.map.rooms.has(p.room)).map(p => [p.id, p]));
     for (const [pid, e] of this.entities) if (!players.has(pid)) this.removeEntity(e);
     for (const p of players.values()) this.syncEntity(this.ensureEntity(p), p, snap, immediate, moveSeconds);
+    this.syncDecorations(snap, immediate || this.reduced);
     for (const [rid, room] of this.rooms) {
       if (this.map.rooms.has(rid)) continue;
       releaseRoomObject(room.group);
@@ -521,8 +550,10 @@ export class BattleScene3D {
 
   private syncEntity(e: Entity, p: SnapPlayerLite, snap: SnapLite, immediate: boolean, moveSeconds: number): void {
     const toRoom = this.rooms.get(p.room)!;
+    const structureChanged = e.inRoomStructure !== (p.char.inTower === true);
+    e.inRoomStructure = p.char.inTower === true;
     const slot = this.spawnFor(p.id, toRoom);
-    if (e.curRoom !== p.room) {
+    if (e.curRoom !== p.room || structureChanged) {
       const worldFrom = e.group.getWorldPosition(new THREE.Vector3());
       toRoom.group.add(e.group);
       e.curRoom = p.room;
@@ -548,6 +579,7 @@ export class BattleScene3D {
     // 存活状态
     e.alive = p.alive;
     e.invisible = p.invisible;
+    e.rig.presentation?.updateState(p, immediate || this.reduced);
     if (p.alive) {
       if (e.deadPose) this.standUp(e, false);
       if (!e.invisible) {
@@ -667,12 +699,38 @@ export class BattleScene3D {
     }
   }
 
+  playAssetCue(pid: string, cue: AssetCue): boolean {
+    const actor = this.entities.get(pid);
+    if (!actor || !canAct(actor)) return false;
+    const direction = cue.targets.map(id => this.worldOf(id)).find(position => position !== null);
+    if (direction) this.faceTo(actor, direction);
+    const played = actor.rig.presentation?.play(cue.clip, this.reduced ? .12 : cue.seconds);
+    if (!played) return false;
+    if (cue.directional && !this.reduced && !this.lowEffects) {
+      const from = actor.rig.root.getObjectByName('WindOrigin')?.getWorldPosition(new THREE.Vector3())
+        ?? actor.rig.root.getWorldPosition(new THREE.Vector3());
+      for (const target of cue.targets) {
+        const entity = this.entities.get(target);
+        if (entity?.walk && cue.moves?.some(move => move.pid === target)) {
+          entity.walk.curve = windTravel(cue.directional, entity.walk.from, entity.walk.to);
+          entity.walk.dur = cue.seconds;
+        }
+        const position = this.worldOf(target);
+        if (!position) continue;
+        const fx = windAssetFx(cue.directional, position.sub(from), cue.seconds);
+        if (fx) this.spawnFx(fx, from, cue.seconds * 1000);
+      }
+    }
+    return true;
+  }
+
   /** 行动姿态 */
   playAction(pid: string, kind: string, targetId?: string): void {
     const e = this.entities.get(pid);
     if (!e || !canAct(e)) return;
     switch (kind) {
       case 'attack': {
+        if (e.rig.presentation) return; // GLB rigs use the authoritative attack declaration once.
         this.focusPlayer('actor', pid);
         const targetPos = targetId ? this.worldOf(targetId) : null;
         if (targetPos) this.faceTo(e, targetPos);
@@ -763,11 +821,22 @@ export class BattleScene3D {
   }
 
   /** 攻击宣告：转向目标 + 挥击预备 + 预警光束 */
-  playAttackDecl(sourceId: string, targetId: string): void {
+  playAttackDecl(sourceId: string, targetId: string, presentation?: Readonly<Record<string, unknown>>): void {
     const e = this.entities.get(sourceId);
     const to = this.worldOf(targetId);
     if (!e || !to || !canAct(e)) return;
     this.faceTo(e, to);
+    if (e.rig.presentation) {
+      const mounted = presentation?.mounted === true;
+      const crossing = mounted && typeof presentation?.fromRoom === 'string' &&
+        typeof presentation?.toRoom === 'string' && presentation.fromRoom !== presentation.toRoom;
+      const action = mounted ? 'mountedAttack' : e.rig.presentation.actionClip ?? 'attackSwing';
+      const seconds = this.reduced ? .16 : action === 'shoot' ? 1.5 : mounted ? 1.15 : .78;
+      if (e.rig.presentation.play(action, seconds, crossing)) {
+        this.focusPlayer('target', targetId);
+        return;
+      }
+    }
     e.pose = { kind: 'attack', t: 0, dur: 0.4 };
     const from = this.worldOf(sourceId);
     if (from && !this.reduced) {
@@ -1200,8 +1269,10 @@ export class BattleScene3D {
     for (const node of this.floatLabels.keys()) node.remove();
     this.floatLabels.clear();
     this.tweens.length = 0;
+    this.decorations.dispose();
     for (const e of this.entities.values()) {
       if (newGame) { this.removeEntity(e); continue; }
+      e.rig.presentation?.reset();
       e.walk = null;
       e.lunge = null;
       e.squash = null;
@@ -1230,7 +1301,7 @@ export class BattleScene3D {
       const z = center.z;
       center.project(this.camera);
       return { pid: e.pid, hp: e.shownHp, charId: e.charId, asset: e.asset.id, pose: e.pose.kind,
-        t: e.pose.t, dur: e.pose.dur, room: e.curRoom, alive: e.alive, visible: e.rig.root.visible,
+        t: e.pose.t, dur: e.pose.dur, room: e.curRoom, alive: e.alive, visible: e.rig.root.visible, visualId: e.asset.id,
         x: (center.x + 1) * this.container.clientWidth / 2, y: (1 - center.y) * this.container.clientHeight / 2, z };
     });
   }
@@ -1325,19 +1396,19 @@ export class BattleScene3D {
         e.walk.t += dt / e.walk.dur;
         const t = Math.min(1, e.walk.t);
         const it = 1 - t;
-        const p = e.walk.from.clone().multiplyScalar(it * it)
+        const p = e.walk.curve?.(t) ?? e.walk.from.clone().multiplyScalar(it * it)
           .add(e.walk.ctrl.clone().multiplyScalar(2 * it * t))
           .add(e.walk.to.clone().multiplyScalar(t * t));
         const parent = e.group.parent;
         if (parent) {
           const local = parent.worldToLocal(p.clone());
           e.group.position.copy(local);
-          e.group.position.y = Math.sin(Math.PI * t) * 0.68;
+          e.group.position.y = e.walk.curve ? p.y : Math.sin(Math.PI * t) * 0.68;
         }
         // 面向行进方向
         const aheadT = Math.min(1, t + 0.04);
         const it2 = 1 - aheadT;
-        const ahead = e.walk.from.clone().multiplyScalar(it2 * it2)
+        const ahead = e.walk.curve?.(aheadT) ?? e.walk.from.clone().multiplyScalar(it2 * it2)
           .add(e.walk.ctrl.clone().multiplyScalar(2 * it2 * aheadT))
           .add(e.walk.to.clone().multiplyScalar(aheadT * aheadT));
         const dir = ahead.sub(p);
@@ -1438,6 +1509,11 @@ export class BattleScene3D {
       }
     }
 
+    for (const entity of this.entities.values()) {
+      entity.rig.presentation?.update(poseDt, id => this.entities.get(id)?.rig.root);
+    }
+    const movingDecorations = this.decorations.update(poseDt);
+
     // 房间动画
     for (const r of this.rooms.values()) {
       if (r.pulse && this.elapsed >= r.pulse.until) {
@@ -1466,7 +1542,7 @@ export class BattleScene3D {
     }
 
     this.updateCamera(dt);
-    const busy = this.tweens.length > 0 || this.fxList.length > 0 || this.dragging || this.camMoving
+    const busy = movingDecorations || this.tweens.length > 0 || this.fxList.length > 0 || this.dragging || this.camMoving
       || Array.from(this.entities.values()).some(e => e.walk || e.lunge);
     const minFrame = busy ? (this.lowEffects ? 0.027 : 0) : 0.05;
     if (this.elapsed - this.lastRender >= minFrame) {

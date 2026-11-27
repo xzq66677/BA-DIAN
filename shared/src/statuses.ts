@@ -1,94 +1,316 @@
 /**
- * 拔典 · 通用玩家状态（公开状态层）
+ * 状态效果注册表（持续效果统一入口）。
  *
- * 与角色 `char` 私有状态的区别：这里的状态**可以施加在任何玩家身上**（不论角色），
- * 并且必须遵循 AGENTS.md 的生命周期要求：施加 → 生效 → 到期/移除 → 死亡清理。
+ * 新增负面状态（燃烧 / 中毒 / 减速…）时：
+ *  1. 在本文件注册 `StatusDef`（回合末结算、可提供的行动、清理）；
+ *  2. 引擎负责生命周期：施加（`Game.addStatus`）、回合末推进（`tickStatuses`）、
+ *     到期移除、死亡清理；
+ *  3. `snapshot.ts` 只下发公开字段（`publicStatusEffects`），客户端通过
+ *     `client/src/battle/status-readers.ts` 注册读取器。
  *
- * 状态本身不知道任何业务细节；「状态在什么时机做什么」由注册的处理器决定
- * （见 `registerStatusJudgeHandler`），引擎只负责在对应时机遍历分发，
- * 因此新增状态不需要改引擎，也不需要在引擎里写状态名分支。
+ * 约束：引擎与 UI 主流程不得为具体状态名写分支；状态差异只允许出现在本注册表
+ * 与客户端读取器注册表里。
  */
 
-import type { GameLike } from './chardef.js';
-import type { JudgeStep, PlayerId, PlayerStatus } from './types.js';
+import type { CharActionDef, GameLike } from './chardef.js';
+import { fmtNum, type ActiveStatusEffect, type PlayerId, type PublicStatusEffect } from './types.js';
 
-/** 状态在「判定追加」时机的处理器 */
-export type StatusJudgeHandler = (
+export interface StatusTickCtx {
+  game: GameLike;
+  owner: PlayerId;
+  effect: ActiveStatusEffect;
+}
+
+export interface StatusActionCtx {
+  game: GameLike;
+  owner: PlayerId;
+  effect: ActiveStatusEffect;
+}
+
+export interface StatusDef {
+  kind: string;
+  label: string;
+  icon: string;
+  /** 回合末结算（所有回合，含平局回合）；引擎在每个回合的回合末调用 */
+  tick?(ctx: StatusTickCtx): void;
+  /** 状态拥有者可用的附加行动 */
+  actions?(ctx: StatusActionCtx): CharActionDef[];
+  /** 状态移除/持有者淘汰时的清理（引擎调用；`effect` 在移除前传入，仍含 source/data） */
+  cleanup?(ctx: { game: GameLike; owner: PlayerId; effect: ActiveStatusEffect }): void;
+}
+
+export const BURNING_KIND = 'burning';
+export const POSSESSED_KIND = 'possessed';
+export const POSSESSING_KIND = 'possessing';
+export const MOUNTED_KIND = 'mounted';
+
+/** 同一房间内、带指定标签的存活角色（状态/环境行动用，避免写死角色 id） */
+export function findTraitInRoom(
   game: GameLike,
-  pid: PlayerId,
-  ctx: { step: JudgeStep; stage: 'rps1' | 'rps2'; sub: number },
-) => void;
-
-const judgeHandlers = new Map<string, StatusJudgeHandler>();
-
-/** 注册某状态在判定结算后的行为 */
-export function registerStatusJudgeHandler(kind: string, handler: StatusJudgeHandler): void {
-  judgeHandlers.set(kind, handler);
+  room: string,
+  trait: string,
+  exclude?: PlayerId,
+): PlayerId | undefined {
+  return game.aliveIds().find((pid) => pid !== exclude
+    && game.players[pid].room === room
+    && (game.charDef(pid).traits ?? []).includes(trait));
 }
 
-function listOf(game: GameLike, pid: PlayerId): PlayerStatus[] {
-  const p = game.players[pid];
-  if (!p) return [];
-  if (!Array.isArray(p.statuses)) p.statuses = [];
-  return p.statuses;
+/**
+ * 燃烧：每回合 0.5 伤害（含平局回合），无限持续，直到目标消耗一次行动扑灭。
+ * - 点燃当回合与扑灭当回合不结算（`appliedRound` 保护 + 移除即不发生结算）；
+ * - 由状态持有者主动「扑灭」，或同房间燃烧者「引燃骷髅」施加给骷髅躯壳。
+ */
+const burning: StatusDef = {
+  kind: BURNING_KIND,
+  label: '燃烧',
+  icon: '🔥',
+  tick: ({ game, owner, effect }) => {
+    const p = game.players[owner];
+    if (!p || !p.alive) return;
+    if (effect.appliedRound >= game.roundNo) {
+      game.log('state', `🔥 ${p.name} 本回合刚被点燃，回合末不结算燃烧伤害`, { pid: owner, effect: BURNING_KIND });
+      return;
+    }
+    const amount = effect.severity ?? 0.5;
+    game.log('state', `🔥 ${p.name} 燃烧结算：每回合 ${fmtNum(amount)} 伤害`, { pid: owner, effect: BURNING_KIND, amount }, true);
+    // 燃烧不是攻击：不触发反弹/转移类判定
+    game.applyDamage({
+      target: owner,
+      amount,
+      source: effect.source,
+      dtype: 'special',
+      tag: 'burn',
+      noReflect: true,
+    });
+  },
+  actions: ({ game, owner, effect }) => {
+    const p = game.players[owner];
+    if (!p || !p.alive) return [];
+    const list: CharActionDef[] = [
+      {
+        name: 'extinguish',
+        label: '扑灭火焰',
+        desc: '消耗本次行动熄灭身上的燃烧（本回合不再受到燃烧伤害）。',
+        typeLabel: '状态',
+        targetHint: 'none',
+        validate: (ctx) => (ctx.game.getStatus(ctx.actor, BURNING_KIND) ? null : '当前没有燃烧状态'),
+        execute: (ctx) => {
+          const removed = ctx.game.removeStatus(ctx.actor, BURNING_KIND);
+          if (removed) {
+            ctx.game.log('action', `💧 ${ctx.game.players[ctx.actor].name} 扑灭了身上的火焰`, { pid: ctx.actor, effect: BURNING_KIND }, true);
+          }
+        },
+      },
+    ];
+    // 燃烧的敌人与骷髅躯壳同房间时，可消耗一次行动把火引到骷髅身上
+    const skeleton = findTraitInRoom(game, p.room, 'skeleton', owner);
+    if (skeleton) {
+      list.push({
+        name: 'igniteSkeleton',
+        label: '引燃骷髅',
+        desc: `消耗本次行动，用身上的火焰引燃同房间的 ${game.players[skeleton].name}（使其开始燃烧，每回合受到 ${fmtNum(effect.severity ?? 0.5)} 伤害）。`,
+        typeLabel: '状态',
+        targetHint: 'sameRoomPlayer',
+        validate: (ctx) => {
+          const targetId = ctx.params.targetId;
+          if (!targetId || !ctx.game.players[targetId]?.alive) return '目标不存在或已淘汰';
+          if (!ctx.game.isSameRoom(ctx.actor, targetId)) return '需要与目标同房间';
+          if (!(ctx.game.charDef(targetId).traits ?? []).includes('skeleton')) return '只能引燃骷髅躯壳';
+          return null;
+        },
+        execute: (ctx) => {
+          const targetId = ctx.params.targetId!;
+          ctx.game.addStatus(targetId, {
+            kind: BURNING_KIND,
+            severity: effect.severity ?? 0.5,
+            remainingRounds: null,
+            source: ctx.actor,
+          });
+          ctx.game.log('trigger', `🔥 ${ctx.game.players[ctx.actor].name} 把身上的火焰引到了 ${ctx.game.players[targetId].name} 身上`, { pid: targetId, source: ctx.actor, effect: BURNING_KIND }, true);
+        },
+      });
+    }
+    return list;
+  },
+  cleanup: ({ game, owner }) => {
+    game.log('state', `💧 ${game.players[owner]?.name ?? owner} 身上的燃烧消失`, { pid: owner, effect: BURNING_KIND }, false);
+  },
+};
+
+/**
+ * 被附身：每回合 1 点伤害（含平局回合），附身当回合与驱赶当回合不结算；
+ * 被附身者可用一次行动「驱逐鬼影」解除。
+ */
+const possessed: StatusDef = {
+  kind: POSSESSED_KIND,
+  label: '被附身',
+  icon: '👻',
+  tick: ({ game, owner, effect }) => {
+    const host = game.players[owner];
+    if (!host || !host.alive) return;
+    const ghost = effect.source;
+    if (!ghost || !game.players[ghost]?.alive) {
+      // 鬼影已不在场：附身自然消失
+      game.removeStatus(owner, POSSESSED_KIND);
+      return;
+    }
+    if (effect.appliedRound >= game.roundNo) {
+      game.log('state', `👻 ${host.name} 本回合刚被附身，回合末不结算附身伤害`, { pid: owner, effect: POSSESSED_KIND });
+      return;
+    }
+    const amount = effect.severity ?? 1;
+    game.log('state', `👻 ${host.name} 被 ${game.players[ghost].name} 附身，受到 ${fmtNum(amount)} 点伤害`, { pid: owner, source: ghost, effect: POSSESSED_KIND, amount }, true);
+    game.log('action', '鬼影吸取', { pid: ghost, targetId: owner, actionName: 'ghostSiphon', fx: 'skill' });
+    const applied = game.applyDamage({
+      target: owner,
+      amount,
+      source: ghost,
+      dtype: 'special',
+      tag: 'possess',
+      noReflect: true,
+    });
+    // 附身期间造成的伤害等量给鬼影回血
+    if (!applied.missed && !applied.deferred) game.heal(ghost, applied.amount);
+  },
+  actions: ({ game, owner }) => [{
+    name: 'expelGhost',
+    label: '驱逐鬼影',
+    desc: '消耗本次行动解除附身（本回合不再受到附身伤害）。',
+    typeLabel: '状态',
+    targetHint: 'none',
+    validate: (ctx) => (ctx.game.getStatus(ctx.actor, POSSESSED_KIND) ? null : '当前没有被附身'),
+    execute: (ctx) => {
+      if (ctx.game.removeStatus(ctx.actor, POSSESSED_KIND)) {
+        ctx.game.log('action', `🌫 ${ctx.game.players[ctx.actor].name} 花费一次行动驱散了附身的鬼影`, { pid: ctx.actor, effect: POSSESSED_KIND }, true);
+      }
+    },
+  }],
+  cleanup: ({ game, owner, effect }) => {
+    // 解除附身：鬼影现形并清除它的「附身中」状态
+    const ghost = effect.source;
+    if (!ghost || !game.players[ghost]) return;
+    const gst = game.charState(ghost);
+    gst.possessing = null;
+    if (game.players[ghost].alive) game.players[ghost].invisible = false;
+    game.removeStatus(ghost, POSSESSING_KIND);
+    game.log('trigger', `🌫 鬼影 ${game.players[ghost].name} 从 ${game.players[owner]?.name ?? owner} 身上脱离，重新现形`,
+      { ghost, host: owner, effect: POSSESSED_KIND }, true);
+  },
+};
+
+/** 附身中（鬼影本体状态）：提供「折磨」与「操控宿主」两个附加行动 */
+const possessing: StatusDef = {
+  kind: POSSESSING_KIND,
+  label: '附身中',
+  icon: '👻',
+  actions: ({ game, owner, effect }) => {
+    const hostId = (effect.data as { host?: PlayerId } | undefined)?.host;
+    if (!hostId || !game.players[hostId]?.alive) return [];
+    const host = game.players[hostId];
+    return [
+      {
+        name: 'possessStrike',
+        label: '折磨宿主',
+        desc: `消耗本次行动：对被附身的 ${host.name} 额外造成 1 点伤害（等量回血给鬼影）。`,
+        typeLabel: '状态',
+        targetHint: 'none',
+        validate: (ctx) => {
+          const hid = (ctx.game.getStatus(ctx.actor, POSSESSING_KIND)?.data as { host?: PlayerId } | undefined)?.host;
+          if (!hid || !ctx.game.players[hid]?.alive) return '没有可折磨的宿主';
+          return null;
+        },
+        execute: (ctx) => {
+          const hid = (ctx.game.getStatus(ctx.actor, POSSESSING_KIND)?.data as { host?: PlayerId } | undefined)?.host;
+          if (!hid) return;
+          ctx.game.log('damage', `🌫 鬼影折磨 ${ctx.game.players[hid].name}（额外 1 点伤害）`, { pid: hid, source: ctx.actor, effect: POSSESSING_KIND }, true);
+          const applied = ctx.game.applyDamage({ target: hid, amount: 1, source: ctx.actor, dtype: 'special', tag: 'possess-extra', noReflect: true });
+          if (!applied.missed && !applied.deferred) ctx.game.heal(ctx.actor, applied.amount);
+        },
+      },
+      {
+        name: 'possessControl',
+        label: '操控宿主',
+        desc: `消耗本次行动：操控被附身的 ${host.name} 攻击其同房间的一名玩家（使用宿主自身的攻击力）。`,
+        typeLabel: '状态',
+        targetHint: 'sameRoomPlayer',
+        validate: (ctx) => {
+          const hid = (ctx.game.getStatus(ctx.actor, POSSESSING_KIND)?.data as { host?: PlayerId } | undefined)?.host;
+          if (!hid || !ctx.game.players[hid]?.alive) return '没有可操控的宿主';
+          const targetId = ctx.params.targetId;
+          if (!targetId || !ctx.game.players[targetId]?.alive) return '目标不存在或已淘汰';
+          if (targetId === hid) return '不能操控宿主攻击自己';
+          if (targetId === ctx.actor) return '不能操控宿主攻击鬼影自己';
+          if (!ctx.game.isSameRoom(hid, targetId)) return '只能操控宿主攻击其同房间目标';
+          return null;
+        },
+        execute: (ctx) => {
+          const hid = (ctx.game.getStatus(ctx.actor, POSSESSING_KIND)?.data as { host?: PlayerId } | undefined)?.host;
+          const targetId = ctx.params.targetId;
+          if (!hid || !targetId) return;
+          const hostDef = ctx.game.charDef(hid);
+          const amount = hostDef.meleeDamage ?? hostDef.rangedDamage ?? hostDef.attack ?? ctx.game.rules.defaultAttack;
+          ctx.game.log('damage', `🌫 鬼影操控 ${ctx.game.players[hid].name} 攻击 ${ctx.game.players[targetId].name}（伤害 ${fmtNum(amount)}）`,
+            { pid: targetId, host: hid, source: ctx.actor, effect: POSSESSING_KIND }, true);
+          ctx.game.applyDamage({
+            target: targetId,
+            amount,
+            source: hid,
+            dtype: hostDef.attackDtype || 'physical',
+            tag: 'controlled',
+            isAttack: true,
+            ...(hostDef.attackEffects && hostDef.attackEffects.length > 0 ? { effects: hostDef.attackEffects } : {}),
+          });
+        },
+      },
+    ];
+  },
+  cleanup: ({ game, owner, effect }) => {
+    // 鬼影侧清理：宿主仍有附身状态时一并解除（removeStatus 先行移除，互不递归）
+    const hostId = (effect.data as { host?: PlayerId } | undefined)?.host;
+    if (!hostId) return;
+    if (game.getStatus(hostId, POSSESSED_KIND)) game.removeStatus(hostId, POSSESSED_KIND);
+    const gst = game.charState(owner);
+    gst.possessing = null;
+    if (game.players[owner]?.alive) game.players[owner].invisible = false;
+  },
+};
+
+/** 骑乘中（狂猎）：攻击强化与位移由角色攻击钩子读取；剩余回合由引擎统一递减 */
+const mounted: StatusDef = {
+  kind: MOUNTED_KIND,
+  label: '骑乘中',
+  icon: '🐎',
+  cleanup: ({ game, owner }) => {
+    const st = game.charState(owner);
+    st.mounted = false;
+    st.mountExpiresRound = 0;
+    if (game.players[owner]?.alive) {
+      game.log('trigger', `🐎 ${game.players[owner].name} 结束骑乘，下马`, { pid: owner, effect: MOUNTED_KIND }, true);
+    }
+  },
+};
+
+export const STATUS_REGISTRY: Record<string, StatusDef> = {
+  [BURNING_KIND]: burning,
+  [POSSESSED_KIND]: possessed,
+  [POSSESSING_KIND]: possessing,
+  [MOUNTED_KIND]: mounted,
+};
+
+export function statusDef(kind: string): StatusDef | undefined {
+  return STATUS_REGISTRY[kind];
 }
 
-export function statusesOf(game: GameLike, pid: PlayerId): PlayerStatus[] {
-  return listOf(game, pid);
-}
-
-export function hasStatus(game: GameLike, pid: PlayerId, kind: string): boolean {
-  return listOf(game, pid).some((s) => s.kind === kind);
-}
-
-/** 施加状态（同一 kind 默认不重复叠加；`stackable` 时追加） */
-export function addStatus(
-  game: GameLike,
-  pid: PlayerId,
-  status: Omit<PlayerStatus, 'round'> & { round?: number },
-): PlayerStatus | null {
-  const p = game.players[pid];
-  if (!p || !p.alive) return null;
-  const list = listOf(game, pid);
-  if (!status.stackable && list.some((s) => s.kind === status.kind)) return null;
-  const entry: PlayerStatus = { ...status, round: status.round ?? game.roundNo };
-  list.push(entry);
-  return entry;
-}
-
-export function removeStatus(game: GameLike, pid: PlayerId, kind: string): void {
-  const p = game.players[pid];
-  if (!p) return;
-  p.statuses = listOf(game, pid).filter((s) => s.kind !== kind);
-}
-
-/** 回合末递减限时状态（当前状态均为永久，保留到期路径） */
-export function tickStatuses(game: GameLike, pid: PlayerId): void {
-  const p = game.players[pid];
-  if (!p || !Array.isArray(p.statuses) || p.statuses.length === 0) return;
-  const kept: PlayerStatus[] = [];
-  for (const s of p.statuses) {
-    if (typeof s.remainingRounds !== 'number') { kept.push(s); continue; }
-    const left = s.remainingRounds - 1;
-    if (left > 0) kept.push({ ...s, remainingRounds: left });
-    else game.log('state', `${game.getPlayer(pid).name} 的「${s.label ?? s.kind}」已到期`, undefined, true);
-  }
-  p.statuses = kept;
-}
-
-/** 死亡清理 */
-export function clearStatuses(game: GameLike, pid: PlayerId): void {
-  const p = game.players[pid];
-  if (p) p.statuses = [];
-}
-
-/** 判定追加后的统一分发（引擎调用；无处理器时静默跳过） */
-export function dispatchStatusJudge(
-  game: GameLike,
-  pid: PlayerId,
-  ctx: { step: JudgeStep; stage: 'rps1' | 'rps2'; sub: number },
-): void {
-  for (const s of [...listOf(game, pid)]) {
-    judgeHandlers.get(s.kind)?.(game, pid, ctx);
-  }
+/** 只投影公开字段（快照用）；未知状态安全降级为 kind 本身 */
+export function publicStatusEffects(effects?: ActiveStatusEffect[]): PublicStatusEffect[] {
+  if (!effects || effects.length === 0) return [];
+  return effects.map((effect) => {
+    const view: PublicStatusEffect = { kind: effect.kind };
+    if (typeof effect.severity === 'number') view.severity = effect.severity;
+    if (effect.remainingRounds !== undefined) view.remainingRounds = effect.remainingRounds;
+    if (typeof effect.stacks === 'number') view.stacks = effect.stacks;
+    if (effect.source) view.source = effect.source;
+    return view;
+  });
 }

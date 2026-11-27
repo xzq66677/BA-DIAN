@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "generatedOn": "2026-11-26",
+  "issue": 72,
+  "issueOwner": "MMR12345",
+  "scope": "visual-assets-only",
+  "asset": {
+    "file": "model/slot-hero.glb",
+    "bytes": 8090180,
+    "megabytes": 8.09018,
+    "mebibytes": 7.715397,
+    "sha256": "3a17f9e6c95026a6fa84d7fbc0958b6024496e31b7c19426b30da824be3a2e75",
+    "magic": "glTF",
+    "version": 2,
+    "declaredLengthMatchesFileLength": true,
+    "externalResources": false
+  },
+  "model": {
+    "heightMeters": 1.865,
+    "widthMeters": 1.196,
+    "depthMeters": 0.881,
+    "restBounds": {
+      "min": [-0.543, 0, -0.414],
+      "max": [0.653, 1.865, 0.467]
+    },
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "footY": 0,
+    "rootMotion": false,
+    "triangles": 44000,
+    "vertices": 132000,
+    "bones": 22,
+    "meshes": 11,
+    "skinnedMeshes": 11,
+    "skins": 11,
+    "jointsPerSkin": 22,
+    "materials": 11,
+    "loadedTextures": 24,
+    "embeddedImages": 18,
+    "embeddedImageDimensions": {
+      "256x256": 6,
+      "64x64": 12
+    },
+    "pbrMaterialsWithBaseColorRoughnessMetalnessNormal": 6,
+    "modelDrawCalls": 11
+  },
+  "animations": {
+    "idle": { "duration": 4, "tracks": 4 },
+    "walk": { "duration": 1, "tracks": 8 },
+    "slot_pull": { "duration": 2.6, "tracks": 9 },
+    "flinch": { "duration": 0.85, "tracks": 5 },
+    "dead": { "duration": 1, "tracks": 5 },
+    "reviveRise": { "duration": 1, "tracks": 5 },
+    "victory": { "duration": 2.8, "tracks": 11 }
+  },
+  "gltfLoaderReload": {
+    "passed": true,
+    "bones": 22,
+    "meshes": 11,
+    "skinnedMeshes": 11,
+    "materials": 11,
+    "textures": 24,
+    "triangles": 44000,
+    "maxObservedDistanceMeters": 0.0012608443854053829,
+    "denseSample": {
+      "sampleCount": 261,
+      "intervalSeconds": 0.01,
+      "maxDistanceMeters": 0.0012608443854053829,
+      "maxAtSeconds": 0.58
+    },
+    "victoryHandHeightSamplesMeters": [
+      { "time": 0, "leftHandY": 1.11, "rightHandY": 1.36 },
+      { "time": 0.75, "leftHandY": 1.6968, "rightHandY": 1.5678 },
+      { "time": 1.4, "leftHandY": 1.6543, "rightHandY": 1.5671 },
+      { "time": 2.8, "leftHandY": 1.11, "rightHandY": 1.36 }
+    ]
+  },
+  "groundContact": {
+    "sampleCountPerClip": 21,
+    "intervalSeconds": 0.05,
+    "dead": { "minY": -3.6507847717137665e-9, "maxPenetrationMeters": 3.6507847717137665e-9, "minAtSeconds": 0 },
+    "reviveRise": { "minY": -3.6507847717137665e-9, "maxPenetrationMeters": 3.6507847717137665e-9, "minAtSeconds": 1 },
+    "passed": true
+  },
+  "previewRegression": {
+    "passed": true,
+    "animationControls": ["idle", "walk", "flinch", "dead", "reviveRise", "slot_pull", "victory"],
+    "slotPullReturnsToIdle": true,
+    "victoryReturnsToIdle": true,
+    "oneShotReturnWallMilliseconds": {
+      "slotPull": 2862.7,
+      "victory": 2818.8
+    },
+    "animationClockUsesWallTimeAtLowFrameRate": true,
+    "pageErrors": [],
+    "renderer": {
+      "callsIncludingStageAndShadows": 60,
+      "trianglesIncludingStageAndShadows": 92560,
+      "geometriesIncludingStage": 50,
+      "texturesIncludingPreviewEnvironment": 29
+    },
+    "finalCaptureSamples": [
+      { "file": "evidence/preview-idle.png", "clip": "idle", "time": 0.55, "handKnobDistanceMeters": 0.00354191932464428 },
+      { "file": "evidence/preview-lever-down.png", "clip": "slot_pull", "time": 0.9, "handKnobDistanceMeters": 0.0022764909020456586 },
+      { "file": "evidence/preview-reel-spin.png", "clip": "slot_pull", "time": 1.25, "handKnobDistanceMeters": 0.004446123423180508 },
+      { "file": "evidence/preview-victory.png", "clip": "victory", "time": 0.75 },
+      { "file": "evidence/preview-dead-ground.png", "clip": "dead", "time": 1 }
+    ]
+  },
+  "mobilePreview": {
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "documentScrollWidth": 390,
+    "horizontalOverflow": false,
+    "canvasCssSize": [390, 490],
+    "victoryButtonPresent": true,
+    "evidence": "evidence/preview-mobile-390.png"
+  },
+  "checks": {
+    "glbHeader": true,
+    "skeletonAndWeights": true,
+    "animationClips": true,
+    "embeddedPbrMaps": true,
+    "groundedFeet": true,
+    "deathGroundContact": true,
+    "leverHandContact": true,
+    "allPreviewControls": true,
+    "victoryAnimation": true,
+    "animationTiming": true,
+    "mobileNoHorizontalOverflow": true,
+    "glbSizeTarget4Mb": false
+  },
+  "limitations": [
+    "Polished procedural stylization; not a photorealistic scanned or externally generated character.",
+    "TRIPO_API_KEY, GEMINI_API_KEY and ELEVENLABS_API_KEY were missing and were not used.",
+    "The 8.09 MB GLB exceeds the initial 4 MB target because skinned geometry attributes dominate file size.",
+    "Gameplay rules, shared character registration and production runtime integration are intentionally not included."
+  ],
+  "evidence": [
+    "evidence/preview-idle.png",
+    "evidence/preview-lever-down.png",
+    "evidence/preview-reel-spin.png",
+    "evidence/preview-victory.png",
+    "evidence/preview-dead-ground.png",
+    "evidence/preview-mobile-390.png"
+  ]
+}

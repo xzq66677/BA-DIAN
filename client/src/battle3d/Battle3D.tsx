@@ -84,7 +84,8 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
   useEffect(() => {
     if (!active || failed || sceneModule) return;
     let cancelled = false;
-    void import('./scene.js').then((module) => {
+    void import('./scene.js').then(async module => {
+      await module.preloadCollaborationAssets(hooksRef.current.game.players.map(player => player.charId));
       if (!cancelled) setSceneModule(module);
     }, (error: unknown) => {
       if (cancelled) return;
@@ -147,6 +148,17 @@ export function Battle3D(props: Battle3DProps): { view: React.ReactNode; failed:
     };
     // The subscription and scene lifetime follow the renderer, not each snapshot.
   }, [failed, active, playback, sceneModule]);
+
+  const roster = [...new Set(game.players.map(player => player.charId))].sort().join(',');
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!active || !scene || !sceneModule) return;
+    let cancelled = false;
+    void sceneModule.preloadCollaborationAssets(roster.split(',')).then(() => {
+      if (!cancelled) scene.refreshCollaborationAssets();
+    });
+    return () => { cancelled = true; };
+  }, [active, roster, sceneModule]);
 
   useLayoutEffect(() => {
     const scene = sceneRef.current;

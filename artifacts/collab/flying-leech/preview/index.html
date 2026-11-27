@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>飞天水蛭 · 角色资产预览</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./preview.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>飞天水蛭</h1>
+      <button id="play" disabled>播放完整演出</button>
+    </header>
+    <section id="stage" aria-label="飞天水蛭 3D 预览">
+      <div class="stage-note"><span id="title">加载模型</span><p id="description" role="status"></p></div>
+    </section>
+    <nav aria-label="选择演出" id="stages">
+      <button data-shot="idle" disabled>待机</button>
+      <button data-shot="build" disabled>造塔</button>
+      <button data-shot="strike" disabled>投塔卷入</button>
+      <button data-shot="inhale" disabled>吸入对手</button>
+      <button data-shot="exhale" disabled>吹出对手</button>
+      <button data-shot="spectral" disabled>灵体</button>
+    </nav>
+    <label class="scrubber">动作进度<input id="progress" type="range" min="0" max="1000" value="0" disabled></label>
+  </main>
+  <script type="module" src="./preview.mjs"></script>
+</body>
+</html>

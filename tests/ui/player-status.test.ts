@@ -48,4 +48,72 @@ describe('角色公开状态', () => {
     expect(serialized).not.toContain('scissors');
     expect(serialized).not.toContain('secret');
   });
+
+  it('燃烧状态：展示每回合伤害与来源，忽略未知状态与私有字段', () => {
+    const p = player({
+      effects: [
+        { kind: 'burning', severity: 0.5, remainingRounds: null, source: 'B' },
+        { kind: 'unknown-future-status', severity: 3 },
+      ],
+    });
+    const items = playerStatusItems(p, [player(), player({ id: 'B', name: '弓箭手 B' })]);
+    const burning = items.find((item) => item.key === 'status-burning');
+    expect(burning).toBeTruthy();
+    expect(burning!.value).toBe('每回合 0.5 伤害');
+    expect(burning!.detail).toContain('弓箭手 B');
+    expect(burning!.tone).toBe('bad');
+    // 未知状态安全忽略，且不泄漏未知 kind
+    expect(JSON.stringify(items)).not.toContain('unknown-future-status');
+  });
+
+  it('淘汰后不展示燃烧等持续状态（死亡清理后的快照）', () => {
+    const p = player({ alive: false, hp: 0, effects: [{ kind: 'burning', severity: 0.5 }] });
+    const items = playerStatusItems(p);
+    expect(items.map((item) => item.key)).toEqual(['alive']);
+  });
+
+  it('鬼影附身：展示被附身来源与附身中宿主', () => {
+    const host = player({ effects: [{ kind: 'possessed', severity: 1, source: 'G' }] });
+    const ghost = player({
+      id: 'G', name: '鬼影', char: { possessing: 'A' },
+      effects: [{ kind: 'possessing', severity: 0 }],
+    });
+    const hostItems = playerStatusItems(host, [host, ghost]);
+    const possessed = hostItems.find((item) => item.key === 'status-possessed');
+    expect(possessed).toBeTruthy();
+    expect(possessed!.value).toBe('每回合 1 伤害');
+    expect(possessed!.detail).toContain('鬼影');
+    expect(possessed!.tone).toBe('bad');
+
+    const ghostItems = playerStatusItems(ghost, [host, ghost]);
+    const possessing = ghostItems.find((item) => item.key === 'status-possessing');
+    expect(possessing).toBeTruthy();
+    expect(possessing!.value).toBe('无法被锁定');
+    expect(possessing!.detail).toContain('折磨');
+  });
+
+  it('骑乘中：展示剩余回合与攻击强化', () => {
+    const p = player({ charId: 'wild-hunt', effects: [{ kind: 'mounted', severity: 0, remainingRounds: 2 }] });
+    const items = playerStatusItems(p, [p]);
+    const mounted = items.find((item) => item.key === 'status-mounted');
+    expect(mounted).toBeTruthy();
+    expect(mounted!.value).toContain('剩余 2 回合');
+    expect(mounted!.detail).toContain('6 伤');
+    expect(mounted!.tone).toBe('good');
+  });
+
+  it('高塔/亡魂：展示塔内外隔绝、造塔进度与亡魂状态', () => {
+    const inside = player({ charId: 'water-snake', char: { towerBaseRoom: 'R1', buildProgress: 2, inTower: true } });
+    const insideKeys = playerStatusItems(inside, [inside]).map((item) => item.key);
+    expect(insideKeys).toEqual(expect.arrayContaining(['tower-built', 'tower-inside']));
+
+    const building = player({ charId: 'water-snake', char: { buildProgress: 1 } });
+    expect(playerStatusItems(building, [building]).map((item) => item.key)).toContain('tower-building');
+
+    const dead = player({ charId: 'water-snake', hp: 0, char: { posthumous: true } });
+    const deadItems = playerStatusItems(dead, [dead]);
+    const undead = deadItems.find((item) => item.key === 'posthumous');
+    expect(undead).toBeTruthy();
+    expect(undead!.value).toBe('不可被攻击');
+  });
 });

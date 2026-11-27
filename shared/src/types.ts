@@ -31,12 +31,10 @@ export interface CharRuntimeState {
 }
 
 /**
+/**
  * 行动封印（钥匙类来源）：被封印的行动无法执行。
- *
- * 生命周期要求（AGENTS.md「角色公开状态与后续负面状态接口」）：
- * 施加 → 生效 → 到期/移除 → 死亡清理。当前规则的封印是**永久**（持续到对局结束，
- * 无回合到期），移除路径为「持有人淘汰」与对局重置；新增限时封印时只增加
- * `remainingRounds` 并在回合末递减，不改调用方。
+ * 生命周期：施加 → 生效 → 到期/移除 → 死亡清理。当前规则为永久封印，
+ * 移除路径为「持有人淘汰」与对局重置；新增限时封印时增加 `remainingRounds` 即可。
  */
 export interface ActionLock {
   /** 被封禁的行动名（BASE_ACTIONS / 地图行动 / 角色 actions 的 name；`attack` 不可封印） */
@@ -53,7 +51,7 @@ export interface ActionLock {
 
 /**
  * 通用玩家状态（公开）：可以施加在任何角色身上。
- * 生命周期：施加 → 生效 → 到期/移除 → 死亡清理（见 shared/src/statuses.ts）。
+ * 生命周期：施加 → 生效 → 到期/移除 → 死亡清理（见 shared/src/player-statuses.ts）。
  */
 export interface PlayerStatus {
   /** 状态种类（如 `crippled`）；行为由注册的处理器决定，UI 由状态读取器白名单渲染 */
@@ -72,6 +70,33 @@ export interface PlayerStatus {
   data?: Record<string, unknown>;
 }
 
+/**
+ * 公开状态效果（下发客户端的最小投影）。
+ * 只包含展示与规则解释所需的公开字段：`kind`、`severity`、`remainingRounds`、
+ * `stacks` 和必要的公开来源；内部生命周期字段（如施加回合）只留在引擎侧。
+ */
+export interface PublicStatusEffect {
+  kind: string;
+  /** 严重度（例：燃烧每回合伤害 0.5） */
+  severity?: number;
+  /** 剩余回合数；null = 无限持续，直到主动移除 */
+  remainingRounds?: number | null;
+  stacks?: number;
+  /** 公开来源（点燃者等） */
+  source?: PlayerId;
+}
+
+/**
+ * 引擎权威状态效果：在公开投影之外携带生命周期数据。
+ * 新增负面状态必须走状态注册表（shared/src/statuses.ts），并实现
+ * 施加 / 回合推进 / 到期或移除 / 死亡清理的完整生命周期。
+ */
+export interface ActiveStatusEffect extends PublicStatusEffect {
+  /** 施加该状态的回合（用于「施加当回合不结算」等规则） */
+  appliedRound: number;
+  /** 状态私有数据（不下发快照） */
+  data?: Record<string, unknown>;
+}
 export interface PlayerState {
   id: PlayerId;
   name: string;
@@ -88,6 +113,8 @@ export interface PlayerState {
   hidden: boolean;
   /** 隐身状态（与躲藏类似但来源不同，如部分角色被动） */
   invisible: boolean;
+  /** 权威状态效果（燃烧等持续效果）；快照只投影公开字段 */
+  effects?: ActiveStatusEffect[];
   /** 角色私有运行状态（拔棍状态、领域、瞄准、辱骂层数、判定历史等） */
   char: CharRuntimeState;
   /** 行动封印（公开信息：谁被封了什么，场上所有人都能看到） */
@@ -97,12 +124,12 @@ export interface PlayerState {
 }
 
 /** 技能内判定（马保国系能力）的类别 */
-export type SkillJudgeKind = 'taiji' | 'whip5' | 'bujiangwude';
+export type SkillJudgeKind = 'taiji' | 'whip5' | 'bujiangwude' | 'wildhunt' | 'tower';
 
 /** 一次技能内判定的请求（由角色钩子发起，引擎负责暂停对局收拳与逐局结算） */
 export interface SkillJudgeOptions {
   kind: SkillJudgeKind;
-  /** 判定发起者（「己方」：太极/五连鞭/不讲武德都是马保国） */
+  /** 判定发起者（「己方」：太极/五连鞭/不讲武德/狂猎受击判定） */
   owner: PlayerId;
   /** 对手（伤害来源 / 五连鞭目标 / 击杀者） */
   opponent: PlayerId;
@@ -110,8 +137,10 @@ export interface SkillJudgeOptions {
   rounds: number;
   /** 日志与界面标题，如「太极判定」「五连鞭第 3 鞭」 */
   label: string;
-  /** 全部局数结算后的回调（wins = 己方获胜局数） */
-  resolve: (wins: number, rounds: number) => void;
+  /** 平局是否立即重赛（不消耗局数）：狂猎受击判定「再来一把」 */
+  rerollTie?: boolean;
+  /** 全部局数结算后的回调（wins = 己方获胜局数；lastResult = 最后一局结果） */
+  resolve: (wins: number, rounds: number, lastResult?: 'win' | 'lose' | 'tie') => void;
 }
 
 /** 进行中的判定（快照下发，供客户端渲染出拳面板） */
@@ -180,6 +209,11 @@ export interface DamageRequest {
   judgeResolved?: boolean;
   /** 伤害标签（ivan/insult/whip/berserk/selfdestruct...） */
   tag?: string;
+  /**
+   * 是否为「攻击」造成的伤害（普攻 / 燃烧箭 / 被操控的攻击）。
+   * 受击判定类被动（如狂猎的猜拳反击）只对攻击生效，不响应燃烧/爆炸/精神攻击等。
+   */
+  isAttack?: boolean;
   /** 原始效果附加（转移伤害时不随转移） */
   effects?: DamageEffect[];
   /**
@@ -237,6 +271,8 @@ export type BattleFxKind =
 
 /** 攻击宣告（type:'damage' 且 declared=true）：扣血事件之前的「出手意向」提示 */
 export interface AttackDeclEventData {
+  /** Public context for synchronizing the declared attack pose with its resolved movement. */
+  presentation?: Record<string, unknown>;
   declared: true;
   source: PlayerId;
   target: PlayerId;
@@ -462,6 +498,8 @@ export interface ReplayRecord extends ReplaySummary {
 export interface ActionRequest {
   type: string;
   targetId?: PlayerId;
+  /** 多目标行动（如飞天水螅的吸/吹）：一次行动可指定多名玩家 */
+  targetIds?: PlayerId[];
   room?: RoomId;
   /** 是否声明为远程攻击（默认按房间关系自动判定） */
   ranged?: boolean;
@@ -476,6 +514,19 @@ export interface ActionResult {
    * `presentation` 字段，角色注册的 fx 插件据此渲染，不需要改引擎或演出层。
    */
   presentation?: Record<string, unknown>;
+}
+
+/**
+ * 由状态 / 其他角色提供的附加行动（快照下发当前行动者的可用列表）。
+ * 客户端只负责展示与选择，合法性由服务端重新校验。
+ */
+export interface ExtraActionView {
+  key: string;
+  label: string;
+  desc: string;
+  typeLabel: string;
+  targetHint?: 'anyPlayer' | 'sameRoomPlayer' | 'otherRoomPlayer';
+  roomHint?: boolean;
 }
 
 export interface GamePlayerConfig {

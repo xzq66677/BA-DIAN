@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "displayName": "飞天水蛭",
+  "suggestedCharId": "flying-leech",
+  "visualId": "flying-leech-v2",
+  "source": "src/generate.mjs",
+  "preview": "preview/index.html",
+  "validation": "evidence/validation.json",
+  "origin": "Original procedural geometry, materials and articulated animation. No external assets.",
+  "coordinates": {
+    "unit": "meter",
+    "up": "+Y",
+    "forward": "+Z",
+    "floorY": 0,
+    "characterPivot": "ground under hover center"
+  },
+  "rig": "Animated named TRS nodes. Character clips are in place. Props have local motion.",
+  "textures": 0,
+  "characterAnchors": [
+    "HeadAnchor",
+    "ChestAnchor",
+    "BackAnchor",
+    "WindOrigin",
+    "GroundAnchor"
+  ],
+  "towerAnchors": [
+    "VortexAnchor",
+    "ImpactAnchor"
+  ],
+  "towerStyle": {
+    "tierCount": 5,
+    "sides": 8,
+    "form": "Tapered octagonal pagoda with upturned tiled eaves and a tall finial"
+  },
+  "towerImpactSeconds": 0.93,
+  "vortexCapture": {
+    "clip": "capture",
+    "rotationX": -1.5707963267948966,
+    "scale": [
+      3.82,
+      3.82,
+      0.55
+    ]
+  },
+  "directionalWind": {
+    "targetNode": "WindTargetMotion",
+    "targetLift": "Y offset above target floor",
+    "awayAxis": "+Z"
+  },
+  "spectralOpacity": 0.4,
+  "assets": [
+    {
+      "file": "model/flying-leech.glb",
+      "bytes": 288624,
+      "sha256": "fefdd6680203b8bb59653f37ce66865e91e460fd8df2eaedea8d896a29675961",
+      "triangles": 26812,
+      "meshes": 70,
+      "materials": 14,
+      "bounds": [
+        [
+          -1.286,
+          0.644,
+          -1.1
+        ],
+        [
+          1.286,
+          1.952,
+          0.979
+        ]
+      ],
+      "animations": [
+        {
+          "name": "idle",
+          "duration": 2.3
+        },
+        {
+          "name": "walk",
+          "duration": 0.82
+        },
+        {
+          "name": "cast",
+          "duration": 1.45
+        },
+        {
+          "name": "attack",
+          "duration": 1.15
+        },
+        {
+          "name": "inhale",
+          "duration": 1.7
+        },
+        {
+          "name": "exhale",
+          "duration": 1.5
+        },
+        {
+          "name": "flinch",
+          "duration": 0.6
+        },
+        {
+          "name": "crouch",
+          "duration": 1.7
+        },
+        {
+          "name": "cheer",
+          "duration": 1.4
+        },
+        {
+          "name": "dead",
+          "duration": 1.45
+        },
+        {
+          "name": "dead_idle",
+          "duration": 3.8
+        },
+        {
+          "name": "revive",
+          "duration": 0.9
+        }
+      ]
+    },
+    {
+      "file": "model/flying-leech-spectral.glb",
+      "bytes": 245900,
+      "sha256": "aba411fbf646de6eda72bb0ea169cda326883b10abea6fbfc0e24d496794dbef",
+      "triangles": 26812,
+      "meshes": 70,
+      "materials": 14,
+      "bounds": [
+        [
+          -1.286,
+          0.644,
+          -1.1
+        ],
+        [
+          1.286,
+          1.952,
+          0.979
+        ]
+      ],
+      "animations": [
+        {
+          "name": "dead",
+          "duration": 1.45
+        },
+        {
+          "name": "dead_idle",
+          "duration": 3.8
+        },
+        {
+          "name": "revive",
+          "duration": 0.9
+        }
+      ]
+    },
+    {
+      "file": "model/basalt-tower.glb",
+      "bytes": 986528,
+      "sha256": "8002e7ea53aa559809655b584dc6708e978feede3be2fc58278ad40ba7cebf20",
+      "triangles": 34788,
+      "meshes": 54,
+      "materials": 8,
+      "bounds": [
+        [
+          -1.752,
+          0,
+          -1.752
+        ],
+        [
+          1.758,
+          5.668,
+          1.758
+        ]
+      ],
+      "animations": [
+        {
+          "name": "build",
+          "duration": 1.75
+        },
+        {
+          "name": "strike",
+          "duration": 1.52
+        }
+      ]
+    },
+    {
+      "file": "model/wind-vortex.glb",
+      "bytes": 96524,
+      "sha256": "abc1bf36a74f08a15d6c810b932af9dcb48ee778282d7ae43bcdb3a92dd81384",
+      "triangles": 680,
+      "meshes": 15,
+      "materials": 3,
+      "bounds": [
+        [
+          -0.914,
+          -0.869,
+          -0.002
+        ],
+        [
+          0.882,
+          0.9,
+          2.931
+        ]
+      ],
+      "animations": [
+        {
+          "name": "inhale",
+          "duration": 1.65
+        },
+        {
+          "name": "exhale",
+          "duration": 1.65
+        },
+        {
+          "name": "capture",
+          "duration": 1.82
+        }
+      ]
+    }
+  ]
+}

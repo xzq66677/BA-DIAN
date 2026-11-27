@@ -24,7 +24,7 @@ import type { ActionRequest, ActionResult, DamageRequest, DeferredEvent, PlayerI
 import { fmtNum } from '../types.js';
 import { sealAction, sealableActions, sealedAction } from '../effects.js';
 import { registerDeferredKind } from '../deferred-registry.js';
-import { addStatus, hasStatus, registerStatusJudgeHandler, statusesOf } from '../statuses.js';
+import { addStatus, hasStatus, registerStatusJudgeHandler, statusesOf } from '../player-statuses.js';
 
 export const SLOT_CHAR_ID = 'slot-hero';
 
@@ -471,7 +471,7 @@ export function slotHeroAi(ctx: CharacterAiContext): ActionRequest | undefined {
     const best = busyRoom();
     if (best && best.count > 0) return { type: 'slotBigIvan', room: best.room };
   }
-  if (s.machine.landed) {
+  if (s.machine.landed && s.machine.room) {
     // 落地后：同房间踹机换钱，不同房间先走过去（否则 0 攻击会僵持到天荒地老）
     return me.room === s.machine.room ? { type: 'slotKick' } : { type: 'move', room: s.machine.room };
   }

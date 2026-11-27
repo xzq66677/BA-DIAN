@@ -69,6 +69,85 @@ const readCharacter: PlayerStatusReader = (p, context) => {
     key: 'taiji', icon: '🛡', label: '混元形意太极', value: p.char.taijiAuto ? '自动反弹开启' : '自动反弹关闭',
     detail: p.char.taijiAuto ? '受到可判定伤害时自动进行太极判定。' : '当前不再自动触发太极反弹判定。', tone: p.char.taijiAuto ? 'good' : 'warn',
   });
+  // 飞天水螅 / 高塔：塔内外隔绝、造塔进度、亡魂
+  if (typeof p.char.towerBaseRoom === 'string' && p.char.towerBaseRoom) {
+    const hp = typeof p.char.towerHp === 'number' ? p.char.towerHp : 0;
+    items.push({
+      key: 'tower-built', icon: '🗼', label: '高塔', value: `建于 ${p.char.towerBaseRoom}（${hp}/6 血）`,
+      detail: '塔内外算作两个房间（隔绝）；同房间的任何玩家都可攻击高塔，耐久归零会坍塌。', tone: 'neutral',
+    });
+  }
+  if (typeof p.char.buildProgress === 'number' && p.char.buildProgress === 1) items.push({
+    key: 'tower-building', icon: '🧱', label: '造塔中', value: '1/2',
+    detail: '再消耗一次行动即可建成玄武岩高塔。', tone: 'neutral',
+  });
+  if (p.char.inTower === true) items.push({
+    key: 'tower-inside', icon: '🗼', label: '塔内', value: '隔绝中',
+    detail: '高塔内外隔绝：无法被外部锁定，AOE/房间级效果也不穿透塔壁；可用吸/吹进出。', tone: 'warn',
+  });
+  if (p.char.posthumous === true) items.push({
+    key: 'posthumous', icon: '👻', label: '亡魂', value: '不可被攻击',
+    detail: '死后仍参与猜拳，只能使用吸/吹（或跳过）。', tone: 'bad',
+  });
+  return items;
+};
+
+/**
+ * 公开状态效果（`PlayerState.effects`）：按 kind 白名单读取。
+ * 新增状态时只需在此登记读取器，无需修改血条/弹窗组件。
+ */
+const readStatusEffects: PlayerStatusReader = (p, context) => {
+  if (!p.alive) return [];
+  const items: PlayerStatusItem[] = [];
+  for (const effect of p.effects ?? []) {
+    const source = effect.source ? context.players.find((other) => other.id === effect.source) : undefined;
+    if (effect.kind === 'burning') {
+      items.push({
+        key: 'status-burning',
+        icon: '🔥',
+        label: '燃烧',
+        value: `每回合 ${formatHp(effect.severity ?? 0.5)} 伤害`,
+        detail: `无限持续，直到消耗一次行动扑灭；被点燃与扑灭的当回合不结算（平局回合同样结算）${source ? `；来源：${source.name}` : ''}。`,
+        tone: 'bad',
+      });
+      continue;
+    }
+    if (effect.kind === 'possessed') {
+      items.push({
+        key: 'status-possessed',
+        icon: '👻',
+        label: '被附身',
+        value: `每回合 ${formatHp(effect.severity ?? 1)} 伤害`,
+        detail: `附身当回合与驱赶当回合不结算（平局回合同样结算）；可消耗一次行动「驱逐鬼影」${source ? `；来源：${source.name}` : ''}。`,
+        tone: 'bad',
+      });
+      continue;
+    }
+    if (effect.kind === 'possessing') {
+      items.push({
+        key: 'status-possessing',
+        icon: '🌫',
+        label: '附身中',
+        value: '无法被锁定',
+        detail: '附身期间无法被敌人锁定（AOE 仍可命中）；赢下判定后可「折磨宿主」或「操控宿主」。',
+        tone: 'good',
+      });
+      continue;
+    }
+    if (effect.kind === 'mounted') {
+      const left = typeof effect.remainingRounds === 'number' ? effect.remainingRounds : undefined;
+      items.push({
+        key: 'status-mounted',
+        icon: '🐎',
+        label: '骑乘中',
+        value: left ? `剩余 ${left} 回合` : '攻击强化',
+        detail: '攻击无视距离并带位移、伤害×2；骑乘最后一回合攻击变为 6 伤单体。',
+        tone: 'good',
+      });
+      continue;
+    }
+    // 未知状态安全忽略
+  }
   return items;
 };
 
@@ -158,6 +237,7 @@ const readGenericStatuses: PlayerStatusReader = (p) => {
 export const PLAYER_STATUS_READERS = [
   readLife,
   readStealth,
+  readStatusEffects,
   readDomain,
   readCharacter,
   readInsults,

@@ -1,5 +1,6 @@
 import type { Game } from './engine.js';
 import { PROTOCOL_VERSION, type GameSnapshot } from './protocol.js';
+import { publicStatusEffects } from './statuses.js';
 
 /** Public state for clients and the test arena. Pending throw values stay in the engine. */
 export function serializeSnapshot(game: Game, mapFields?: Pick<GameSnapshot, 'ruins'>): GameSnapshot {
@@ -9,6 +10,8 @@ export function serializeSnapshot(game: Game, mapFields?: Pick<GameSnapshot, 'ru
       id: p.id, name: p.name, charId: p.charId, charName: game.charName(pid),
       hp: p.hp, maxHp: p.maxHp, room: p.room, originRoom: p.originRoom,
       alive: p.alive, type: p.type, hidden: p.hidden, invisible: p.invisible,
+      /** 持续状态：只投影公开字段（内部生命周期字段不下发） */
+      effects: publicStatusEffects(p.effects),
       char: { ...p.char }, // 判定历史（完整记录）单独剥离，只下发最近 3 条公开结果
       judgeStreak: game.judgeHistory(pid).slice(-3),
       /** 行动封印：公开信息（谁被封了什么行动），UI 据此置灰行动 */
@@ -40,6 +43,8 @@ export function serializeSnapshot(game: Game, mapFields?: Pick<GameSnapshot, 'ru
     orderReveal: game.orderRevealInfo(),
     /** 技能内判定（马保国系）：进行中的出拳面板数据；非判定阶段为 null */
     judge: game.skillJudgeView(),
+    /** 当前行动者由状态 / 在场角色提供的附加行动（服务端权威，客户端只展示） */
+    extraActions: game.extraActionViews(game.currentActor()),
     /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
     orderGroup: game.currentOrderGroup(),
     orderSubmittedIds: [...game.orderSubmittedIds],

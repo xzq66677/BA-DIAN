@@ -11,7 +11,7 @@ import { makeGame, playThrows, actQueue } from '../shared/src/testcases/helpers.
 import type { Game } from '../shared/src/engine.js';
 import { slotSymbolOf, slotHeroAi, type SlotState } from '../shared/src/characters/slot-hero.js';
 import { sealedAction } from '../shared/src/effects.js';
-import { addStatus } from '../shared/src/statuses.js';
+import { addStatus } from '../shared/src/player-statuses.js';
 
 const R = { A: 'rock', B: 'scissors' } as const;
 

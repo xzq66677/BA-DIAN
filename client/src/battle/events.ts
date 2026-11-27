@@ -13,6 +13,23 @@ import { resolveActionPresentation } from './action-presentation.js';
 
 export type PresentationData = Readonly<Record<string, unknown>>;
 
+export interface PresentationMove {
+  pid: string;
+  fromRoom: string;
+  toRoom: string;
+  tower?: 'enter' | 'exit';
+}
+
+export function presentationMoves(data: PresentationData | undefined): PresentationMove[] {
+  if (!Array.isArray(data?.moves)) return [];
+  return data.moves.flatMap((entry: unknown) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const { pid, fromRoom, toRoom, tower } = entry as Record<string, unknown>;
+    if (typeof pid !== 'string' || typeof fromRoom !== 'string' || typeof toRoom !== 'string') return [];
+    return [{ pid, fromRoom, toRoom, tower: tower === 'enter' || tower === 'exit' ? tower : undefined }];
+  });
+}
+
 /** 最小日志形状（net.ts 的 SnapLog 与测试构造的日志都满足；type 可缺省=旧数据） */
 export interface LogLike {
   seq: number;
@@ -120,6 +137,7 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
           kind: 'attackDecl', seq: log.seq,
           sourceId: source, targetId: target,
           amount: num(d.amount), room: str(d.room),
+          presentation: presentationData(d.presentation),
           important: log.important,
         };
       }
