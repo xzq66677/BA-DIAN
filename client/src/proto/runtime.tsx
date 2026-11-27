@@ -63,13 +63,19 @@ function actionChain(g: Game, pid: string): ActionRequest[] {
     if (a.targetHint && a.targetHint !== 'none') {
       const pool = a.targetHint === 'sameRoomPlayer'
         ? others.filter((p) => g.players[p].room === me.room)
+        : a.targetHint === 'sameRoomOrTowerPlayer'
+          ? others.filter((p) => g.players[p].room === me.room && !g.players[p].hidden && !g.players[p].invisible)
         : a.targetHint === 'otherRoomPlayer'
           ? others.filter((p) => g.players[p].room !== me.room)
           : others;
       if (pool.length === 0) continue;
       (req as unknown as { targetId: string }).targetId = g.rng.pick(pool);
     }
-    if (a.roomHint) (req as unknown as { room: string }).room = g.rng.pick(g.roomIds);
+    if (a.roomHint) {
+      const rooms = g.roomIds.filter((room) => room !== me.room || !a.roomExcludeCurrent);
+      if (rooms.length === 0) continue;
+      (req as unknown as { room: string }).room = g.rng.pick(rooms);
+    }
     chain.push(req);
   }
   // 近战同房间目标
@@ -385,7 +391,7 @@ export function ProtoFlight({ throwView }: { throwView: { key: number; pid: stri
   );
 }
 
-export interface ProtoAction { key: string; label: string; typeLabel: string; need: string; targetHint?: string; roomHint?: boolean; }
+export interface ProtoAction { key: string; label: string; typeLabel: string; need: string; targetHint?: string; roomHint?: boolean; roomExcludeCurrent?: boolean; }
 
 export function actionsOf(p: SnapPlayer): ProtoAction[] {
   const cd = CHARACTERS[p.charId] || CHARACTERS['default'];
@@ -401,9 +407,12 @@ export function actionsOf(p: SnapPlayer): ProtoAction[] {
       key: a.name,
       label: a.label,
       typeLabel: '技能',
-      need: a.targetHint && a.targetHint !== 'none' ? '🎯 目标' : a.roomHint ? '🗺️ 房间' : '✨ 直接发动',
+      need: a.targetHint && a.targetHint !== 'none'
+        ? (a.roomHint ? '🎯 目标 + 🗺️ 房间' : '🎯 目标')
+        : a.roomHint ? '🗺️ 房间' : '✨ 直接发动',
       targetHint: a.targetHint && a.targetHint !== 'none' ? a.targetHint : undefined,
       roomHint: a.roomHint,
+      roomExcludeCurrent: a.roomExcludeCurrent,
     });
   }
   list.push({ key: 'skip', label: '跳过', typeLabel: '基础', need: '' });
@@ -425,6 +434,7 @@ export function useProtoDock(rt: ProtoRuntime) {
     const others = rt.snap.players?.filter((p) => p.alive && p.id !== rt.myId) ?? [];
     switch (sel.targetHint) {
       case 'sameRoomPlayer': return others.filter((p) => p.room === me.room);
+      case 'sameRoomOrTowerPlayer': return others.filter((p) => p.room === me.room && !p.hidden && !p.invisible);
       case 'otherRoomPlayer': return others.filter((p) => p.room !== me.room);
       default: return others;
     }
@@ -435,6 +445,8 @@ export function useProtoDock(rt: ProtoRuntime) {
     setSelRaw(a);
     setTarget('');
     setMsg('');
+    const rooms = rt.snap?.roomIds ?? [];
+    setRoom(rooms.find((room) => room !== me?.room || !a?.roomExcludeCurrent) ?? '');
     rt.setManual(!!a); // 接管：驱动器停止代打 P1
   }
 
@@ -446,7 +458,9 @@ export function useProtoDock(rt: ProtoRuntime) {
       (req as unknown as { targetId: string }).targetId = target;
     }
     if (sel.roomHint || sel.key === 'move') {
-      (req as unknown as { room: string }).room = room || rt.snap.roomIds[0];
+      if (!room) { setMsg('请选择目标房间'); return; }
+      if (sel.roomExcludeCurrent && room === me.room) { setMsg('落点房间不能是当前房间'); return; }
+      (req as unknown as { room: string }).room = room;
     }
     const r = rt.submitMyAction(req);
     if (r.ok) { setSel(null); setMsg(''); }
@@ -503,11 +517,11 @@ export function ProtoDock({ rt, dock, wrapperClass, title }: {
               {(dock.sel.roomHint || dock.sel.key === 'move') && (
                 <select className="pbar-speed" value={dock.room} onChange={(e) => dock.setRoom(e.target.value)}>
                   {rt.snap.roomIds.map((r) => (
-                    <option key={r} value={r}>{r}（{rt.snap.players.filter((p) => p.alive && p.room === r).map((p) => p.name).join('、') || '空'}）</option>
+                    <option key={r} value={r} disabled={!!dock.sel?.roomExcludeCurrent && r === dock.me?.room}>{r}（{rt.snap.players.filter((p) => p.alive && p.room === r).map((p) => p.name).join('、') || '空'}）</option>
                   ))}
                 </select>
               )}
-              <button className="pact-confirm" disabled={!!dock.sel.targetHint && !dock.target} onClick={dock.confirm}>确认发动</button>
+              <button className="pact-confirm" disabled={(!!dock.sel.targetHint && !dock.target) || ((dock.sel.roomHint || dock.sel.key === 'move') && (!dock.room || (dock.sel.roomExcludeCurrent && dock.room === dock.me?.room)))} onClick={dock.confirm}>确认发动</button>
               <button className="pbar-btn" onClick={() => dock.setSel(null)}>取消</button>
             </div>
           )}

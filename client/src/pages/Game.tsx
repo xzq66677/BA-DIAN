@@ -45,6 +45,7 @@ interface ActionOption {
   /** 多目标行动：可同时选择多名玩家（如吸/吹） */
   multiTarget?: boolean;
   roomHint?: boolean;
+  roomExcludeCurrent?: boolean;
   presentationFx?: string;
   manual?: boolean;
   /** 本局已消耗的技能（如今日勇者运势全局一次）：卡面灰化不可再点 */
@@ -290,6 +291,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         targetHint: a.targetHint && a.targetHint !== 'none' ? a.targetHint : undefined,
         multiTarget: a.multiTarget,
         roomHint: a.roomHint,
+        roomExcludeCurrent: a.roomExcludeCurrent,
         presentationFx: presentation?.fx,
         manual: presentation?.mode === 'manual',
         used,
@@ -302,6 +304,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         typeLabel: a.typeLabel ?? '环境',
         targetHint: a.targetHint,
         roomHint: a.roomHint,
+        roomExcludeCurrent: a.roomExcludeCurrent,
       });
     }
     // 角色禁用的基础行动（如骷髅无法主动回复）
@@ -344,6 +347,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
       case 'aim': return others.filter((p) => !p.hidden && !p.invisible);
       case 'seek': return hiddenOthers;
       case 'sameRoomPlayer': return others.filter((p) => p.room === actor.room);
+      case 'sameRoomOrTowerPlayer': return others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible);
       case 'anyPlayer': return others;
       case 'otherRoomPlayer': return others.filter((p) => p.room !== actor.room);
       default: return [];
@@ -353,6 +357,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   useEffect(() => {
     setSelTarget('');
     setSelTargets([]);
+    setSelRoom('');
     setSelSeal('');
   }, [selAction]);
 
@@ -390,6 +395,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     if (needRoom) {
       if (!selRoom) { setActMsg('请先点击战场中发绿光的房间'); return null; }
       if (selRoom === blockedRoom) { setActMsg(`${selRoom} 泥潭封路，请选择其他房间`); return null; }
+      if (selAction.roomExcludeCurrent && selRoom === actor?.room) { setActMsg('落点房间不能是当前房间'); return null; }
       action.room = selRoom;
     }
     if (selAction.key === 'attack') {
@@ -563,6 +569,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     roomPickMode,
     selectedRoom: selRoom,
     blockedRoom,
+    excludedRoom: selAction?.roomExcludeCurrent ? actor?.room : undefined,
     selectedPlayer: selTargets[selTargets.length - 1] ?? selTarget,
     reducedMotion,
     automaticCamera,
@@ -597,11 +604,16 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
     setFinaleCanvasDone(true);
   };
   // 房间预选：2D 牌桌无战场点击 → 保留下拉与默认预选；3D 模式走「点击战场房间」，
-  // 不预填（防误确认移动到默认房间），确认按钮在选择前禁用
+  // 2D 模式预填合法房间；3D 必须显式点击战场房间
   useEffect(() => {
-    if (use3d) return;
-    if (!selRoom && game.roomIds.length > 0) setSelRoom(game.roomIds[0]);
-  }, [game.roomIds, selRoom, use3d]);
+    if (use3d || !selAction || !actor) return;
+    if (!selAction.roomHint && selAction.key !== 'move') return;
+    const valid = game.roomIds.find((r) => r !== blockedRoom
+      && (!selAction.roomExcludeCurrent || r !== actor.room));
+    if (selRoom && game.roomIds.includes(selRoom) && selRoom !== blockedRoom
+      && (!selAction.roomExcludeCurrent || selRoom !== actor.room)) return;
+    setSelRoom(valid ?? '');
+  }, [use3d, game.roomIds, selRoom, selAction, actor, blockedRoom]);
   // 3D 模式下进入选房行动时清掉残留房间选择（必须显式点击战场房间）
   useEffect(() => {
     if (use3d && selAction && (selAction.roomHint || selAction.key === 'move')) setSelRoom('');
@@ -1043,7 +1055,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                           <span className="scard-type">{o.typeLabel}</span>
                         </div>
                         <div className="scard-desc">{o.desc.length > 44 ? o.desc.slice(0, 44) + '…' : o.desc}</div>
-                        <div className="scard-need">{o.locked ? '🔒 已被封印' : o.used ? '🚫 本局已使用' : o.manual ? '🎰 手动拉杆' : o.targetHint ? (o.multiTarget ? '🎯 可多选目标' : '🎯 需选择目标') : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
+                        <div className="scard-need">{o.locked ? '🔒 已被封印' : o.used ? '🚫 本局已使用' : o.manual ? '🎰 手动拉杆' : o.targetHint ? (o.roomHint ? '🎯 目标 + 🗺️ 房间' : o.multiTarget ? '🎯 可多选目标' : '🎯 需选择目标') : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
                       </button>
                     ))}
                   </div>
@@ -1080,8 +1092,8 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                         <select aria-label="目标房间" value={selRoom} onChange={(e) => setSelRoom(e.target.value)}>
                           {use3d && <option value="">选择目标房间</option>}
                           {game.roomIds.map((r) => (
-                            <option key={r} value={r} disabled={r === blockedRoom}>
-                              {r}（{game.players.filter((p) => p.alive && p.room === r).map((p) => p.name).join('、') || '空'}{r === blockedRoom ? ' · 泥潭封路' : ''}）
+                            <option key={r} value={r} disabled={r === blockedRoom || (!!selAction.roomExcludeCurrent && r === actor?.room)}>
+                              {r}（{game.players.filter((p) => p.alive && p.room === r).map((p) => p.name).join('、') || '空'}{r === blockedRoom ? ' · 泥潭封路' : selAction.roomExcludeCurrent && r === actor?.room ? ' · 当前房间不可选' : ''}）
                             </option>
                           ))}
                         </select>
@@ -1112,7 +1124,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                         </select>
                       )}
                       {blockedRoom && <span className="ruins-mud-chip" data-active="true">{blockedRoom} 泥潭封路，下回合恢复</span>}
-                      <button className="tcg-btn" disabled={(!!selAction.targetHint && (selAction.multiTarget ? selTargets.length === 0 : !selTarget)) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom)) || (!!selAction.sealHint && !selSeal)} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
+                      <button className="tcg-btn" disabled={(!!selAction.targetHint && (selAction.multiTarget ? selTargets.length === 0 : !selTarget)) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom || (selAction.roomExcludeCurrent && selRoom === actor?.room))) || (!!selAction.sealHint && !selSeal)} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
                       <button className="tcg-btn ghost" onClick={resetSelection}>取消</button>
                       {actMsg && <span className="error-text">{actMsg}</span>}
                     </div>

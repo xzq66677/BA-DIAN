@@ -89,11 +89,13 @@ export interface CharActionDef {
   /** 行动分类标签（附加行动展示用，如「状态」「环境」） */
   typeLabel?: string;
   /** 需要目标玩家（同房间/任意） */
-  targetHint?: 'anyPlayer' | 'sameRoomPlayer' | 'otherRoomPlayer' | 'none';
+  targetHint?: 'anyPlayer' | 'sameRoomPlayer' | 'sameRoomOrTowerPlayer' | 'otherRoomPlayer' | 'none';
   /** 多目标行动：一次行动可使用 targetIds 指定多名玩家（如吸/吹） */
   multiTarget?: boolean;
   /** 需要房间选择（如大伊万投掷） */
   roomHint?: boolean;
+  /** 房间选择排除角色当前房间（如吹飞落点） */
+  roomExcludeCurrent?: boolean;
   validate?(ctx: CharActionContext): string | null;
   /** 执行行动；返回 `{ presentation }` 时引擎把它写进 action 日志（公开演出数据） */
   execute(ctx: CharActionContext): void | { presentation?: Record<string, unknown> };
