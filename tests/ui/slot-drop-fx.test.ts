@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { createSlotMachineModel } from '../../client/src/battle3d/slot-machine-model.js';
+import { RoomDecorations } from '../../client/src/battle3d/collaboration-props.js';
 import {
   SLOT_DROP_FX_KIND,
   slotMachineDropFx,
@@ -8,6 +9,22 @@ import {
 } from '../../client/src/battle3d/slot-drop-fx.js';
 
 const DEFAULT_DURATION = 2.2;
+
+it('keeps a landed slot machine in the room when a tower is hit or collapses', () => {
+  const room = new THREE.Group();
+  const decorations = new RoomDecorations();
+  decorations.sync(new Map([['owner', { room: 'R2', asset: 'slot-machine', progress: 1 }]]),
+    id => id === 'R2' ? room : undefined, .3, true);
+  const machine = decorations.objectFor('owner')!;
+  const position = machine.position.clone();
+  decorations.hit('R2');
+  decorations.update(.2);
+  expect(decorations.collapse('R2')).toBe(false);
+  decorations.update(1);
+  expect(machine.position.equals(position)).toBe(true);
+  expect(machine.parent).toBe(room);
+  decorations.dispose();
+});
 
 function resourcesOf(root: THREE.Object3D): {
   geometries: THREE.BufferGeometry[];

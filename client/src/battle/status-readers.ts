@@ -75,7 +75,7 @@ const readCharacter: PlayerStatusReader = (p, context) => {
     const hp = typeof p.char.towerHp === 'number' ? p.char.towerHp : 0;
     items.push({
       key: 'tower-built', icon: '🗼', label: '高塔', value: `建于 ${p.char.towerBaseRoom}（${hp}/6 血）`,
-      detail: '塔内外算作两个房间（隔绝）；同房间的任何玩家都可攻击高塔，耐久归零会坍塌。', tone: 'neutral',
+      detail: '塔内外算作两个房间（隔绝）；高塔吸收所在房间的房间级伤害，塔内玩家不受该次效果伤害；同房间玩家都可攻击高塔，耐久归零会坍塌。', tone: 'neutral',
     });
   }
   if (typeof p.char.buildProgress === 'number' && p.char.buildProgress === 1) items.push({
@@ -84,7 +84,7 @@ const readCharacter: PlayerStatusReader = (p, context) => {
   });
   if (p.char.inTower === true) items.push({
     key: 'tower-inside', icon: '🗼', label: '塔内', value: '隔绝中',
-    detail: '高塔内外隔绝：无法被外部锁定，AOE/房间级效果也不穿透塔壁；可用吸/吹进出。', tone: 'warn',
+    detail: '高塔内外隔绝：无法被外部锁定，房间级伤害由高塔吸收；可用吸/吹进出。', tone: 'warn',
   });
   if (p.char.posthumous === true) items.push({
     key: 'posthumous', icon: '👻', label: '亡魂', value: '不可被攻击',

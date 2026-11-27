@@ -106,7 +106,7 @@ function easyDecide(g: Game, pid: PlayerId): ActionRequest {
   const roll = g.rng.next();
   if (roll < 0.18 && g.rules.allowHide && !me.hidden) return { type: 'hide' };
   if (roll < 0.28) return { type: 'skip' };
-  if (roll < 0.4 && me.hp < me.maxHp) return { type: 'heal' };
+  if (roll < 0.4 && me.hp < me.maxHp && !g.charDef(pid).blockBaseActions?.includes('heal')) return { type: 'heal' };
   if (visible.length > 0 && roll < 0.8) {
     return { type: 'attack', targetId: g.rng.pick(visible) };
   }
@@ -127,7 +127,7 @@ function normalDecide(g: Game, pid: PlayerId): ActionRequest {
   const alive = livingIds(g).filter((p) => p !== pid);
 
   // 血量低且同房间有威胁 → 优先回复
-  if (me.hp < me.maxHp && me.hp <= 1 && members.length > 0) {
+  if (me.hp < me.maxHp && me.hp <= 1 && members.length > 0 && !cd.blockBaseActions?.includes('heal')) {
     return { type: 'heal' };
   }
 
@@ -152,7 +152,7 @@ function normalDecide(g: Game, pid: PlayerId): ActionRequest {
     const target = hidden.sort((a, b) => g.players[a].hp - g.players[b].hp)[0];
     return { type: 'seek', targetId: target };
   }
-  if (me.hp < me.maxHp) return { type: 'heal' };
+  if (me.hp < me.maxHp && !cd.blockBaseActions?.includes('heal')) return { type: 'heal' };
   const roomScores = g.roomIds
     .filter((r) => r !== me.room && !g.isMoveBlocked(pid, r))
     .map((r) => ({ r, n: livingRoomMembers(g, r).length }))
@@ -199,7 +199,7 @@ function hardDecide(g: Game, pid: PlayerId): ActionRequest {
     const atk = mcd.meleeDamage ?? mcd.attack ?? g.rules.defaultAttack;
     return atk >= me.hp;
   });
-  if (danger && me.hp < me.maxHp) return { type: 'heal' };
+  if (danger && me.hp < me.maxHp && !cd.blockBaseActions?.includes('heal')) return { type: 'heal' };
   if (danger && sameRoom.length > 0) {
     const safe = g.roomIds.find((r) => r !== me.room && !g.isMoveBlocked(pid, r) && g.roomMembers(r).length === 0);
     if (safe) return { type: 'move', room: safe };
@@ -233,7 +233,7 @@ function hardDecide(g: Game, pid: PlayerId): ActionRequest {
   }
 
   // 5) 房间空了：补血后主动找人（优先人多且有残血的房间）
-  if (me.hp < me.maxHp) return { type: 'heal' };
+  if (me.hp < me.maxHp && !cd.blockBaseActions?.includes('heal')) return { type: 'heal' };
   const rooms = g.roomIds
     .filter((r) => r !== me.room && !g.isMoveBlocked(pid, r))
     .map((r) => {

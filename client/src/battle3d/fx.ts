@@ -234,6 +234,46 @@ export function explosionFx(color = 0xff8830): FxInstance {
   };
 }
 
+// ── 高塔坍塌：碎石飞散 + 尘环 ──────────────────────────────────
+export function towerCollapseFx(): FxInstance {
+  const g = new THREE.Group();
+  const dur = 1.25;
+  const chunks: { mesh: THREE.Mesh; velocity: THREE.Vector3; spin: THREE.Vector3; mat: THREE.MeshBasicMaterial }[] = [];
+  for (let i = 0; i < 16; i++) {
+    const mat = fxMat(i % 3 === 0 ? 0x8b7d6b : 0x5f584f, 0.96);
+    const mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(0.11 + (i % 4) * 0.035, 0), mat);
+    const angle = (i / 16) * Math.PI * 2 + Math.random() * 0.35;
+    const speed = 1.4 + Math.random() * 2.2;
+    chunks.push({
+      mesh, mat,
+      velocity: new THREE.Vector3(Math.cos(angle) * speed, 2.4 + Math.random() * 2.8, Math.sin(angle) * speed),
+      spin: new THREE.Vector3(Math.random() * 5, Math.random() * 5, Math.random() * 5),
+    });
+    g.add(mesh);
+  }
+  const dust = ringBurst(0xa39581, 2.8, 0.8, { y: 0.12, tube: 0.12, additive: false });
+  g.add(dust.object);
+  return {
+    object: g,
+    update(dt, el) {
+      const t = clamp01(el / dur);
+      for (const chunk of chunks) {
+        chunk.velocity.y -= 8.5 * dt;
+        chunk.mesh.position.addScaledVector(chunk.velocity, dt);
+        chunk.mesh.rotation.x += chunk.spin.x * dt;
+        chunk.mesh.rotation.y += chunk.spin.y * dt;
+        chunk.mesh.rotation.z += chunk.spin.z * dt;
+        chunk.mat.opacity = 0.96 * (1 - t);
+      }
+      dust.update(dt, el);
+      return t < 1;
+    },
+    dispose() {
+      disposeObj(g);
+    },
+  };
+}
+
 // ── 治疗环 + 十字上升 ────────────────────────────────────────
 export function healFx(): FxInstance {
   const g = new THREE.Group();

@@ -51,6 +51,8 @@ export type BattleEventKind =
   | 'miss'        // 未命中 / 被抵消
   | 'ivanThrow'   // 大伊万投掷：投掷物从来源飞向目标房间
   | 'ivanBoom'    // 大伊万爆炸：目标房间落点冲击
+  | 'towerHit'    // 高塔承受伤害
+  | 'towerCollapse' // 高塔耐久归零坍塌
   | 'domain'      // 领域展开（重大事件：爆发 + 聚焦，引擎日志 data.domain=true 标记）
   | 'fortune'     // 今日勇者抽取运势（全局播报；引擎日志 data.fortune=true + roll）
   | 'trigger';    // 技能 / 被动触发
@@ -209,6 +211,17 @@ export function parseBattleEvent(log: LogLike): BattleEvent | null {
     case 'trigger': {
       const pid = str(d.pid);
       const livesLeft = num(d.livesLeft);
+      const towerRoom = str(d.tower);
+      if (towerRoom && d.towerCollapse === true) {
+        return { kind: 'towerCollapse', seq: log.seq, room: towerRoom, important: true };
+      }
+      if (towerRoom && d.towerHit === true) {
+        return {
+          kind: 'towerHit', seq: log.seq, room: towerRoom,
+          amount: num(d.amount), hpBefore: num(d.hpBefore), hpAfter: num(d.hpAfter),
+          important: log.important,
+        };
+      }
       // 命数复活（ReviveEventData 独有 livesLeft 字段，如五条悟 2 条命）
       if (pid && livesLeft !== undefined) {
         return { kind: 'revive', seq: log.seq, targetId: pid, livesLeft, important: true };

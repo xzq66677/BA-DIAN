@@ -31,7 +31,7 @@ import { dispatchStatusJudge, clearStatuses as clearPlayerStatuses, tickStatuses
 import { serializeSnapshot } from './snapshot.js';
 import { acceptsStatusEffect, clearDefeatStatusEffects, statusBlockingAction, STATUS_REGISTRY, statusDef } from './statuses.js';
 import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats, type SubRoundOutcome } from './judge.js';
-import type { CharDef, GameLike, CharActionContext, CharActionDef } from './chardef.js';
+import type { CharDef, GameLike, CharActionContext, CharActionDef, RoomDamageHookCtx } from './chardef.js';
 
 /** 引擎内部的「进行中判定」状态（带逐局进度） */
 interface ActiveJudge extends SkillJudgeOptions {
@@ -1455,6 +1455,18 @@ export class Game implements GameLike {
     return resolveDamage(this, this.stats, req);
   }
 
+  /** 让角色环境结构（如高塔）优先承受一次房间级伤害。 */
+  private absorbRoomDamage(
+    room: RoomId,
+    req: Omit<RoomDamageHookCtx, 'game' | 'owner' | 'room'>,
+  ): boolean {
+    for (const pid of this.playerIds) {
+      const cd = this.charDef(pid);
+      if (cd.absorbRoomDamage?.({ game: this, owner: pid, room, ...req })) return true;
+    }
+    return false;
+  }
+
   // ─── 淘汰与胜负 ──────────────────────────────────────────────
 
   eliminate(pid: PlayerId, cause: string, killer?: PlayerId, opts?: { ignoreLives?: boolean }): void {
@@ -1620,11 +1632,13 @@ export class Game implements GameLike {
     const excluded = new Set<PlayerId>();
     if (source) excluded.add(source); // 不打自己
     const gid = this.nextGroupId();
-    const names = this.roomMembers(room).filter((pid) => !excluded.has(pid)).map((pid) => this.players[pid].name);
+    const targets = this.roomMembers(room).filter((pid) => !excluded.has(pid));
+    const names = targets.map((pid) => this.players[pid].name);
     this.log('deferred', `🗡️ 伍六七三刀落于 ${room}（本批目标：${names.join('、') || '无'}）`, { room, source: source ?? null, groupId: gid }, true);
+    this.absorbRoomDamage(room, { amount: 3, source, dtype: 'physical', tag: 'wuliuqi-slash' });
     for (let seg = 1; seg <= 3; seg++) {
-      const targets = this.roomMembers(room).filter((pid) => !excluded.has(pid) && this.players[pid].alive);
       for (const pid of targets) {
+        if (excluded.has(pid) || !this.players[pid].alive) continue;
         if ((this.phase as GamePhase) === 'over') return;
         const applied = this.applyDamage({
           target: pid, amount: 1, source,
@@ -1693,6 +1707,7 @@ export class Game implements GameLike {
         // 结构化 data（V3 演出链）：爆炸房间 + 投掷来源，供落点/冲击波演出
         this.log('deferred', `💥 大伊万在 ${ev.room} 爆炸！爆炸时房间内成员：${members.length ? members.map((pid) => this.players[pid].name).join('、') : '（无存活玩家）'}`,
           { room: ev.room, source: ev.source ?? null }, true);
+        this.absorbRoomDamage(ev.room, { amount: 999999, source: ev.source, dtype: 'special', tag: 'ivan' });
         const ivanGroup = this.nextGroupId();
         for (const pid of members) {
           this.applyDamage({

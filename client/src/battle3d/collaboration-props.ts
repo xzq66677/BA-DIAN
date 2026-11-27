@@ -9,12 +9,14 @@ interface DecorationModel {
   dispose(): void;
 }
 
+const TOWER_SCALE = 0.44;
+
 const modelFactories: Record<RoomDecoration['asset'], () => DecorationModel | undefined> = {
   'basalt-tower': () => {
     const model = cloneAsset('basalt-tower');
     if (!model) return;
     model.scene.name = 'basalt-tower';
-    model.scene.scale.setScalar(.44);
+    model.scene.scale.setScalar(TOWER_SCALE);
     return { scene: model.scene, dispose: model.dispose,
       setProgress: progress => model.sample('build', progress * (model.clips.get('build')?.duration ?? 1)) };
   },
@@ -29,9 +31,13 @@ const modelFactories: Record<RoomDecoration['asset'], () => DecorationModel | un
 export class RoomDecorations {
   private items = new Map<string, {
     model: DecorationModel;
+    asset: RoomDecoration['asset'];
     room: string;
     progress: number;
     target: number;
+    baseY: number;
+    hitTime?: number;
+    collapseTime?: number;
   }>();
 
   objectFor(id: string): THREE.Object3D | undefined {
@@ -44,7 +50,10 @@ export class RoomDecorations {
       if (!findRoom(item.room)) {
         item.model.dispose();
         this.items.delete(id);
-      } else if (!wanted.has(id)) item.target = 0;
+      } else if (!wanted.has(id)) {
+        if (item.asset === 'basalt-tower' && item.collapseTime === undefined) item.collapseTime = 0;
+        item.target = 0;
+      }
     }
     const machinesPerRoom = new Map<string, number>();
     for (const [id, request] of wanted) {
@@ -56,7 +65,7 @@ export class RoomDecorations {
         if (!model) continue;
         const progress = request.asset === 'slot-machine' ? request.progress : 0;
         model.setProgress(progress);
-        item = { model, room: request.room, progress, target: request.progress };
+        item = { model, asset: request.asset, room: request.room, progress, target: request.progress, baseY: floor };
         this.items.set(id, item);
         room.add(model.scene);
       } else if (item.room !== request.room) {
@@ -74,9 +83,54 @@ export class RoomDecorations {
     if (immediate) this.update(2);
   }
 
+  hit(room: string): void {
+    for (const item of this.items.values()) {
+      if (item.asset === 'basalt-tower' && item.room === room && item.collapseTime === undefined) item.hitTime = 0;
+    }
+  }
+
+  collapse(room: string): boolean {
+    for (const item of this.items.values()) {
+      if (item.asset !== 'basalt-tower' || item.room !== room || item.collapseTime !== undefined) continue;
+      item.collapseTime = 0;
+      item.target = 0;
+      return true;
+    }
+    return false;
+  }
+
   update(dt: number): boolean {
     let moving = false;
     for (const [id, item] of this.items) {
+      if (item.collapseTime !== undefined) {
+        item.collapseTime += dt / 0.9;
+        const t = THREE.MathUtils.clamp(item.collapseTime, 0, 1);
+        const fall = Math.max(0, (t - 0.18) / 0.82);
+        const shake = t < 0.22 ? Math.sin(t * 90) * (1 - t / 0.22) * 0.08 : 0;
+        item.model.scene.position.set(shake + fall * 0.24, item.baseY - fall * fall * 0.72, shake * 0.5);
+        item.model.scene.rotation.set(fall * 0.32, fall * 0.45, shake * 1.8 + fall * 0.62);
+        item.model.scene.scale.set(TOWER_SCALE * (1 + fall * 0.22), TOWER_SCALE * (1 - fall * 0.62), TOWER_SCALE * (1 + fall * 0.22));
+        moving = true;
+        if (t >= 1) {
+          item.model.dispose();
+          this.items.delete(id);
+        }
+        continue;
+      }
+      if (item.hitTime !== undefined && item.hitTime < 0.34) {
+        item.hitTime += dt;
+        const t = THREE.MathUtils.clamp(item.hitTime / 0.34, 0, 1);
+        const shake = Math.sin(t * 46) * (1 - t) * 0.055;
+        item.model.scene.position.set(shake, item.baseY, 0);
+        item.model.scene.rotation.z = shake * 1.4;
+        moving = true;
+        if (t >= 1) {
+          item.model.scene.position.set(0, item.baseY, 0);
+          item.model.scene.rotation.z = 0;
+          item.hitTime = undefined;
+        }
+        continue;
+      }
       const step = dt * (item.target === 0 ? 1.8 : .95);
       item.progress += THREE.MathUtils.clamp(item.target - item.progress, -step, step);
       if (item.target === 0 && item.progress < .001) {

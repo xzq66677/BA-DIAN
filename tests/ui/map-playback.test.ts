@@ -63,6 +63,17 @@ describe('Map playback', () => {
     expect(state.players).toEqual([player]);
   });
 
+  it('parses tower hit and collapse logs into dedicated scene events', () => {
+    const towerHit = parseBattleEvent({ seq: 20, type: 'trigger', data: {
+      tower: 'far', towerHit: true, amount: 6, hpBefore: 6, hpAfter: 0, tag: 'ivan',
+    } });
+    const towerCollapse = parseBattleEvent({ seq: 21, type: 'trigger', data: {
+      tower: 'far', towerCollapse: true, source: 'p',
+    } });
+    expect(towerHit).toMatchObject({ kind: 'towerHit', room: 'far', amount: 6, hpBefore: 6, hpAfter: 0 });
+    expect(towerCollapse).toMatchObject({ kind: 'towerCollapse', room: 'far' });
+  });
+
   it('gets pending danger from the snapshot or throw log and clears it on skip or reconnect', () => {
     const pending: BattleEvent = { seq: 1, kind: 'ivanThrow', room: 'far', pid: 'p', explodeRound: 2 };
     const armed = { id: 'DEF-1', kind: 'ivan', room: 'far', explodeRound: 2 };
@@ -357,13 +368,16 @@ it('routes the authoritative queue events to production scene methods with playb
   const scene: MapPlaybackScene = {
     playAttackDecl: vi.fn(), playAction: vi.fn(), playAreaAlert: vi.fn(), playHit: vi.fn(),
     playHeal: vi.fn(), playMiss: vi.fn(), playEliminate: vi.fn(), playRevive: vi.fn(), playWalk: vi.fn(),
-    playIvanThrow: vi.fn(), playIvanBoom: vi.fn(), playTrigger: vi.fn(), playDomain: vi.fn(),
+    playIvanThrow: vi.fn(), playIvanBoom: vi.fn(), playTowerHit: vi.fn(), playTowerCollapse: vi.fn(),
+    playTrigger: vi.fn(), playDomain: vi.fn(),
   };
   const events: BattleEvent[] = [
     { seq: 10, kind: 'attackDecl', sourceId: 'a', targetId: 'p' },
     { seq: 11, kind: 'area', areaRooms: ['far', 'origin'] },
     move, { seq: 12, kind: 'ivanThrow', pid: 'p', room: 'far' }, boom, hit, death,
     { seq: 13, kind: 'revive', targetId: 'p', livesLeft: 2 },
+    { seq: 14, kind: 'towerHit', room: 'far', amount: 6, hpAfter: 0 },
+    { seq: 15, kind: 'towerCollapse', room: 'far' },
   ];
   events.forEach((event) => playMapEvent(scene, event, 1000));
   expect(scene.playAttackDecl).toHaveBeenCalledWith('a', 'p');
@@ -376,6 +390,8 @@ it('routes the authoritative queue events to production scene methods with playb
   expect(scene.playHit).toHaveBeenCalledWith('p', expect.objectContaining({ hpBefore: 3, hpAfter: 0, lethal: true }));
   expect(scene.playEliminate).toHaveBeenCalledWith('p');
   expect(scene.playRevive).toHaveBeenCalledWith('p', 2);
+  expect(scene.playTowerHit).toHaveBeenCalledWith('far', 6, 0);
+  expect(scene.playTowerCollapse).toHaveBeenCalledWith('far');
   expect(vi.mocked(scene.playIvanBoom).mock.invocationCallOrder[0]).toBeLessThan(
     vi.mocked(scene.playEliminate).mock.invocationCallOrder[0],
   );

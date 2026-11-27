@@ -112,6 +112,17 @@ export interface DamageHookCtx {
   owner: PlayerId;
 }
 
+export interface RoomDamageHookCtx {
+  game: GameLike;
+  /** 钩子所属角色玩家 */
+  owner: PlayerId;
+  room: RoomId;
+  amount: number;
+  source?: PlayerId;
+  dtype: 'physical' | 'mental' | 'special';
+  tag?: string;
+}
+
 /** 致命伤害拦截上下文：角色可在自己血量归零时决定「不死亡」（倒地/复活等） */
 export interface LethalDamageCtx {
   game: GameLike;
@@ -247,6 +258,8 @@ export interface CharDef {
   extraActionsForOthers?(ctx: { game: GameLike; owner: PlayerId; viewer: PlayerId }): CharActionDef[];
   /** 伤害钩子可修改 req、返回 'skip' 取消，或返回 deferTo 等待出拳后再结算。 */
   onBeforeDamage?(ctx: DamageHookCtx): DamageRequest | 'skip' | { deferTo: SkillJudgeOptions } | void;
+  /** 房间级伤害吸收：返回 true 表示本次房间效果由该角色环境结构承受。 */
+  absorbRoomDamage?(ctx: RoomDamageHookCtx): boolean;
   /** 伤害钩子阶段：transfer=转移（先执行），defense=防御（后执行，仅对自身） */
   damageHookStage?: 'transfer' | 'defense';
   /** 死亡钩子 */
