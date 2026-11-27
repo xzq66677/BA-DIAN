@@ -214,6 +214,28 @@ describe('鬼影：赢下判定后的额外行动', () => {
 });
 
 describe('鬼影：附身解除', () => {
+  it.each([
+    ['gojo', 1],
+    ['hunchback-archer', 2],
+  ] as const)('宿主 %s 倒下时鬼影脱离，复活后也不恢复附身', (hostChar, roundsUntilRecovery) => {
+    const g = makeGame([{ id: 'A', char: 'ghost' }, { id: 'B', char: hostChar }]);
+    throws(g, { A: 'rock', B: 'scissors' });
+    expect(g.submitAction('A', { type: 'possess', targetId: 'B' }).ok).toBe(true);
+    const host = g.players.B;
+    g.applyDamage({ target: 'B', amount: host.hp, dtype: 'physical' });
+
+    expect(host.alive).toBe(true);
+    expect(g.players.A.room).toBe(host.room);
+    expect(g.players.A.invisible).toBe(false);
+    expect(g.charState('A').possessing).toBeNull();
+    expect(g.getStatus('A', 'possessing')).toBeUndefined();
+    expect(g.getStatus('B', 'possessed')).toBeUndefined();
+    expect(g.logs.filter(log => log.type === 'trigger' && log.data?.effect === 'possessed')).toHaveLength(1);
+    for (let round = 0; round < roundsUntilRecovery; round++) throws(g, { A: 'rock', B: 'rock' });
+    expect(host.hp).toBe(hostChar === 'gojo' ? host.maxHp : host.maxHp / 2);
+    expect(g.getStatus('B', 'possessed')).toBeUndefined();
+  });
+
   it('附身时禁止普攻和独立移动，主动脱离后在宿主房间现形', () => {
     const g = ghostPossessingB();
     throws(g, { A: 'rock', B: 'scissors' });

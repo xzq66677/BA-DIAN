@@ -29,7 +29,7 @@ import { sealedAction, clearActionLocks, tickActionLocks } from './effects.js';
 import { deferredHandler, deferredPriority } from './deferred-registry.js';
 import { dispatchStatusJudge, clearStatuses as clearPlayerStatuses, tickStatuses as tickPlayerStatuses } from './player-statuses.js';
 import { serializeSnapshot } from './snapshot.js';
-import { acceptsStatusEffect, statusBlockedActions, STATUS_REGISTRY, statusDef } from './statuses.js';
+import { acceptsStatusEffect, clearDefeatStatusEffects, statusBlockedActions, STATUS_REGISTRY, statusDef } from './statuses.js';
 import { resolveSubRound, resolveActionOrder, appendHistoryForRound, rollThrows, beats, type SubRoundOutcome } from './judge.js';
 import type { CharDef, GameLike, CharActionContext, CharActionDef } from './chardef.js';
 
@@ -1434,6 +1434,7 @@ export class Game implements GameLike {
     const livesLeft = typeof p.char.livesLeft === 'number' ? (p.char.livesLeft as number) : 1;
     const ignoreLives = opts?.ignoreLives === true;
     if (!ignoreLives && livesLeft > 1 && cause !== 'kicked' && cause !== 'left') {
+      clearDefeatStatusEffects(this, pid);
       p.char.livesLeft = livesLeft - 1;
       p.hp = p.maxHp;
       p.hidden = false;

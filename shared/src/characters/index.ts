@@ -693,7 +693,7 @@ const ghost: CharDef = {
   },
   aiStrategy: ({ game, pid, alive }) => {
     if (game.hasStatus(pid, 'possessing')) return { type: 'possessStrike' };
-    const target = alive.find((p) => p !== pid && !game.players[p].hidden && !game.players[p].invisible
+    const target = alive.find((p) => p !== pid && game.players[p].hp > 0 && !game.players[p].hidden && !game.players[p].invisible
       && !game.hasStatus(p, POSSESSED_KIND));
     return target ? { type: 'possess', targetId: target } : undefined;
   },
@@ -707,6 +707,7 @@ const ghost: CharDef = {
         const t = ctx.params.targetId;
         if (!t || !ctx.game.players[t]) return '目标不存在';
         if (!ctx.game.players[t].alive) return '目标已淘汰';
+        if (ctx.game.players[t].hp <= 0) return '目标已倒下';
         if (t === ctx.actor) return '不能附身自己';
         if (!acceptsStatusEffect(ctx.game, t, POSSESSED_KIND)) return '无法附身该目标';
         if (ctx.game.hasStatus(ctx.actor, 'possessing')) return '已经处于附身中';

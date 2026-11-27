@@ -1,5 +1,5 @@
 import type { CharDef, GameLike } from './chardef.js';
-import { statusDef } from './statuses.js';
+import { clearDefeatStatusEffects, statusDef } from './statuses.js';
 import {
   fmtNum, type AppliedDamage, type DamageEventData, type DamageRequest, type PlayerId, type PlayerStats,
 } from './types.js';
@@ -136,6 +136,7 @@ export function resolveDamage(game: GameLike, stats: Record<PlayerId, PlayerStat
       // ignoreLives：秒杀类精神攻击无视命数（不触发五条悟式「消耗一条命复活」）
       game.eliminate(tp.id, cause, req.source, { ignoreLives: req.ignoreLives });
     } else {
+      clearDefeatStatusEffects(game, tp.id);
       game.checkWin();
     }
   }

@@ -402,6 +402,54 @@ describe('真实浏览器端到端', { timeout: 120000 }, () => {
     }
   });
 
+  it('3D 终局返回同一房间，各自选角后由房主开下一局', async () => {
+    const host = await newPage(browser);
+    const guest = await newPage(browser);
+    try {
+      await host.goto(baseUrl + '/?entrance=classic&r=3d');
+      await host.getByPlaceholder('输入昵称').fill('重赛房主');
+      await host.getByLabel('选择角色卡').selectOption('default');
+      await host.getByRole('button', { name: '仅创建（邀请好友）' }).click();
+      await host.getByText(/玩家卡位/).waitFor();
+      const code = (await host.locator('.tcg-panel').first().innerText()).match(/\b[A-Z2-9]{4}\b/)?.[0];
+      expect(code).toBeTruthy();
+      await guest.goto(baseUrl + '/?entrance=classic&r=2d');
+      await guest.getByPlaceholder('输入昵称').fill('重赛客人');
+      await guest.getByLabel('选择角色卡').selectOption('default');
+      await guest.locator('.room-item').filter({ hasText: code! }).getByRole('button', { name: '加入', exact: true }).click();
+      const start = host.getByRole('button', { name: /开始对局/ });
+      await start.click();
+      await expect(host.getByTestId('battle3d').locator('canvas')).toBeVisible({ timeout: 20000 });
+      const { rooms } = await import('../../server/src/index.js');
+      const room = rooms.get(code!)!;
+      const [a, b] = room.game!.playerIds;
+      room.game!.players[b].hp = 1;
+      room.game!.relocatePlayer(b, room.game!.players[a].room);
+      expect(room.submitThrow(a, 'rock').ok).toBe(true);
+      expect(room.submitThrow(b, 'scissors').ok).toBe(true);
+      expect(room.submitAction(a, { type: 'attack', targetId: b }).ok).toBe(true);
+
+      await host.locator('.win-modal').getByRole('button', { name: /再来一局/ }).click({ timeout: 25000 });
+      await expect(host.getByText('下一局选角。', { exact: false })).toBeVisible();
+      await expect(guest.getByText('下一局选角。', { exact: false })).toBeVisible();
+      expect(room.game).toBeNull();
+      expect(room.gameNo).toBe(1);
+      expect(room.seats.map(seat => seat.playerId)).toEqual([a, b]);
+
+      await host.getByLabel('重赛房主的角色').selectOption('ghost');
+      await guest.getByLabel('重赛客人的角色').selectOption('gojo');
+      await expect(host.locator('.seat-slot').filter({ hasText: '重赛客人' })).toContainText('五条悟');
+      await start.click();
+      await expect(host.getByTestId('battle3d').locator('canvas')).toBeVisible({ timeout: 20000 });
+      expect(room.gameNo).toBe(2);
+      expect(room.game?.playerIds.map(pid => room.game?.players[pid].charId)).toEqual(['ghost', 'gojo']);
+      await expect(guest.locator('.battlefield')).toBeVisible();
+    } finally {
+      await guest.close();
+      await host.close();
+    }
+  });
+
   it('老虎机侠在 2D 和 3D 显示持有物、落点和落地模型', async () => {
     const page = await newPage(browser);
     const jsErrors: string[] = [];

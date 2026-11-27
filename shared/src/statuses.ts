@@ -33,6 +33,7 @@ export interface StatusDef {
   icon: string;
   immuneTraits?: readonly string[];
   blockedActions?: readonly string[];
+  endsOnDefeat?: boolean;
   roomFollower?(game: GameLike, owner: PlayerId, effect: ActiveStatusEffect): PlayerId | undefined;
   /** 回合末结算（所有回合，含平局回合）；引擎在每个回合的回合末调用 */
   tick?(ctx: StatusTickCtx): void;
@@ -49,6 +50,13 @@ export const MOUNTED_KIND = 'mounted';
 
 export function statusBlockedActions(effects?: readonly Pick<PublicStatusEffect, 'kind'>[]): string[] {
   return effects?.flatMap(effect => statusDef(effect.kind)?.blockedActions ?? []) ?? [];
+}
+
+/** A player can be defeated even when a character rule restores their life. */
+export function clearDefeatStatusEffects(game: GameLike, player: PlayerId): void {
+  for (const { kind } of [...(game.players[player]?.effects ?? [])]) {
+    if (statusDef(kind)?.endsOnDefeat) game.removeStatus(player, kind);
+  }
 }
 
 function possessionHost(effect?: ActiveStatusEffect): PlayerId | undefined {
@@ -167,6 +175,7 @@ const possessed: StatusDef = {
   kind: POSSESSED_KIND,
   label: '被附身',
   icon: '👻',
+  endsOnDefeat: true,
   roomFollower: (game, owner, effect) => {
     const ghost = effect.source;
     return ghost && possessionHost(game.getStatus(ghost, POSSESSING_KIND)) === owner ? ghost : undefined;
@@ -232,6 +241,7 @@ const possessing: StatusDef = {
   kind: POSSESSING_KIND,
   label: '附身中',
   icon: '👻',
+  endsOnDefeat: true,
   blockedActions: ['attack', 'move', 'hide'],
   actions: ({ game, owner, effect }) => {
     const hostId = (effect.data as { host?: PlayerId } | undefined)?.host;

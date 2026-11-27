@@ -249,7 +249,8 @@ io.on('connection', (socket: Socket) => {
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     const seat = currentSeat(room, data.playerId, data.token);
     if (!seat) { ack?.({ ok: false, error: '身份验证失败' }); return; }
-    if (!CHARACTERS[data.charId]) { ack?.({ ok: false, error: '未知角色' }); return; }
+    if (room.state === 'playing') { ack?.({ ok: false, error: '对局进行中，请等下一局再选角' }); return; }
+    if (!Object.hasOwn(CHARACTERS, data.charId)) { ack?.({ ok: false, error: '未知角色' }); return; }
     // targetId 提供时：房主可修改 AI 座位的角色；否则只能改自己的
     if (data.targetId && data.targetId !== data.playerId) {
       const target = room.seatOf(data.targetId);
@@ -349,15 +350,16 @@ io.on('connection', (socket: Socket) => {
     broadcastLobby();
   });
 
-  socket.on('room:restart', (data: { code: string; playerId: PlayerId; token: string }, ack?: (r: unknown) => void) => {
+  socket.on('room:restart', (data: { code: string; playerId: PlayerId; token: string; autoStart?: boolean }, ack?: (r: unknown) => void) => {
     const room = getRoom(data.code || '');
     if (!room) { ack?.({ ok: false, error: '房间不存在' }); return; }
     if (!currentSeat(room, data.playerId, data.token) || !room.isHost(data.playerId)) { ack?.({ ok: false, error: '仅房主可重开游戏' }); return; }
-    // 「再来一局 / 重新开始」：重置后直接以原座位开局（不回大厅中间态）
-    const r = room.restart({ autoStart: true });
+    const autoStart = data.autoStart !== false;
+    if (!autoStart && room.state !== 'over') { ack?.({ ok: false, error: '本局结束后可以重新选角' }); return; }
+    const r = room.restart({ autoStart });
     ack?.(r);
-    broadcastRoom(room);
-    broadcastLobby();
+    if (autoStart) broadcastRoom(room);
+    if (r.ok || autoStart) broadcastLobby();
   });
 
   /**

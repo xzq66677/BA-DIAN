@@ -142,6 +142,22 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   const [manualCue, setManualCue] = useState<FxOverlayView | null>(null);
   const [manualAction, setManualAction] = useState<ActionRequest | null>(null);
   const [manualBusy, setManualBusy] = useState(false);
+  const [rematchPending, setRematchPending] = useState(false);
+  const [rematchError, setRematchError] = useState('');
+
+  async function prepareRematch() {
+    if (!isHost || game.phase !== 'over' || rematchPending) return;
+    setRematchPending(true);
+    setRematchError('');
+    try {
+      const result = await net.restart(lobby.code, meId, myIds[0].token, false);
+      if (!result.ok) setRematchError(typeof result.error === 'string' ? result.error : '无法进入下一局选角');
+    } catch {
+      setRematchError('无法进入下一局选角，请重试');
+    } finally {
+      setRematchPending(false);
+    }
+  }
 
   // 战绩面板 / 回放
   const [statsOpen, setStatsOpen] = useState(false);
@@ -686,7 +702,10 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
           <button className="tcg-btn ghost tiny" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 回放</button>
         )}
         {isHost && game.phase === 'over' && (
-          <button className="tcg-btn" onClick={() => net.restart(lobby.code, meId, myIds[0].token)}>重新开始</button>
+          <button className="tcg-btn" onClick={prepareRematch} disabled={rematchPending}>再来一局 · 重新选角</button>
+        )}
+        {rematchError && (winDismissed || !finaleReady || finaleCameraPending) && (
+          <span role="alert" className="error-banner">{rematchError}</span>
         )}
         <button className="tcg-btn ghost" onClick={onExit}>退出房间</button>
       </header>
@@ -725,7 +744,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
               </>
             )}
             <div className="win-btns">
-              {isHost && <button className="tcg-btn" onClick={() => { setWinDismissed(true); net.restart(lobby.code, meId, myIds[0].token); }}>🔄 再来一局</button>}
+              {isHost && <button className="tcg-btn" onClick={prepareRematch} disabled={rematchPending}>再来一局 · 重新选角</button>}
               {REPLAY_ENABLED && (
                 <button className="tcg-btn ghost" onClick={() => { setReplayId(lobby.replays?.[0]?.id ?? null); setReplayOpen(true); }}>🎬 观看回放</button>
               )}
@@ -733,6 +752,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
               <button className="tcg-btn ghost" onClick={onExit}>离开房间</button>
               <button className="tcg-btn ghost" onClick={() => setWinDismissed(true)}>查看战场</button>
             </div>
+            {rematchError && <p role="alert" className="error-banner">{rematchError}</p>}
           </div>
         </div>
       )}
