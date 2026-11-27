@@ -229,6 +229,8 @@ export type BattleFxKind =
 
 /** 攻击宣告（type:'damage' 且 declared=true）：扣血事件之前的「出手意向」提示 */
 export interface AttackDeclEventData {
+  /** Public context for synchronizing the declared attack pose with its resolved movement. */
+  presentation?: Record<string, unknown>;
   declared: true;
   source: PlayerId;
   target: PlayerId;

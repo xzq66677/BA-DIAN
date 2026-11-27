@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>鬼影 · 角色预览</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #0b121a; color: #e5f4f1; }
+    body { margin: 0; padding: clamp(12px, 4vw, 46px); }
+    main { width: min(100%, 1110px); margin: auto; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    h1 { margin: 0; font-size: clamp(27px, 4vw, 45px); line-height: 1.1; }
+    output { font-size: 14px; color: #a6e8d7; text-align: right; }
+    #stage { height: clamp(290px, 67svh, 690px); overflow: hidden; border: 1px solid #2b454c; border-radius: 15px; background: #142330; }
+    #stage canvas { display: block; width: 100%; height: 100%; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    button { min-height: 44px; min-width: 44px; padding: 8px 16px; border-radius: 8px; font: inherit; color: inherit; background: #182c35; border: 1px solid #3a5961; cursor: pointer; }
+    button[aria-pressed="true"] { color: #102727; background: #a6e8d7; border-color: #a6e8d7; }
+    button:focus-visible { outline: 2px solid #d7fcf4; outline-offset: 3px; }
+    @media (max-width: 520px) { #stage { height: 58svh; } button { padding-inline: 12px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><h1>鬼影</h1><output id="status" role="status">正在加载模型</output></header>
+    <div id="stage" aria-label="可拖动旋转的 3D 角色预览"></div>
+    <div class="actions" aria-label="动作">
+      <button data-action="idle">待机</button>
+      <button data-action="attach">附身</button>
+      <button data-action="drain">吸血</button>
+      <button data-action="flinch">受伤</button>
+      <button data-action="dead">死亡</button>
+    </div>
+    <div class="actions" aria-label="宿主">
+      <button data-host="guard" aria-pressed="true">守卫</button>
+      <button data-host="idol" aria-pressed="false">石像</button>
+      <button id="move" aria-pressed="false">移动宿主</button>
+    </div>
+  </main>
+  <script type="module" src="./preview.mjs"></script>
+</body>
+</html>

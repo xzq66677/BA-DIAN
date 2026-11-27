@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "displayName": "狂猎",
+  "suggestedCharId": "wild-hunt-heathcliff",
+  "visualId": "wild-hunt-heathcliff-wraith",
+  "generatedAsset": "model/wild-hunt-heathcliff-wraith.glb",
+  "preview": "model/wild-hunt-heathcliff-wraith-preview.html",
+  "evidence": "model/wild-hunt-heathcliff-wraith-poses.png",
+  "sha256": "eab06939b6b2c4ebb91dd820d3d41a20ebab0ef1fde67ed871e2e5abbacdb8bd",
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "footY": 0,
+    "pivot": "standing rider ground center",
+    "worldRootMotion": false
+  },
+  "anchors": {
+    "displacement": "ChargeOffset",
+    "rider": "FootForm",
+    "head": "Head",
+    "rightHand": "HandR",
+    "horse": "HorseRoot",
+    "saddle": "Saddle",
+    "spirit": "DullahanSpirit"
+  },
+  "mountedAttack": {
+    "localTrack": "ChargeOffset.translation",
+    "axis": "+Z",
+    "visualDistanceMeters": 2.55
+  },
+  "clips": [
+    {
+      "name": "idle",
+      "seconds": 3.2,
+      "loop": true,
+      "semantic": "idle"
+    },
+    {
+      "name": "walk",
+      "seconds": 1.4,
+      "loop": true,
+      "semantic": "walk"
+    },
+    {
+      "name": "mount",
+      "seconds": 1.7,
+      "loop": false,
+      "semantic": "mount transition"
+    },
+    {
+      "name": "dismount",
+      "seconds": 1.6,
+      "loop": false,
+      "semantic": "dismount transition"
+    },
+    {
+      "name": "mountedAttack",
+      "seconds": 1.5,
+      "loop": false,
+      "semantic": "mounted attack"
+    },
+    {
+      "name": "attackSwing",
+      "seconds": 1,
+      "loop": false,
+      "semantic": "attackSwing"
+    },
+    {
+      "name": "flinch",
+      "seconds": 0.7,
+      "loop": false,
+      "semantic": "flinch"
+    },
+    {
+      "name": "dead",
+      "seconds": 1.6,
+      "loop": false,
+      "semantic": "dead"
+    },
+    {
+      "name": "reviveRise",
+      "seconds": 1.6,
+      "loop": false,
+      "semantic": "reviveRise"
+    },
+    {
+      "name": "cheer",
+      "seconds": 1.4,
+      "loop": false,
+      "semantic": "cheer"
+    },
+    {
+      "name": "mountedIdle",
+      "seconds": 2.8,
+      "loop": true,
+      "semantic": "mounted idle"
+    }
+  ],
+  "budget": {
+    "bytes": 3868028,
+    "triangles": 53635,
+    "riderJoints": 17,
+    "horseJoints": 15
+  }
+}

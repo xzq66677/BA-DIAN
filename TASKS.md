@@ -8,6 +8,7 @@
 
 | 编号 | 未完成事项 | 状态 | 剩余工作及来源 |
 |---|---|---|---|
+| #77 | 四角色正式资产、战斗演出适配与交接 | REVIEW | 鬼影、狂猎、佝偻弓箭手、飞天水螅采用正式角色 ID 接入 GLB。 [接入说明](docs/FOUR_CHARACTER_INTEGRATION.md) · [Issue #77](https://github.com/xzq66677/BA-DIAN/issues/77) |
 | T-13 / #43 | 本地多人无法攻击 1P、单人局 AI 五连鞭要求玩家代判 | TODO（P0） | 复现两个场景，核对目标选择和判定参与者，确认是否同源。 [Issue #43](https://github.com/xzq66677/BA-DIAN/issues/43) |
 | T-11 / #23 | 完善五条悟技能和机制 | IN_PROGRESS（MMR12345） | 2026-11-24 已定案并落地：近战始终 1 伤、领域平局含三人循环、**领域只给平局回合行动权（不把平局改判为胜）**、无量=领域展开、被覆盖后可再展开；「血量≥20 叠伤×2」「完全体领域远程必中」暂缓（见 CHANGELOG 2026-11-24）。 [Issue #23](https://github.com/xzq66677/BA-DIAN/issues/23) |
 | T-12 / #31 | 完善精神攻击定义与逻辑 | TODO（P1） | 统一核对大贱客、大屁孩、马保国的精神攻击语义及太极反弹优先级。 [Issue #31](https://github.com/xzq66677/BA-DIAN/issues/31) |

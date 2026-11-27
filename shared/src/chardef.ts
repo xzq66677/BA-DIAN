@@ -72,6 +72,8 @@ export interface CharActionContext {
   game: GameLike;
   actor: PlayerId;
   params: ActionRequest;
+  /** Attach validated public presentation data to the existing committed action log. */
+  present?(data: Record<string, unknown>): void;
 }
 
 export interface CharActionResult {

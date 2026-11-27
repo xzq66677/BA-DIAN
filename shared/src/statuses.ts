@@ -161,6 +161,7 @@ const possessed: StatusDef = {
     }
     const amount = effect.severity ?? 1;
     game.log('state', `👻 ${host.name} 被 ${game.players[ghost].name} 附身，受到 ${fmtNum(amount)} 点伤害`, { pid: owner, source: ghost, effect: POSSESSED_KIND, amount }, true);
+    game.log('action', '鬼影吸取', { pid: ghost, targetId: owner, actionName: 'ghostSiphon', fx: 'skill' });
     const applied = game.applyDamage({
       target: owner,
       amount,

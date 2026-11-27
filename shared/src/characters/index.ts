@@ -781,6 +781,8 @@ const wildHunt: CharDef = {
       const counterAmount = mountedNow ? 6 : 1;
       game.log('trigger', `⚔ ${game.players[self].name} 受击判定成功：${detail} → 抵消伤害并反击 ${fmtNum(counterAmount)} 点${mountedNow ? '（用后下马）' : '（上马 1 回合）'}`,
         { pid: self, source, counter: counterAmount, mounted: mountedNow, ties }, true);
+      game.log('damage', '狂猎反击', { declared: true, source: self, target: source, room: game.players[source].room,
+        presentation: { mounted: mountedNow, counter: true } });
       // 反击：无视躲藏/隐身（反击不是普通攻击，不触发对方的受击判定）
       game.applyDamage({
         target: source,
@@ -850,6 +852,7 @@ const wildHunt: CharDef = {
     }
     if (target.hidden || target.invisible) return { ok: false, error: '目标正在躲藏/隐身，无法锁定' };
 
+    const fromRoom = p.room;
     if (mounted) p.room = target.room; // 攻击带位移：突进到目标房间
     const expires = typeof st.mountExpiresRound === 'number' ? st.mountExpiresRound : 0;
     const finalRound = mounted && game.roundNo >= expires;
@@ -860,7 +863,8 @@ const wildHunt: CharDef = {
       ? Math.round(6 * Math.pow(1.5, kills) * 10000) / 10000
       : Math.round((cd.attack ?? 1) * (mounted ? 2 : 1) * Math.pow(1.5, kills) * 10000) / 10000;
     game.log('damage', `🌪 ${p.name} ${mounted ? (finalRound ? '在骑乘最后一回合发动致命冲锋' : '骑乘突进') : '攻击'} ${target.name}（伤害 ${fmtNum(amount)}${mounted ? '，位移至目标房间' : ''}）`,
-      { pid: actor, target: targetId, amount, mounted, finalRound, room: target.room }, true);
+      { pid: actor, declared: true, source: actor, target: targetId, amount, mounted, finalRound, room: target.room,
+        presentation: { mounted, fromRoom, toRoom: target.room } }, true);
     const applied = game.applyDamage({
       target: targetId,
       amount,
@@ -1117,18 +1121,22 @@ const waterSnake: CharDef = {
       execute: (ctx) => {
         const ids = actionTargetIds(ctx.params);
         const p = ctx.game.getPlayer(ctx.actor);
+        const moves: { pid: string; fromRoom: string; toRoom: string; tower?: 'enter' | 'exit' }[] = [];
         for (const targetId of ids) {
           const target = ctx.game.players[targetId];
           if (!target) continue;
           if (target.room !== p.room) {
             const from = target.room;
             target.room = p.room;
+            moves.push({ pid: targetId, fromRoom: from, toRoom: p.room });
             ctx.game.log('trigger', `🌀 ${p.name} 一吸：${target.name} 被从 ${from} 吸到 ${p.room}（拉近一格）`, { pid: targetId, source: ctx.actor, from, to: p.room }, true);
             continue;
           }
           target.char.inTower = true;
+          moves.push({ pid: targetId, fromRoom: target.room, toRoom: target.room, tower: 'enter' });
           ctx.game.log('trigger', `🌀 ${p.name} 一吸：${target.name} 被吸进高塔内部（塔内外隔绝）`, { pid: targetId, source: ctx.actor }, true);
         }
+        ctx.present?.({ targetIds: ids, moves });
       },
     },
     {
@@ -1155,11 +1163,13 @@ const waterSnake: CharDef = {
       execute: (ctx) => {
         const ids = actionTargetIds(ctx.params);
         const p = ctx.game.getPlayer(ctx.actor);
+        const moves: { pid: string; fromRoom: string; toRoom: string; tower?: 'enter' | 'exit' }[] = [];
         for (const targetId of ids) {
           const target = ctx.game.players[targetId];
           if (!target) continue;
           if (target.char.inTower === true) {
             target.char.inTower = false;
+            moves.push({ pid: targetId, fromRoom: target.room, toRoom: target.room, tower: 'exit' });
             ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从塔内吹回 ${target.room}（拉远一格）`, { pid: targetId, source: ctx.actor, to: target.room }, true);
             continue;
           }
@@ -1168,8 +1178,10 @@ const waterSnake: CharDef = {
             : (ctx.game.roomIds.find((room) => room !== p.room) ?? p.room);
           const from = target.room;
           target.room = dest;
+          moves.push({ pid: targetId, fromRoom: from, toRoom: dest });
           ctx.game.log('trigger', `🌪 ${p.name} 一吹：${target.name} 被从 ${from} 吹到 ${dest}（拉远一格）`, { pid: targetId, source: ctx.actor, from, to: dest }, true);
         }
+        ctx.present?.({ targetIds: ids, moves });
       },
     },
   ],

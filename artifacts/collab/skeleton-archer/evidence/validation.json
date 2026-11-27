@@ -1,0 +1,853 @@
+{
+  "schemaVersion": 1,
+  "generatedOn": "2026-11-26T13:44:36.287Z",
+  "scope": "visual-assets-only",
+  "asset": {
+    "file": "model/skeleton-archer.glb",
+    "bytes": 3406836,
+    "megabytes": 3.406836,
+    "mebibytes": 3.249011993408203,
+    "sha256": "255863251f270513b3e65db416c9b791ada0aed7c8b55d5918940c07dfcf2c37",
+    "magic": "glTF",
+    "version": 2,
+    "declaredLength": 3406836,
+    "fileLength": 3406836,
+    "declaredLengthMatchesFileLength": true,
+    "externalResources": false,
+    "embeddedImages": 18
+  },
+  "model": {
+    "heightMeters": 2.1445367352091993,
+    "widthMeters": 0.7372000217437744,
+    "depthMeters": 0.8467662980318069,
+    "restBounds": {
+      "min": [
+        -0.3686000108718872,
+        0.000004560335343406496,
+        -0.34671729803085327
+      ],
+      "max": [
+        0.3686000108718872,
+        2.144541295544543,
+        0.5000490000009536
+      ],
+      "size": [
+        0.7372000217437744,
+        2.1445367352091993,
+        0.8467662980318069
+      ]
+    },
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "footY": 0.000004560335343406496,
+    "rootMotion": false,
+    "bones": 53,
+    "meshes": 10,
+    "skinnedMeshes": 10,
+    "skins": 10,
+    "jointsPerSkin": [
+      53,
+      53,
+      53,
+      53,
+      53,
+      53,
+      53,
+      53,
+      53,
+      53
+    ],
+    "triangles": 69486,
+    "vertices": 62816,
+    "materials": 10,
+    "pbrMaterials": [
+      "scorched_bone",
+      "aged_ivory_bone",
+      "cracked_leather",
+      "yew_bow_wood",
+      "blackened_iron",
+      "bowstring_hemp"
+    ],
+    "loadedTextures": 24,
+    "embeddedImageDimensions": {
+      "map:128x128": 6,
+      "normalMap:64x64": 6,
+      "roughnessMap:64x64": 6,
+      "metalnessMap:64x64": 6
+    },
+    "maxSkinIndex": 52,
+    "minWeightSum": 1,
+    "maxWeightSum": 1,
+    "invalidWeights": 0,
+    "hiddenAtRest": {
+      "FireArrow": 0.0001,
+      "StuckArrow": 0.0001,
+      "NockedArrow": 0.0001,
+      "BurnFlame0": 0.0001,
+      "DebrisSkull": 0.0001
+    },
+    "shootState": {
+      "scale": 1,
+      "position": [
+        -0.5548609635220636,
+        1.3518434845861624,
+        1.3263980337067744
+      ]
+    },
+    "burningState": {
+      "StuckArrow": 1,
+      "BurnFlame0": 0.9582737255828004,
+      "BurnFlame1": 0.9870219012368835,
+      "Ash0": 0.9294117633446695
+    },
+    "reverse": {
+      "sampleCount": 141,
+      "maxPositionError": 4.308157990073891e-8,
+      "maxQuaternionError": 3.0613662882483794e-8,
+      "maxScaleError": 3.8505843036329424e-7
+    },
+    "ground": {
+      "dead": {
+        "sampleCount": 29,
+        "minY": 0.000004560335343406496,
+        "maxPenetrationMeters": 0
+      },
+      "reviveRise": {
+        "sampleCount": 29,
+        "minY": 0.000004560335343406496,
+        "maxPenetrationMeters": 0
+      }
+    },
+    "deadBounds": {
+      "min": [
+        -1.1045758803553931,
+        0.007999927129656165,
+        -1.0461456061353303
+      ],
+      "max": [
+        0.860680369667959,
+        1.4200042161105997,
+        0.7253040213039079
+      ],
+      "size": [
+        1.9652562500233521,
+        1.4120042889809434,
+        1.7714496274392382
+      ]
+    },
+    "revivedBounds": {
+      "min": [
+        -0.3686000108718872,
+        0.000004560335343406496,
+        -0.34671729803085327
+      ],
+      "max": [
+        0.3686000108718872,
+        2.1445413049629716,
+        0.5000489999997159
+      ],
+      "size": [
+        0.7372000217437744,
+        2.144536744627628,
+        0.8467662980305691
+      ]
+    },
+    "modelDrawCalls": 10
+  },
+  "animations": {
+    "idle": {
+      "duration": 4,
+      "tracks": 12
+    },
+    "walk": {
+      "duration": 1,
+      "tracks": 18
+    },
+    "shoot": {
+      "duration": 2.200000047683716,
+      "tracks": 27
+    },
+    "flinch": {
+      "duration": 0.75,
+      "tracks": 5
+    },
+    "flinch_burning": {
+      "duration": 1.399999976158142,
+      "tracks": 17
+    },
+    "burn": {
+      "duration": 2,
+      "tracks": 22
+    },
+    "dead": {
+      "duration": 1.399999976158142,
+      "tracks": 87
+    },
+    "reviveRise": {
+      "duration": 1.399999976158142,
+      "tracks": 87
+    }
+  },
+  "gltfLoaderReload": {
+    "passed": true,
+    "bones": 53,
+    "meshes": 10,
+    "skinnedMeshes": 10,
+    "skins": 10,
+    "materials": 10,
+    "textures": 24,
+    "triangles": 69486,
+    "vertices": 62816,
+    "animationValidation": [
+      {
+        "name": "idle",
+        "duration": 4,
+        "tracks": 12,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 2.7832173454811482e-8
+      },
+      {
+        "name": "walk",
+        "duration": 1,
+        "tracks": 18,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 3.162170303383505e-8
+      },
+      {
+        "name": "shoot",
+        "duration": 2.200000047683716,
+        "tracks": 27,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 3.1117081022991044e-8
+      },
+      {
+        "name": "flinch",
+        "duration": 0.75,
+        "tracks": 5,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 2.9703961956784042e-8
+      },
+      {
+        "name": "flinch_burning",
+        "duration": 1.399999976158142,
+        "tracks": 17,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 2.9621605834861953e-8
+      },
+      {
+        "name": "burn",
+        "duration": 2,
+        "tracks": 22,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 2.8812220831397894e-8
+      },
+      {
+        "name": "dead",
+        "duration": 1.399999976158142,
+        "tracks": 87,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 3.353046862386577e-8
+      },
+      {
+        "name": "reviveRise",
+        "duration": 1.399999976158142,
+        "tracks": 87,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 3.353046862386577e-8
+      }
+    ]
+  },
+  "sourcePreviewValidation": {
+    "clips": {
+      "idle": {
+        "duration": 4,
+        "tracks": 12
+      },
+      "walk": {
+        "duration": 1,
+        "tracks": 18
+      },
+      "shoot": {
+        "duration": 2.2,
+        "tracks": 27
+      },
+      "flinch": {
+        "duration": 0.75,
+        "tracks": 5
+      },
+      "flinch_burning": {
+        "duration": 1.4,
+        "tracks": 17
+      },
+      "burn": {
+        "duration": 2,
+        "tracks": 22
+      },
+      "dead": {
+        "duration": 1.4,
+        "tracks": 87
+      },
+      "reviveRise": {
+        "duration": 1.4,
+        "tracks": 87
+      }
+    },
+    "restBounds": {
+      "min": [
+        -0.3686000108718872,
+        0.000004558652108244132,
+        -0.34671729803085327
+      ],
+      "max": [
+        0.3686000108718872,
+        2.1445412635803214,
+        0.5000490000009536
+      ],
+      "size": [
+        0.7372000217437744,
+        2.144536704928213,
+        0.8467662980318069
+      ]
+    },
+    "hiddenAtRest": {
+      "FireArrow": 0.0001,
+      "StuckArrow": 0.0001,
+      "NockedArrow": 0.0001,
+      "BurnFlame0": 0.0001,
+      "DebrisSkull": 0.0001
+    },
+    "shootState": {
+      "scale": 1,
+      "position": [
+        -0.3157915205145163,
+        1.3953105834715132,
+        0.7993586082272446
+      ]
+    },
+    "burningState": {
+      "StuckArrow": 1,
+      "BurnFlame0": 0.9582737255828004,
+      "BurnFlame1": 0.9870219012368835,
+      "Ash0": 0.9294117633446695
+    },
+    "reverse": {
+      "sampleCount": 21,
+      "maxPositionError": 3.4841032753307744e-8,
+      "maxQuaternionError": 3.013698984810631e-8,
+      "maxScaleError": 2.454320884859307e-7
+    },
+    "ground": {
+      "dead": {
+        "minY": 0.000004558652108244132,
+        "maxY": 0.19208651853516118,
+        "maxPenetrationMeters": 0
+      },
+      "reviveRise": {
+        "minY": 0.000004558652108244132,
+        "maxY": 0.1920865197366779,
+        "maxPenetrationMeters": 0
+      }
+    },
+    "deadBounds": {
+      "min": [
+        -1.1045758803553931,
+        0.00799993026083956,
+        -1.0461456288452942
+      ],
+      "max": [
+        0.8606803694213392,
+        1.4200042161063082,
+        0.7253040230333752
+      ],
+      "size": [
+        1.9652562497767323,
+        1.4120042858454687,
+        1.7714496518786693
+      ]
+    },
+    "debrisFinalBounds": {
+      "DebrisPelvis": {
+        "min": [
+          0.07878524726105729,
+          0.007999982777556647,
+          -0.5152664323734492
+        ],
+        "max": [
+          0.4119273633719829,
+          0.24465979764467966,
+          -0.14231862642565735
+        ],
+        "size": [
+          0.3331421161109256,
+          0.236659814867123,
+          0.3729478059477918
+        ]
+      },
+      "DebrisSpine": {
+        "min": [
+          0.3984799945795914,
+          0.008000016758913,
+          -0.7937990159694022
+        ],
+        "max": [
+          0.6199246573594097,
+          0.15610350858567354,
+          -0.6067810418660099
+        ],
+        "size": [
+          0.22144466277981834,
+          0.14810349182676052,
+          0.18701797410339227
+        ]
+      },
+      "DebrisRibcage": {
+        "min": [
+          -0.7089095248920732,
+          0.00799993026083956,
+          -1.0461456288452942
+        ],
+        "max": [
+          0.1374003224036956,
+          0.5812869889414156,
+          -0.3799501142840819
+        ],
+        "size": [
+          0.8463098472957687,
+          0.5732870586805761,
+          0.6661955145612123
+        ]
+      },
+      "DebrisNeck": {
+        "min": [
+          0.5802426603695641,
+          0.007999970849170618,
+          0.4116139942253304
+        ],
+        "max": [
+          0.7280538805324588,
+          0.09836564105394802,
+          0.5472871609931759
+        ],
+        "size": [
+          0.14781122016289472,
+          0.0903656702047774,
+          0.13567316676784547
+        ]
+      },
+      "DebrisJaw": {
+        "min": [
+          -0.0032151250099118345,
+          0.007999976661084374,
+          -0.728594202094329
+        ],
+        "max": [
+          0.15083095760167706,
+          0.1367625876221974,
+          -0.5945645252278855
+        ],
+        "size": [
+          0.1540460826115889,
+          0.12876261096111302,
+          0.13402967686644351
+        ]
+      },
+      "DebrisForearmL": {
+        "min": [
+          0.44896487843080846,
+          0.007999942130841209,
+          0.27994629001779386
+        ],
+        "max": [
+          0.7810568977908285,
+          0.07545042048644313,
+          0.3388736619241085
+        ],
+        "size": [
+          0.3320920193600201,
+          0.06745047835560192,
+          0.05892737190631464
+        ]
+      },
+      "DebrisHandL": {
+        "min": [
+          0.09741589549070284,
+          0.008000003653214127,
+          -0.4010213570260297
+        ],
+        "max": [
+          0.4113398261851684,
+          0.18202774712806039,
+          0.3780717882682876
+        ],
+        "size": [
+          0.31392393069446556,
+          0.17402774347484626,
+          0.7790931452943173
+        ]
+      },
+      "DebrisForearmR": {
+        "min": [
+          0.4865645994385841,
+          0.007999982878828082,
+          -0.6810903449360616
+        ],
+        "max": [
+          0.7039452132059889,
+          0.07735890081166802,
+          -0.40962995481623343
+        ],
+        "size": [
+          0.2173806137674048,
+          0.06935891793283994,
+          0.27146039011982814
+        ]
+      },
+      "DebrisHandR": {
+        "min": [
+          0.6671109485100285,
+          0.008000010236384192,
+          -0.4050911899894713
+        ],
+        "max": [
+          0.8449975340910089,
+          0.11952632555985254,
+          -0.3738583153220076
+        ],
+        "size": [
+          0.17788658558098036,
+          0.11152631532346835,
+          0.031232874667463717
+        ]
+      },
+      "DebrisThighL": {
+        "min": [
+          -0.03092929527639357,
+          0.007999990696670567,
+          -0.7402063421509102
+        ],
+        "max": [
+          0.22082042158872406,
+          0.15395726382631186,
+          -0.33496247994990835
+        ],
+        "size": [
+          0.2517497168651176,
+          0.1459572731296413,
+          0.40524386220100184
+        ]
+      },
+      "DebrisShinL": {
+        "min": [
+          -1.1045758803553931,
+          0.008000019564346622,
+          -0.4226386452212073
+        ],
+        "max": [
+          -0.8244562755204721,
+          0.12971143023098144,
+          -0.04667114352756219
+        ],
+        "size": [
+          0.28011960483492104,
+          0.12171141066663482,
+          0.3759675016936451
+        ]
+      },
+      "DebrisFootL": {
+        "min": [
+          0.12110201751389536,
+          0.008000002823279256,
+          -0.30725627667836297
+        ],
+        "max": [
+          0.349482820379006,
+          0.11314600935207815,
+          -0.10886345877062145
+        ],
+        "size": [
+          0.22838080286511064,
+          0.1051460065287989,
+          0.19839281790774152
+        ]
+      },
+      "DebrisThighR": {
+        "min": [
+          0.3261218456342537,
+          0.007999991779614898,
+          0.009694139373606026
+        ],
+        "max": [
+          0.7625495127749427,
+          0.14237909561433623,
+          0.1782260892359607
+        ],
+        "size": [
+          0.4364276671406889,
+          0.13437910383472135,
+          0.16853194986235467
+        ]
+      },
+      "DebrisShinR": {
+        "min": [
+          -0.7728415964437868,
+          0.007999970582741156,
+          -0.027708342420740655
+        ],
+        "max": [
+          -0.5484446818069173,
+          0.1136817733420937,
+          0.37836535845385805
+        ],
+        "size": [
+          0.2243969146368695,
+          0.10568180275935254,
+          0.4060737008745987
+        ]
+      },
+      "DebrisFootR": {
+        "min": [
+          0.10058212293164852,
+          0.008000004117380999,
+          0.6415270485473069
+        ],
+        "max": [
+          0.3860569374233309,
+          0.11310544476557588,
+          0.7253040230333752
+        ],
+        "size": [
+          0.2854748144916824,
+          0.10510544064819488,
+          0.08377697448606825
+        ]
+      },
+      "DebrisSkull": {
+        "min": [
+          0.20151991891068866,
+          0.007999953091346212,
+          -0.2384403404199491
+        ],
+        "max": [
+          0.3671307996271723,
+          0.17809813495444587,
+          0.21405606126452126
+        ],
+        "size": [
+          0.16561088071648367,
+          0.17009818186309966,
+          0.45249640168447036
+        ]
+      },
+      "DebrisUpperArmL": {
+        "min": [
+          -0.6467329322717927,
+          0.007999957163531635,
+          0.2619281149733411
+        ],
+        "max": [
+          -0.35942118160701675,
+          0.0932870584411789,
+          0.5072101571547905
+        ],
+        "size": [
+          0.287311750664776,
+          0.08528710127764727,
+          0.24528204218144933
+        ]
+      },
+      "DebrisUpperArmR": {
+        "min": [
+          0.7723834330871203,
+          0.008000030378065848,
+          -0.5992245350101035
+        ],
+        "max": [
+          0.8606803694213392,
+          0.10558052493233136,
+          -0.25743458245828643
+        ],
+        "size": [
+          0.08829693633421887,
+          0.09758049455426551,
+          0.3417899525518171
+        ]
+      }
+    },
+    "revivedBounds": {
+      "min": [
+        -0.3686000108718872,
+        0.000004558652108244132,
+        -0.34671729803085327
+      ],
+      "max": [
+        0.3686000108718872,
+        2.14454127299875,
+        0.5000489999997159
+      ],
+      "size": [
+        0.7372000217437744,
+        2.144536714346642,
+        0.8467662980305691
+      ]
+    },
+    "renderer": {
+      "calls": 58,
+      "triangles": 143532,
+      "geometries": 49,
+      "textures": 29
+    }
+  },
+  "previewRegression": {
+    "passed": true,
+    "animationControls": [
+      "shoot",
+      "idle",
+      "walk",
+      "flinch",
+      "flinch_burning",
+      "burn",
+      "dead",
+      "reviveRise"
+    ],
+    "controlResults": {
+      "shoot": "shoot",
+      "idle": "idle",
+      "walk": "walk",
+      "flinch": "flinch",
+      "flinch_burning": "flinch_burning",
+      "burn": "burn",
+      "dead": "dead",
+      "reviveRise": "reviveRise"
+    },
+    "oneShotReturnWallMilliseconds": {
+      "shoot": 2444,
+      "flinch_burning": 1840
+    },
+    "pageErrors": [],
+    "renderer": {
+      "calls": 58,
+      "triangles": 143532,
+      "geometries": 49,
+      "textures": 29
+    }
+  },
+  "mobilePreview": {
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "documentScrollWidth": 390,
+    "horizontalOverflow": false,
+    "canvasCssSize": [
+      390,
+      490
+    ],
+    "animationButtons": 8,
+    "evidence": "evidence/preview-mobile-390.png"
+  },
+  "finalCaptureSamples": [
+    {
+      "file": "evidence/preview-idle.png",
+      "clip": "idle",
+      "time": 1.6,
+      "view": "front"
+    },
+    {
+      "file": "evidence/preview-face.png",
+      "clip": "idle",
+      "time": 0.55,
+      "view": "face"
+    },
+    {
+      "file": "evidence/preview-shoot-draw.png",
+      "clip": "shoot",
+      "time": 0.95,
+      "view": "front"
+    },
+    {
+      "file": "evidence/preview-fire-arrow.png",
+      "clip": "shoot",
+      "time": 1.45,
+      "view": "projectile"
+    },
+    {
+      "file": "evidence/preview-fire-arrow-front.png",
+      "clip": "shoot",
+      "time": 1.45,
+      "view": "front"
+    },
+    {
+      "file": "evidence/preview-flinch.png",
+      "clip": "flinch",
+      "time": 0.25,
+      "view": "front"
+    },
+    {
+      "file": "evidence/preview-arrow-in-back.png",
+      "clip": "flinch_burning",
+      "time": 0.85,
+      "view": "back"
+    },
+    {
+      "file": "evidence/preview-arrow-in-back-side.png",
+      "clip": "flinch_burning",
+      "time": 0.85,
+      "view": "side"
+    },
+    {
+      "file": "evidence/preview-burning.png",
+      "clip": "burn",
+      "time": 1,
+      "view": "back"
+    },
+    {
+      "file": "evidence/preview-dead-scattered.png",
+      "clip": "dead",
+      "time": 1.4,
+      "view": "front"
+    },
+    {
+      "file": "evidence/preview-revive-reassembling.png",
+      "clip": "reviveRise",
+      "time": 0.45,
+      "view": "front"
+    },
+    {
+      "file": "evidence/preview-mobile-390.png",
+      "viewport": "390x844"
+    }
+  ],
+  "checks": {
+    "glbHeader": true,
+    "embeddedResources": true,
+    "skeletonAndWeights": true,
+    "animationClips": true,
+    "embeddedPbrMaps": true,
+    "groundedFeet": true,
+    "deathGroundContact": true,
+    "reverseAnimation": true,
+    "restoredBounds": true,
+    "fireArrowLaunch": true,
+    "embeddedArrowAndFire": true,
+    "hiddenEffectsAtRest": true,
+    "noRootMotion": true,
+    "allPreviewControls": true,
+    "oneShotReturnsToIdle": true,
+    "mobileNoHorizontalOverflow": true,
+    "noPageErrors": true,
+    "glbSizeTarget4Mb": true,
+    "triangleTarget65k": false
+  },
+  "limitations": [
+    "Polished procedural stylization; not a photorealistic scanned or externally generated character.",
+    "No external generation service or API credential was used.",
+    "The GLB is below 4 MB but contains 69,486 triangles, slightly above the approximately 65,000-triangle recommendation to preserve anatomical detail and the death-scatter bone groups.",
+    "Gameplay rules, shared character registration, asynchronous runtime loading and production CharacterRig integration are intentionally excluded."
+  ]
+}

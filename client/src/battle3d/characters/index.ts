@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { loadedCollaborationVisualId, makeCollaborationRig, type RigPresentation } from './collab-assets.js';
 import { charVisual } from '../palette.js';
 import { Humanoid, buildProp } from '../rig.js';
 import { createGojoRig } from './gojo.js';
@@ -19,6 +20,7 @@ export type CharacterRig = Pick<Humanoid,
   'root' | 'materials' | 'setOpacity' | 'headHeight' | 'resetPose' | 'idle' | 'walk' |
   'attackSwing' | 'flinch' | 'cast' | 'drink' | 'crouch' | 'cheer' | 'reviveRise'> & {
   dead(progress: number): void;
+  presentation?: RigPresentation;
   signalActor?(time: number): void;
 };
 
@@ -77,6 +79,14 @@ export function releaseMeshes(root: THREE.Object3D): void {
 
 export function createCharacterAsset(charId: string) {
   const spec = charVisual(charId);
+  const collaborationId = loadedCollaborationVisualId(charId);
+  const collaborationRig = collaborationId && makeCollaborationRig(charId, spec.scale);
+  if (collaborationId && collaborationRig) {
+    return { id: collaborationId, rig: collaborationRig, stick: null, dispose() {
+      collaborationRig.root.removeFromParent();
+      collaborationRig.presentation?.dispose();
+    } };
+  }
   const model = models.get(charId);
   let rig: CharacterRig;
   let stick: THREE.Object3D | null = null;

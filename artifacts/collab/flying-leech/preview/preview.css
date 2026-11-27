@@ -1,0 +1,58 @@
+:root {
+  font-family: "Microsoft YaHei UI", "Noto Sans CJK SC", system-ui, sans-serif;
+  color: #ecf8fa;
+  background: #0d1422;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(1180px, 100%); margin: auto; padding: 24px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; }
+h1 { margin: 0; font-size: clamp(24px, 4vw, 40px); font-weight: 650; letter-spacing: 0.085em; }
+button {
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 1px solid #455873;
+  border-radius: 8px;
+  background: #1a2739;
+  color: #e6edf5;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { background: #253a52; }
+button:disabled { opacity: 0.48; cursor: wait; }
+button:focus-visible, input:focus-visible { outline: 2px solid #a1f3da; outline-offset: 3px; }
+button[aria-pressed="true"], #play { border-color: #79c9b9; background: #254849; color: #d0ffeb; }
+#stage {
+  position: relative;
+  height: clamp(380px, 64vh, 660px);
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid #425771;
+  border-radius: 14px;
+  background: radial-gradient(ellipse at 54% 43%, #476582, #263c58 48%, #141d36 85%);
+}
+canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.stage-note {
+  position: absolute;
+  z-index: 1;
+  top: 20px;
+  left: 21px;
+  max-width: calc(100% - 42px);
+  color: #f1fcfb;
+  text-shadow: 0 1px 5px #0c1726;
+  pointer-events: none;
+}
+.stage-note span { font-size: 18px; font-weight: 650; letter-spacing: 0.08em; }
+.stage-note p { margin: 5px 0; font-size: 13px; color: #d3e8ec; }
+nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+.scrubber { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #bdd0dc; }
+.scrubber input { flex: 1; min-width: 0; height: 44px; margin: 0; accent-color: #90ebcf; }
+@media (max-width: 580px) {
+  main { padding: 14px; }
+  #stage { height: min(54vh, 530px); min-height: 345px; }
+  .stage-note { top: 13px; left: 13px; max-width: calc(100% - 26px); }
+  nav { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  button { padding: 6px 7px; }
+}

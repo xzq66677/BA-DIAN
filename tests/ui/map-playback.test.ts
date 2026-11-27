@@ -21,6 +21,29 @@ const hit: BattleEvent = {
 const death: BattleEvent = { seq: 4, kind: 'eliminate', targetId: 'p' };
 
 describe('Map playback', () => {
+  it('holds public charge and multi-target wind positions until their own queue beats', () => {
+    const authority = {
+      ...state,
+      players: [{ ...player, id: 'rider', room: 'far' },
+        { ...player, id: 'pulled', room: 'far' }, { ...player, id: 'inside', char: { inTower: true } }],
+    };
+    const charge = parseBattleEvent({ seq: 12, type: 'damage', data: {
+      declared: true, source: 'rider', target: 'pulled',
+      presentation: { mounted: true, fromRoom: 'origin', toRoom: 'far' },
+    } })!;
+    const wind = parseBattleEvent({ seq: 13, type: 'action', data: { pid: 'water', actionName: 'inhale', presentation: {
+      moves: [{ pid: 'pulled', fromRoom: 'origin', toRoom: 'far' },
+        { pid: 'inside', fromRoom: 'far', toRoom: 'far', tower: 'enter' }, { pid: 'rider' }],
+    } } })!;
+
+    const pending = projectMapSnapshot(authority, [charge, wind], null);
+    expect(pending.players.map(p => p.room)).toEqual(['origin', 'origin', 'far']);
+    expect(pending.players[2].char.inTower).toBe(false);
+    const afterCharge = projectMapSnapshot(authority, [wind], pending, charge);
+    expect(afterCharge.players.map(p => p.room)).toEqual(['far', 'origin', 'far']);
+    expect(projectMapSnapshot(authority, [], afterCharge, wind).players).toEqual(authority.players);
+  });
+
   it('reveals movement, blast, damage, elimination and finale in order from one terminal snapshot', () => {
     const armed = { id: 'DEF-1', room: 'far', kind: 'ivan', explodeRound: 2 };
     let s = projectMapSnapshot(state, [move, boom, hit, death], { ...state, deferred: [armed] });

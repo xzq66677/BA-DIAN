@@ -1,0 +1,228 @@
+{
+  "asset": {
+    "bytes": 477532,
+    "sha256": "71a3bc594b0c2bb13d4d69d97247c20408a612965b7463d40c0419c260cb11c2",
+    "triangles": 10734,
+    "meshes": 59,
+    "height": 1.9127541363239287,
+    "materialCount": 10,
+    "clips": [
+      {
+        "name": "idle",
+        "duration": 2.64
+      },
+      {
+        "name": "attach",
+        "duration": 0.72
+      },
+      {
+        "name": "attached_idle",
+        "duration": 2.5
+      },
+      {
+        "name": "drain",
+        "duration": 1.5
+      },
+      {
+        "name": "flinch",
+        "duration": 0.64
+      },
+      {
+        "name": "dead",
+        "duration": 1.4
+      }
+    ]
+  },
+  "checks": [
+    "GLB parse and clip tracks",
+    "foot datum and axes",
+    "asset budget",
+    "default and custom mounts across transformed branches",
+    "motion and turn tracking",
+    "repeated mount and retarget opacity",
+    "invalid and removed host/anchor",
+    "per-instance opacity",
+    "pose sampling and green smoke rise and fade",
+    "idempotent disposal"
+  ],
+  "browser": {
+    "desktop": [
+      1280,
+      860
+    ],
+    "mobile": [
+      390,
+      844
+    ],
+    "errors": [],
+    "desktopFrames": {
+      "01-idle.png": {
+        "action": "idle",
+        "host": "idol",
+        "progress": 0,
+        "attached": false,
+        "follower": [
+          0,
+          0,
+          0
+        ],
+        "hostLocal": [
+          0.10612273386568971,
+          -0.28,
+          -0.025837269684763645
+        ],
+        "render": {
+          "frame": 106,
+          "calls": 82,
+          "triangles": 11200,
+          "points": 0,
+          "lines": 0
+        },
+        "memory": {
+          "geometries": 54,
+          "textures": 1
+        }
+      },
+      "02-attached.png": {
+        "action": "attached_idle",
+        "host": "guard",
+        "progress": 1,
+        "attached": true,
+        "follower": [
+          0.03813270999448659,
+          0.12,
+          -0.7295563822164526
+        ],
+        "hostLocal": [
+          0.37999999999999995,
+          0.12,
+          -0.8600000000000001
+        ],
+        "render": {
+          "frame": 107,
+          "calls": 105,
+          "triangles": 11812,
+          "points": 0,
+          "lines": 0
+        },
+        "memory": {
+          "geometries": 54,
+          "textures": 1
+        }
+      },
+      "03-drain.png": {
+        "action": "drain",
+        "host": "guard",
+        "progress": 1,
+        "attached": true,
+        "follower": [
+          0.03813270999448659,
+          0.12,
+          -0.7295563822164526
+        ],
+        "hostLocal": [
+          0.37999999999999995,
+          0.12,
+          -0.8600000000000001
+        ],
+        "render": {
+          "frame": 108,
+          "calls": 113,
+          "triangles": 12732,
+          "points": 0,
+          "lines": 0
+        },
+        "memory": {
+          "geometries": 62,
+          "textures": 1
+        }
+      },
+      "04-flinch.png": {
+        "action": "flinch",
+        "host": "guard",
+        "progress": 0,
+        "attached": false,
+        "follower": [
+          0,
+          0,
+          0
+        ],
+        "hostLocal": [
+          0.2261227338656897,
+          0,
+          -0.14583726968476368
+        ],
+        "render": {
+          "frame": 109,
+          "calls": 82,
+          "triangles": 11200,
+          "points": 0,
+          "lines": 0
+        },
+        "memory": {
+          "geometries": 62,
+          "textures": 1
+        }
+      },
+      "05-smoke.png": {
+        "action": "dead",
+        "host": "guard",
+        "progress": 0,
+        "attached": false,
+        "follower": [
+          0,
+          0,
+          0
+        ],
+        "hostLocal": [
+          0.2261227338656897,
+          0,
+          -0.14583726968476368
+        ],
+        "render": {
+          "frame": 110,
+          "calls": 88,
+          "triangles": 13972,
+          "points": 0,
+          "lines": 0
+        },
+        "memory": {
+          "geometries": 68,
+          "textures": 1
+        }
+      }
+    },
+    "narrow": {
+      "action": "attached_idle",
+      "host": "idol",
+      "progress": 1,
+      "attached": true,
+      "follower": [
+        0.175377708474735,
+        0.43000000000000005,
+        -0.8833868421135634
+      ],
+      "hostLocal": [
+        0.42000000000000004,
+        0.15000000000000002,
+        -0.8700000000000001
+      ],
+      "render": {
+        "frame": 38,
+        "calls": 94,
+        "triangles": 11584,
+        "points": 0,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 54,
+        "textures": 1
+      }
+    },
+    "clock": "actual pointer click, keyboard Enter, mobile touch and reduced motion",
+    "warmedMemory": {
+      "geometries": 68,
+      "textures": 1
+    }
+  }
+}
