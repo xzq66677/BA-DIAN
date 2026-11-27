@@ -222,6 +222,27 @@ describe('AI 难度：躲藏目标找出来（Issue #61）', () => {
   });
 });
 
+describe('AI 难度：血量归零目标', () => {
+  it.each(['easy', 'normal', 'hard'] as AiDifficulty[])('%s 不把血量归零的飞天水蛭列入攻击候选', (difficulty) => {
+    const g = makeAiGame(8301, 3, ['default', 'water-snake', 'default']);
+    g.players.AI2.room = 'R1';
+    g.players.AI2.hp = 0;
+    g.players.AI2.invisible = false;
+    g.players.AI3.room = 'R2';
+
+    const chain = aiDecideActions(g, 'AI1', difficulty);
+    expect(chain.some((action) => action.targetId === 'AI2' || action.targetIds?.includes('AI2'))).toBe(false);
+  });
+
+  it('暴走选目标时跳过血量归零的飞天水蛭', () => {
+    const g = makeAiGame(8302, 3, ['dapihuai', 'water-snake', 'default']);
+    g.players.AI2.hp = 0;
+    g.players.AI2.invisible = false;
+
+    expect(aiBerserkTarget(g, 'AI1')).toBe('AI3');
+  });
+});
+
 describe('AI 难度：整局回归', { timeout: 180000 }, () => {
   it('三档难度各自能打完多局', () => {
     for (const d of ['easy', 'normal', 'hard'] as AiDifficulty[]) {

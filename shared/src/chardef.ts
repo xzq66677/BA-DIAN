@@ -223,6 +223,8 @@ export interface CharDef {
   attackEffects?: import('./types.js').DamageEffect[];
   /** 致命伤害拦截：返回 'prevent' 阻止淘汰（角色自行处理倒地/复活），'die' 确认死亡 */
   onLethalDamage?(ctx: LethalDamageCtx): 'prevent' | 'die' | void;
+  /** 终局存活判定（默认按 alive）；血量归零但仍有特殊形态的角色可排除 */
+  countsAsAliveForWin?(ctx: { game: GameLike; player: PlayerId }): boolean;
   /** 回合开始钩子（新回合、出拳前；倒地复活等） */
   onRoundStart?(ctx: { game: GameLike; player: PlayerId }): void;
   /** 该角色当前是否跳过行动（倒地、被控制等） */

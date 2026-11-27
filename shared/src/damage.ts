@@ -135,6 +135,8 @@ export function resolveDamage(game: GameLike, stats: Record<PlayerId, PlayerStat
     if (verdict !== 'prevent') {
       // ignoreLives：秒杀类精神攻击无视命数（不触发五条悟式「消耗一条命复活」）
       game.eliminate(tp.id, cause, req.source, { ignoreLives: req.ignoreLives });
+    } else {
+      game.checkWin();
     }
   }
   return applied;
