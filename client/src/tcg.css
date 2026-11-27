@@ -833,6 +833,8 @@
 }
 .scard-desc { font-size: 10px; color: #6b5a3a; margin-top: 4px; line-height: 1.45; }
 .scard-need { font-size: 10px; color: #35507c; margin-top: 4px; font-weight: 700; }
+.scard:disabled { opacity: .72; filter: grayscale(1); cursor: not-allowed; }
+.scard:disabled .scard-need { color: #333; }
 
 /* 出拳阶段：卡背式选择 */
 .throw-row { display: flex; gap: 14px; justify-content: center; padding: 8px 0; }
@@ -1621,7 +1623,7 @@
 .hand-fan .scard { transition: transform 0.15s ease, box-shadow 0.15s ease; }
 .hand-fan .scard:nth-child(odd) { transform: rotate(-1.1deg); }
 .hand-fan .scard:nth-child(even) { transform: rotate(1.1deg); }
-.hand-fan .scard:hover { transform: translateY(-7px) rotate(0deg); }
+.hand-fan .scard:not(:disabled):hover { transform: translateY(-7px) rotate(0deg); }
 .hand-fan .scard.selected { transform: translateY(-7px) rotate(0deg); }
 .confirm-bar.soft { border-color: rgba(216,176,74,0.3); background: rgba(216,176,74,0.05); }
 .hand-throw-veil .throw-row { justify-content: center; }

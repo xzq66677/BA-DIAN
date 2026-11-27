@@ -48,9 +48,10 @@ function locksOf(game: GameLike, pid: PlayerId): ActionLock[] {
  */
 export function sealableActions(game: GameLike, pid: PlayerId): SealableAction[] {
   if (!acceptsStatuses(game, pid)) return [];
+  const cd = game.charDef(pid);
   const out: SealableAction[] = [];
   const push = (action: string, label: string): void => {
-    if (UNSEALABLE.has(action)) return;
+    if (UNSEALABLE.has(action) || cd.blockBaseActions?.includes(action)) return;
     if (out.some((x) => x.action === action)) return;
     out.push({ action, label });
   };
@@ -62,7 +63,6 @@ export function sealableActions(game: GameLike, pid: PlayerId): SealableAction[]
   push('heal', BASE_LABELS.heal);
   push('milk', BASE_LABELS.milk);
 
-  const cd = game.charDef?.(pid);
   if (cd?.rangedNeedsAim) push('aim', BASE_LABELS.aim);
   // 地图行动（如悬浮遗迹的房间交互）
   const mapActions = (game as GameLike & { map?: { actions?: Map<string, { label: string }> } }).map?.actions;
@@ -75,7 +75,8 @@ export function sealableActions(game: GameLike, pid: PlayerId): SealableAction[]
 /** 查询某人某行动是否已被封印（引擎执行前调用） */
 export function sealedAction(game: GameLike, pid: PlayerId, action: string): ActionLock | undefined {
   if (UNSEALABLE.has(action)) return undefined;
-  return locksOf(game, pid).find((l) => l.action === action);
+  const locks = game.players[pid]?.actionLocks;
+  return Array.isArray(locks) ? locks.find(l => l.action === action) : undefined;
 }
 
 /**

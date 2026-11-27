@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   net, type LobbyState, type GameSnapshot, type SnapPlayer,
   type PlayerStats, type InteractionEvent, type InteractionKind, type AnnounceItem,
@@ -21,7 +21,7 @@ import { FxOverlayHost, fxOverlayView, type FxOverlayView } from '../battle/fx-o
 import '../battle/presentation-plugins.js';
 import { PlayerInventory, PlayerStatusList, PlayerStatusModal } from '../battle/player-status.js';
 import { slotMachineRoomLabel, slotMachineState } from '../battle/slot-machine-state.js';
-import { statusBlockedActions } from '../../../shared/src/statuses.js';
+import { statusBlockingAction } from '../../../shared/src/statuses.js';
 import { formatHp as fmtHp } from '../battle/status-types.js';
 import { sfx } from '../audio/sfx.js';
 import { Battle3D, detectWebGL, preferredRenderer, setPreferredRenderer } from '../battle3d/Battle3D.js';
@@ -50,10 +50,7 @@ interface ActionOption {
   roomExcludeCurrent?: boolean;
   presentationFx?: string;
   manual?: boolean;
-  /** 本局已消耗的技能（如今日勇者运势全局一次）：卡面灰化不可再点 */
-  used?: boolean;
-  /** 已被钥匙封印：卡面灰化不可再点 */
-  locked?: boolean;
+  disabledReason?: string;
   /** 需要二级选择：要封印的目标行动（钥匙） */
   sealHint?: boolean;
 }
@@ -73,7 +70,7 @@ function sealCandidates(target: SnapPlayer | undefined): { action: string; label
   if (cd.rangedNeedsAim) items.push({ action: 'aim', label: '瞄准' });
   for (const a of cd.actions ?? []) items.push({ action: a.name, label: a.label });
   const sealed = new Set((target.actionLocks ?? []).map((l) => l.action));
-  return items.filter((x) => !sealed.has(x.action));
+  return items.filter((x) => !sealed.has(x.action) && !cd.blockBaseActions?.includes(x.action));
 }
 
 export default function GamePage({ lobby, game, session, logs, announces, resync, onExit, onBackToLobby }: {
@@ -272,71 +269,12 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   const mud = game.ruins?.mud;
   const blockedRoom = selAction?.key === 'move' && mud && actor && mudBlocksEntry(game.ruins, actor.room, mud.room) ? mud.room : '';
 
-  // 可选行动列表（基础 + 角色）
-  const options: ActionOption[] = useMemo(() => {
-    if (!actor) return [];
-    const cd = CHARACTERS[actor.charId] || CHARACTERS['default'];
-    const locks = actor.actionLocks ?? [];
-    const isLocked = (key: string) => locks.some((l) => l.action === key);
-    const list: ActionOption[] = [
-      { key: 'attack', label: '攻击', desc: cd.attackDesc ?? `近战攻击同房间目标（伤害 ${atkOf(actor)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? ((cd.aimExemptWhenDomain && actor.char.domain === true) ? '（领域生效免瞄准）' : '（远程需先瞄准）') : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', ...(cd.attackRoomHint ? { roomHint: true } : { targetHint: 'attack' as const }) },
-      { key: 'move', label: '移动', desc: '移动到任意玩家的初始房间（移动后现身）', typeLabel: '基础', roomHint: true, locked: isLocked('move') },
-      { key: 'heal', label: '回复', desc: '回复至满血', typeLabel: '基础', locked: isLocked('heal') },
-      { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础', locked: isLocked('milk') },
-      { key: 'hide', label: '躲藏', desc: '指向性攻击无法锁定；AOE与无视躲避攻击仍可命中', typeLabel: '基础', locked: isLocked('hide') },
-    ];
-    if (actor.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标（伤害1），无需瞄准；无法近战';
-    if (canOpenSluice(game.ruins, actor.room)) {
-      list.push({ key: 'openSluice', label: '开启泄水闸', desc: '排空本房积水，解除下一回合的泥潭预警。消耗本次行动。', typeLabel: '地图' });
-    }
-    if (hiddenSameRoomCount(game, actor.id) > 0) list.push({ key: 'seek', label: '找出来', desc: '找出同房间躲藏的玩家', typeLabel: '基础', targetHint: 'seek', locked: isLocked('seek') });
-    if (cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && actor.char.domain === true)) {
-      list.push({ key: 'aim', label: '瞄准', desc: '锁定一名玩家（远程攻击前必须瞄准）', typeLabel: '基础', targetHint: 'aim', locked: isLocked('aim') });
-    }
-    list.push({ key: 'skip', label: '跳过', desc: '不做任何事', typeLabel: '基础', locked: isLocked('skip') });
-    for (const a of cd.actions || []) {
-      // 今日勇者「抽取今日运势」全局仅一次：已用则卡面灰化（快照 char.fortuneUsed 为权威状态）
-      const used = a.name === 'rollFortune' && actor.char.fortuneUsed === true;
-      const locked = isLocked(a.name);
-      const presentation = resolveActionPresentation(a.name);
-      list.push({
-        key: a.name, label: a.label,
-        desc: used ? `${a.desc}（本局已使用）` : locked ? `${a.desc}（已被封印）` : a.desc,
-        locked,
-        sealHint: a.name === 'slotKey',
-        typeLabel: '技能',
-        // 'none' 表示自身技能（领域展开 / 抽取今日运势 / 强化攻击等）：不选目标、不设房间，直接确认发动
-        targetHint: a.targetHint && a.targetHint !== 'none' ? a.targetHint : undefined,
-        multiTarget: a.multiTarget,
-        roomHint: a.roomHint,
-        roomExcludeCurrent: a.roomExcludeCurrent,
-        presentationFx: presentation?.fx,
-        manual: presentation?.mode === 'manual',
-        used,
-      });
-    }
-    // 状态 / 在场角色提供的附加行动（服务端权威列表：燃烧扑灭、引燃骷髅、取燃烧箭…）
-    for (const a of game.extraActions ?? []) {
-      list.push({
-        key: a.key, label: a.label, desc: a.desc,
-        typeLabel: a.typeLabel ?? '环境',
-        targetHint: a.targetHint,
-        roomHint: a.roomHint,
-        roomExcludeCurrent: a.roomExcludeCurrent,
-      });
-    }
-    // 角色禁用的基础行动（如骷髅无法主动回复）
-    const statusBlocked = statusBlockedActions(actor.effects);
-    return list.filter((o) => !cd.blockBaseActions?.includes(o.key) && !statusBlocked.includes(o.key));
-  }, [game, actor]);
-
-  // 选中行动的合法目标（客户端提示；服务器重新校验）
-  const validTargets: SnapPlayer[] = useMemo(() => {
-    if (!actor || !selAction?.targetHint) return [];
+  const targetsFor = useCallback((hint?: string): SnapPlayer[] => {
+    if (!actor || !hint) return [];
     const others = game.players.filter((p) => p.alive && p.id !== actor.id);
     const cd = CHARACTERS[actor.charId] || CHARACTERS['default'];
-    const hiddenOthers = others.filter((p) => p.room === actor.room && (p.hidden || p.invisible));
-    switch (selAction.targetHint) {
+    const sameRoom = (p: SnapPlayer) => p.room === actor.room && (p.char.inTower === true) === (actor.char.inTower === true);
+    switch (hint) {
       case 'attack': {
         // 高塔内外隔绝：只有同侧（同在塔内或同在塔外）才能互相攻击
         const sameTowerSide = (p: SnapPlayer) => (p.char.inTower === true) === (actor.char.inTower === true);
@@ -349,29 +287,100 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         if (cd.attackAllRooms) {
           return meleeOk ? others.filter((p) => !p.hidden || cd.ignoreHide) : [];
         }
-        const sameRoomMelee = meleeOk ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible && sameTowerSide(p)) : [];
+        const sameRoomMelee = meleeOk ? others.filter((p) => sameRoom(p) && (!(p.hidden || p.invisible) || cd.ignoreHide)) : [];
         // 允许远程打同房间的角色（如佝偻弓箭手近距离放箭）
         const sameRoomRanged = rangedOk && cd.rangedSameRoom
-          ? others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible && sameTowerSide(p))
+          ? others.filter((p) => sameRoom(p) && (!(p.hidden || p.invisible) || cd.ignoreHide))
           : [];
-        const sameRoom = [
+        const nearby = [
           ...sameRoomMelee,
           ...sameRoomRanged.filter((p) => !sameRoomMelee.some((m) => m.id === p.id)),
         ];
         const otherRoom = rangedOk
-          ? others.filter((p) => p.room !== actor.room && !p.hidden && p.char.inTower !== true && actor.char.inTower !== true)
+          ? others.filter((p) => p.room !== actor.room && !p.hidden && !p.invisible && p.char.inTower !== true && actor.char.inTower !== true
+            && (!cd.rangedNeedsAim || (cd.aimExemptWhenDomain && actor.char.domain === true) || actor.char.aim === p.id))
           : [];
-        return [...sameRoom, ...otherRoom];
+        return [...nearby, ...otherRoom];
       }
       case 'aim': return others.filter((p) => !p.hidden && !p.invisible);
-      case 'seek': return hiddenOthers;
-      case 'sameRoomPlayer': return others.filter((p) => p.room === actor.room);
+      case 'seek': return others.filter(p => sameRoom(p) && p.hidden);
+      case 'sameRoomPlayer': return others.filter(sameRoom);
       case 'sameRoomOrTowerPlayer': return others.filter((p) => p.room === actor.room && !p.hidden && !p.invisible);
       case 'anyPlayer': return others;
       case 'otherRoomPlayer': return others.filter((p) => p.room !== actor.room);
       default: return [];
     }
-  }, [game, actor, selAction]);
+  }, [game.players, actor]);
+
+  // 可选行动列表（基础 + 角色）
+  const options: ActionOption[] = useMemo(() => {
+    if (!actor) return [];
+    const cd = CHARACTERS[actor.charId] || CHARACTERS['default'];
+    const disabled = game.currentActor === actor.id ? game.actionDisabledReasons : undefined;
+    const list: ActionOption[] = [
+      { key: 'attack', label: '攻击', desc: cd.attackDesc ?? `近战攻击同房间目标（伤害 ${atkOf(actor)}）${cd.rangedCapable ? `；可远程${cd.rangedNeedsAim ? ((cd.aimExemptWhenDomain && actor.char.domain === true) ? '（领域生效免瞄准）' : '（远程需先瞄准）') : '（默认免瞄准）'}` : ''}${cd.ignoreHide ? '；无视躲藏' : ''}`, typeLabel: '基础', ...(cd.attackRoomHint ? { roomHint: true } : { targetHint: 'attack' as const }) },
+      { key: 'move', label: '移动', desc: '移动到任意玩家的初始房间（移动后现身）', typeLabel: '基础', roomHint: true },
+      { key: 'heal', label: '回复', desc: '回复至满血', typeLabel: '基础' },
+      { key: 'milk', label: '喝牛奶', desc: '嘲讽，无实际作用', typeLabel: '基础' },
+      { key: 'hide', label: '躲藏', desc: '指向性攻击无法锁定；AOE与无视躲避攻击仍可命中', typeLabel: '基础' },
+    ];
+    if (actor.charId === 'chuixiao') list[0].desc = '仅能远程攻击异房间目标（伤害1），无需瞄准；无法近战';
+    if (game.ruins) {
+      list.push({ key: 'openSluice', label: '开启泄水闸', desc: '排空本房积水，解除下一回合的泥潭预警。消耗本次行动。', typeLabel: '地图',
+        disabledReason: canOpenSluice(game.ruins, actor.room) ? undefined : '本房间没有可排放的积水' });
+    }
+    list.push({ key: 'seek', label: '找出来', desc: '找出同房间躲藏的玩家', typeLabel: '基础', targetHint: 'seek' });
+    if (cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && actor.char.domain === true)) {
+      list.push({ key: 'aim', label: '瞄准', desc: '锁定一名玩家（远程攻击前必须瞄准）', typeLabel: '基础', targetHint: 'aim' });
+    }
+    list.push({ key: 'skip', label: '跳过', desc: '不做任何事', typeLabel: '基础' });
+    for (const a of cd.actions || []) {
+      const presentation = resolveActionPresentation(a.name);
+      list.push({
+        key: a.name, label: a.label,
+        desc: a.desc,
+        sealHint: a.name === 'slotKey',
+        typeLabel: '技能',
+        // 'none' 表示自身技能（领域展开 / 抽取今日运势 / 强化攻击等）：不选目标、不设房间，直接确认发动
+        targetHint: a.targetHint && a.targetHint !== 'none' ? a.targetHint : undefined,
+        multiTarget: a.multiTarget,
+        roomHint: a.roomHint,
+        roomExcludeCurrent: a.roomExcludeCurrent,
+        presentationFx: presentation?.fx,
+        manual: presentation?.mode === 'manual',
+      });
+    }
+    // 状态 / 在场角色提供的附加行动（服务端权威列表：燃烧扑灭、引燃骷髅、取燃烧箭…）
+    for (const a of game.extraActions ?? []) {
+      list.push({
+        key: a.key, label: a.label, desc: a.desc,
+        typeLabel: a.typeLabel ?? '环境',
+        targetHint: a.targetHint,
+        roomHint: a.roomHint,
+        roomExcludeCurrent: a.roomExcludeCurrent,
+      });
+    }
+    return list.map(option => {
+      let reason = disabled?.[option.key] ?? option.disabledReason;
+      if (!reason && !disabled) {
+        const status = statusBlockingAction(actor.effects, option.key);
+        if (actor.actionLocks?.some(lock => lock.action === option.key)) reason = '已被封印';
+        else if (status) reason = `${status}时无法使用该行动`;
+        else if (cd.blockBaseActions?.includes(option.key)) reason = '该角色无法使用此行动';
+      }
+      if (!reason && option.targetHint) {
+        const targets = targetsFor(option.targetHint);
+        if (!targets.length) reason = option.key === 'seek' ? '同房间没有躲藏的玩家'
+          : option.key === 'attack' && cd.rangedNeedsAim && !(cd.aimExemptWhenDomain && actor.char.domain === true)
+            ? '当前没有可攻击目标，远程攻击需要先瞄准'
+            : '当前没有可选目标';
+      }
+      return { ...option, disabledReason: reason };
+    });
+  }, [game, actor, targetsFor]);
+
+  const validTargets = useMemo(() => targetsFor(selAction?.targetHint), [targetsFor, selAction?.targetHint]);
+  const selectedDisabledReason = selAction && options.find(option => option.key === selAction.key)?.disabledReason;
 
   useEffect(() => {
     setSelTarget('');
@@ -398,6 +407,11 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
 
   function prepareAction(): ActionRequest | null {
     if (!selAction || !myTurnId) return null;
+    const currentOption = options.find(option => option.key === selAction.key);
+    if (!currentOption || currentOption.disabledReason) {
+      setActMsg(currentOption?.disabledReason ?? '当前无法使用该行动');
+      return null;
+    }
     setActMsg('');
     const action: ActionRequest = { type: selAction.key };
     const needTarget = !!selAction.targetHint;
@@ -1084,8 +1098,9 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                     {options.map((o) => (
                       <button
                         key={o.key}
-                        className={`scard ${selAction?.key === o.key ? 'selected' : ''} ${o.used || o.locked ? 'is-used' : ''}`}
-                        disabled={o.used || o.locked}
+                        className={`scard ${selAction?.key === o.key && !o.disabledReason ? 'selected' : ''}`}
+                        disabled={!!o.disabledReason}
+                        title={o.disabledReason}
                         onClick={() => { setManualCue(null); setManualAction(null); setSelAction(o); setActMsg(''); }}
                       >
                         <div className="scard-head">
@@ -1093,7 +1108,7 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                           <span className="scard-type">{o.typeLabel}</span>
                         </div>
                         <div className="scard-desc">{o.desc.length > 44 ? o.desc.slice(0, 44) + '…' : o.desc}</div>
-                        <div className="scard-need">{o.locked ? '🔒 已被封印' : o.used ? '🚫 本局已使用' : o.manual ? '🎰 手动拉杆' : o.targetHint ? (o.roomHint ? '🎯 目标 + 🗺️ 房间' : o.multiTarget ? '🎯 可多选目标' : '🎯 需选择目标') : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : ''}</div>
+                        <div className="scard-need">{o.disabledReason ?? (o.manual ? '🎰 手动拉杆' : o.targetHint ? (o.roomHint ? '🎯 目标 + 🗺️ 房间' : o.multiTarget ? '🎯 可多选目标' : '🎯 需选择目标') : o.roomHint ? '🗺️ 需选择房间' : o.key === 'milk' ? '🥛 嘲讽' : '')}</div>
                       </button>
                     ))}
                   </div>
@@ -1162,9 +1177,9 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
                         </select>
                       )}
                       {blockedRoom && <span className="ruins-mud-chip" data-active="true">{blockedRoom} 泥潭封路，下回合恢复</span>}
-                      <button className="tcg-btn" disabled={(!!selAction.targetHint && (selAction.multiTarget ? selTargets.length === 0 : !selTarget)) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom || (selAction.roomExcludeCurrent && selRoom === actor?.room))) || (!!selAction.sealHint && !selSeal)} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
+                      <button className="tcg-btn" disabled={!!selectedDisabledReason || (!!selAction.targetHint && (selAction.multiTarget ? selTargets.length === 0 : !selTarget)) || ((selAction.roomHint || selAction.key === 'move') && (!selRoom || selRoom === blockedRoom || (selAction.roomExcludeCurrent && selRoom === actor?.room))) || (!!selAction.sealHint && !selSeal)} onClick={confirmAction}>{selAction.manual ? '确认并拉杆' : '确认发动'}</button>
                       <button className="tcg-btn ghost" onClick={resetSelection}>取消</button>
-                      {actMsg && <span className="error-text">{actMsg}</span>}
+                      {(selectedDisabledReason || actMsg) && <span className="error-text">{selectedDisabledReason || actMsg}</span>}
                     </div>
                   )}
                   {!selAction && <div className="confirm-bar soft">
@@ -1288,12 +1303,6 @@ function ChatDock({ chat, chatText, setChatText, onSend, onClose }: {
       </div>
     </div>
   );
-}
-
-function hiddenSameRoomCount(game: GameSnapshot, meId: string): number {
-  const me = game.players.find((p) => p.id === meId);
-  if (!me) return 0;
-  return game.players.filter((p) => p.alive && p.id !== meId && p.room === me.room && p.hidden).length;
 }
 
 // ── 出拳揭示数据 ─────────────────────────────────────────

@@ -4,6 +4,7 @@ import { publicStatusEffects } from './statuses.js';
 
 /** Public state for clients and the test arena. Pending throw values stay in the engine. */
 export function serializeSnapshot(game: Game, mapFields?: Pick<GameSnapshot, 'ruins'>): GameSnapshot {
+  const currentActor = game.currentActor();
   const players = game.playerIds.map((pid) => {
     const p = game.players[pid];
     return {
@@ -34,7 +35,7 @@ export function serializeSnapshot(game: Game, mapFields?: Pick<GameSnapshot, 'ru
     qualified: [...game.qualified],
     queue: [...game.queue],
     actIndex: game.actIndex,
-    currentActor: game.currentActor(),
+    currentActor,
     deferred: game.deferred.map((d) => ({ ...d })),
     judgeRecords: game.judgeRecords.map((r) => ({ ...r, throws: { ...r.throws } })),
     /** 已揭示的出拳（全员可见）；提交阶段为 null，不泄露任何拳种 */
@@ -44,7 +45,8 @@ export function serializeSnapshot(game: Game, mapFields?: Pick<GameSnapshot, 'ru
     /** 技能内判定（马保国系）：进行中的出拳面板数据；非判定阶段为 null */
     judge: game.skillJudgeView(),
     /** 当前行动者由状态 / 在场角色提供的附加行动（服务端权威，客户端只展示） */
-    extraActions: game.extraActionViews(game.currentActor()),
+    extraActions: game.extraActionViews(currentActor),
+    actionDisabledReasons: game.actionDisabledReasons(currentActor),
     /** 二次判定（rps2）：当前子轮等待出拳的玩家 / 已提交玩家 / 已确定顺序前缀 / 子轮号 */
     orderGroup: game.currentOrderGroup(),
     orderSubmittedIds: [...game.orderSubmittedIds],

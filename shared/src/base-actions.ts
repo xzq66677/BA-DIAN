@@ -5,9 +5,15 @@ import {
   type HealEventData, type MoveEventData, type PlayerId,
 } from './types.js';
 
+const hideUnavailable = (game: GameLike, pid: PlayerId) =>
+  !game.rules.allowHide ? '本局不允许躲藏' : game.players[pid].hidden ? '已在躲藏状态' : null;
+const seekUnavailable = (game: GameLike) => game.rules.allowSeek ? null : '本局不允许找出来';
+const skipUnavailable = (game: GameLike) => game.rules.allowSkip ? null : '本局不允许跳过';
+
 export const BASE_ACTIONS = new Map<string, {
   label: (game: GameLike, req: ActionRequest) => string;
   execute: (game: GameLike, pid: PlayerId, req: ActionRequest, map: BattleMap) => ActionResult;
+  unavailableReason?: (game: GameLike, pid: PlayerId) => string | null | undefined;
 }>([
   ['move', {
     label: (_, req) => `移动到 ${req.room}`,
@@ -16,12 +22,14 @@ export const BASE_ACTIONS = new Map<string, {
   ['attack', {
     label: (game, req) => `攻击 ${req.targetId ? game.players[req.targetId].name : '?'}`,
     execute: actAttack,
+    unavailableReason: (game, actor) => game.charDef(actor).attackUnavailableReason?.({ game, actor }),
   }],
   ['heal', { label: () => '回复', execute: actHeal }],
-  ['hide', { label: () => '躲藏', execute: actHide }],
+  ['hide', { label: () => '躲藏', execute: actHide, unavailableReason: hideUnavailable }],
   ['seek', {
     label: (game, req) => `找出来（${req.targetId ? game.players[req.targetId].name : '?'}）`,
     execute: actSeek,
+    unavailableReason: seekUnavailable,
   }],
   ['aim', {
     label: (game, req) => `瞄准（${req.targetId ? game.players[req.targetId].name : '?'}）`,
@@ -30,7 +38,8 @@ export const BASE_ACTIONS = new Map<string, {
   ['milk', { label: () => '喝牛奶（嘲讽）', execute: actMilk }],
   ['skip', {
     label: () => '跳过',
-    execute: (game) => game.rules.allowSkip ? { ok: true } : { ok: false, error: '本局不允许跳过' },
+    execute: () => ({ ok: true }),
+    unavailableReason: skipUnavailable,
   }],
 ]);
 
@@ -164,8 +173,6 @@ function actHeal(game: GameLike, pid: PlayerId): ActionResult {
 
 function actHide(game: GameLike, pid: PlayerId): ActionResult {
   const p = game.players[pid];
-  if (!game.rules.allowHide) return { ok: false, error: '本局不允许躲藏' };
-  if (p.hidden) return { ok: false, error: '已在躲藏状态' };
   p.hidden = true;
   game.log('state', `${p.name} 进入躲藏（指向性攻击无法锁定，AOE 与无视躲避攻击仍可命中）`);
   return { ok: true };
@@ -173,7 +180,6 @@ function actHide(game: GameLike, pid: PlayerId): ActionResult {
 
 function actSeek(game: GameLike, pid: PlayerId, req: ActionRequest): ActionResult {
   const targetId = req.targetId;
-  if (!game.rules.allowSeek) return { ok: false, error: '本局不允许找出来' };
   if (!targetId || !game.players[targetId] || !game.players[targetId].alive) return { ok: false, error: '目标不存在或已淘汰' };
   if (!game.isSameRoom(pid, targetId)) return { ok: false, error: '只能找出同房间内躲藏的玩家' };
   const tp = game.players[targetId];
