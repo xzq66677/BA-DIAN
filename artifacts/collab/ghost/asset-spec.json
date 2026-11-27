@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "displayName": "鬼影",
+  "suggestedCharId": "ghost",
+  "visualId": "ghost-v1",
+  "workScope": "visual-asset-and-reusable-attachment",
+  "source": "src/generate.mjs",
+  "generatedAsset": "model/ghost.glb",
+  "sha256": "71a3bc594b0c2bb13d4d69d97247c20408a612965b7463d40c0419c260cb11c2",
+  "validation": "evidence/validation.json",
+  "preview": "preview/index.html",
+  "assetOrigin": "Original procedural mesh and animation, with no third-party mesh or texture inputs.",
+  "artDirection": {
+    "silhouette": "Deep narrow hood, angular cracked ash mask, dim green eye slits, elongated fingers, tattered mantle and mist tails.",
+    "drain": "The hands reach forward and coiled mint energy travels from the host side toward the mantle clasp.",
+    "death": "The figure folds inward and dissolves in place, with six thin jade-green wisps lifting and fading."
+  },
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "footY": 0,
+    "height": 1.913,
+    "pivot": "ground center under the body",
+    "rootMotion": false,
+    "textures": 0,
+    "rig": "Articulated glTF node hierarchy with baked TRS channels"
+  },
+  "anchors": {
+    "head": "HeadAnchor",
+    "chest": "ChestAnchor",
+    "back": "BackAnchor",
+    "leftHand": "HandAnchorL",
+    "rightHand": "HandAnchorR"
+  },
+  "clips": [
+    { "name": "idle", "seconds": 2.64, "loop": true, "semantic": "idle" },
+    { "name": "attach", "seconds": 0.72, "loop": false, "semantic": "mount transition" },
+    { "name": "attached_idle", "seconds": 2.5, "loop": true, "semantic": "mounted idle" },
+    { "name": "drain", "seconds": 1.5, "loop": false, "semantic": "drain or attackSwing" },
+    { "name": "flinch", "seconds": 0.64, "loop": false, "semantic": "flinch" },
+    { "name": "dead", "seconds": 1.4, "loop": false, "semantic": "dead" }
+  ],
+  "attachment": {
+    "controller": "src/attachment.mjs",
+    "defaultOffset": [0.38, 0.12, -0.86],
+    "defaultOpacityMultiplier": 0.36,
+    "defaultTransitionSeconds": 0.72,
+    "customization": "An optional descendant anchor and an anchor-local offset supplied by each host."
+  },
+  "budget": {
+    "bytes": 477532,
+    "trianglesAllClips": 10734,
+    "meshesIncludingEffects": 59,
+    "materials": 10
+  }
+}

@@ -1255,7 +1255,8 @@ export class Game implements GameLike {
   /** 正常执行一次已通过前置校验的行动（含消耗行动、推进队列） */
   private performSubmittedAction(pid: PlayerId, req: ActionRequest): ActionResult {
     const p = this.players[pid];
-    const res = this.executeAction(pid, req);
+    const presentation: Record<string, unknown> = {};
+    const res = this.executeAction(pid, req, data => Object.assign(presentation, data));
     if (!res.ok) return res; // 非法行动：不修改状态、不消耗行动
     const st = this.stats[pid];
     if (st) {
@@ -1276,6 +1277,7 @@ export class Game implements GameLike {
       pid, actionName: req.type, fx, label: this.actionLabel(req),
       ...(req.targetId ? { targetId: req.targetId } : {}),
       ...(req.room ? { room: req.room } : {}),
+      ...(Object.keys(presentation).length ? { presentation } : {}),
     };
     this.log('action', `${p.name} 执行行动：${this.actionLabel(req)}`, { ...actionData }, true);
     this.roundSummary.push(`${p.name} ${this.actionLabel(req)}`);
@@ -1340,7 +1342,7 @@ export class Game implements GameLike {
       ?? req.type;
   }
 
-  private executeAction(pid: PlayerId, req: ActionRequest): ActionResult {
+  private executeAction(pid: PlayerId, req: ActionRequest, present: NonNullable<CharActionContext['present']>): ActionResult {
     // 角色禁用的基础行动（如骷髅无法主动「回复」回满血）
     if (this.charDef(pid).blockBaseActions?.includes(req.type)) {
       return { ok: false, error: `${this.players[pid].name} 无法使用该行动` };
@@ -1356,7 +1358,7 @@ export class Game implements GameLike {
     const act = this.charDef(pid).actions?.find((a) => a.name === req.type)
       ?? this.extraActionsFor(pid).find((a) => a.name === req.type);
     if (!act) return { ok: false, error: `未知行动：${req.type}` };
-    const ctx: CharActionContext = { game: this, actor: pid, params: req };
+    const ctx: CharActionContext = { game: this, actor: pid, params: req, present };
     const error = act.validate?.(ctx);
     if (error) return { ok: false, error };
     act.execute(ctx);

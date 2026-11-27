@@ -1,4 +1,4 @@
-import type { BattleEvent } from '../battle/events.js';
+import { presentationMoves, type BattleEvent } from '../battle/events.js';
 import type { BattleScene3D, SnapLite } from './scene.js';
 import { playActionPresenter } from './action-presenters.js';
 
@@ -16,12 +16,19 @@ export function projectMapSnapshot(
   revealFinale = false,
 ): SnapLite {
   const rooms = new Map<string, string>();
+  const structures = new Map<string, boolean>();
   const hp = new Map<string, number>();
   const lives = new Map<string, boolean>();
   const unplayedThrows: BattleEvent[] = [];
   const unplayedBlasts = new Map<string, number>();
   for (const next of remaining) {
     if (next.kind === 'move' && next.pid && next.fromRoom && !rooms.has(next.pid)) rooms.set(next.pid, next.fromRoom);
+    const origin = next.kind === 'attackDecl' && next.presentation?.mounted === true && next.presentation.fromRoom;
+    if (next.sourceId && typeof origin === 'string' && !rooms.has(next.sourceId)) rooms.set(next.sourceId, origin);
+    for (const move of presentationMoves(next.presentation)) {
+      if (!rooms.has(move.pid)) rooms.set(move.pid, move.fromRoom);
+      if (move.tower && !structures.has(move.pid)) structures.set(move.pid, move.tower === 'exit');
+    }
     if (next.targetId && !hp.has(next.targetId)) {
       if (next.hpBefore !== undefined) hp.set(next.targetId, next.hpBefore);
       if (next.kind === 'revive') hp.set(next.targetId, 0);
@@ -59,17 +66,24 @@ export function projectMapSnapshot(
     deferred.set(marker.id, marker);
   }
 
+  const actionMoves = new Map(presentationMoves(event?.presentation).map(move => [move.pid, move]));
   return {
     ...authority,
     phase: authority.phase === 'over' && !revealFinale ? 'roundEnd' : authority.phase,
     winner: revealFinale ? authority.winner : null,
     deferred: Array.from(deferred.values()),
     players: authority.players.map(p => {
-      const shownRoom = event?.kind === 'move' && event.pid === p.id ? event.toRoom : rooms.get(p.id);
+      const chargeRoom = event?.kind === 'attackDecl' && event.sourceId === p.id &&
+        event.presentation?.mounted === true && event.presentation.toRoom;
+      const move = actionMoves.get(p.id);
+      const inTower = move?.tower ? move.tower === 'enter' : structures.get(p.id);
+      const shownRoom = event?.kind === 'move' && event.pid === p.id ? event.toRoom
+        : typeof chargeRoom === 'string' ? chargeRoom : move?.toRoom ?? rooms.get(p.id);
       const after = event?.targetId === p.id ? event.hpAfter : undefined;
       const eliminated = event?.kind === 'eliminate' && event.targetId === p.id;
       return {
         ...p,
+        char: inTower === undefined ? p.char : { ...p.char, inTower },
         room: shownRoom && authority.roomIds.includes(shownRoom) ? shownRoom : p.room,
         hp: eliminated ? 0 : after ?? hp.get(p.id) ?? p.hp,
         alive: eliminated ? false : lives.get(p.id) ?? p.alive,
@@ -91,7 +105,10 @@ export function playMapEvent(scene: MapPlaybackScene, event: BattleEvent, durati
       }
       break;
     case 'attackDecl':
-      if (event.sourceId && event.targetId) scene.playAttackDecl(event.sourceId, event.targetId);
+      if (event.sourceId && event.targetId) {
+        if (event.presentation) scene.playAttackDecl(event.sourceId, event.targetId, event.presentation);
+        else scene.playAttackDecl(event.sourceId, event.targetId);
+      }
       break;
     case 'area': scene.playAreaAlert(event.areaRooms ?? []); break;
     case 'damage':

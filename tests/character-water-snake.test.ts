@@ -224,6 +224,12 @@ describe('飞天水螅：吸/吹多目标', () => {
     expect(g.submitAction('A', { type: 'inhale', targetIds: ['B', 'C'] }).ok).toBe(true);
     expect(g.players.B.room).toBe('R1');
     expect(g.players.C.room).toBe('R1');
+    expect(g.logs.find(log => log.type === 'action' && log.data?.actionName === 'inhale')?.data).toMatchObject({
+      presentation: { targetIds: ['B', 'C'], moves: [
+        { pid: 'B', fromRoom: 'R2', toRoom: 'R1' },
+        { pid: 'C', fromRoom: 'R3', toRoom: 'R1' },
+      ] },
+    });
   });
 
   it('一次吹可同时把多名塔内敌人吹出塔外', () => {
