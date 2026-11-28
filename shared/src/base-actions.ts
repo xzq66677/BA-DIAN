@@ -107,7 +107,7 @@ function actAttack(game: GameLike, pid: PlayerId, req: ActionRequest, map: Battl
   const sameRoom = game.isSameRoom(pid, targetId);
   const ranged = req.ranged ?? !sameRoom;
   // 高塔内外隔绝：塔内与塔外不能直接互相攻击（只能靠吸/吹改变位置）
-  if (!sameRoom && (game.isInTower(pid) || game.isInTower(targetId))) {
+  if (game.towerWallBetween(pid, targetId)) {
     return { ok: false, error: '高塔内外隔绝，无法直接攻击' };
   }
   const at = cd.attackType || 'both';

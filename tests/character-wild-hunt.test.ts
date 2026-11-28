@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { Game } from '../shared/src/engine.js';
 import { CHARACTERS } from '../shared/src/characters/index.js';
+import { aiDecideAction } from '../server/src/room.js';
 import type { Throw } from '../shared/src/types.js';
 
 function makeGame(
@@ -257,5 +258,84 @@ describe('狂猎：状态快照', () => {
     expect(mounted).toBeTruthy();
     expect(mounted).not.toHaveProperty('appliedRound');
     expect(JSON.stringify(a.effects)).not.toContain('mountExpiresRound');
+  });
+});
+
+describe('狂猎 × 高塔墙（Issue #97）', () => {
+  /** 直接把高塔设为建成状态（与飞天水螅测试同款；ownerInside=false 时蛇在塔外） */
+  function buildTowerDirectly(g: Game, baseRoom: string, owner: string, ownerInside = true): void {
+    const st = g.charState(owner);
+    st.towerBaseRoom = baseRoom;
+    st.towerHp = 6;
+    st.buildProgress = 2;
+    st.inTower = ownerInside;
+  }
+
+  it('骑乘冲锋不可穿墙命中塔内目标', () => {
+    const g = makeGame([{ id: 'A', char: 'wild-hunt' }, { id: 'S', char: 'water-snake' }]);
+    g.players.A.room = 'R1';
+    g.players.S.room = 'R2';
+    buildTowerDirectly(g, 'R2', 'S'); // S 在塔内
+    throws(g, { A: 'rock', S: 'scissors' });
+    g.submitAction('A', { type: 'mount' });
+    throws(g, { A: 'rock', S: 'scissors' });
+    const r = g.submitAction('A', { type: 'attack', targetId: 'S' });
+    expect(r.ok).toBe(false);
+    expect(String(r.error)).toContain('高塔内外隔绝');
+    expect(g.players.S.hp).toBe(3); // 未受伤
+    expect(g.charState('S').towerHp).toBe(6); // 高塔无损
+    expect(g.players.A.room).toBe('R1'); // 未位移
+  });
+
+  it('塔内骑乘冲锋塔外目标：拒绝且不残留塔内标记', () => {
+    const g = makeGame([{ id: 'A', char: 'wild-hunt' }, { id: 'S', char: 'water-snake' }, { id: 'X' }]);
+    g.players.A.room = 'R2';
+    g.players.S.room = 'R2';
+    g.players.X.room = 'R3';
+    buildTowerDirectly(g, 'R2', 'S', false); // 蛇在塔外：不触发塔内压制判定
+    throws(g, { A: 'scissors', S: 'rock', X: 'scissors' }); // S 先手，把 A 吸进塔
+    expect(g.submitAction('S', { type: 'inhale', targetId: 'A' }).ok).toBe(true);
+    expect(g.charState('A').inTower).toBe(true);
+    throws(g, { A: 'rock', S: 'scissors', X: 'scissors' });
+    expect(g.submitAction('A', { type: 'mount' }).ok).toBe(true);
+    throws(g, { A: 'rock', S: 'scissors', X: 'scissors' });
+    const r = g.submitAction('A', { type: 'attack', targetId: 'X' });
+    expect(r.ok).toBe(false);
+    expect(String(r.error)).toContain('高塔内外隔绝');
+    expect(g.players.X.hp).toBe(2); // 目标无伤
+    expect(g.players.A.room).toBe('R2'); // 未位移
+    expect(g.charState('A').inTower).toBe(true); // 人未离开塔，标记正确保持
+    expect(g.charState('A').mounted).toBe(true); // 被拒行动不消耗骑乘
+  });
+
+  it('塔内骑乘不能攻击同房间塔外目标（跨塔墙同房间）', () => {
+    const g = makeGame([{ id: 'A', char: 'wild-hunt' }, { id: 'S', char: 'water-snake' }, { id: 'B' }]);
+    g.players.A.room = 'R2';
+    g.players.S.room = 'R2';
+    g.players.B.room = 'R2';
+    buildTowerDirectly(g, 'R2', 'S', false);
+    throws(g, { A: 'scissors', S: 'rock', B: 'scissors' });
+    expect(g.submitAction('S', { type: 'inhale', targetId: 'A' }).ok).toBe(true);
+    throws(g, { A: 'rock', S: 'scissors', B: 'scissors' });
+    expect(g.submitAction('A', { type: 'mount' }).ok).toBe(true);
+    throws(g, { A: 'rock', S: 'scissors', B: 'scissors' });
+    const r = g.submitAction('A', { type: 'attack', targetId: 'B' });
+    expect(r.ok).toBe(false);
+    expect(String(r.error)).toContain('高塔内外隔绝');
+    expect(g.players.B.hp).toBe(2);
+  });
+
+  it('AI 骑乘时不把塔墙隔绝的目标列为候选', () => {
+    const g = makeGame([{ id: 'A', char: 'wild-hunt' }, { id: 'S', char: 'water-snake' }, { id: 'X' }]);
+    g.players.A.room = 'R1';
+    g.players.S.room = 'R2';
+    g.players.X.room = 'R3';
+    buildTowerDirectly(g, 'R2', 'S'); // S 塔内：A 与 S 被塔墙隔绝
+    throws(g, { A: 'rock', S: 'scissors', X: 'scissors' });
+    g.submitAction('A', { type: 'mount' });
+    throws(g, { A: 'rock', S: 'scissors', X: 'scissors' });
+    const req = aiDecideAction(g, 'A', 'hard');
+    expect(req?.type).toBe('attack');
+    expect(req?.targetId).toBe('X');
   });
 });

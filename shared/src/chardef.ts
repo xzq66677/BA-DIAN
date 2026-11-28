@@ -31,6 +31,8 @@ export interface GameLike {
   relocatePlayer(pid: PlayerId, room: RoomId, inTower?: boolean): import('./types.js').PlayerRelocation[];
   /** 是否位于高塔内部（塔内外隔绝） */
   isInTower(pid: PlayerId): boolean;
+  /** 高塔墙隔绝：双方分处塔内外且不同侧时为 true（指向性攻击不可穿越，吸/吹与移动不受限） */
+  towerWallBetween(a: PlayerId, b: PlayerId): boolean;
   isOver(): boolean;
   applyDamage(req: DamageRequest): import('./types.js').AppliedDamage;
   eliminate(pid: PlayerId, cause: string, killer?: PlayerId, opts?: { ignoreLives?: boolean }): void;
