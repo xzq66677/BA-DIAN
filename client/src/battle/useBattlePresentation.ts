@@ -15,6 +15,7 @@ import { presentationMoves, type BattleEvent, type LogLike, type PresentationDat
 import { sfx, type SfxKind } from '../audio/sfx.js';
 import { condenseAnnounceQueue, type AnnounceItem } from '../../../shared/src/announce.js';
 import { actionPresentationDuration } from './action-presentation.js';
+import { isOverlayFx } from './fx-overlays.js';
 
 /** 行动者卡 fx（⚔️/💊/🚶/✨ 弹出动画）；targetId 供 3D 场景确定动作朝向（2D 不使用） */
 export interface FxView { kind: string; key: number; pid?: string; targetId?: string; room?: string; durationMs?: number; presentation?: PresentationData }
@@ -161,7 +162,9 @@ export function useBattlePresentation(
   queueStateRef.current = queueState;
 
   // ── 全局播报横幅队列 ──
-  /** 横幅自身状态独立于演出队列：播报是「全员通告」，不该被战斗演出攒批影响 */
+  /** 横幅自身状态独立于演出队列：播报是「全员通告」，不该被战斗演出攒批影响；
+   *  唯一例外是 modal 叠加演出（老虎机转轮等，见 pumpAnnounce 的 overlayHolds 闸门，
+   *  Issue #104）——结果类播报等转轮放完再登，不抢跑。 */
   const [globalAnnounce, setGlobalAnnounce] = useState<AnnounceItem | null>(null);
   const announceRef = useRef<{
     queue: AnnounceItem[];
@@ -180,7 +183,13 @@ export function useBattlePresentation(
     queueRef.current = new BattleEventQueue({
       onEventStart: (e, durationMs) => applyEventRef.current(e, durationMs),
       onFlush: () => flushRef.current(),
-      onState: (s) => { modeRef.current = s.mode; setQueueState(s); },
+      onState: (s) => {
+        modeRef.current = s.mode;
+        setQueueState(s);
+        // 队列进度变化即尝试放行横幅：overlay 闸门在「fx 过期先于簇结束」的窗口里
+        // 需要 queue.current 清空后再泵一次（Issue #104；幂等，空队列自然早退）
+        pumpAnnounce();
+      },
     }, pace ?? paceFromLocation());
   }
   const queue = queueRef.current;
@@ -209,10 +218,24 @@ export function useBattlePresentation(
     timersRef.current.clear();
   }
 
-  /** 播报队列泵：空闲时取队首展示 ttlMs，到点清空并继续下一条 */
+  /**
+   * 叠加演出（老虎机转轮等 modal overlay）进行中：横幅让位，不消费队列。
+   * 结果类播报等 overlay 放完再登（Issue #104）；普通战斗演出不拦横幅。
+   * 两个判定互补：pres.fx 的活跃视图（已开播）+ 队列待播/播放中的 overlay 事件
+   * （同批日志刚入队、fx 视图尚未出现的窗口，同步可见不依赖定时器顺序）。
+   */
+  function overlayHolds(): boolean {
+    for (const view of Object.values(presRef.current.fx)) {
+      if (isOverlayFx(view.kind)) return true;
+    }
+    return queue.overlayPending();
+  }
+
+  /** 播报队列泵：空闲时取队首展示 ttlMs，到点清空并继续下一条；overlay 演出期间挂起 */
   function pumpAnnounce(): void {
     const st = announceRef.current;
     if (st.timer !== null) return;
+    if (overlayHolds()) return;
     const next = st.queue.shift();
     if (!next) return;
     setGlobalAnnounce(next);
@@ -250,6 +273,8 @@ export function useBattlePresentation(
         delete bucket[id];
         publish({ ...prev, [key]: bucket });
       }
+      // 演出退场后恢复横幅泵（overlay 期间挂起的播报此刻放行；空队列/横幅播放中自然早退）
+      pumpAnnounce();
     }, ms);
     timersRef.current.set(clockKey, t);
   }

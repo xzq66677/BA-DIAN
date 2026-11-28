@@ -17,6 +17,7 @@
 
 import { parseBattleEvent, type BattleEvent, type LogLike } from './events.js';
 import { actionPresentationDuration, isMajorActionPresentation } from './action-presentation.js';
+import { isOverlayFx } from './fx-overlays.js';
 
 export type Speed = 1 | 2 | 4;
 /** normal：按事件语义节奏播放；fast：拥堵压缩（跳过低重要度） */
@@ -313,6 +314,19 @@ export class BattleEventQueue {
   /** 是否仍有演出进行中（含正在播放的簇与待播队列） */
   isBusy(): boolean {
     return this.clusters.length > 0 || this.current !== null || this.timer !== null;
+  }
+
+  /**
+   * 队列中是否存在待播/播放中的 modal 叠加演出（老虎机转轮等，Issue #104）。
+   * 同步可见：同批到达的横幅在 overlay 开始前就要让位，不能等 fx 视图出现。
+   */
+  overlayPending(): boolean {
+    for (const cluster of [this.current, ...this.clusters]) {
+      if (!cluster) continue;
+      if (cluster.lead?.fx && isOverlayFx(cluster.lead.fx)) return true;
+      if (cluster.events.some((e) => e.kind === 'action' && !!e.fx && isOverlayFx(e.fx))) return true;
+    }
+    return false;
   }
 
   /** 当前状态快照（调试/测试观察） */

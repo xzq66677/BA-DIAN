@@ -31,6 +31,11 @@ export function registerFxOverlay(kind: string, component: FxOverlayComponent): 
   overlays.set(kind, component);
 }
 
+/** 该 fx 是否为 modal 叠加演出（老虎机转轮等，注册表判定；Issue #104 播报闸门用） */
+export function isOverlayFx(kind: string): boolean {
+  return overlays.has(kind);
+}
+
 export function FxOverlayHost({ views, ...props }: Omit<FxOverlayProps, 'view'> & { views: FxOverlayView[] }) {
   return views.map((view) => {
     const Overlay = overlays.get(view.kind);

@@ -114,7 +114,7 @@ function SlotPullOverlay({ view, interactive, reducedMotion, onSubmit, onCancel,
 
   useEffect(() => {
     if (!presenting || (interactive && awaitingResult)) return;
-    const duration = reducedMotion ? 520 : Math.max(1500, view.durationMs ?? spin?.durationMs ?? 2600);
+    const duration = reducedMotion ? 520 : Math.max(1500, view.durationMs ?? spin?.durationMs ?? 2200);
     const stops = !reducedMotion && spin ? spin.stopAt.map((at, index) => window.setTimeout(() => setStopped(index + 1), duration * at)) : [];
     const resultTimer = window.setTimeout(() => setPhase('result'), duration * (reducedMotion ? .72 : spin?.stopAt.at(-1) ?? .72));
     const completeTimer = window.setTimeout(() => completeRef.current?.(), duration);
