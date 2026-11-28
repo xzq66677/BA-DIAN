@@ -16,6 +16,7 @@ import { sfx, type SfxKind } from '../audio/sfx.js';
 import { condenseAnnounceQueue, type AnnounceItem } from '../../../shared/src/announce.js';
 import { actionPresentationDuration } from './action-presentation.js';
 import { isOverlayFx } from './fx-overlays.js';
+import { isExplosionDeath } from './death-presentation.js';
 
 /** 行动者卡 fx（⚔️/💊/🚶/✨ 弹出动画）；targetId 供 3D 场景确定动作朝向（2D 不使用） */
 export interface FxView { kind: string; key: number; pid?: string; targetId?: string; room?: string; durationMs?: number; presentation?: PresentationData }
@@ -210,7 +211,9 @@ export function useBattlePresentation(
     };
     const m = map[e.kind];
     if (!m) return;
-    sfx.play(m.kind, { major: m.major, congestion: modeRef.current === 'fast', reduced: reducedRef.current });
+    // 爆炸类死因（自爆等，death-presentation 注册表）用爆炸音效而非普通淘汰音
+    const kind: SfxKind = e.kind === 'eliminate' && isExplosionDeath(e.cause) ? 'boom' : m.kind;
+    sfx.play(kind, { major: m.major, congestion: modeRef.current === 'fast', reduced: reducedRef.current });
   }
 
   function clearAllTimers(): void {

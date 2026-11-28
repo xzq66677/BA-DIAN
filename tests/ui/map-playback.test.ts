@@ -388,7 +388,7 @@ it('routes the authoritative queue events to production scene methods with playb
   expect(vi.mocked(scene.playIvanThrow).mock.calls[0][2]).toBeCloseTo(0.97);
   expect(scene.playIvanBoom).toHaveBeenCalledWith('far');
   expect(scene.playHit).toHaveBeenCalledWith('p', expect.objectContaining({ hpBefore: 3, hpAfter: 0, lethal: true }));
-  expect(scene.playEliminate).toHaveBeenCalledWith('p');
+  expect(scene.playEliminate).toHaveBeenCalledWith('p', undefined); // 无死因的淘汰按通用演出传 undefined
   expect(scene.playRevive).toHaveBeenCalledWith('p', 2);
   expect(scene.playTowerHit).toHaveBeenCalledWith('far', 6, 0);
   expect(scene.playTowerCollapse).toHaveBeenCalledWith('far');

@@ -13,6 +13,7 @@ import { buildRoomView, releaseRoomObject, type RoomView } from './room-view.js'
 import { positionOverlay, type FloatingLabel } from './scene-overlay.js';
 import { cardMeta } from '../cards.js';
 import { slotMachineRoomLabel, slotMachineState } from '../battle/slot-machine-state.js';
+import { isExplosionDeath } from '../battle/death-presentation.js';
 import { createCharacterAsset, releaseMeshes, type CharacterRig } from './characters/index.js';
 import {
   slashFx, ringBurst, beamFx, projectileFx, explosionFx, healFx, skillAuraFx,
@@ -22,7 +23,7 @@ import { gllog } from './gllog.js';
 import { slotMachineDropFx } from './slot-drop-fx.js';
 import { B3D_RESTORE_WAIT_MS } from './gl-policy.js';
 import { loadedCollaborationVisualId, roomDecoration } from './characters/collab-assets.js';
-import { RoomDecorations, windAssetFx, windTravel } from './collaboration-props.js';
+import { RoomDecorations, vortexPull, windAssetFx, windTravel } from './collaboration-props.js';
 import type { AssetCue } from './collaboration-presenters.js';
 export { preloadCollaborationAssets } from './characters/collab-assets.js';
 
@@ -723,7 +724,14 @@ export class BattleScene3D {
       for (const target of cue.targets) {
         const entity = this.entities.get(target);
         if (entity?.walk && cue.moves?.some(move => move.pid === target)) {
-          entity.walk.curve = windTravel(cue.directional, entity.walk.from, entity.walk.to);
+          // 吸：漩涡吸附（螺旋收敛 + 受击姿态，不走路）；吹：保持风道漂移（Issue #99）
+          if (cue.directional === 'inhale') {
+            entity.walk.curve = vortexPull(entity.walk.from, entity.walk.to)
+              ?? windTravel(cue.directional, entity.walk.from, entity.walk.to);
+            entity.pose = { kind: 'flinch', t: 0, dur: Math.max(.4, cue.seconds) };
+          } else {
+            entity.walk.curve = windTravel(cue.directional, entity.walk.from, entity.walk.to);
+          }
           entity.walk.dur = cue.seconds;
         }
         const position = this.worldOf(target);
@@ -945,13 +953,27 @@ export class BattleScene3D {
     this.spawnFloat(w, '<span class="miss-float">未命中</span>');
   }
 
-  playEliminate(pid: string): void {
+  playEliminate(pid: string, cause?: string): void {
     const e = this.entities.get(pid);
     const w = this.worldOf(pid);
     if (!e || !w) return;
     const insultPrefix = `${insultGen}|`;
     for (const key of insultSeen.keys()) {
       if (key.startsWith(insultPrefix) && key.endsWith(`->${pid}`)) insultSeen.delete(key);
+    }
+    // 爆炸类死因（自爆等，death-presentation 注册表）：火球+冲击波，对齐大伊万爆炸的视觉词汇
+    if (isExplosionDeath(cause)) {
+      this.spawnFloat(w, '<span class="death-stamp b3-stamp is-boom">💥 自爆</span>');
+      if (this.lowEffects || this.reduced) {
+        this.spawnFx(ringBurst(0xff943c, 1.9, 0.75, { y: PLATFORM_H + 0.1 }), w.clone().setY(0), 850);
+      } else {
+        this.spawnFx(explosionFx(0xff8830), w.clone().setY(PLATFORM_H + 0.4), 1500);
+        this.spawnFx(flashLightFx(w, 0xff9828, 5, 0.5), w.clone().setY(0), 600);
+      }
+      this.shake(this.reduced ? 0.08 : 0.3);
+      this.focusPlayer('major', pid);
+      this.killPose(e);
+      return;
     }
     this.spawnFloat(w, '<span class="death-stamp b3-stamp">💀 淘汰</span>');
     if (!this.reduced) {

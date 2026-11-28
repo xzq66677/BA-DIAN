@@ -278,6 +278,14 @@ export class Game implements GameLike {
     return this.players[pid]?.char.inTower === true;
   }
 
+  /**
+   * 高塔墙隔绝：双方不同侧（任一在塔内且不与对方同侧）时返回 true。
+   * 指向性攻击不可穿越塔墙（吸/吹与移动不受限）；接管攻击（onAttackAction）也必须先过此墙。
+   */
+  towerWallBetween(a: PlayerId, b: PlayerId): boolean {
+    return !this.isSameRoom(a, b) && (this.isInTower(a) || this.isInTower(b));
+  }
+
   isOver(): boolean {
     return this.phase === 'over';
   }
@@ -1455,8 +1463,12 @@ export class Game implements GameLike {
     return resolveDamage(this, this.stats, req);
   }
 
-  /** 让角色环境结构（如高塔）优先承受一次房间级伤害。 */
-  private absorbRoomDamage(
+  /**
+   * 让角色环境结构（如高塔）优先承受一次房间级伤害，返回是否被吸收。
+   * 公开接口：房间级效果统一入口见 `damage.ts` 的 dealRoomDamage；
+   * 自定义结算的调用方也应先调用本方法再伤害 roomMembers（塔内玩家由墙自动豁免）。
+   */
+  absorbRoomDamage(
     room: RoomId,
     req: Omit<RoomDamageHookCtx, 'game' | 'owner' | 'room'>,
   ): boolean {
