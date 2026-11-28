@@ -125,7 +125,8 @@ export function playMapEvent(scene: MapPlaybackScene, event: BattleEvent, durati
       if (event.pid && event.fromRoom && event.toRoom) scene.playWalk(event.pid, event.fromRoom, event.toRoom);
       break;
     case 'eliminate':
-      if (event.targetId) scene.playEliminate(event.targetId);
+      // cause 决定死亡演出（如自爆 → 爆炸，见 death-presentation 注册表）
+      if (event.targetId) scene.playEliminate(event.targetId, event.cause);
       break;
     case 'revive':
       if (event.targetId) scene.playRevive(event.targetId, event.livesLeft ?? 1);

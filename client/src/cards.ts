@@ -1,6 +1,8 @@
 /**
  * 拔典 · 角色卡素材与文案映射
- * 卡面立绘来自用户提供的原创 9 角色卡（游戏王风格，client/public/cards/）。
+ * 卡面立绘来自用户提供的原创角色卡（游戏王风格，client/public/cards/）。
+ * 除入池角色外，还收录了尚未实装入局角色的卡面（Issue #95 四角色图片包）：
+ * 这类条目用 name / panel 提供卡面名与面板显示，引擎花名册接入后即自动切换为花名册数据。
  */
 
 export interface CardMeta {
@@ -10,6 +12,10 @@ export interface CardMeta {
   thumb?: string;
   /** 卡号 No.01~09 */
   no: string;
+  /** 卡面名（仅未入池角色需要；入池角色名以引擎花名册为准） */
+  name?: string;
+  /** 未入池角色的面板显示（如「HP ? / 攻 1」）；入池角色由花名册推导 */
+  panel?: string;
   /** 卡面技能名（文案清单） */
   skills: string;
   /** 机制简述（文案清单） */
@@ -80,8 +86,7 @@ export const CARD_META: Record<string, CardMeta> = {
     quote: '伤害你替我挨，附加状态你自己留着。',
   },
   'slot-hero': {
-    // 立绘/缩略图待美术素材（Issue #72 后续交付）；先提供文案，大厅按无图回退展示
-    no: '10',
+    img: './cards/slot-hero.webp', thumb: './cards/slot-hero-thumb.webp', no: '106',
     skills: '【抽老虎机】·【钥匙封印】·【炸弹】',
     mech: '初始4血攻击0，开局5块钱（唯一持有货币的角色）。消耗一次行动抽老虎机：5块抽4格 / 1块抽3格；数字→0钥匙、1–3金钱、4–7炸弹、8–9攻击，同种符号2/3/4个触发奖励。钱花光后可扔出老虎机，第3回合末落地砸出累计投入伤害，之后同房间可踹机+1块。',
     quote: '再拉一次，这回一定是四个炸弹。',
@@ -99,22 +104,31 @@ export const CARD_META: Record<string, CardMeta> = {
     quote: '骨头会散，箭不会。',
   },
   ghost: {
-    no: '—',
+    img: './cards/ghost.webp', thumb: './cards/ghost-thumb.webp', no: '36',
     skills: '【附身】·【折磨】·【操控】·【主动脱离】',
     mech: '血量2、普攻1.5；单次受伤最多0.5，精神秒杀可无视上限。免疫燃烧，无法主动回复。花一次行动移到目标所在房间并附身，期间随宿主移动，无法普攻、独立移动或躲藏。宿主每回合受到1点吸血伤害（附身当回合跳过），鬼影可额外折磨或操控宿主。鬼影可主动脱离，宿主也可驱逐，两者都消耗一次行动。',
     quote: '你以为你在走，其实是我在走。',
   },
   'wild-hunt': {
-    no: '—',
+    img: './cards/wild-hunt.webp', thumb: './cards/wild-hunt-thumb.webp', no: '69',
     skills: '【受击判定】·【骑乘突进】·【猎杀成长】',
     mech: '血量4、攻击1。受到攻击时与来源**亲自出拳**判定（平局再来一把，直到分出胜负）：赢则抵消伤害并反击——未骑乘反击1伤+上马1回合，已骑乘反击改为6伤、用后下马；输则正常受伤（燃烧/爆炸/精神攻击不触发）。骑乘期间攻击无视距离并带位移、伤害×2，最后一回合攻击变为6伤单体（可叠加击杀加成）；可花一次行动主动上马2回合。每次击杀敌人后攻击×1.5（可叠加）。',
     quote: '追到天涯，也只是我马蹄下的一步。',
   },
   'water-snake': {
-    no: '—',
+    img: './cards/water-snake.webp', thumb: './cards/water-snake-thumb.webp', no: '73',
     skills: '【玄武岩高塔】·【吸/吹】·【亡魂】',
     mech: '血量3、攻击1.5，无法主动回复。消耗一次行动造玄武岩高塔（需2次行动，塔6血）：建成后自动进入塔内，塔内外隔绝、算作新房间；高塔吸收所在房间的房间级伤害（含大伊万爆炸），塔内玩家不受该次效果伤害，塔血归零坍塌并弹出塔内玩家。塔内外的同房间玩家都可攻击高塔。与敌人同处塔内时，敌人行动前双方亲自出拳判定——胜则正常行动、平局本次无效、输了攻击自己。吸/吹各消耗一次行动、可指定多个目标，每人只移动一格：吸=其他房间→自己房间 / 自己房间→塔内；吹=塔内→自己房间 / 自己房间→其他房间。死后化为亡魂：不可被攻击，仍参与猜拳并使用吸/吹。',
     quote: '塔里塔外，都是我的水。',
+  },
+  // 未实装入局角色：卡面先行收录（Issue #95 飞天水蛭双形态——水蛭 Q 版）。
+  // 文案按《飞天水蛭_Q版文案清单》照录；入册实装后以花名册数据为准。
+  leech: {
+    img: './cards/leech.webp', thumb: './cards/leech-thumb.webp', no: '70',
+    name: '水蛭', panel: 'HP ? / 攻 -',
+    skills: '【多根缠吸】·【禁疗】·【收舌回满】',
+    mech: '攻击吐舌头缠绕敌人，每回合造成 1 伤，可吐多根；无法回血；收回舌头（含尸体）时回满。原稿未标血量与攻击，卡面按 HP ? 显示（Q 版衍生卡：机制与数值沿用第 6 批精修版，不覆盖原版卡）。',
+    quote: '缠几根是几根，收回来那一口，连尸体都算补。',
   },
 };
 
@@ -125,4 +139,10 @@ export function cardMeta(charId: string): CardMeta | undefined {
 /** 大厅角色选择用缩略图 */
 export function thumbOf(charId: string): string | undefined {
   return CARD_META[charId]?.thumb;
+}
+
+/** 未入池（引擎花名册之外）但已收录卡面的角色 id——卡池墙补位展示用 */
+export function extraCardIds(rosterIds: Iterable<string>): string[] {
+  const inRoster = new Set(rosterIds);
+  return Object.keys(CARD_META).filter((id) => !inRoster.has(id));
 }

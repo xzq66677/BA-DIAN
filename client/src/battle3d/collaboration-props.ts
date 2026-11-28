@@ -171,6 +171,31 @@ export function windTravel(clip: 'inhale' | 'exhale', from: THREE.Vector3, to: T
   };
 }
 
+/**
+ * 漩涡吸附曲线（「吸」的落点演出，Issue #99）：以落点为轴心螺旋收敛，
+ * 半径线性衰减、绕行圈数随距离增加，中途轻微离地被吸起。t=1 精确落在 to。
+ * 纯代码生成，不依赖 wind-vortex.glb 的自定义轨道。
+ */
+export function vortexPull(from: THREE.Vector3, to: THREE.Vector3) {
+  const dx = from.x - to.x;
+  const dz = from.z - to.z;
+  const radius = Math.hypot(dx, dz);
+  if (radius < .001) return;
+  const angle0 = Math.atan2(dz, dx);
+  const turns = radius > 1.6 ? 1.25 : 0.75;
+  const lift = Math.min(.45, radius * .18);
+  const baseY = to.y;
+  return (t: number) => {
+    const angle = angle0 + turns * Math.PI * 2 * t;
+    const r = radius * (1 - t);
+    return new THREE.Vector3(
+      to.x + Math.cos(angle) * r,
+      baseY + lift * Math.sin(Math.PI * t),
+      to.z + Math.sin(angle) * r,
+    );
+  };
+}
+
 export function windAssetFx(clip: 'inhale' | 'exhale', delta: THREE.Vector3, seconds: number): FxInstance | undefined {
   const model = cloneAsset('wind-vortex');
   if (!model) return;

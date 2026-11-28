@@ -33,6 +33,11 @@ export interface GameLike {
   isInTower(pid: PlayerId): boolean;
   /** 高塔墙隔绝：双方分处塔内外且不同侧时为 true（指向性攻击不可穿越，吸/吹与移动不受限） */
   towerWallBetween(a: PlayerId, b: PlayerId): boolean;
+  /**
+   * 房间级伤害吸收：让高塔等环境结构优先承受一次房间级效果，返回是否被吸收。
+   * 统一入口见 `damage.ts` 的 dealRoomDamage（吸收 + 房间成员结算）。
+   */
+  absorbRoomDamage(room: RoomId, req: Omit<RoomDamageHookCtx, 'game' | 'owner' | 'room'>): boolean;
   isOver(): boolean;
   applyDamage(req: DamageRequest): import('./types.js').AppliedDamage;
   eliminate(pid: PlayerId, cause: string, killer?: PlayerId, opts?: { ignoreLives?: boolean }): void;
@@ -156,7 +161,7 @@ export interface JudgeAppendCtx {
 }
 
 export interface CharacterAiContext {
-  game: Pick<GameLike, 'roundNo' | 'players' | 'roomIds' | 'roomMembers' | 'isSameRoom' | 'getStatus' | 'hasStatus' | 'towerWallBetween'>;
+  game: Pick<GameLike, 'roundNo' | 'players' | 'roomIds' | 'roomMembers' | 'isSameRoom' | 'towerWallBetween' | 'getStatus' | 'hasStatus'>;
   difficulty: 'normal' | 'hard';
   pid: PlayerId;
   me: PlayerState;

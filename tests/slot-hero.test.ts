@@ -349,3 +349,69 @@ describe('老虎机侠 · AI', () => {
     expect(slotHeroAi(aiCtx(g) as never)?.type).toBe('slotThrowMachine');
   });
 });
+
+describe('老虎机侠 × 高塔吸收（Issue #98）', () => {
+  /** 直接把高塔设为建成状态（与飞天水螅测试同款） */
+  function buildTowerDirectly(g: Game, baseRoom: string, owner: string): void {
+    const s2 = g.charState(owner);
+    s2.towerBaseRoom = baseRoom;
+    s2.towerHp = 6;
+    s2.buildProgress = 2;
+    s2.inTower = true;
+  }
+
+  /** 3 人局：A 出石头赢下判定进入行动阶段 */
+  function toAct3(g: Game): void {
+    playThrows(g, [{ A: 'rock', B: 'scissors', S: 'scissors' }]);
+    expect(g.phase).toBe('act');
+    expect(g.currentActor()).toBe('A');
+  }
+
+  /** 推进一个完整回合（行动一律跳过） */
+  function advanceOneRound3(g: Game): void {
+    playThrows(g, [{ A: 'rock', B: 'scissors', S: 'scissors' }]);
+    actQueue(g, {});
+  }
+
+  it('特殊大伊万轰高塔房间：高塔吸收 999999 坍塌，塔内玩家免伤，塔外成员受伤', () => {
+    const g = makeGame([{ id: 'A', char: 'slot-hero' }, { id: 'S', char: 'water-snake' }, { id: 'B', char: 'default', hp: 20 }], 13);
+    g.players.S.room = 'R2';
+    g.players.B.maxHp = 20;
+    g.players.B.room = 'R2'; // B 在塔外同房间
+    buildTowerDirectly(g, 'R2', 'S'); // S 塔内
+    st(g).bigIvan = true;
+    toAct3(g);
+    expect(g.submitAction('A', { type: 'slotBigIvan', room: 'R2' }).ok).toBe(true);
+    const hit = g.logs.find((log) => log.data?.towerHit === true);
+    expect(hit).toBeTruthy();
+    expect(hit?.data?.hpBefore).toBe(6);
+    expect(hit?.data?.hpAfter).toBe(0);
+    expect(g.charState('S').towerHp).toBe(0); // 塔吸收 999999（上限 6）→ 归零
+    expect(g.logs.some((log) => log.data?.towerCollapse === true)).toBe(true);
+    expect(g.charState('S').inTower).toBe(false); // 坍塌弹出塔内玩家
+    expect(g.players.S.hp).toBe(3); // 塔内免伤（弹出者不被同一波命中）
+    expect(g.players.S.alive).toBe(true);
+    expect(g.players.B.alive).toBe(false); // 塔外成员受伤
+    expect(g.players.A.alive).toBe(true); // 炸其他房间不伤自己
+  });
+
+  it('小炸弹炸高塔房间：高塔吸收 3 点不坍塌，塔内玩家免伤', () => {
+    const g = makeGame([{ id: 'A', char: 'slot-hero' }, { id: 'S', char: 'water-snake' }, { id: 'B', char: 'default', hp: 50 }], 14);
+    g.players.S.room = 'R2';
+    g.players.B.maxHp = 50;
+    g.players.B.room = 'R2';
+    buildTowerDirectly(g, 'R2', 'S');
+    forceDigits(g, [4, 5, 1, 2]); // 抽出小炸弹
+    toAct3(g);
+    expect(spin(g, 'slotSpin4').ok).toBe(true);
+    toAct3(g); // 下一回合行动阶段，把炸弹扔进塔房
+    expect(g.submitAction('A', { type: 'slotThrowSmall', room: 'R2' }).ok).toBe(true);
+    for (let i = 0; i < 8 && st(g).bombs.length > 0; i++) advanceOneRound3(g);
+    expect(st(g).bombs.length).toBe(0); // 引信已引爆
+    expect(g.charState('S').towerHp).toBe(3); // 塔吸收 3 点，未坍塌
+    expect(g.charState('S').inTower).toBe(true); // 塔仍在，S 未被弹出
+    expect(g.players.S.hp).toBe(3); // 塔内免伤
+    expect(g.players.B.hp).toBe(47); // 塔外成员 -3
+    expect(g.players.A.hp).toBe(4); // 炸弹已扔出，不伤自己
+  });
+});

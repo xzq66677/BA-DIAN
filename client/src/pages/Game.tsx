@@ -16,6 +16,7 @@ import {
 } from '../battle/useBattlePresentation.js';
 import { useCardRoomFlip } from '../battle/flip.js';
 import { resolvePresentationPace } from '../battle/pace-policy.js';
+import { deathStamp } from '../battle/death-presentation.js';
 import { resolveActionPresentation } from '../battle/action-presentation.js';
 import { FxOverlayHost, fxOverlayView, type FxOverlayView } from '../battle/fx-overlays.js';
 import '../battle/presentation-plugins.js';
@@ -1560,7 +1561,7 @@ function CharCardView({ p, game, isMine, isTargetable, submitted, throwView, fx,
         <span className="revive-burst" key={`rv-${revive.key}`}>💫 {revive.livesLeft} 命复活</span>
       )}
       {death && (
-        <span className="death-stamp" key={`dt-${death.key}`}>💀 淘汰</span>
+        <span className={deathStamp(death.cause).cls} key={`dt-${death.key}`}>{deathStamp(death.cause).text}</span>
       )}
       {fx && !dead && (
         <span className={`fx-anim fx-${fx.kind}`} key={`fx-${fx.key}`}>
