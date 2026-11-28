@@ -502,6 +502,12 @@
   55% { opacity: 1; transform: scale(1) rotate(-3deg); }
   100% { opacity: 1; transform: scale(1) rotate(-3deg); }
 }
+/* 爆炸类死因（自爆，death-presentation 注册表）：炽橙盖章区别于通用淘汰 */
+.death-stamp.is-boom {
+  color: #ffe6b8;
+  background: rgba(94, 28, 2, 0.55);
+  text-shadow: 0 0 10px rgba(255, 148, 60, 0.85);
+}
 
 /* ── 复活演出：金色爆发 ── */
 .revive-burst {

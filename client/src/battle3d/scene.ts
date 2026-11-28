@@ -13,6 +13,7 @@ import { buildRoomView, releaseRoomObject, type RoomView } from './room-view.js'
 import { positionOverlay, type FloatingLabel } from './scene-overlay.js';
 import { cardMeta } from '../cards.js';
 import { slotMachineRoomLabel, slotMachineState } from '../battle/slot-machine-state.js';
+import { isExplosionDeath } from '../battle/death-presentation.js';
 import { createCharacterAsset, releaseMeshes, type CharacterRig } from './characters/index.js';
 import {
   slashFx, ringBurst, beamFx, projectileFx, explosionFx, healFx, skillAuraFx,
@@ -945,13 +946,27 @@ export class BattleScene3D {
     this.spawnFloat(w, '<span class="miss-float">未命中</span>');
   }
 
-  playEliminate(pid: string): void {
+  playEliminate(pid: string, cause?: string): void {
     const e = this.entities.get(pid);
     const w = this.worldOf(pid);
     if (!e || !w) return;
     const insultPrefix = `${insultGen}|`;
     for (const key of insultSeen.keys()) {
       if (key.startsWith(insultPrefix) && key.endsWith(`->${pid}`)) insultSeen.delete(key);
+    }
+    // 爆炸类死因（自爆等，death-presentation 注册表）：火球+冲击波，对齐大伊万爆炸的视觉词汇
+    if (isExplosionDeath(cause)) {
+      this.spawnFloat(w, '<span class="death-stamp b3-stamp is-boom">💥 自爆</span>');
+      if (this.lowEffects || this.reduced) {
+        this.spawnFx(ringBurst(0xff943c, 1.9, 0.75, { y: PLATFORM_H + 0.1 }), w.clone().setY(0), 850);
+      } else {
+        this.spawnFx(explosionFx(0xff8830), w.clone().setY(PLATFORM_H + 0.4), 1500);
+        this.spawnFx(flashLightFx(w, 0xff9828, 5, 0.5), w.clone().setY(0), 600);
+      }
+      this.shake(this.reduced ? 0.08 : 0.3);
+      this.focusPlayer('major', pid);
+      this.killPose(e);
+      return;
     }
     this.spawnFloat(w, '<span class="death-stamp b3-stamp">💀 淘汰</span>');
     if (!this.reduced) {
