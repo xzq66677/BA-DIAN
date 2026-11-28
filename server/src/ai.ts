@@ -1,27 +1,36 @@
 import type { Game } from '../../shared/src/engine.js';
 import { randomThrow } from '../../shared/src/rng.js';
 import type { ActionRequest, AiDifficulty, PlayerId, RoomId, Throw } from '../../shared/src/types.js';
+import type { CharacterAiContext } from '../../shared/src/chardef.js';
+import { characterExpertAi } from '../../shared/src/characters/ai-expert.js';
 
 // ═══════════════════ AI 决策（与规则引擎分离，只提交合法行动） ═══════════════════
 
-/** 某出拳的克制拳（用于硬核 AI 反制） */
+/** 某出拳的克制拳（用于硬核/宗师 AI 反制） */
 const COUNTER: Record<Throw, Throw> = { rock: 'paper', scissors: 'rock', paper: 'scissors' };
 
 /**
  * AI 出拳。
  *  - easy / normal：随机（引擎种子流，可复现）
  *  - hard：统计对手历史出拳频率反制（30% 随机扰动，避免被读牌）
+ *  - expert：更长记忆（8 局）+ 近期加权 + 更少扰动（15%），读牌更强
  */
 export function aiThrow(g: Game, pid: PlayerId, difficulty: AiDifficulty = 'normal'): Throw {
-  if (difficulty !== 'hard') return randomThrow(g.rng);
+  if (difficulty !== 'hard' && difficulty !== 'expert') return randomThrow(g.rng);
   const counts: Record<Throw, number> = { rock: 0, scissors: 0, paper: 0 };
+  const window = difficulty === 'expert' ? 8 : 4;
+  const noise = difficulty === 'expert' ? 0.15 : 0.3;
   for (const [other, list] of Object.entries(g.throwHistory ?? {})) {
     if (other === pid) continue;
-    for (const t of list.slice(-4)) counts[t] = (counts[t] ?? 0) + 1;
+    const recent = list.slice(-window);
+    recent.forEach((t, i) => {
+      // 宗师：最近 4 局权重 ×2（近期习惯更能代表当前玩家）
+      counts[t] = (counts[t] ?? 0) + (difficulty === 'expert' && i >= recent.length - 4 ? 2 : 1);
+    });
   }
   const total = counts.rock + counts.scissors + counts.paper;
   if (total < 3) return randomThrow(g.rng);
-  if (g.rng.next() < 0.3) return randomThrow(g.rng);
+  if (g.rng.next() < noise) return randomThrow(g.rng);
   const mostCommon = (Object.keys(counts) as Throw[]).sort((a, b) => counts[b] - counts[a])[0];
   return COUNTER[mostCommon];
 }
@@ -73,7 +82,8 @@ export function aiDecideAction(g: Game, pid: PlayerId, difficulty: AiDifficulty 
 export function aiDecideActions(g: Game, pid: PlayerId, difficulty: AiDifficulty = 'normal'): ActionRequest[] {
   const primary = difficulty === 'easy' ? easyDecide(g, pid)
     : difficulty === 'hard' ? hardDecide(g, pid)
-      : normalDecide(g, pid);
+      : difficulty === 'expert' ? expertDecide(g, pid)
+        : normalDecide(g, pid);
   const chain: ActionRequest[] = [primary];
   const push = (a: ActionRequest) => {
     if (!chain.some((x) => JSON.stringify(x) === JSON.stringify(a))) chain.push(a);
@@ -165,6 +175,26 @@ function normalDecide(g: Game, pid: PlayerId): ActionRequest {
 }
 
 /**
+ * 宗师（第四档）：按角色注册表走「每个角色单独编写的专属策略」
+ * （shared/src/characters/ai-expert.ts，通用策略不出现角色名分支）。
+ * 未注册的未知/未来角色安全降级为硬核策略——hardDecide 内部仍会咨询角色 aiStrategy 钩子。
+ */
+function expertDecide(g: Game, pid: PlayerId): ActionRequest {
+  const me = g.players[pid];
+  const ctx: CharacterAiContext = {
+    game: g,
+    difficulty: 'expert',
+    pid,
+    me,
+    st: g.charState(pid),
+    members: livingRoomMembers(g, me.room).filter((p) => p !== pid),
+    alive: livingIds(g).filter((p) => p !== pid),
+  };
+  const specialized = characterExpertAi[g.charDef(pid).id]?.(ctx);
+  return specialized ?? hardDecide(g, pid);
+}
+
+/**
  * 硬核：
  *  - 先算「能不能杀人」：同房间可击杀者优先，远程可击杀者也优先（必要时先瞄准）；
  *  - 残血且本房间有人能一击带走自己 → 先把自己救回来（回复/撤离）；
@@ -249,11 +279,15 @@ function hardDecide(g: Game, pid: PlayerId): ActionRequest {
 }
 
 /**
- * 大屁孩暴走选目标（回合最前触发）：优先血量最低的其他存活玩家，同血量按座次。
+ * 大屁孩暴走选目标（回合最前触发）：默认优先血量最低的其他存活玩家（同血量按座次）；
+ * 宗师档改为把秒杀机会留给全场威胁最高的敌人（攻击力优先、其次血量，同威胁按座次）。
  * AI 与自动化对局回归共用；返回 null 表示没有可选目标。
  */
-export function aiBerserkTarget(g: Game, pid: PlayerId): PlayerId | null {
+export function aiBerserkTarget(g: Game, pid: PlayerId, difficulty: AiDifficulty = 'normal'): PlayerId | null {
   const others = livingIds(g).filter((p) => p !== pid);
   if (others.length === 0) return null;
-  return others.sort((a, b) => (g.players[a].hp - g.players[b].hp) || (g.playerIds.indexOf(a) - g.playerIds.indexOf(b)))[0];
+  if (difficulty !== 'expert') {
+    return others.sort((a, b) => (g.players[a].hp - g.players[b].hp) || (g.playerIds.indexOf(a) - g.playerIds.indexOf(b)))[0];
+  }
+  return others.sort((a, b) => (threatOf(g, b) - threatOf(g, a)) || (g.playerIds.indexOf(a) - g.playerIds.indexOf(b)))[0];
 }

@@ -57,7 +57,7 @@ export const MAX_REPLAYS = 5;
 /** 单局最多录制帧数（保护内存） */
 export const MAX_REPLAY_FRAMES = 1500;
 
-const AI_DIFFICULTIES: AiDifficulty[] = ['easy', 'normal', 'hard'];
+const AI_DIFFICULTIES: AiDifficulty[] = ['easy', 'normal', 'hard', 'expert'];
 
 export class Room {
   code: string;
@@ -380,12 +380,12 @@ export class Room {
         continue;
       }
       if (g.phase === 'trigger') {
-        // 大屁孩暴走：AI 自动选目标（优先血量最低的非大屁孩），真人自己选
+        // 大屁孩暴走：AI 自动选目标（默认血量最低，宗师档选全场威胁最高者），真人自己选
         const view = g.triggerView();
         if (!view) break;
         const seat = this.seatOf(view.actor);
         if (seat && seat.type !== 'ai') break;
-        const target = aiBerserkTarget(g, view.actor);
+        const target = aiBerserkTarget(g, view.actor, this.aiDifficulty);
         if (!target) break;
         this.applyMatchInput({ kind: 'berserk', source: 'ai', playerId: view.actor, targetId: target });
         this.captureFrame();

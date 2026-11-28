@@ -398,13 +398,19 @@ export interface RevealInfo {
   losers: PlayerId[];
 }
 
-/** AI 难度分级：休闲（随性）/ 普通（默认策略）/ 硬核（反制与收益最大化） */
-export type AiDifficulty = 'easy' | 'normal' | 'hard';
+/**
+ * AI 难度分级（四档）：
+ *  - easy 休闲（随性）/ normal 普通（默认策略）/ hard 硬核（反制与收益最大化）；
+ *  - expert 宗师：第四档，按角色注册表走「每个角色单独编写的专属策略」
+ *    （见 shared/src/characters/ai-expert.ts），未注册的未知角色安全降级为硬核。
+ */
+export type AiDifficulty = 'easy' | 'normal' | 'hard' | 'expert';
 
 export const AI_DIFFICULTY_LABEL: Record<AiDifficulty, string> = {
   easy: '休闲',
   normal: '普通',
   hard: '硬核',
+  expert: '宗师',
 };
 
 /** 局内战绩（纯统计，不影响规则判定） */

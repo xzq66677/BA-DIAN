@@ -38,7 +38,7 @@ import '../battle3d/battle3d.css';
 
 export { ThrowPrivacy, type ThrowView } from '../battle/throw-view.js';
 
-const AI_LABEL: Record<string, string> = { easy: '休闲', normal: '普通', hard: '硬核' };
+const AI_LABEL: Record<string, string> = { easy: '休闲', normal: '普通', hard: '硬核', expert: '宗师' };
 
 interface ActionOption {
   key: string;

@@ -56,8 +56,8 @@ function playGame(seed: number, difficulty: AiDifficulty, count = 4, maxRounds =
 }
 
 describe('AI 难度：出拳策略', () => {
-  it('三档出拳都是合法拳种', () => {
-    for (const d of ['easy', 'normal', 'hard'] as AiDifficulty[]) {
+  it('四档出拳都是合法拳种', () => {
+    for (const d of ['easy', 'normal', 'hard', 'expert'] as AiDifficulty[]) {
       for (let seed = 1; seed <= 10; seed++) {
         const g = makeAiGame(seed, 3);
         const t = aiThrow(g, 'AI1', d);
@@ -75,6 +75,18 @@ describe('AI 难度：出拳策略', () => {
       counter[aiThrow(g, 'AI1', 'hard')]++;
     }
     // 克石头的是布：硬核应明显偏向布
+    expect(counter.paper).toBeGreaterThan(counter.rock + counter.scissors);
+  });
+
+  it('宗师 AI 反制更强：对手只出石头时几乎必出布', () => {
+    const counter: Record<string, number> = { rock: 0, scissors: 0, paper: 0 };
+    for (let seed = 1; seed <= 40; seed++) {
+      const g = makeAiGame(seed, 3);
+      g.throwHistory['AI2'] = ['rock', 'rock', 'rock', 'rock', 'rock', 'rock'];
+      g.throwHistory['AI3'] = ['rock', 'rock', 'rock', 'rock'];
+      counter[aiThrow(g, 'AI1', 'expert')]++;
+    }
+    // 宗师记忆更长、扰动更少：布占比应远超其余合计
     expect(counter.paper).toBeGreaterThan(counter.rock + counter.scissors);
   });
 
@@ -137,8 +149,10 @@ describe('AI 难度：行动策略', () => {
 
   it('候选链最后一档是跳过（保证不会卡住对局）', () => {
     const g = makeAiGame(3, 3);
-    const chain = aiDecideActions(g, 'AI1', 'hard');
-    expect(chain[chain.length - 1]).toEqual({ type: 'skip' });
+    for (const d of ['easy', 'normal', 'hard', 'expert'] as AiDifficulty[]) {
+      const chain = aiDecideActions(g, 'AI1', d);
+      expect(chain[chain.length - 1]).toEqual({ type: 'skip' });
+    }
   });
 });
 
@@ -244,8 +258,8 @@ describe('AI 难度：血量归零目标', () => {
 });
 
 describe('AI 难度：整局回归', { timeout: 180000 }, () => {
-  it('三档难度各自能打完多局', () => {
-    for (const d of ['easy', 'normal', 'hard'] as AiDifficulty[]) {
+  it('四档难度各自能打完多局', () => {
+    for (const d of ['easy', 'normal', 'hard', 'expert'] as AiDifficulty[]) {
       for (const seed of [11, 22, 33]) {
         const r = playGame(seed, d, 4);
         expect(r.over, `难度 ${d} 种子 ${seed} 未终局（第 ${r.rounds} 回合）\n${r.log.slice(-1200)}`).toBe(true);
@@ -254,7 +268,7 @@ describe('AI 难度：整局回归', { timeout: 180000 }, () => {
   });
 
   it('同难度同种子完全可复现', () => {
-    for (const d of ['easy', 'normal', 'hard'] as AiDifficulty[]) {
+    for (const d of ['easy', 'normal', 'hard', 'expert'] as AiDifficulty[]) {
       const a = playGame(777, d, 3);
       const b = playGame(777, d, 3);
       expect(a.log).toBe(b.log);
@@ -265,6 +279,11 @@ describe('AI 难度：整局回归', { timeout: 180000 }, () => {
   it('硬核 AI 在多人混战中仍能保持合法行动（10人局）', () => {
     const r = playGame(2024, 'hard', 10);
     expect(r.over).toBe(true);
+  });
+
+  it('宗师 AI（角色专属策略）在多人混战中仍能打完（10人局）', () => {
+    const r = playGame(2024, 'expert', 10);
+    expect(r.over, `宗师 10 人局未终局（第 ${r.rounds} 回合）\n${r.log.slice(-1200)}`).toBe(true);
   });
 });
 
