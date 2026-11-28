@@ -142,3 +142,45 @@ export function resolveDamage(game: GameLike, stats: Record<PlayerId, PlayerStat
   }
   return applied;
 }
+
+/** 房间级伤害请求：dtype/tag 透传给吸收钩子与成员结算。 */
+export interface RoomDamageRequest {
+  amount: number;
+  source?: PlayerId;
+  dtype: 'physical' | 'mental' | 'special';
+  tag?: string;
+  /** 是否可命中躲藏目标（默认 true：房间级效果无视躲藏） */
+  aoe?: boolean;
+  /** 是否触发「受伤反弹」类被动（默认 false：爆炸/环境效果不反弹） */
+  noReflect?: boolean;
+}
+
+/**
+ * 房间级伤害统一入口（Issue #98）：先让环境结构（高塔）吸收，再对房间内成员结算。
+ * 成员名单在吸收前锁定：吸收导致高塔坍塌时，被弹出塔内的玩家不被同一波效果命中
+ * （与引擎投掷大伊万/三刀的语义一致）。后续新增房间效果一律走本入口，
+ * 不要直接遍历 roomMembers 伤害，否则会绕过吸收钩子。
+ */
+export function dealRoomDamage(game: GameLike, room: string, req: RoomDamageRequest): void {
+  const members = game.roomMembers(room);
+  game.absorbRoomDamage(room, {
+    amount: req.amount,
+    ...(req.source ? { source: req.source } : {}),
+    dtype: req.dtype,
+    ...(req.tag ? { tag: req.tag } : {}),
+  });
+  const groupId = game.nextGroupId();
+  for (const pid of members) {
+    if (!game.players[pid]?.alive) continue;
+    game.applyDamage({
+      target: pid,
+      amount: req.amount,
+      ...(req.source ? { source: req.source } : {}),
+      dtype: req.dtype,
+      ...(req.tag ? { tag: req.tag } : {}),
+      aoe: req.aoe ?? true,
+      noReflect: req.noReflect ?? true,
+      groupId,
+    });
+  }
+}
