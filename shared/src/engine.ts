@@ -1463,8 +1463,12 @@ export class Game implements GameLike {
     return resolveDamage(this, this.stats, req);
   }
 
-  /** 让角色环境结构（如高塔）优先承受一次房间级伤害。 */
-  private absorbRoomDamage(
+  /**
+   * 让角色环境结构（如高塔）优先承受一次房间级伤害，返回是否被吸收。
+   * 公开接口：房间级效果统一入口见 `damage.ts` 的 dealRoomDamage；
+   * 自定义结算的调用方也应先调用本方法再伤害 roomMembers（塔内玩家由墙自动豁免）。
+   */
+  absorbRoomDamage(
     room: RoomId,
     req: Omit<RoomDamageHookCtx, 'game' | 'owner' | 'room'>,
   ): boolean {

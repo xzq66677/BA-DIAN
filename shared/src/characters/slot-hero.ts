@@ -20,9 +20,10 @@
  */
 
 import type { CharActionContext, CharActionDef, CharDef, CharacterAiContext } from '../chardef.js';
-import type { ActionRequest, ActionResult, DamageRequest, DeferredEvent, PlayerId, RoomId } from '../types.js';
+import type { ActionRequest, ActionResult, DeferredEvent, PlayerId, RoomId } from '../types.js';
 import { fmtNum } from '../types.js';
 import { sealAction, sealableActions, sealedAction } from '../effects.js';
+import { dealRoomDamage } from '../damage.js';
 import { registerDeferredKind } from '../deferred-registry.js';
 import { addStatus, hasStatus, registerStatusJudgeHandler, statusesOf } from '../player-statuses.js';
 
@@ -88,7 +89,8 @@ const BOMB_DAMAGE: Record<SlotBomb['kind'], number> = {
   ivan: IVAN_DAMAGE,
 };
 
-/** 房间 AOE 伤害（含躲藏/隐身、可命中自己；不触发太极类反弹，与大伊万一致） */
+/** 房间 AOE 伤害（含躲藏/隐身、可命中自己；不触发太极类反弹，与大伊万一致）。
+ *  经 dealRoomDamage 统一入口结算：环境结构（高塔）先吸收，塔内成员由墙自动豁免（Issue #98）。 */
 function roomBlast(
   ctx: { game: CharActionContext['game'] },
   room: RoomId,
@@ -98,22 +100,9 @@ function roomBlast(
   label: string,
 ): void {
   const game = ctx.game;
-  const gid = game.nextGroupId();
   const members = game.roomMembers(room);
   game.log('deferred', `${label}：${room} 内成员 ${members.length ? members.map((pid) => game.getPlayer(pid).name).join('、') : '（无）'}`, { room, source: source ?? null }, true);
-  for (const pid of members) {
-    const req: DamageRequest = {
-      target: pid,
-      amount,
-      dtype: 'special',
-      aoe: true,
-      noReflect: true,
-      tag,
-      groupId: gid,
-      ...(source ? { source } : {}),
-    };
-    game.applyDamage(req);
-  }
+  dealRoomDamage(game, room, { amount, ...(source ? { source } : {}), dtype: 'special', tag });
 }
 
 // ─── 抽奖 ────────────────────────────────────────────────────
