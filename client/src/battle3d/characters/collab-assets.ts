@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
+// GLB 资产已用 meshopt 压缩几何（gltf-transform optimize，Issue #108）——解码器必须在这里接入。
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { SnapPlayer } from '../../../../shared/src/protocol.js';
 import type { CharacterRig } from './index.js';
 import { slotMachineState } from '../../battle/slot-machine-state.js';
@@ -61,7 +63,9 @@ async function preload(id: string): Promise<void> {
   if (!urls[id] || cache.has(id)) return;
   let pending = requests.get(id);
   if (!pending) {
-    pending = new GLTFLoader().loadAsync(urls[id]).then(gltf => { cache.set(id, gltf); }).catch(() => {
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    pending = loader.loadAsync(urls[id]).then(gltf => { cache.set(id, gltf); }).catch(() => {
       // One unavailable asset should leave the existing rig usable. A later load can retry.
     }).finally(() => requests.delete(id));
     requests.set(id, pending);

@@ -46,11 +46,16 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try {
-    await browser?.close();
+    // SwiftShader/Headless 下 browser.close() 偶发长时间挂起（Issue #108 复验期间多次复现）：
+    // 与其让默认 10s hook 超时把整个套件判死（12 项用例实际全绿），不如限时竞速。
+    await Promise.race([
+      browser?.close() ?? Promise.resolve(),
+      new Promise((resolve) => setTimeout(resolve, 20_000)),
+    ]);
   } finally {
     await server?.close();
   }
-});
+}, 30_000);
 
 async function newPage(browser: Browser): Promise<Page> {
   const page = await browser.newPage();
