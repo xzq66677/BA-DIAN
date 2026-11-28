@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "suggestedCharId": "gojo",
+  "visualId": "gojo-v2",
+  "status": "validated-candidate",
+  "integrationStatus": "not-integrated",
+  "baseline": "HEAD@52db570",
+  "author": "HungerG procedural asset pipeline",
+  "source": "preview/gojo.js",
+  "generatedAsset": "model/gojo.glb",
+  "validation": "evidence/validation.json",
+  "browserQa": "evidence/browser-qa.json",
+  "license": "project-internal procedural source; no downloaded or generated third-party mesh/texture inputs",
+  "externalCredentials": {
+    "TRIPO_API_KEY": "MISSING",
+    "GEMINI_API_KEY": "MISSING",
+    "ELEVENLABS_API_KEY": "MISSING",
+    "used": false
+  },
+  "artDirection": {
+    "style": "stylized low-poly anime game character",
+    "silhouette": "white top-gathered pineapple-crown hair, tall dark-indigo collar, fitted black uniform, enlarged bright cyan eyes, fixed dark blindfold",
+    "palette": [
+      "indigo",
+      "ink",
+      "silver white",
+      "skin",
+      "cyan cursed energy"
+    ],
+    "reference": "user-provided Gojo reference for pineapple hair, fixed blindfold and two-finger domain hand seal",
+    "nonGoals": [
+      "photorealistic scanned human",
+      "gameplay rules",
+      "shared character registry",
+      "production runtime integration"
+    ]
+  },
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "footY": 0,
+    "pivot": "feet center",
+    "rootMotion": false,
+    "standingHeightMeters": 1.832
+  },
+  "output": {
+    "file": "model/gojo.glb",
+    "bytes": 2697280,
+    "sha256": "dbdeae1faf8a2d4863c8d41e209f305a6bf30113bcdf69259cdf847a884f2b8d",
+    "triangles": 11820,
+    "vertices": 35460,
+    "bones": 30,
+    "meshes": 13,
+    "materials": 13,
+    "embeddedTextures": 3,
+    "animationClips": 12
+  },
+  "materialContract": {
+    "type": "MeshPhysicalMaterial and MeshStandardMaterial with embedded vertex colors",
+    "runtimeExternalResources": false,
+    "embeddedTextureMaps": [
+      "cloth color",
+      "cloth roughness",
+      "cloth normal"
+    ],
+    "namedParts": {
+      "body": "Gojo_Body",
+      "coatPanels": "Gojo_Coat_Panels",
+      "skin": "Gojo_Skin",
+      "hair": "Gojo_Sculpted_Hair",
+      "blindfold": "BlindfoldCloth",
+      "eyes": [
+        "EyeWhite",
+        "Iris",
+        "Pupil",
+        "Highlight"
+      ],
+      "seal": "FingerSealGlow",
+      "boots": "Gojo_Boot_Leather",
+      "hardware": "Gojo_Hardware",
+      "faceDetails": "Gojo_Face_Details"
+    }
+  },
+  "rigContract": {
+    "skin": "rigid skinning; one bone influence per vertex; normalized weights",
+    "blindfoldBone": "Blindfold",
+    "leftHandBone": "HandL",
+    "leftHandFingers": [
+      "IndexL",
+      "IndexTipL",
+      "MiddleL",
+      "MiddleTipL",
+      "RingL",
+      "RingTipL",
+      "PinkyL",
+      "PinkyTipL",
+      "ThumbL",
+      "ThumbTipL"
+    ],
+    "sockets": {
+      "eyes": "SixEyesSocket",
+      "blindfoldGrip": "BlindfoldGripSocket",
+      "domain": "DomainSocket"
+    }
+  },
+  "animationContract": {
+    "clipNames": [
+      "idle",
+      "walk",
+      "attack",
+      "flinch",
+      "cast",
+      "drink",
+      "crouch",
+      "cheer",
+      "dead",
+      "reviveRise",
+      "domain_expand",
+      "domain_idle"
+    ],
+    "domainExpandClip": "domain_expand",
+    "domainExpandDurationSeconds": 2.4,
+    "domainIdleClip": "domain_idle",
+    "domainIdleDurationSeconds": 4,
+    "domainTiming": {
+      "raiseHand": [
+        0,
+        0.55
+      ],
+      "formTwoFingerSeal": [
+        0.55,
+        1.4
+      ],
+      "holdTwoFingerSeal": [
+        1.4,
+        2.4
+      ],
+      "blindfold": "fixed throughout all clips"
+    },
+    "domainHandSeal": "index and middle extended; ring and pinky folded through proximal and distal joints; thumb across the folded fingers; palm faces forward; sequential finger curls, wrist overshoot and subtle idle motion",
+    "existingRigMapping": {
+      "idle": "idle",
+      "walk": "walk",
+      "attackSwing": "attack",
+      "flinch": "flinch",
+      "cast": "cast",
+      "drink": "drink",
+      "crouch": "crouch",
+      "cheer": "cheer",
+      "dead": "dead",
+      "reviveRise": "reviveRise"
+    },
+    "domainIntegration": "On the public domain event, play domain_expand once, then hold domain_idle while the domain state remains active. The blindfold stays fixed and the eyes stay occluded. Do not infer domain state from animation time."
+  },
+  "budget": {
+    "targetGlbMegabytes": 4,
+    "targetTriangles": 65000,
+    "targetBones": 32,
+    "targetDrawCalls": 16,
+    "targetEmbeddedTextures": 4
+  },
+  "validationSummary": {
+    "passed": true,
+    "checks": [
+      "initial masked eyes",
+      "blindfold local transform fixed during domain expansion and hold",
+      "eyes blocked by BlindfoldCloth throughout domain expansion and hold",
+      "two-finger domain hand seal with proximal and distal finger articulation",
+      "finite transforms and grounded clips",
+      "normalized skin weights",
+      "independent GLB reload and renderer render",
+      "loaded statistics match source",
+      "desktop and mobile layout",
+      "mobile touch target"
+    ]
+  },
+  "ownership": {
+    "visualAsset": "HungerG",
+    "runtimeAdapterAndRegistration": "explicitly assigned integrator",
+    "gameplay": "existing gojo rules owner"
+  },
+  "sha256": "2b418d83b1d4c06de608da5112f503762a1a06f42293ee4b31f5abf54166e6bb",
+  "clips": [
+    {
+      "name": "idle",
+      "seconds": 4
+    },
+    {
+      "name": "walk",
+      "seconds": 1
+    },
+    {
+      "name": "attack",
+      "seconds": 1.15
+    },
+    {
+      "name": "flinch",
+      "seconds": 0.85
+    },
+    {
+      "name": "cast",
+      "seconds": 4
+    },
+    {
+      "name": "drink",
+      "seconds": 2.6
+    },
+    {
+      "name": "crouch",
+      "seconds": 2.7
+    },
+    {
+      "name": "cheer",
+      "seconds": 2.8
+    },
+    {
+      "name": "dead",
+      "seconds": 1.2
+    },
+    {
+      "name": "reviveRise",
+      "seconds": 1.2
+    },
+    {
+      "name": "domain_expand",
+      "seconds": 2.4
+    },
+    {
+      "name": "domain_idle",
+      "seconds": 4
+    }
+  ]
+}

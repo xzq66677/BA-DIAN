@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>卖大伊万的小女孩 · GLB 资产实验室</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; background: #14140f; color: #f3ecdc; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; overflow: hidden; background: radial-gradient(circle at 50% 38%, #443722 0, #14140f 70%); }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; height: 100vh; }
+    #stage { position: relative; min-width: 0; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .brand { position: absolute; left: 30px; top: 25px; pointer-events: none; }
+    .eyebrow { color: #dfb364; letter-spacing: .22em; font-size: 11px; font-weight: 700; }
+    h1 { margin: 8px 0 4px; font-family: Georgia, "Times New Roman", "Microsoft YaHei", serif; font-size: clamp(30px, 3.7vw, 54px); font-weight: 500; letter-spacing: -.03em; }
+    .subtitle { color: #c1b294; font-size: 13px; }
+    .view-hint { position: absolute; left: 30px; bottom: 24px; color: #ab9b7f; font-size: 12px; pointer-events: none; }
+    aside { padding: 28px 24px; background: linear-gradient(180deg, rgba(35, 31, 23, .97), rgba(15, 16, 12, .99)); border-left: 1px solid #51432e; overflow-y: auto; }
+    .panel-label { color: #dfb364; font-size: 10px; letter-spacing: .18em; font-weight: 700; text-transform: uppercase; }
+    h2 { margin: 9px 0 7px; font: 500 24px Georgia, "Microsoft YaHei", serif; }
+    .description { margin: 0 0 24px; color: #c1b294; font-size: 12px; line-height: 1.7; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    button { appearance: none; border: 1px solid #665439; border-radius: 9px; padding: 11px 10px; background: #2b261c; color: #eee3cd; font: inherit; font-size: 12px; cursor: pointer; transition: background .18s, border-color .18s, transform .18s; }
+    button:hover { background: #403522; border-color: #a78a58; }
+    button:active { transform: translateY(1px); }
+    button.primary { grid-column: 1 / -1; padding: 14px; border-color: #dfb364; background: linear-gradient(135deg, #d5a356, #96662f); color: #17150f; font-weight: 750; }
+    button.active { border-color: #f0c878; background: #55432a; }
+    .section { margin-top: 26px; padding-top: 21px; border-top: 1px solid #453a29; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; margin-top: 14px; }
+    .stat span { display: block; color: #94856c; font-size: 10px; margin-bottom: 4px; }
+    .stat strong { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .status { min-height: 52px; margin-top: 18px; padding: 10px 12px; border: 1px solid #51432e; border-radius: 8px; color: #d4c29f; background: #201d15; font-size: 11px; line-height: 1.55; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: #b9a888; font-size: 11px; }
+    .check::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #e4b864; box-shadow: 0 0 10px #e4b864; }
+    .progress { height: 3px; margin-top: 10px; background: #3b3223; border-radius: 3px; overflow: hidden; }
+    #progressBar { height: 100%; width: 0; background: #e4b864; }
+    @media (max-width: 760px) {
+      body { overflow: auto; }
+      main { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+      #stage { height: 58vh; min-height: 390px; }
+      aside { border-left: 0; border-top: 1px solid #51432e; padding: 22px 18px 30px; }
+      .brand { left: 18px; top: 18px; }
+      .view-hint { left: 18px; bottom: 15px; }
+      .description { margin-bottom: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="stage" aria-label="卖大伊万的小女孩三维模型预览">
+      <div class="brand">
+        <div class="eyebrow">BA-DIAN · CHARACTER ASSET LAB</div>
+        <h1>卖大伊万的小女孩</h1>
+        <div class="subtitle">IVAN GIRL / ivan-girl-v2 / 精修发束与自然动作</div>
+      </div>
+      <div class="view-hint">拖拽旋转 · 滚轮缩放 · 点击「投掷大伊万」查看完整技能动作</div>
+    </section>
+    <aside>
+      <div class="panel-label">Procedural PBR / GLB 2.0</div>
+      <h2>童叟无欺，威力十足</h2>
+      <p class="description">橙棕连衣裙、亚麻围裙、三层渐变双马尾与皮挎包。197 束独立发丝、连续蒙皮四肢、眨眼与视线跟随，配合呼吸、重心和发梢惯性，减少木偶感；爆炸特效仍由场景层负责。</p>
+      <div class="actions" aria-label="动画控制">
+        <button id="throw" data-clip="throw" class="primary" type="button">投掷大伊万 · 角色技能</button>
+        <button data-clip="idle" class="active" type="button">待机</button>
+        <button data-clip="walk" type="button">行走</button>
+        <button data-clip="flinch" type="button">受击</button>
+        <button data-clip="dead" type="button">倒地</button>
+        <button data-clip="reviveRise" type="button">起身</button>
+        <button data-clip="victory" type="button">举弹展示</button>
+        <button id="export" type="button">导出 GLB 到 model/</button>
+      </div>
+      <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
+      <div id="status" class="status" role="status">正在构建模型与材质…</div>
+      <div class="section">
+        <div class="panel-label">Asset diagnostics</div>
+        <div class="stats">
+          <div class="stat"><span>三角面</span><strong id="triangles">—</strong></div>
+          <div class="stat"><span>骨骼</span><strong id="bones">—</strong></div>
+          <div class="stat"><span>网格 / 材质</span><strong id="meshes">—</strong></div>
+          <div class="stat"><span>站立高度</span><strong id="height">—</strong></div>
+          <div class="stat"><span>动画</span><strong id="clips">—</strong></div>
+          <div class="stat"><span>贴图</span><strong id="textures">—</strong></div>
+        </div>
+        <div class="check">+Y 向上 / +Z 正向 / 脚底 y=0</div>
+        <div class="check">GLB 内嵌 BaseColor / Roughness / Metalness / Normal</div>
+        <div class="check">本地程序化生成 · 未调用 Tripo 付费服务</div>
+      </div>
+    </aside>
+  </main>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

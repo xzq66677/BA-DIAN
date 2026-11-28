@@ -13,7 +13,7 @@ const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'],
 });
 
-const IDS = ['ghost', 'wild-hunt', 'hunchback-archer', 'water-snake', 'slot-hero', 'chuixiao', 'wuliuqi'];
+const IDS = ['ghost', 'wild-hunt', 'hunchback-archer', 'water-snake', 'slot-hero', 'chuixiao', 'wuliuqi', 'bagun', 'ivan-girl', 'dajianke', 'laodaye', 'default'];
 // 道具资产随 water-snake 的 props 链一起加载；loadedCollaborationVisualId 只覆盖 characters 表，
 // 道具加载失败会以 glb 请求失败 / preload 错误的形式暴露，不在此单独断言。
 const PROP_IDS = ['basalt-tower', 'wind-vortex'];
@@ -81,7 +81,7 @@ try {
     || f.includes('Failed to load resource');
   const relevantFailures = failures.filter((f) => !noise(f));
   assert.deepEqual(relevantFailures, [], `无浏览器错误，实际: ${JSON.stringify(relevantFailures)}`);
-  console.log('VERIFY OK: 7 角色 + 2 道具 meshopt 压缩 GLB 全部解码成功');
+  console.log('VERIFY OK: 12 角色 + 2 道具 meshopt 压缩 GLB 全部解码成功');
 } finally {
   await browser.close();
 }

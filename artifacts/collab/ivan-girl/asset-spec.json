@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "displayName": "卖大伊万的小女孩",
+  "suggestedCharId": "ivan-girl",
+  "visualId": "ivan-girl-v2",
+  "workScope": "visual-asset-only",
+  "provider": {
+    "name": "local-procedural",
+    "tripoCredentials": "MISSING",
+    "externalGenerationUsed": false,
+    "paidTaskIds": []
+  },
+  "source": "preview/ivan-girl.js",
+  "generatedAsset": "model/ivan-girl.glb",
+  "sha256": "13814e01df81d41e26575e17a6f8a9b0f10ca9aac380ab49facc5e9a2b55c580",
+  "bytes": 1088472,
+  "validation": "evidence/validation.json",
+  "preview": "preview/index.html",
+  "assetOrigin": "Original procedural mesh, embedded PBR maps, skeleton and animation; no third-party mesh or texture inputs.",
+  "artDirection": {
+    "silhouette": "Short stylized girl, oversized head, ochre dress, cream apron, chestnut side-parted twin tails with red ribbons and a round bomb held at the chest.",
+    "hair": "197 independent scalp-hugging ribbons and tapered locks, continuous matte crown, side part, irregular eye-clearing bangs, three-segment twin tails, blended joint weights and delayed follow-through.",
+    "face": "Large eyes, separate gaze and eyelid bones, asymmetric smile, blush and natural head counter-motion.",
+    "motion": "Breathing, weight shift, delayed hair inertia, gaze, blinking and relaxed asymmetric rest pose reduce puppet stiffness.",
+    "limbs": "Continuous three-bone skinned arm and leg meshes blend across UpperArm/Forearm/Hand and Thigh/Shin/Foot so elbows, knees and ankles stay connected through every clip.",
+    "bomb": "HeldBomb and ThrownBomb are visual bones; explosion, damage and authoritative hit timing remain scene/server responsibilities."
+  },
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "height": 1.582801,
+    "width": 0.786277,
+    "depth": 0.64679,
+    "footY": -0.000016748,
+    "pivot": "ground center under Root",
+    "rootMotion": false,
+    "coordinateNote": "No horizontal Root.position motion in any clip; walk is in place.",
+    "compression": "None",
+    "externalResources": false
+  },
+  "rig": {
+    "type": "glTF SkinnedMesh skeleton with baked TRS animation tracks",
+    "bones": 32,
+    "blendedVertices": 5874,
+    "invalidSkinWeights": 0,
+    "anchors": {
+      "root": "Root",
+      "pelvis": "Pelvis",
+      "chest": "Chest",
+      "head": "Head",
+      "leftHand": "HandL",
+      "rightHand": "HandR",
+      "heldBomb": "HeldBomb",
+      "thrownBomb": "ThrownBomb",
+      "fuseSpark": "FuseSpark"
+    },
+    "facialBones": [
+      "EyeL",
+      "EyeR",
+      "EyelidL",
+      "EyelidR",
+      "Mouth"
+    ],
+    "hairBones": [
+      "PigtailL1",
+      "PigtailL2",
+      "PigtailL3",
+      "PigtailR1",
+      "PigtailR2",
+      "PigtailR3"
+    ]
+  },
+  "clips": [
+    {
+      "name": "idle",
+      "seconds": 4,
+      "loop": true,
+      "semantic": "idle with breathing, gaze, blinking and hair inertia"
+    },
+    {
+      "name": "walk",
+      "seconds": 1.2,
+      "loop": true,
+      "semantic": "in-place walk"
+    },
+    {
+      "name": "throw",
+      "seconds": 2.2,
+      "loop": false,
+      "semantic": "attackSwing: lift, overhead throw, bomb release and visual projectile"
+    },
+    {
+      "name": "flinch",
+      "seconds": 0.75,
+      "loop": false,
+      "semantic": "hit reaction"
+    },
+    {
+      "name": "dead",
+      "seconds": 1.25,
+      "loop": false,
+      "semantic": "grounded elimination"
+    },
+    {
+      "name": "reviveRise",
+      "seconds": 1.25,
+      "loop": false,
+      "semantic": "exact reverse of dead"
+    },
+    {
+      "name": "victory",
+      "seconds": 2.8,
+      "loop": false,
+      "semantic": "bomb presentation and celebration"
+    }
+  ],
+  "budget": {
+    "bytes": 2423984,
+    "megabytes": 2.423984,
+    "triangles": 51854,
+    "vertices": 34359,
+    "meshes": 19,
+    "modelDrawCalls": 19,
+    "materials": 19,
+    "pbrMaterials": 12,
+    "loadedTextures": 48,
+    "embeddedImages": 36,
+    "hairLocks": 197,
+    "targetBytes": 4194304,
+    "targetTriangles": 65000,
+    "targetModelDrawCalls": 20
+  },
+  "integration": {
+    "loader": "Three.js GLTFLoader",
+    "root": "gltf.scene",
+    "animations": "gltf.animations with AnimationMixer",
+    "recommendedLoopingClips": [
+      "idle",
+      "walk"
+    ],
+    "recommendedOneShotClips": [
+      "throw",
+      "flinch",
+      "dead",
+      "reviveRise",
+      "victory"
+    ],
+    "renderer": "sRGB output, ACES Filmic tone mapping, optional environment and shadows",
+    "runtimeRegistration": "Not performed; production CharacterRig integration remains a separate task."
+  },
+  "limitations": [
+    "Polished procedural stylization, not a photorealistic scan or externally generated character.",
+    "Tripo credentials were missing; no external generation service or paid task was used.",
+    "The projectile is visual only; explosion, damage, hit validation and gameplay rules are not included.",
+    "Runtime registration, asynchronous production loading and CharacterRig integration are intentionally excluded."
+  ]
+}

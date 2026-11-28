@@ -24,6 +24,12 @@ const ASSETS: readonly [string, string][] = [
   ['slot-hero', 'slot-hero'],
   ['chuixiao', 'chuixiao'],
   ['wuliuqi', 'wuliuqi'],
+  ['bagun', 'bagun'],
+  ['ivan-girl', 'ivan-girl'],
+  ['dajianke', 'dajianke'],
+  ['laodaye', 'laodaye'],
+  ['nobody', 'nobody'],
+  ['gojo', 'gojo'],
 ];
 
 /** 压缩后体积上限（宽松值；只要重新导出成未压缩资产就会超标报警） */
@@ -37,6 +43,12 @@ const SIZE_CAP_BYTES: Record<string, number> = {
   'slot-hero': 1_500_000,
   chuixiao: 900_000,
   wuliuqi: 900_000,
+  bagun: 850_000,
+  'ivan-girl': 1_200_000,
+  dajianke: 850_000,
+  laodaye: 1_000_000,
+  nobody: 900_000,
+  gojo: 450_000,
 };
 
 interface GlbJson {

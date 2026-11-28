@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "displayName": "大贱客",
+  "suggestedCharId": "dajianke",
+  "visualId": "dajianke-v1",
+  "workScope": "visual-asset-only",
+  "provider": {
+    "name": "local-procedural",
+    "externalGenerationUsed": false,
+    "paidTaskIds": [],
+    "note": "Reused the project's local procedural GLB workflow; no external generation service was needed."
+  },
+  "source": "preview/dajianke.js",
+  "generatedAsset": "model/dajianke.glb",
+  "sha256": "88e7bc420809d5da98cf996ca9030630b316dbf30b1e2c4fb8b9f7527c161510",
+  "bytes": 740436,
+  "validation": "evidence/validation.json",
+  "preview": "preview/index.html",
+  "assetOrigin": "Original procedural mesh, embedded PBR maps, skeleton and animation; no third-party mesh or texture inputs.",
+  "artDirection": {
+    "silhouette": "Tall slim purple robe, dark purple sleeves, lilac cuffs, woven conical straw hat and floating red horseshoe magnet.",
+    "face": "Slicked dark hair, raised brow, side-eye and crooked smirk inspired by the existing character card.",
+    "props": "Right-hand opened folding fan and a separately bone-driven horseshoe magnet with pale pole shoes.",
+    "motion": "Two-bone IK arm targets, continuous three-bone limb skinning, coat follow-through, magnet spin and damage-attraction pulse.",
+    "gameplay": "The swing clip visualizes the insult gesture. The cast clip visualizes damage attraction. Damage transfer, insult count and elimination remain authoritative game rules."
+  },
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "height": 2.21,
+    "width": 1.16632,
+    "depth": 0.752634,
+    "footY": -0.0005,
+    "pivot": "ground center under Root",
+    "rootMotion": false,
+    "coordinateNote": "No horizontal Root.position motion in any clip; walk is in place. dead rotates Root for a grounded fall without horizontal travel.",
+    "compression": "None",
+    "externalResources": false
+  },
+  "rig": {
+    "type": "glTF SkinnedMesh skeleton with baked TRS animation tracks",
+    "bones": 24,
+    "invalidSkinWeights": 0,
+    "invalidSkinIndices": 0,
+    "anchors": {
+      "root": "Root",
+      "pelvis": "Pelvis",
+      "chest": "Chest",
+      "head": "Head",
+      "leftHand": "HandL",
+      "rightHand": "HandR",
+      "freeHand": "FreeHandAnchor",
+      "fanGrip": "FanGrip",
+      "fanPivot": "FanPivot",
+      "magnetPivot": "MagnetPivot",
+      "fanVisibilityGroup": "fan"
+    },
+    "binding": "FanPivot is a child of HandR and FanGrip is zero-offset from HandR. MagnetPivot is a child of Chest. Arms and legs use continuous three-bone skinning."
+  },
+  "clips": [
+    {
+      "name": "idle",
+      "seconds": 4,
+      "loop": true,
+      "semantic": "breathing, fan sway and slow magnet rotation"
+    },
+    {
+      "name": "walk",
+      "seconds": 1,
+      "loop": true,
+      "semantic": "in-place walk with fan and coat follow-through"
+    },
+    {
+      "name": "swing",
+      "seconds": 2.2,
+      "loop": false,
+      "semantic": "insult: lean back, coil, left-hand point and recovery"
+    },
+    {
+      "name": "cast",
+      "seconds": 2.7,
+      "loop": false,
+      "semantic": "damage attraction: arms spread, magnet accelerates and expands"
+    },
+    {
+      "name": "flinch",
+      "seconds": 0.75,
+      "loop": false,
+      "semantic": "hit reaction with weight shift and fan guard"
+    },
+    {
+      "name": "dead",
+      "seconds": 1.25,
+      "loop": false,
+      "semantic": "grounded elimination with fan attached to the right hand"
+    },
+    {
+      "name": "reviveRise",
+      "seconds": 1.25,
+      "loop": false,
+      "semantic": "exact reverse of dead"
+    },
+    {
+      "name": "victory",
+      "seconds": 2.8,
+      "loop": false,
+      "semantic": "raised fan presentation and celebration"
+    }
+  ],
+  "budget": {
+    "bytes": 1126696,
+    "megabytes": 1.126696,
+    "triangles": 13622,
+    "vertices": 9844,
+    "meshes": 14,
+    "modelDrawCalls": 14,
+    "materials": 12,
+    "pbrMaterials": 12,
+    "loadedTextures": 48,
+    "targetBytes": 4194304,
+    "targetTriangles": 65000,
+    "targetModelDrawCalls": 20
+  },
+  "integration": {
+    "loader": "Three.js GLTFLoader",
+    "root": "gltf.scene",
+    "animations": "gltf.animations with AnimationMixer",
+    "recommendedLoopingClips": [
+      "idle",
+      "walk"
+    ],
+    "recommendedOneShotClips": [
+      "swing",
+      "cast",
+      "flinch",
+      "dead",
+      "reviveRise",
+      "victory"
+    ],
+    "characterRigMapping": {
+      "idle": "idle",
+      "walk": "walk",
+      "attackSwing": "swing",
+      "cast": "cast",
+      "flinch": "flinch",
+      "dead": "dead",
+      "reviveRise": "reviveRise",
+      "cheer": "victory"
+    },
+    "fanVisibility": "gltf.scene.getObjectByName('fan').visible = visible",
+    "renderer": "sRGB output, ACES Filmic tone mapping, optional environment and shadows",
+    "runtimeRegistration": "Not performed; production CharacterRig integration remains a separate task."
+  },
+  "validationSummary": {
+    "passed": 31,
+    "total": 31,
+    "passedAll": true,
+    "rightHandFanGripMaxErrorMeters": 0,
+    "deathReviveSamples": 141,
+    "deathReviveMaxPositionError": 1.2662211112957067e-8,
+    "deathReviveMaxQuaternionError": 2.440858465346807e-8,
+    "maxGroundPenetrationMeters": 0.0005,
+    "mobileViewport": "390x844",
+    "browserPageErrors": 0
+  },
+  "limitations": [
+    "Polished procedural stylization, not a photorealistic scan or externally generated character.",
+    "No external generation service or paid task was used.",
+    "The swing and cast clips are visual only; insult counting, damage attraction and elimination are not included.",
+    "Runtime registration, asynchronous production loading and CharacterRig integration are intentionally excluded."
+  ]
+}

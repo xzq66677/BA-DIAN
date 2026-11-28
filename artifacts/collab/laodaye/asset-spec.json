@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "displayName": "老大爷",
+  "suggestedCharId": "laodaye",
+  "visualId": "laodaye",
+  "workScope": "visual-asset-only",
+  "provider": {
+    "name": "local-procedural",
+    "externalGenerationUsed": false,
+    "paidTaskIds": []
+  },
+  "source": "preview/laodaye.js",
+  "generatedAsset": "model/laodaye.glb",
+  "sha256": "8ae2273e05812f324d7f81f8f0a42f27739d5ecfb760b9e45013938d3efde11b",
+  "bytes": 884876,
+  "validation": "evidence/validation.json",
+  "preview": "preview/index.html",
+  "assetOrigin": "Original procedural mesh, embedded PBR maps, skeleton and animation; no third-party inputs.",
+  "artDirection": {
+    "silhouette": "Retired domain grandmaster in a tailored wide-sleeved ink-blue crane robe with a defined waist, long folded skirt panels, ivory trousers and three intact concentric antique-gold domain rings.",
+    "bodyDetail": "Sculpted torso rings, layered collar and belt, draped sleeves with geometric fold ridges and slim tapered cuffs, articulated fingers and thumbs, shaped shoe uppers, layered soles and stitched seams.",
+    "face": "Silver-white hair in a high topknot with a gold pin, short forked beard, mustache and restrained facial marks.",
+    "props": "Jade pendant, jade ring token, robe trim and three gold rings with jade beads and index marks attached to DomainPivot.",
+    "motion": "Measured breathing, stable shuffle, deliberate palm strike, hand-seal cast with ring expansion, controlled recoil and grounded fall.",
+    "distinction": "No conical straw hat, no long generic white beard and no broken halo; the intact domain rings are the defining silhouette.",
+    "gameplay": "No passive, domain damage rule or skill behavior is implied. All eight clips are generic visual poses only."
+  },
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "height": 2.047707,
+    "width": 1.338,
+    "depth": 0.71665,
+    "footY": 0.001325,
+    "pivot": "ground center under Root",
+    "rootMotion": false,
+    "externalResources": false
+  },
+  "rig": {
+    "type": "glTF SkinnedMesh skeleton with baked TRS animation tracks",
+    "bones": 25,
+    "anchors": {
+      "root": "Root",
+      "pelvis": "Pelvis",
+      "chest": "Chest",
+      "head": "Head",
+      "leftHand": "HandL",
+      "rightHand": "HandR",
+      "domainRings": "DomainPivot",
+      "leftSleeve": "SleeveL",
+      "rightSleeve": "SleeveR",
+      "robeTailLeft": "RobeTailL",
+      "robeTailRight": "RobeTailR",
+      "collarLeft": "CollarL",
+      "collarRight": "CollarR"
+    },
+    "binding": "Continuous three-bone limb skinning; rigid parts use one normalized joint weight. DomainPivot follows Chest."
+  },
+  "clips": [
+    {
+      "name": "idle",
+      "seconds": 4,
+      "loop": true,
+      "semantic": "measured breathing, ring rotation and robe sway"
+    },
+    {
+      "name": "walk",
+      "seconds": 1,
+      "loop": true,
+      "semantic": "stable in-place shuffle with sleeve and skirt-panel follow-through"
+    },
+    {
+      "name": "swing",
+      "seconds": 2.2,
+      "loop": false,
+      "semantic": "deliberate palm strike and domain-ring turn"
+    },
+    {
+      "name": "cast",
+      "seconds": 2.7,
+      "loop": false,
+      "semantic": "hand seals with three-ring expansion and rotation"
+    },
+    {
+      "name": "flinch",
+      "seconds": 0.75,
+      "loop": false,
+      "semantic": "forced backward recoil and brief ring instability"
+    },
+    {
+      "name": "dead",
+      "seconds": 1.25,
+      "loop": false,
+      "semantic": "grounded fall with right arm and skirt panel drawn inward to avoid penetration"
+    },
+    {
+      "name": "reviveRise",
+      "seconds": 1.25,
+      "loop": false,
+      "semantic": "exact reverse of dead"
+    },
+    {
+      "name": "victory",
+      "seconds": 2.8,
+      "loop": false,
+      "semantic": "raised palm and controlled ring rotation"
+    }
+  ],
+  "budget": {
+    "bytes": 1698736,
+    "megabytes": 1.698736,
+    "triangles": 33046,
+    "vertices": 21451,
+    "meshes": 12,
+    "modelDrawCalls": 12,
+    "materials": 12,
+    "pbrMaterials": 12,
+    "loadedTextures": 48,
+    "targetBytes": 4194304,
+    "targetTriangles": 65000,
+    "targetModelDrawCalls": 20
+  },
+  "integration": {
+    "loader": "Three.js GLTFLoader",
+    "root": "gltf.scene",
+    "animations": "gltf.animations with AnimationMixer",
+    "recommendedLoopingClips": [
+      "idle",
+      "walk"
+    ],
+    "recommendedOneShotClips": [
+      "swing",
+      "cast",
+      "flinch",
+      "dead",
+      "reviveRise",
+      "victory"
+    ],
+    "characterRigMapping": {
+      "idle": "idle",
+      "walk": "walk",
+      "attackSwing": "swing",
+      "cast": "cast",
+      "flinch": "flinch",
+      "dead": "dead",
+      "reviveRise": "reviveRise",
+      "cheer": "victory"
+    },
+    "runtimeRegistration": "Not performed; production CharacterRig integration remains a separate task."
+  },
+  "validationSummary": {
+    "passed": 29,
+    "total": 29,
+    "passedAll": true,
+    "domainAttachmentMaxErrorMeters": 7.63077379062338e-11,
+    "deathReviveSamples": 141,
+    "deathReviveMaxPositionError": 1.1635545887900278e-8,
+    "deathReviveMaxQuaternionError": 2.3939781101933733e-8,
+    "maxGroundPenetrationMeters": 0,
+    "mobileViewport": "390x844",
+    "browserPageErrors": 0,
+    "refinement": {
+      "previousTriangles": 21166,
+      "triangleIncreasePercent": 54.24,
+      "previousVertices": 13303,
+      "vertexIncreasePercent": 59.36,
+      "addedDetail": [
+        "tailored torso",
+        "long folded robe panels",
+        "draped wide sleeves",
+        "fingers and thumbs",
+        "shaped shoes and layered soles",
+        "robe follow-through animation"
+      ],
+      "cuffRefinement": {
+        "previousOuterDiameterMeters": 0.232,
+        "currentOuterDiameterMeters": 0.14,
+        "diameterReductionPercent": 39.66,
+        "previousWristRadiusMeters": 0.115,
+        "currentWristRadiusMeters": 0.07,
+        "preservedSilhouette": "Wide draped upper sleeves with a narrow antique-gold cuff at the wrist."
+      }
+    }
+  },
+  "limitations": [
+    "Polished procedural stylization, not a photorealistic scan or externally generated character.",
+    "The domain rings are visual presentation only; no gameplay field, damage or control effect is included.",
+    "Runtime registration and CharacterRig integration are intentionally excluded."
+  ]
+}

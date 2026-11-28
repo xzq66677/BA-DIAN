@@ -16,17 +16,8 @@
   },
   "rig": "Animated named TRS nodes. Character clips are in place. Props have local motion.",
   "textures": 0,
-  "characterAnchors": [
-    "HeadAnchor",
-    "ChestAnchor",
-    "BackAnchor",
-    "WindOrigin",
-    "GroundAnchor"
-  ],
-  "towerAnchors": [
-    "VortexAnchor",
-    "ImpactAnchor"
-  ],
+  "characterAnchors": [],
+  "towerAnchors": [],
   "towerStyle": {
     "tierCount": 5,
     "sides": 8,
@@ -51,8 +42,8 @@
   "assets": [
     {
       "file": "model/flying-leech.glb",
-      "bytes": 288624,
-      "sha256": "fefdd6680203b8bb59653f37ce66865e91e460fd8df2eaedea8d896a29675961",
+      "bytes": 141436,
+      "sha256": "0f2e888299a0f0ca09d4c7c175c9a98078316f253e9a474e47bbd9754e6840ca",
       "triangles": 26812,
       "meshes": 70,
       "materials": 14,
@@ -155,8 +146,8 @@
     },
     {
       "file": "model/basalt-tower.glb",
-      "bytes": 986528,
-      "sha256": "8002e7ea53aa559809655b584dc6708e978feede3be2fc58278ad40ba7cebf20",
+      "bytes": 257548,
+      "sha256": "1daec29474493496281af083a0386b8377737f8c99c49280b4caf2b779cf8723",
       "triangles": 34788,
       "meshes": 54,
       "materials": 8,
@@ -185,8 +176,8 @@
     },
     {
       "file": "model/wind-vortex.glb",
-      "bytes": 96524,
-      "sha256": "abc1bf36a74f08a15d6c810b932af9dcb48ee778282d7ae43bcdb3a92dd81384",
+      "bytes": 36596,
+      "sha256": "fe0daf7a2954fd3cf26257f42e1fc93cc1682613bd9520fea291cd27d0a517dc",
       "triangles": 680,
       "meshes": 15,
       "materials": 3,
@@ -217,5 +208,6 @@
         }
       ]
     }
-  ]
+  ],
+  "anchorContractNote": "characterAnchors/towerAnchors 指向的结构空节点在 Issue #108 optimize 时被 prune（运行时无引用）；wind-vortex 的 WindTargetMotion 仍在。"
 }
