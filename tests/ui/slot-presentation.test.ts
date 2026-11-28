@@ -12,7 +12,7 @@ import '../../client/src/battle3d/slot-drop-presenter.js';
 
 describe('老虎机演出注册表', () => {
   it('保留 manual/automatic、时长与重大事件标记', () => {
-    expect(resolveActionPresentation(SLOT_PULL_FX)).toMatchObject({ mode: 'manual', durationMs: 2600, major: true });
+    expect(resolveActionPresentation(SLOT_PULL_FX)).toMatchObject({ mode: 'manual', durationMs: 2200, major: true });
     expect(resolveActionPresentation(SLOT_DROP_FX)).toMatchObject({ mode: 'automatic', durationMs: 2200, major: true });
     expect(isMajorActionPresentation(SLOT_PULL_FX)).toBe(true);
     expect(isMajorActionPresentation(SLOT_DROP_FX)).toBe(true);
@@ -27,8 +27,8 @@ describe('老虎机演出注册表', () => {
 
   it('队列按 pace 缩放演出时长并尊重 reduced-motion', () => {
     const event = { kind: 'action' as const, seq: 1, pid: 'A', fx: SLOT_PULL_FX };
-    expect(eventMs(event, 'normal', 1, false, PACE_PROFILES.current)).toBe(2600);
-    expect(eventMs(event, 'normal', 1, false, PACE_PROFILES.relaxed)).toBe(3770);
+    expect(eventMs(event, 'normal', 1, false, PACE_PROFILES.current)).toBe(2200);
+    expect(eventMs(event, 'normal', 1, false, PACE_PROFILES.relaxed)).toBe(3190);
     expect(eventMs(event, 'normal', 1, true, PACE_PROFILES.current)).toBe(240);
     expect(eventMs(event, 'fast', 1, false, PACE_PROFILES.current)).toBe(320);
   });
