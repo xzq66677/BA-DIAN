@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "displayName": "拔棍",
+  "suggestedCharId": "bagun",
+  "visualId": "bagun-v1",
+  "workScope": "visual-asset-only",
+  "provider": {
+    "name": "local-procedural",
+    "tripoCredentials": "MISSING",
+    "externalGenerationUsed": false,
+    "paidTaskIds": []
+  },
+  "source": "preview/bagun.js",
+  "generatedAsset": "model/bagun.glb",
+  "sha256": "6cc084c67e0514b03bdaaafeefd745d66cb80452029f0bbdd51a9669e00d7f11",
+  "bytes": 744132,
+  "validation": "evidence/validation.json",
+  "preview": "preview/index.html",
+  "assetOrigin": "Original procedural mesh, embedded PBR maps, skeleton and animation; no third-party mesh or texture inputs.",
+  "artDirection": {
+    "silhouette": "Compact stylized ninja with a squared, tapered head, brown short jacket, wide dark belt, indigo pants, topknot and a single right-hand wooden staff.",
+    "face": "Indigo lower-face mask, angled brows, large readable eyes and red headband; head uses a rounded-box silhouette rather than a spherical head.",
+    "staff": "Wooden shaft with dark iron caps, brass rings, bound grip and red tassel. The staff is held in the right hand; the left hand remains free.",
+    "motion": "Rest-pose-aware two-bone IK, continuous limb skinning, staff orientation driven by the right hand, coat and sash follow-through.",
+    "gameplay": "The swing clip is visual only. Draw-state visibility is controlled by char.stickDrawn; damage, hit validation and authoritative timing remain game responsibilities."
+  },
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "height": 2.256744,
+    "width": 1.040763,
+    "depth": 0.669879,
+    "footY": -0.0005,
+    "pivot": "ground center under Root",
+    "rootMotion": false,
+    "coordinateNote": "No horizontal Root.position motion in any clip; walk is in place. dead rotates Root for a grounded fall without horizontal travel.",
+    "compression": "None",
+    "externalResources": false
+  },
+  "rig": {
+    "type": "glTF SkinnedMesh skeleton with baked TRS animation tracks",
+    "bones": 23,
+    "invalidSkinWeights": 0,
+    "invalidSkinIndices": 0,
+    "anchors": {
+      "root": "Root",
+      "pelvis": "Pelvis",
+      "chest": "Chest",
+      "head": "Head",
+      "leftHand": "HandL",
+      "rightHand": "HandR",
+      "freeHand": "FreeHandAnchor",
+      "staffGrip": "StickGrip",
+      "staffPivot": "StickPivot",
+      "staffVisibilityGroup": "stick"
+    },
+    "staffBinding": "StickPivot is a child of HandR; StickGrip is zero-offset from HandR. The independently visible stick group contains the staff mesh batch."
+  },
+  "clips": [
+    {
+      "name": "idle",
+      "seconds": 4,
+      "loop": true,
+      "semantic": "relaxed guard with breathing, head movement and cloth follow-through"
+    },
+    {
+      "name": "walk",
+      "seconds": 1,
+      "loop": true,
+      "semantic": "in-place walk with staff carried in the right hand"
+    },
+    {
+      "name": "swing",
+      "seconds": 2.2,
+      "loop": false,
+      "semantic": "right-hand staff windup, horizontal sweep and recovery"
+    },
+    {
+      "name": "flinch",
+      "seconds": 0.75,
+      "loop": false,
+      "semantic": "hit reaction with weight shift and staff guard"
+    },
+    {
+      "name": "dead",
+      "seconds": 1.25,
+      "loop": false,
+      "semantic": "grounded elimination with staff attached to the right hand"
+    },
+    {
+      "name": "reviveRise",
+      "seconds": 1.25,
+      "loop": false,
+      "semantic": "exact reverse of dead"
+    },
+    {
+      "name": "victory",
+      "seconds": 2.8,
+      "loop": false,
+      "semantic": "upright staff presentation with shoulder and cloth motion"
+    }
+  ],
+  "budget": {
+    "bytes": 1136108,
+    "megabytes": 1.136108,
+    "triangles": 14596,
+    "vertices": 10178,
+    "meshes": 15,
+    "modelDrawCalls": 15,
+    "materials": 12,
+    "pbrMaterials": 12,
+    "loadedTextures": 48,
+    "embeddedImages": 36,
+    "targetBytes": 4194304,
+    "targetTriangles": 65000,
+    "targetModelDrawCalls": 20
+  },
+  "integration": {
+    "loader": "Three.js GLTFLoader",
+    "root": "gltf.scene",
+    "animations": "gltf.animations with AnimationMixer",
+    "recommendedLoopingClips": [
+      "idle",
+      "walk"
+    ],
+    "recommendedOneShotClips": [
+      "swing",
+      "flinch",
+      "dead",
+      "reviveRise",
+      "victory"
+    ],
+    "stickVisibility": "gltf.scene.getObjectByName('stick').visible = Boolean(snapshot.char.stickDrawn)",
+    "renderer": "sRGB output, ACES Filmic tone mapping, optional environment and shadows",
+    "runtimeRegistration": "Not performed; production CharacterRig integration remains a separate task."
+  },
+  "validationSummary": {
+    "passed": 30,
+    "total": 30,
+    "passedAll": true,
+    "rightHandGripMaxErrorMeters": 0,
+    "deathReviveSamples": 141,
+    "deathReviveMaxPositionError": 1.2662211112957067e-8,
+    "maxGroundPenetrationMeters": 0.0005,
+    "mobileViewport": "390x844",
+    "browserPageErrors": 0
+  },
+  "limitations": [
+    "Polished procedural stylization, not a photorealistic scan or externally generated character.",
+    "Tripo credentials were missing; no external generation service or paid task was used.",
+    "The swing is a visual clip only; damage, hit validation, draw-state rules and gameplay timing are not included.",
+    "Runtime registration, asynchronous production loading and CharacterRig integration are intentionally excluded."
+  ]
+}

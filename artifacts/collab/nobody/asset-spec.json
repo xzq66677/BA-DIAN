@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "displayName": "无业游民",
+  "suggestedCharId": "nobody",
+  "visualId": "nobody",
+  "workScope": "visual-asset-only",
+  "provider": {
+    "name": "local-procedural",
+    "externalGenerationUsed": false,
+    "paidTaskIds": []
+  },
+  "source": "preview/nobody.js",
+  "generatedAsset": "model/nobody.glb",
+  "sha256": "eae0c1b44ec8c03c4c6382f48302bd500e6a26d619d2b63c7460b6668db5f208",
+  "bytes": 797728,
+  "validation": "evidence/validation.json",
+  "preview": "preview/index.html",
+  "assetOrigin": "Original procedural mesh, embedded PBR maps, skeleton and animation; no third-party inputs.",
+  "artDirection": {
+    "silhouette": "Slightly stooped, narrow-shouldered ordinary person in an oversized white shirt with a shaped torso, thin cuffs, separate shirttail panels, loose slate trousers and black cloth shoes.",
+    "bodyDetail": "Layered shirt collar and placket, curved torso rings, folded shirttail panels, draped sleeves with narrow sewn cuffs, articulated fingers and thumbs, trouser creases, cuffs, shaped shoes and layered soles.",
+    "face": "Ash-silver hair, half-lidded tired eyes, under-eye shadows and a small flat mouth.",
+    "props": "A hanging blank role placard marked only with a dash, dark cords, one red mending stitch and a mismatched sock cuff.",
+    "motion": "Weary breathing, shuffling walk with sleeve and shirttail follow-through, hesitant shrug, placard display, nervous flinch, grounded fall and a weak victory wave.",
+    "gameplay": "No passive or exclusive skill is implied. All eight clips are generic visual poses only."
+  },
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "height": 1.935241,
+    "width": 0.740108,
+    "depth": 0.461485,
+    "footY": 0.002612,
+    "pivot": "ground center under Root",
+    "rootMotion": false,
+    "externalResources": false
+  },
+  "rig": {
+    "type": "glTF SkinnedMesh skeleton with baked TRS animation tracks",
+    "bones": 25,
+    "anchors": {
+      "root": "Root",
+      "pelvis": "Pelvis",
+      "chest": "Chest",
+      "head": "Head",
+      "leftHand": "HandL",
+      "rightHand": "HandR",
+      "placard": "PlacardPivot",
+      "leftSleeve": "SleeveL",
+      "rightSleeve": "SleeveR",
+      "coatTailLeft": "CoatTailL",
+      "coatTailRight": "CoatTailR",
+      "collarLeft": "CollarL",
+      "collarRight": "CollarR"
+    },
+    "binding": "Continuous three-bone limb skinning; rigid parts use one normalized joint weight. PlacardPivot follows Chest."
+  },
+  "clips": [
+    {
+      "name": "idle",
+      "seconds": 4,
+      "loop": true,
+      "semantic": "tired breathing and placard sway"
+    },
+    {
+      "name": "walk",
+      "seconds": 1,
+      "loop": true,
+      "semantic": "shuffling in-place walk with sleeve and shirttail follow-through"
+    },
+    {
+      "name": "swing",
+      "seconds": 2.2,
+      "loop": false,
+      "semantic": "hesitant shrug and explanation with sleeve and shirttail response"
+    },
+    {
+      "name": "cast",
+      "seconds": 2.7,
+      "loop": false,
+      "semantic": "looks down and presents blank placard"
+    },
+    {
+      "name": "flinch",
+      "seconds": 0.75,
+      "loop": false,
+      "semantic": "nervous recoil with placard swing"
+    },
+    {
+      "name": "dead",
+      "seconds": 1.25,
+      "loop": false,
+      "semantic": "exhausted grounded fall with right arm and shirttail drawn inward"
+    },
+    {
+      "name": "reviveRise",
+      "seconds": 1.25,
+      "loop": false,
+      "semantic": "exact reverse of dead"
+    },
+    {
+      "name": "victory",
+      "seconds": 2.8,
+      "loop": false,
+      "semantic": "weak raised-hand acknowledgment"
+    }
+  ],
+  "budget": {
+    "bytes": 1376896,
+    "megabytes": 1.376896,
+    "triangles": 23176,
+    "vertices": 14834,
+    "meshes": 12,
+    "modelDrawCalls": 12,
+    "materials": 12,
+    "pbrMaterials": 12,
+    "loadedTextures": 48,
+    "targetBytes": 4194304,
+    "targetTriangles": 65000,
+    "targetModelDrawCalls": 20
+  },
+  "integration": {
+    "loader": "Three.js GLTFLoader",
+    "root": "gltf.scene",
+    "animations": "gltf.animations with AnimationMixer",
+    "recommendedLoopingClips": [
+      "idle",
+      "walk"
+    ],
+    "recommendedOneShotClips": [
+      "swing",
+      "cast",
+      "flinch",
+      "dead",
+      "reviveRise",
+      "victory"
+    ],
+    "characterRigMapping": {
+      "idle": "idle",
+      "walk": "walk",
+      "attackSwing": "swing",
+      "cast": "cast",
+      "flinch": "flinch",
+      "dead": "dead",
+      "reviveRise": "reviveRise",
+      "cheer": "victory"
+    },
+    "runtimeRegistration": "Not performed; production CharacterRig integration remains a separate task."
+  },
+  "validationSummary": {
+    "passed": 29,
+    "total": 29,
+    "passedAll": true,
+    "placardAttachmentMaxErrorMeters": 6.101438798644665e-11,
+    "deathReviveSamples": 141,
+    "deathReviveMaxPositionError": 1.1635545887900278e-8,
+    "deathReviveMaxQuaternionError": 2.425251990900712e-8,
+    "maxGroundPenetrationMeters": 0,
+    "mobileViewport": "390x844",
+    "browserPageErrors": 0,
+    "refinement": {
+      "previousTriangles": 16464,
+      "triangleIncreasePercent": 40.77,
+      "previousVertices": 10393,
+      "vertexIncreasePercent": 42.73,
+      "addedDetail": [
+        "shaped shirt torso",
+        "separate folded shirttail panels",
+        "draped sleeves",
+        "thin sewn cuffs",
+        "articulated fingers and thumbs",
+        "trouser creases and cuffs",
+        "layered shoe soles",
+        "sleeve and shirttail follow-through animation"
+      ],
+      "cuffOuterDiameterMeters": 0.104
+    }
+  },
+  "limitations": [
+    "Polished procedural stylization, not a photorealistic scan or externally generated character.",
+    "No gameplay passive, skill, damage rule or elimination logic is included.",
+    "Runtime registration and CharacterRig integration are intentionally excluded."
+  ]
+}

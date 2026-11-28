@@ -1,0 +1,548 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-27T02:12:17.002Z",
+  "externalCredentialsUsed": false,
+  "renderer": {
+    "source": {
+      "calls": 31,
+      "triangles": 26856,
+      "geometries": 19,
+      "textures": 8
+    },
+    "independentGlbReload": {
+      "calls": 13,
+      "triangles": 11820,
+      "geometries": 13,
+      "textures": 19
+    }
+  },
+  "source": {
+    "label": "source",
+    "clips": [
+      {
+        "name": "idle",
+        "duration": 4,
+        "tracks": 16,
+        "minY": 0.00019997211089090375,
+        "maxY": 1.834534310893019,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "walk",
+        "duration": 1,
+        "tracks": 15,
+        "minY": 0.00019996572543007354,
+        "maxY": 1.8519587110498814,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "attack",
+        "duration": 1.15,
+        "tracks": 16,
+        "minY": 0.00020002467706542806,
+        "maxY": 1.8420091234330214,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "flinch",
+        "duration": 0.85,
+        "tracks": 15,
+        "minY": 0.0001775150145030338,
+        "maxY": 1.8753982372419198,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "cast",
+        "duration": 4,
+        "tracks": 15,
+        "minY": 0.00020002454330309355,
+        "maxY": 1.8312737322178576,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "drink",
+        "duration": 2.6,
+        "tracks": 14,
+        "minY": 0.00020002454330309355,
+        "maxY": 1.8620420042748556,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "crouch",
+        "duration": 2.7,
+        "tracks": 14,
+        "minY": 0.00020000587713937812,
+        "maxY": 1.8319573084510679,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "cheer",
+        "duration": 2.8,
+        "tracks": 15,
+        "minY": 0.0001999861612799782,
+        "maxY": 1.8558858265572373,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "dead",
+        "duration": 1.2,
+        "tracks": 16,
+        "minY": 0.00019997932410576946,
+        "maxY": 1.8349702387120423,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "reviveRise",
+        "duration": 1.2,
+        "tracks": 17,
+        "minY": 0.00019997921755228812,
+        "maxY": 1.8346794588632271,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "domain_expand",
+        "duration": 2.4,
+        "tracks": 27,
+        "minY": 0.00020002242437703634,
+        "maxY": 1.833853115504863,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "domain_idle",
+        "duration": 4,
+        "tracks": 27,
+        "minY": 0.00020002242437703634,
+        "maxY": 1.8339320018151664,
+        "finite": true,
+        "grounded": true
+      }
+    ],
+    "stats": {
+      "triangles": 11820,
+      "vertices": 35460,
+      "bones": 30,
+      "meshes": 13,
+      "materials": 13,
+      "textures": 3,
+      "height": 1.8319572836646938,
+      "width": 0.7575088816458233,
+      "depth": 0.7166023175388975
+    },
+    "weightsValid": true,
+    "bounds": {
+      "min": [
+        -0.3980682808420436,
+        0.00019999974396973065,
+        -0.23183181537934452
+      ],
+      "max": [
+        0.3594406008037797,
+        1.8319572836646938,
+        0.484770502159553
+      ],
+      "size": [
+        0.7575088816458233,
+        1.8317572839207241,
+        0.7166023175388975
+      ]
+    },
+    "maskedEyes": [
+      {
+        "side": -1,
+        "firstHit": "BlindfoldCloth",
+        "clear": false
+      },
+      {
+        "side": 1,
+        "firstHit": "BlindfoldCloth",
+        "clear": false
+      }
+    ],
+    "domainSamples": [
+      {
+        "time": 0.4,
+        "eyes": [
+          {
+            "side": -1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          },
+          {
+            "side": 1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          }
+        ],
+        "eyesBlocked": true,
+        "blindfoldFixed": true
+      },
+      {
+        "time": 1.2,
+        "eyes": [
+          {
+            "side": -1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          },
+          {
+            "side": 1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          }
+        ],
+        "eyesBlocked": true,
+        "blindfoldFixed": true
+      },
+      {
+        "time": 2.2,
+        "eyes": [
+          {
+            "side": -1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          },
+          {
+            "side": 1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          }
+        ],
+        "eyesBlocked": true,
+        "blindfoldFixed": true
+      }
+    ],
+    "heldEyes": [
+      {
+        "side": -1,
+        "firstHit": "BlindfoldCloth",
+        "clear": false
+      },
+      {
+        "side": 1,
+        "firstHit": "BlindfoldCloth",
+        "clear": false
+      }
+    ],
+    "heldBlindfoldFixed": true,
+    "heldHandSeal": {
+      "index": [
+        -0.046907071768738595,
+        -0.9988992574920067,
+        0
+      ],
+      "indexTip": [
+        -0.04684867179456321,
+        -0.9976556136523538,
+        0.04988465193855367
+      ],
+      "middle": [
+        -0.017049646993634312,
+        -0.9998546442045426,
+        0
+      ],
+      "middleTip": [
+        -0.017034665564604326,
+        -0.9989760775457697,
+        0.04191201093207518
+      ],
+      "ring": [
+        -0.12921953362171745,
+        -0.5101221893327973,
+        0.8503397400918065
+      ],
+      "ringTip": [
+        -0.04445345996511563,
+        0.17655716884906214,
+        0.9832860444612995
+      ],
+      "pinky": [
+        -0.15852226981613882,
+        -0.4512804192077863,
+        0.8781894107719687
+      ],
+      "pinkyTip": [
+        -0.04248484362596702,
+        0.29634263569369057,
+        0.9541362395188315
+      ],
+      "pass": true
+    },
+    "pass": true
+  },
+  "loaded": {
+    "label": "independent-glb-reload",
+    "clips": [
+      {
+        "name": "idle",
+        "duration": 4,
+        "tracks": 16,
+        "minY": 0.00019997692201595768,
+        "maxY": 1.8345342817745636,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "walk",
+        "duration": 1,
+        "tracks": 15,
+        "minY": 0.00019996893880264158,
+        "maxY": 1.8519586819362426,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "attack",
+        "duration": 1.149999976158142,
+        "tracks": 16,
+        "minY": 0.00020002948819048197,
+        "maxY": 1.8420090944335845,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "flinch",
+        "duration": 0.8500000238418579,
+        "tracks": 15,
+        "minY": 0.00017751972720028708,
+        "maxY": 1.8753982107389517,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "cast",
+        "duration": 4,
+        "tracks": 15,
+        "minY": 0.00020002948819048197,
+        "maxY": 1.8312737032321982,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "drink",
+        "duration": 2.5999999046325684,
+        "tracks": 14,
+        "minY": 0.00020002948819048197,
+        "maxY": 1.8620419763439668,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "crouch",
+        "duration": 2.700000047683716,
+        "tracks": 14,
+        "minY": 0.00020000936445226103,
+        "maxY": 1.831957279311759,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "cheer",
+        "duration": 2.799999952316284,
+        "tracks": 15,
+        "minY": 0.00019999097241180444,
+        "maxY": 1.8558857980692187,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "dead",
+        "duration": 1.2000000476837158,
+        "tracks": 16,
+        "minY": 0.00019998475618921221,
+        "maxY": 1.8349702090773972,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "reviveRise",
+        "duration": 1.2000000476837158,
+        "tracks": 17,
+        "minY": 0.00019998475618921221,
+        "maxY": 1.834679433508779,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "domain_expand",
+        "duration": 2.4000000953674316,
+        "tracks": 27,
+        "minY": 0.00020002948819048197,
+        "maxY": 1.8338530898514067,
+        "finite": true,
+        "grounded": true
+      },
+      {
+        "name": "domain_idle",
+        "duration": 4,
+        "tracks": 27,
+        "minY": 0.00020002948819048197,
+        "maxY": 1.8339319761873845,
+        "finite": true,
+        "grounded": true
+      }
+    ],
+    "stats": {
+      "triangles": 11820,
+      "vertices": 35460,
+      "bones": 30,
+      "meshes": 13,
+      "materials": 13,
+      "textures": 11,
+      "height": 1.8319572545253848,
+      "width": 0.7575088741248877,
+      "depth": 0.7166023168103913
+    },
+    "weightsValid": true,
+    "bounds": {
+      "min": [
+        -0.3980682900688022,
+        0.00020000455509484004,
+        -0.23183181444253773
+      ],
+      "max": [
+        0.3594405840560855,
+        1.8319572545253848,
+        0.48477050236785363
+      ],
+      "size": [
+        0.7575088741248877,
+        1.8317572499702899,
+        0.7166023168103913
+      ]
+    },
+    "maskedEyes": [
+      {
+        "side": -1,
+        "firstHit": "BlindfoldCloth",
+        "clear": false
+      },
+      {
+        "side": 1,
+        "firstHit": "BlindfoldCloth",
+        "clear": false
+      }
+    ],
+    "domainSamples": [
+      {
+        "time": 0.4,
+        "eyes": [
+          {
+            "side": -1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          },
+          {
+            "side": 1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          }
+        ],
+        "eyesBlocked": true,
+        "blindfoldFixed": true
+      },
+      {
+        "time": 1.2,
+        "eyes": [
+          {
+            "side": -1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          },
+          {
+            "side": 1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          }
+        ],
+        "eyesBlocked": true,
+        "blindfoldFixed": true
+      },
+      {
+        "time": 2.2,
+        "eyes": [
+          {
+            "side": -1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          },
+          {
+            "side": 1,
+            "firstHit": "BlindfoldCloth",
+            "clear": false
+          }
+        ],
+        "eyesBlocked": true,
+        "blindfoldFixed": true
+      }
+    ],
+    "heldEyes": [
+      {
+        "side": -1,
+        "firstHit": "BlindfoldCloth",
+        "clear": false
+      },
+      {
+        "side": 1,
+        "firstHit": "BlindfoldCloth",
+        "clear": false
+      }
+    ],
+    "heldBlindfoldFixed": true,
+    "heldHandSeal": {
+      "index": [
+        -0.046907071768738595,
+        -0.9988992574920067,
+        0
+      ],
+      "indexTip": [
+        -0.04684867179456321,
+        -0.9976556136523538,
+        0.04988465193855367
+      ],
+      "middle": [
+        -0.017049646993634312,
+        -0.9998546442045426,
+        0
+      ],
+      "middleTip": [
+        -0.017034665564604326,
+        -0.9989760775457697,
+        0.04191201093207518
+      ],
+      "ring": [
+        -0.12921953362171745,
+        -0.5101221893327973,
+        0.8503397400918065
+      ],
+      "ringTip": [
+        -0.04445345996511563,
+        0.17655716884906214,
+        0.9832860444612995
+      ],
+      "pinky": [
+        -0.15852226981613882,
+        -0.4512804192077863,
+        0.8781894107719687
+      ],
+      "pinkyTip": [
+        -0.04248484362596702,
+        0.29634263569369057,
+        0.9541362395188315
+      ],
+      "pass": true
+    },
+    "pass": true
+  },
+  "pass": true
+}

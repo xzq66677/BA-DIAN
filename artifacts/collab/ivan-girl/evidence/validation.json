@@ -1,0 +1,433 @@
+{
+  "schemaVersion": 1,
+  "generatedOn": "2026-11-28T07:26:19.758Z",
+  "scope": "visual-assets-only",
+  "provider": {
+    "name": "local-procedural",
+    "tripoCredentials": "MISSING",
+    "externalGenerationUsed": false
+  },
+  "asset": {
+    "file": "model/ivan-girl.glb",
+    "bytes": 1088472,
+    "megabytes": 1.088472,
+    "mebibytes": 1.0380477905273438,
+    "sha256": "13814e01df81d41e26575e17a6f8a9b0f10ca9aac380ab49facc5e9a2b55c580",
+    "magic": "glTF",
+    "version": 2,
+    "declaredLength": 1088472,
+    "fileLength": 1088472,
+    "declaredLengthMatchesFileLength": true,
+    "externalResources": false,
+    "embeddedImages": 36
+  },
+  "sourceStats": {
+    "meshes": 19,
+    "materials": 19,
+    "bones": 32,
+    "triangles": 51854,
+    "vertices": 34359,
+    "hairLocks": 197,
+    "blendedVertices": 5874,
+    "height": 1.5828010430827737,
+    "width": 0.7862768471240997,
+    "depth": 0.6467895358800888,
+    "footY": -0.0000167480006814003,
+    "clips": [
+      {
+        "name": "idle",
+        "duration": 4,
+        "tracks": 17
+      },
+      {
+        "name": "walk",
+        "duration": 1.2,
+        "tracks": 22
+      },
+      {
+        "name": "throw",
+        "duration": 2.2,
+        "tracks": 30
+      },
+      {
+        "name": "flinch",
+        "duration": 0.75,
+        "tracks": 21
+      },
+      {
+        "name": "victory",
+        "duration": 2.8,
+        "tracks": 23
+      },
+      {
+        "name": "dead",
+        "duration": 1.25,
+        "tracks": 17
+      },
+      {
+        "name": "reviveRise",
+        "duration": 1.25,
+        "tracks": 17
+      }
+    ]
+  },
+  "model": {
+    "heightMeters": 1.5828258146036285,
+    "widthMeters": 0.7862505744597281,
+    "depthMeters": 0.6467902973016139,
+    "restBounds": {
+      "min": [
+        -0.4045023380869982,
+        -0.000016747999191284183,
+        -0.22777204236129212
+      ],
+      "max": [
+        0.3817482363727299,
+        1.5828090666044372,
+        0.41901825494032174
+      ],
+      "size": [
+        0.7862505744597281,
+        1.5828258146036285,
+        0.6467902973016139
+      ]
+    },
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "footY": -0.000016747999191284183,
+    "horizontalRootMotion": 0,
+    "bones": 32,
+    "meshes": 19,
+    "skinnedMeshes": 19,
+    "skins": 19,
+    "jointsPerSkin": [
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32,
+      32
+    ],
+    "triangles": 51854,
+    "vertices": 34359,
+    "materials": 19,
+    "pbrMaterials": [
+      "ochre_cotton_dress",
+      "dress_seam_and_hem",
+      "warm_linen_apron",
+      "apron_stitching",
+      "aged_brass",
+      "warm_skin",
+      "mary_jane_leather",
+      "chestnut_hair",
+      "hair_highlights",
+      "chestnut_hair_shadow",
+      "satchel_leather",
+      "bomb_painted_iron"
+    ],
+    "loadedTextures": 48,
+    "embeddedImageDimensions": {
+      "map:128x128": 12,
+      "normalMap:64x64": 12,
+      "roughnessMap:64x64": 12,
+      "metalnessMap:64x64": 12
+    },
+    "maxSkinIndex": 31,
+    "minWeightSum": 1,
+    "maxWeightSum": 1,
+    "invalidWeights": 0,
+    "modelDrawCalls": 19
+  },
+  "animations": {
+    "idle": {
+      "duration": 4,
+      "tracks": 17
+    },
+    "walk": {
+      "duration": 1.2000000476837158,
+      "tracks": 22
+    },
+    "throw": {
+      "duration": 2.200000047683716,
+      "tracks": 30
+    },
+    "flinch": {
+      "duration": 0.75,
+      "tracks": 21
+    },
+    "victory": {
+      "duration": 2.799999952316284,
+      "tracks": 23
+    },
+    "dead": {
+      "duration": 1.25,
+      "tracks": 17
+    },
+    "reviveRise": {
+      "duration": 1.25,
+      "tracks": 17
+    }
+  },
+  "animationEvidence": {
+    "throwGrip": {
+      "left": 0.00011484775404415987,
+      "right": 0.00009731370384040765,
+      "heldScale": 1
+    },
+    "released": {
+      "heldScale": 0.00010001659393310547,
+      "thrownScale": 1
+    },
+    "projectile": {
+      "scale": 1,
+      "position": [
+        0,
+        1.6850585805950717,
+        1.1445312798023153
+      ],
+      "sparkScale": 0.9372558921459051
+    },
+    "victory": {
+      "bombHeight": 1.4624739154819002,
+      "leftGrip": 0.0000965269530168075,
+      "rightGrip": 0.00007242182812736185
+    },
+    "blinkClosed": {
+      "left": 0.07031269702639178,
+      "right": 0.07031269702639178
+    },
+    "blinkOpen": {
+      "left": 0.9999994581774238,
+      "right": 0.9999994581774238
+    },
+    "reverse": {
+      "sampleCount": 141,
+      "maxPositionError": 1.0365305669335356e-8,
+      "maxQuaternionError": 2.220446049250313e-16,
+      "maxScaleError": 2.220446049250313e-16
+    },
+    "ground": {
+      "dead": {
+        "sampleCount": 51,
+        "minY": 0.0008402103406941613,
+        "maxPenetrationMeters": 0
+      },
+      "reviveRise": {
+        "sampleCount": 51,
+        "minY": 0.0008402103406946887,
+        "maxPenetrationMeters": 0
+      }
+    },
+    "deadBounds": {
+      "min": [
+        -0.5611954857220882,
+        0.0008757015310194294,
+        -0.014059609477309831
+      ],
+      "max": [
+        0.521009001676104,
+        0.6704338924925977,
+        1.588444696952433
+      ],
+      "size": [
+        1.0822044873981922,
+        0.6695581909615782,
+        1.6025043064297428
+      ]
+    },
+    "revivedBounds": {
+      "min": [
+        -0.4045023380869982,
+        0.000999866042945996,
+        -0.22777482790011652
+      ],
+      "max": [
+        0.38174264231359656,
+        1.583824494134121,
+        0.41901825494032174
+      ],
+      "size": [
+        0.7862449804005948,
+        1.582824628091175,
+        0.6467930828404382
+      ]
+    }
+  },
+  "rendererDiagnostics": {
+    "beforeReload": {
+      "calls": 76,
+      "triangles": 108268,
+      "geometries": 58,
+      "textures": 53
+    },
+    "afterReload": {
+      "calls": 57,
+      "triangles": 56414,
+      "geometries": 77,
+      "textures": 108
+    }
+  },
+  "previewRegression": {
+    "passed": true,
+    "animationControls": [
+      "throw",
+      "idle",
+      "walk",
+      "flinch",
+      "dead",
+      "reviveRise",
+      "victory"
+    ],
+    "controlResults": {
+      "throw": "throw",
+      "idle": "idle",
+      "walk": "walk",
+      "flinch": "flinch",
+      "dead": "dead",
+      "reviveRise": "reviveRise",
+      "victory": "victory"
+    },
+    "oneShotReturnWallMilliseconds": {
+      "throw": 4134,
+      "victory": 4904,
+      "flinch": 2430
+    },
+    "pageErrors": []
+  },
+  "mobilePreview": {
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "documentScrollWidth": 390,
+    "horizontalOverflow": false,
+    "canvasCssSize": [
+      390,
+      490
+    ],
+    "animationButtons": 7,
+    "evidence": "evidence/preview-mobile-390.png"
+  },
+  "finalCaptureSamples": [
+    {
+      "file": "evidence/preview-idle.png",
+      "clip": "idle",
+      "time": 1.6,
+      "view": "front"
+    },
+    {
+      "file": "evidence/preview-face.png",
+      "clip": "idle",
+      "time": 0.55,
+      "view": "face"
+    },
+    {
+      "file": "evidence/preview-hair.png",
+      "clip": "idle",
+      "time": 1.6,
+      "view": "hair"
+    },
+    {
+      "file": "evidence/preview-blink.png",
+      "clip": "idle",
+      "time": 1.52,
+      "view": "face"
+    },
+    {
+      "file": "evidence/preview-throw-windup.png",
+      "clip": "throw",
+      "time": 0.88,
+      "view": "front"
+    },
+    {
+      "file": "evidence/preview-throw-projectile.png",
+      "clip": "throw",
+      "time": 1.4,
+      "view": "projectile"
+    },
+    {
+      "file": "evidence/preview-flinch.png",
+      "clip": "flinch",
+      "time": 0.16,
+      "view": "front"
+    },
+    {
+      "file": "evidence/preview-victory.png",
+      "clip": "victory",
+      "time": 1.3,
+      "view": "front"
+    },
+    {
+      "file": "evidence/preview-walk-side.png",
+      "clip": "walk",
+      "time": 0.6,
+      "view": "side"
+    },
+    {
+      "file": "evidence/preview-throw-side.png",
+      "clip": "throw",
+      "time": 1.1,
+      "view": "side"
+    },
+    {
+      "file": "evidence/preview-dead-ground.png",
+      "clip": "dead",
+      "time": 1.25,
+      "view": "side"
+    },
+    {
+      "file": "evidence/preview-revive.png",
+      "clip": "reviveRise",
+      "time": 0.45,
+      "view": "side"
+    },
+    {
+      "file": "evidence/preview-mobile-390.png",
+      "viewport": "390x844"
+    }
+  ],
+  "checks": {
+    "glbHeader": true,
+    "embeddedResources": true,
+    "skeletonAndWeights": true,
+    "animationClips": true,
+    "embeddedPbrMaps": true,
+    "refinedHairAndSkinning": true,
+    "facialBlink": true,
+    "secondaryHairMotion": true,
+    "groundedFeet": true,
+    "deathGroundContact": true,
+    "reverseAnimation": true,
+    "restoredBounds": false,
+    "throwGripContact": true,
+    "bombRelease": true,
+    "projectileFlight": true,
+    "victoryGripContact": true,
+    "hiddenProjectileAtRest": true,
+    "noHorizontalRootMotion": true,
+    "allPreviewControls": true,
+    "oneShotReturnsToIdle": true,
+    "mobileNoHorizontalOverflow": true,
+    "noPageErrors": true,
+    "glbSizeTarget4Mb": true,
+    "triangleTarget65k": true,
+    "modelDrawCallTarget20": true
+  },
+  "limitations": [
+    "Polished procedural stylization; not a photorealistic scanned or externally generated character.",
+    "Tripo credentials were missing; no external generation service or paid task was used.",
+    "The bomb projectile is visual only; explosion, damage, authoritative hit timing and gameplay rules remain scene/server responsibilities.",
+    "Gameplay registration, asynchronous runtime loading and production CharacterRig integration are intentionally excluded."
+  ]
+}

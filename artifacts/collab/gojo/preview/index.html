@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>五条悟 · GLB 资产实验室</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; background: #080d1b; color: #eaf2ff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; overflow: hidden; background: radial-gradient(circle at 50% 38%, #172948 0, #080d1b 68%); }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; height: 100vh; }
+    #stage { position: relative; min-width: 0; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .brand { position: absolute; left: 30px; top: 25px; pointer-events: none; }
+    .eyebrow { color: #78d9f2; letter-spacing: .22em; font-size: 11px; font-weight: 700; }
+    h1 { margin: 8px 0 4px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(34px, 4vw, 60px); font-weight: 500; letter-spacing: .08em; }
+    .subtitle { color: #9eb3d1; font-size: 13px; }
+    .view-hint { position: absolute; left: 30px; bottom: 24px; color: #8098ba; font-size: 12px; pointer-events: none; }
+    aside { padding: 28px 24px; background: linear-gradient(180deg, rgba(11,20,39,.97), rgba(5,10,22,.99)); border-left: 1px solid #263b5b; overflow-y: auto; }
+    .panel-label { color: #78d9f2; font-size: 10px; letter-spacing: .18em; font-weight: 700; text-transform: uppercase; }
+    h2 { margin: 9px 0 7px; font: 500 24px Georgia, serif; }
+    .description { margin: 0 0 24px; color: #9eb3d1; font-size: 12px; line-height: 1.7; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    button { appearance: none; min-height: 44px; border: 1px solid #39516f; border-radius: 9px; padding: 11px 10px; background: #122039; color: #e2edff; font: inherit; font-size: 12px; cursor: pointer; transition: background .18s, border-color .18s, transform .18s; }
+    button:hover { background: #1b3152; border-color: #6c98c1; }
+    button:active { transform: translateY(1px); }
+    button.primary { grid-column: 1 / -1; padding: 14px; border-color: #72d8f2; background: linear-gradient(135deg, #5cc9e8, #376cae); color: #07111f; font-weight: 750; }
+    button.active { border-color: #83e8ff; background: #204761; }
+    .section { margin-top: 26px; padding-top: 21px; border-top: 1px solid #223752; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; margin-top: 14px; }
+    .stat span { display: block; color: #718bac; font-size: 10px; margin-bottom: 4px; }
+    .stat strong { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .status { min-height: 54px; margin-top: 18px; padding: 10px 12px; border: 1px solid #284765; border-radius: 8px; color: #b9d8ef; background: #0b1a2d; font-size: 11px; line-height: 1.55; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: #9eb3d1; font-size: 11px; }
+    .check::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #70d9f5; box-shadow: 0 0 10px #70d9f5; }
+    .progress { height: 3px; margin-top: 10px; background: #19334e; border-radius: 3px; overflow: hidden; }
+    #progressBar { height: 100%; width: 0; background: #8deaff; }
+    @media (max-width: 760px) {
+      body { overflow: auto; }
+      main { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+      #stage { height: 58vh; min-height: 390px; }
+      aside { border-left: 0; border-top: 1px solid #263b5b; padding: 22px 18px 30px; }
+      .brand { left: 18px; top: 18px; }
+      .view-hint { left: 18px; bottom: 15px; }
+      .description { margin-bottom: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="stage" aria-label="五条悟三维模型预览">
+      <div class="brand">
+        <div class="eyebrow">BA-DIAN · CHARACTER ASSET LAB</div>
+        <h1>五条悟</h1>
+        <div class="subtitle">GOJO / gojo-v2 / 领域展开术式起手候选资产</div>
+      </div>
+      <div class="view-hint">拖拽旋转 · 滚轮缩放 · 面部特写可检查双眼是否被遮挡</div>
+    </section>
+    <aside>
+      <div class="panel-label">Procedural PBR / GLB 2.0</div>
+      <h2>六眼，展开。</h2>
+      <p class="description">白发、深蓝高领与术式指纹。领域展开时眼罩保持佩戴，左手抬起完成双指术式起手式。</p>
+      <div class="actions" aria-label="动画控制">
+        <button id="domain" class="primary" type="button">领域展开 · 术式起手</button>
+        <button data-clip="domain_idle" type="button">领域持续</button>
+        <button data-clip="idle" class="active" type="button">待机</button>
+        <button data-clip="walk" type="button">行走</button>
+        <button data-clip="attack" type="button">攻击</button>
+        <button data-clip="flinch" type="button">受击</button>
+        <button data-clip="cheer" type="button">胜利</button>
+        <button data-clip="dead" type="button">倒地</button>
+        <button data-clip="reviveRise" type="button">起身</button>
+        <button id="face" type="button">面部特写</button>
+        <button id="resetCamera" type="button">全身视角</button>
+        <button id="validate" type="button">重载 GLB 并验证</button>
+        <button id="export" type="button">导出 GLB 到 model/</button>
+      </div>
+      <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
+      <div id="status" class="status" role="status">正在构建模型与动画…</div>
+      <div class="section">
+        <div class="panel-label">Asset diagnostics</div>
+        <div class="stats">
+          <div class="stat"><span>三角面</span><strong id="triangles">—</strong></div>
+          <div class="stat"><span>骨骼</span><strong id="bones">—</strong></div>
+          <div class="stat"><span>网格 / 材质</span><strong id="meshes">—</strong></div>
+          <div class="stat"><span>站立高度</span><strong id="height">—</strong></div>
+          <div class="stat"><span>动画</span><strong id="clips">—</strong></div>
+          <div class="stat"><span>贴图</span><strong id="textures">—</strong></div>
+        </div>
+        <div class="check">+Y 向上 / +Z 正向 / 脚底 y=0</div>
+        <div class="check">Blindfold 独立骨骼 / 领域全程固定</div>
+        <div class="check">未使用 TRIPO / GEMINI / ELEVENLABS 凭据</div>
+      </div>
+    </aside>
+  </main>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

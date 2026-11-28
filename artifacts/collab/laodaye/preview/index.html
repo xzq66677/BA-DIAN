@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>老大爷 · GLB 资产实验室</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; background: #111310; color: #f0eadc; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; overflow: hidden; background: radial-gradient(circle at 50% 38%, #3a3020 0, #111310 70%); }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; height: 100vh; }
+    #stage { position: relative; min-width: 0; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .brand { position: absolute; left: 30px; top: 25px; pointer-events: none; }
+    .eyebrow { color: #d4aa62; letter-spacing: .22em; font-size: 11px; font-weight: 700; }
+    h1 { margin: 8px 0 4px; font-family: Georgia, "Times New Roman", "Microsoft YaHei", serif; font-size: clamp(30px, 3.7vw, 54px); font-weight: 500; letter-spacing: -.03em; }
+    .subtitle { color: #c2b69d; font-size: 13px; }
+    .view-hint { position: absolute; left: 30px; bottom: 24px; color: #aa9b80; font-size: 12px; pointer-events: none; }
+    aside { padding: 28px 24px; background: linear-gradient(180deg, rgba(35, 32, 24, .97), rgba(15, 17, 13, .99)); border-left: 1px solid #514731; overflow-y: auto; }
+    .panel-label { color: #d4aa62; font-size: 10px; letter-spacing: .18em; font-weight: 700; text-transform: uppercase; }
+    h2 { margin: 9px 0 7px; font: 500 24px Georgia, "Microsoft YaHei", serif; }
+    .description { margin: 0 0 24px; color: #c2b69d; font-size: 12px; line-height: 1.7; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    button { appearance: none; border: 1px solid #68583c; border-radius: 9px; padding: 11px 10px; background: #2b291f; color: #eee5d2; font: inherit; font-size: 12px; cursor: pointer; transition: background .18s, border-color .18s, transform .18s; }
+    button:hover { background: #403a29; border-color: #aa8d5b; }
+    button:active { transform: translateY(1px); }
+    button.primary { grid-column: 1 / -1; padding: 14px; border-color: #d4aa62; background: linear-gradient(135deg, #c99a4e, #8b642d); color: #17150f; font-weight: 750; }
+    button.active { border-color: #efc474; background: #55472d; }
+    .section { margin-top: 26px; padding-top: 21px; border-top: 1px solid #453d2a; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; margin-top: 14px; }
+    .stat span { display: block; color: #95876e; font-size: 10px; margin-bottom: 4px; }
+    .stat strong { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .status { min-height: 52px; margin-top: 18px; padding: 10px 12px; border: 1px solid #514731; border-radius: 8px; color: #d6c6a4; background: #211f17; font-size: 11px; line-height: 1.55; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: #baab8d; font-size: 11px; }
+    .check::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #e1b45e; box-shadow: 0 0 10px #e1b45e; }
+    .progress { height: 3px; margin-top: 10px; background: #3b3525; border-radius: 3px; overflow: hidden; }
+    #progressBar { height: 100%; width: 0; background: #e1b45e; }
+    @media (max-width: 760px) {
+      body { overflow: auto; }
+      main { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+      #stage { height: 58vh; min-height: 390px; }
+      aside { border-left: 0; border-top: 1px solid #514731; padding: 22px 18px 30px; }
+      .brand { left: 18px; top: 18px; }
+      .view-hint { left: 18px; bottom: 15px; }
+      .description { margin-bottom: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="stage" aria-label="老大爷三维模型预览">
+      <div class="brand">
+        <div class="eyebrow">BA-DIAN · CHARACTER ASSET LAB</div>
+        <h1>老大爷</h1>
+        <div class="subtitle">LAODAYE / laodaye / 原创程序化角色资产</div>
+      </div>
+      <div class="view-hint">拖拽旋转 · 滚轮缩放 · 点击技能动作查看掌法与领域金环演出</div>
+    </section>
+    <aside>
+      <div class="panel-label">Procedural PBR / GLB 2.0</div>
+      <h2>退隐宗师，举手成域</h2>
+      <p class="description">宽袖深色长袍、白发高髻、短须与胸前玉坠，背后三层完整金环象征领域。动作沉稳克制，抬掌结印时金环扩张旋转；不使用斗笠，也不沿用其他角色的破环造型。</p>
+      <div class="actions" aria-label="动画控制">
+        <button data-clip="swing" class="primary" type="button">掌法 · 推掌</button>
+        <button data-clip="idle" class="active" type="button">待机</button>
+        <button data-clip="walk" type="button">行走</button>
+        <button data-clip="cast" type="button">领域 · 金环</button>
+        <button data-clip="flinch" type="button">受击</button>
+        <button data-clip="dead" type="button">倒地</button>
+        <button data-clip="reviveRise" type="button">起身</button>
+        <button data-clip="victory" type="button">胜利</button>
+        <button id="export" type="button">导出 GLB 到 model/</button>
+      </div>
+      <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
+      <input id="timeline" aria-label="动画时间轴" type="range" min="0" max="1000" value="0" style="width:100%;margin-top:12px;accent-color:#e1b45e" />
+      <div id="timeLabel" style="text-align:right;color:#95876e;font-size:10px;margin-top:4px">0.00 / 0.00s</div>
+      <div id="status" class="status" role="status">正在构建模型与材质…</div>
+      <div class="section">
+        <div class="panel-label">Asset diagnostics</div>
+        <div class="stats">
+          <div class="stat"><span>三角面</span><strong id="triangles">—</strong></div>
+          <div class="stat"><span>骨骼</span><strong id="bones">—</strong></div>
+          <div class="stat"><span>网格 / 材质</span><strong id="meshes">—</strong></div>
+          <div class="stat"><span>站立高度</span><strong id="height">—</strong></div>
+          <div class="stat"><span>动画</span><strong id="clips">—</strong></div>
+          <div class="stat"><span>贴图</span><strong id="textures">—</strong></div>
+        </div>
+        <div class="check">+Y 向上 / +Z 正向 / 脚底 y=0</div>
+        <div class="check">GLB 内嵌 BaseColor / Roughness / Metalness / Normal</div>
+        <div class="check">本地程序化生成 · 未调用 Tripo 付费服务</div>
+      </div>
+    </aside>
+  </main>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

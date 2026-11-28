@@ -1,0 +1,1408 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-28T07:30:27.788Z",
+  "asset": "bagun-v1",
+  "provider": {
+    "name": "local-procedural",
+    "tripoCredentials": "MISSING",
+    "externalGenerationUsed": false
+  },
+  "file": {
+    "file": "model/bagun.glb",
+    "bytes": 744132,
+    "megabytes": 0.744132,
+    "sha256": "6cc084c67e0514b03bdaaafeefd745d66cb80452029f0bbdd51a9669e00d7f11",
+    "glbHeader": {
+      "magic": "glTF",
+      "version": 2,
+      "declaredLength": 744132,
+      "fileLength": 744132
+    }
+  },
+  "loaded": {
+    "stickNode": true,
+    "stickVisible": true,
+    "stickMeshCount": 5,
+    "stickToggleWorks": true,
+    "bones": 23,
+    "boneNames": [
+      "Root",
+      "Pelvis",
+      "Spine",
+      "Chest",
+      "Neck",
+      "Head",
+      "UpperArmL",
+      "ForearmL",
+      "HandL",
+      "FreeHandAnchor",
+      "UpperArmR",
+      "ForearmR",
+      "HandR",
+      "StickGrip",
+      "StickPivot",
+      "CoatTail",
+      "ThighL",
+      "ShinL",
+      "FootL",
+      "ThighR",
+      "ShinR",
+      "FootR",
+      "SashTail"
+    ],
+    "meshes": 15,
+    "skinnedMeshes": 15,
+    "skins": 15,
+    "jointsPerSkin": [
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23,
+      23
+    ],
+    "triangles": 14596,
+    "vertices": 10178,
+    "materials": 12,
+    "pbrMaterials": [
+      "staff_wood",
+      "blackened_iron",
+      "aged_brass",
+      "dark_leather",
+      "red_sash_and_tassel",
+      "dark_indigo_pants",
+      "brown_jacket",
+      "warm_skin",
+      "eye_white",
+      "facial_ink",
+      "dark_hair",
+      "indigo_ninja_mask"
+    ],
+    "loadedTextures": 48,
+    "embeddedImageDimensions": {
+      "map:128x128": 15,
+      "normalMap:64x64": 15,
+      "roughnessMap:64x64": 15,
+      "metalnessMap:64x64": 15
+    },
+    "maxSkinIndex": 22,
+    "minWeightSum": 1,
+    "maxWeightSum": 1,
+    "invalidWeights": 0,
+    "invalidSkinIndices": 0,
+    "restBounds": {
+      "min": [
+        -0.4880443811292104,
+        -0.0005000066757203658,
+        -0.19296883115705277
+      ],
+      "max": [
+        0.5527182285572283,
+        2.2562444568196707,
+        0.4768354228889384
+      ],
+      "size": [
+        1.0407626096864386,
+        2.256744463495391,
+        0.6698042540459912
+      ]
+    },
+    "gripSamples": [
+      {
+        "time": 0,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 0.35200000762939454,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 0.7040000152587891,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 1.0560000228881836,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 1.4080000305175782,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 1.8040000391006468,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 2.200000047683716,
+        "distances": [
+          0
+        ]
+      }
+    ],
+    "maxGripError": 0,
+    "reverse": {
+      "sampleCount": 141,
+      "maxPositionError": 1.2658918663310814e-8,
+      "maxQuaternionError": 2.440738861020364e-8,
+      "maxScaleError": 0
+    },
+    "ground": {
+      "dead": {
+        "sampleCount": 26,
+        "minY": -0.0005000066757203658,
+        "maxPenetrationMeters": 0.0005000066757203658
+      },
+      "reviveRise": {
+        "sampleCount": 26,
+        "minY": -0.0005000066757203658,
+        "maxPenetrationMeters": 0.0005000066757203658
+      }
+    },
+    "deadBounds": {
+      "min": [
+        -2.197861896562505,
+        0.012076635373024058,
+        -0.19296883115705277
+      ],
+      "max": [
+        0.021378008309265284,
+        1.106277620796515,
+        0.4768354228889384
+      ],
+      "size": [
+        2.2192399048717704,
+        1.094200985423491,
+        0.6698042540459912
+      ]
+    },
+    "revivedBounds": {
+      "min": [
+        -0.4880443811292104,
+        -0.0005000066757203658,
+        -0.19296883115705277
+      ],
+      "max": [
+        0.5527182285572283,
+        2.2562444568196707,
+        0.4768354228889384
+      ],
+      "size": [
+        1.0407626096864386,
+        2.256744463495391,
+        0.6698042540459912
+      ]
+    },
+    "animations": [
+      {
+        "name": "idle",
+        "duration": 4,
+        "tracks": 11,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 0.00001683943866548354
+      },
+      {
+        "name": "walk",
+        "duration": 1,
+        "tracks": 16,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 0.000020520546865521183
+      },
+      {
+        "name": "swing",
+        "duration": 2.200000047683716,
+        "tracks": 9,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 0.000019401234599980555
+      },
+      {
+        "name": "flinch",
+        "duration": 0.75,
+        "tracks": 9,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 0.000016204240508743695
+      },
+      {
+        "name": "dead",
+        "duration": 1.25,
+        "tracks": 4,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 0.00001551777547093014
+      },
+      {
+        "name": "reviveRise",
+        "duration": 1.25,
+        "tracks": 4,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 0.00001551777547093014
+      },
+      {
+        "name": "victory",
+        "duration": 2.799999952316284,
+        "tracks": 10,
+        "finite": true,
+        "targetsExist": true,
+        "maxQuaternionNormalizationError": 0.00002036845851072222
+      }
+    ],
+    "rootTracks": [
+      {
+        "name": "idle",
+        "horizontalTravel": 0
+      },
+      {
+        "name": "walk",
+        "horizontalTravel": 0
+      },
+      {
+        "name": "swing",
+        "horizontalTravel": 0
+      },
+      {
+        "name": "flinch",
+        "horizontalTravel": 0
+      },
+      {
+        "name": "dead",
+        "horizontalTravel": 0
+      },
+      {
+        "name": "reviveRise",
+        "horizontalTravel": 0
+      },
+      {
+        "name": "victory",
+        "horizontalTravel": 0
+      }
+    ]
+  },
+  "sourceValidation": {
+    "clips": {
+      "idle": {
+        "duration": 4,
+        "tracks": 11
+      },
+      "walk": {
+        "duration": 1,
+        "tracks": 16
+      },
+      "swing": {
+        "duration": 2.2,
+        "tracks": 9
+      },
+      "flinch": {
+        "duration": 0.75,
+        "tracks": 9
+      },
+      "dead": {
+        "duration": 1.25,
+        "tracks": 4
+      },
+      "reviveRise": {
+        "duration": 1.25,
+        "tracks": 4
+      },
+      "victory": {
+        "duration": 2.8,
+        "tracks": 10
+      }
+    },
+    "restBounds": {
+      "min": [
+        -0.48804438114166243,
+        -0.0005000001983717084,
+        -0.19300000369548798
+      ],
+      "max": [
+        0.5527182221412661,
+        2.256244421005249,
+        0.4768787324428558
+      ],
+      "size": [
+        1.0407626032829285,
+        2.2567444212036207,
+        0.6698787361383438
+      ]
+    },
+    "swingGripErrors": [
+      {
+        "time": 0,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 0.35,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 0.7,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 1.05,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 1.4,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 1.8,
+        "distances": [
+          0
+        ]
+      },
+      {
+        "time": 2.2,
+        "distances": [
+          0
+        ]
+      }
+    ],
+    "maxSwingGripError": 0,
+    "reverse": {
+      "sampleCount": 21,
+      "maxPositionError": 1.1731166260631198e-8,
+      "maxQuaternionError": 2.2523790443873537e-8,
+      "maxScaleError": 0
+    },
+    "ground": {
+      "dead": {
+        "sampleCount": 26,
+        "minY": -0.0005000001983717084,
+        "maxPenetrationMeters": 0.0005000001983717084
+      },
+      "reviveRise": {
+        "sampleCount": 26,
+        "minY": -0.0005000001983717084,
+        "maxPenetrationMeters": 0.0005000001983717084
+      }
+    },
+    "deadBounds": {
+      "min": [
+        -2.1979292872719824,
+        0.011933486119366954,
+        -0.19300000369548798
+      ],
+      "max": [
+        0.021377288459964245,
+        1.1061302774497683,
+        0.4768787324428558
+      ],
+      "size": [
+        2.2193065757319466,
+        1.0941967913304014,
+        0.6698787361383438
+      ]
+    },
+    "revivedBounds": {
+      "min": [
+        -0.48804438114166243,
+        -0.0005000001983717084,
+        -0.19300000369548798
+      ],
+      "max": [
+        0.5527182221412661,
+        2.256244421005249,
+        0.4768787324428558
+      ],
+      "size": [
+        1.0407626032829285,
+        2.2567444212036207,
+        0.6698787361383438
+      ]
+    },
+    "renderer": {
+      "calls": 68,
+      "triangles": 33752,
+      "geometries": 54,
+      "textures": 53
+    }
+  },
+  "mobile": {
+    "scrollWidth": 390,
+    "innerWidth": 390,
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 489.515625,
+      "top": 0,
+      "right": 390,
+      "bottom": 489.515625,
+      "left": 0
+    }
+  },
+  "pageErrors": [],
+  "checks": [
+    {
+      "name": "GLB 2 header and declared length",
+      "passed": true,
+      "details": {
+        "magic": "glTF",
+        "version": 2,
+        "declaredLength": 744132,
+        "fileLength": 744132
+      }
+    },
+    {
+      "name": "All glTF resources embedded",
+      "passed": true,
+      "details": {
+        "buffers": 2,
+        "images": 36
+      }
+    },
+    {
+      "name": "GLB under 4 MiB",
+      "passed": true,
+      "details": {
+        "bytes": 744132,
+        "megabytes": 0.744132
+      }
+    },
+    {
+      "name": "Triangle budget under 65000",
+      "passed": true,
+      "details": {
+        "triangles": 14596
+      }
+    },
+    {
+      "name": "Expected animation set",
+      "passed": true,
+      "details": [
+        "idle",
+        "walk",
+        "swing",
+        "flinch",
+        "dead",
+        "reviveRise",
+        "victory"
+      ]
+    },
+    {
+      "name": "Humanoid skeleton and paired limbs",
+      "passed": true,
+      "details": {
+        "bones": 23
+      }
+    },
+    {
+      "name": "Production stick visibility node exists",
+      "passed": true,
+      "details": {
+        "stickNode": true
+      }
+    },
+    {
+      "name": "Production stick toggle controls its mesh batch",
+      "passed": true,
+      "details": {
+        "visible": true,
+        "meshes": 5,
+        "toggleWorks": true
+      }
+    },
+    {
+      "name": "All meshes skinned with complete joint sets",
+      "passed": true,
+      "details": {
+        "meshes": 15,
+        "skinnedMeshes": 15,
+        "jointsPerSkin": [
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23
+        ]
+      }
+    },
+    {
+      "name": "Skin indices and normalized weights valid",
+      "passed": true,
+      "details": {
+        "stickNode": true,
+        "stickVisible": true,
+        "stickMeshCount": 5,
+        "stickToggleWorks": true,
+        "bones": 23,
+        "boneNames": [
+          "Root",
+          "Pelvis",
+          "Spine",
+          "Chest",
+          "Neck",
+          "Head",
+          "UpperArmL",
+          "ForearmL",
+          "HandL",
+          "FreeHandAnchor",
+          "UpperArmR",
+          "ForearmR",
+          "HandR",
+          "StickGrip",
+          "StickPivot",
+          "CoatTail",
+          "ThighL",
+          "ShinL",
+          "FootL",
+          "ThighR",
+          "ShinR",
+          "FootR",
+          "SashTail"
+        ],
+        "meshes": 15,
+        "skinnedMeshes": 15,
+        "skins": 15,
+        "jointsPerSkin": [
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23
+        ],
+        "triangles": 14596,
+        "vertices": 10178,
+        "materials": 12,
+        "pbrMaterials": [
+          "staff_wood",
+          "blackened_iron",
+          "aged_brass",
+          "dark_leather",
+          "red_sash_and_tassel",
+          "dark_indigo_pants",
+          "brown_jacket",
+          "warm_skin",
+          "eye_white",
+          "facial_ink",
+          "dark_hair",
+          "indigo_ninja_mask"
+        ],
+        "loadedTextures": 48,
+        "embeddedImageDimensions": {
+          "map:128x128": 15,
+          "normalMap:64x64": 15,
+          "roughnessMap:64x64": 15,
+          "metalnessMap:64x64": 15
+        },
+        "maxSkinIndex": 22,
+        "minWeightSum": 1,
+        "maxWeightSum": 1,
+        "invalidWeights": 0,
+        "invalidSkinIndices": 0,
+        "restBounds": {
+          "min": [
+            -0.4880443811292104,
+            -0.0005000066757203658,
+            -0.19296883115705277
+          ],
+          "max": [
+            0.5527182285572283,
+            2.2562444568196707,
+            0.4768354228889384
+          ],
+          "size": [
+            1.0407626096864386,
+            2.256744463495391,
+            0.6698042540459912
+          ]
+        },
+        "gripSamples": [
+          {
+            "time": 0,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 0.35200000762939454,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 0.7040000152587891,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 1.0560000228881836,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 1.4080000305175782,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 1.8040000391006468,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 2.200000047683716,
+            "distances": [
+              0
+            ]
+          }
+        ],
+        "maxGripError": 0,
+        "reverse": {
+          "sampleCount": 141,
+          "maxPositionError": 1.2658918663310814e-8,
+          "maxQuaternionError": 2.440738861020364e-8,
+          "maxScaleError": 0
+        },
+        "ground": {
+          "dead": {
+            "sampleCount": 26,
+            "minY": -0.0005000066757203658,
+            "maxPenetrationMeters": 0.0005000066757203658
+          },
+          "reviveRise": {
+            "sampleCount": 26,
+            "minY": -0.0005000066757203658,
+            "maxPenetrationMeters": 0.0005000066757203658
+          }
+        },
+        "deadBounds": {
+          "min": [
+            -2.197861896562505,
+            0.012076635373024058,
+            -0.19296883115705277
+          ],
+          "max": [
+            0.021378008309265284,
+            1.106277620796515,
+            0.4768354228889384
+          ],
+          "size": [
+            2.2192399048717704,
+            1.094200985423491,
+            0.6698042540459912
+          ]
+        },
+        "revivedBounds": {
+          "min": [
+            -0.4880443811292104,
+            -0.0005000066757203658,
+            -0.19296883115705277
+          ],
+          "max": [
+            0.5527182285572283,
+            2.2562444568196707,
+            0.4768354228889384
+          ],
+          "size": [
+            1.0407626096864386,
+            2.256744463495391,
+            0.6698042540459912
+          ]
+        },
+        "animations": [
+          {
+            "name": "idle",
+            "duration": 4,
+            "tracks": 11,
+            "finite": true,
+            "targetsExist": true,
+            "maxQuaternionNormalizationError": 0.00001683943866548354
+          },
+          {
+            "name": "walk",
+            "duration": 1,
+            "tracks": 16,
+            "finite": true,
+            "targetsExist": true,
+            "maxQuaternionNormalizationError": 0.000020520546865521183
+          },
+          {
+            "name": "swing",
+            "duration": 2.200000047683716,
+            "tracks": 9,
+            "finite": true,
+            "targetsExist": true,
+            "maxQuaternionNormalizationError": 0.000019401234599980555
+          },
+          {
+            "name": "flinch",
+            "duration": 0.75,
+            "tracks": 9,
+            "finite": true,
+            "targetsExist": true,
+            "maxQuaternionNormalizationError": 0.000016204240508743695
+          },
+          {
+            "name": "dead",
+            "duration": 1.25,
+            "tracks": 4,
+            "finite": true,
+            "targetsExist": true,
+            "maxQuaternionNormalizationError": 0.00001551777547093014
+          },
+          {
+            "name": "reviveRise",
+            "duration": 1.25,
+            "tracks": 4,
+            "finite": true,
+            "targetsExist": true,
+            "maxQuaternionNormalizationError": 0.00001551777547093014
+          },
+          {
+            "name": "victory",
+            "duration": 2.799999952316284,
+            "tracks": 10,
+            "finite": true,
+            "targetsExist": true,
+            "maxQuaternionNormalizationError": 0.00002036845851072222
+          }
+        ],
+        "rootTracks": [
+          {
+            "name": "idle",
+            "horizontalTravel": 0
+          },
+          {
+            "name": "walk",
+            "horizontalTravel": 0
+          },
+          {
+            "name": "swing",
+            "horizontalTravel": 0
+          },
+          {
+            "name": "flinch",
+            "horizontalTravel": 0
+          },
+          {
+            "name": "dead",
+            "horizontalTravel": 0
+          },
+          {
+            "name": "reviveRise",
+            "horizontalTravel": 0
+          },
+          {
+            "name": "victory",
+            "horizontalTravel": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Animation tracks finite and targets exist",
+      "passed": true,
+      "details": [
+        {
+          "name": "idle",
+          "duration": 4,
+          "tracks": 11,
+          "finite": true,
+          "targetsExist": true,
+          "maxQuaternionNormalizationError": 0.00001683943866548354
+        },
+        {
+          "name": "walk",
+          "duration": 1,
+          "tracks": 16,
+          "finite": true,
+          "targetsExist": true,
+          "maxQuaternionNormalizationError": 0.000020520546865521183
+        },
+        {
+          "name": "swing",
+          "duration": 2.200000047683716,
+          "tracks": 9,
+          "finite": true,
+          "targetsExist": true,
+          "maxQuaternionNormalizationError": 0.000019401234599980555
+        },
+        {
+          "name": "flinch",
+          "duration": 0.75,
+          "tracks": 9,
+          "finite": true,
+          "targetsExist": true,
+          "maxQuaternionNormalizationError": 0.000016204240508743695
+        },
+        {
+          "name": "dead",
+          "duration": 1.25,
+          "tracks": 4,
+          "finite": true,
+          "targetsExist": true,
+          "maxQuaternionNormalizationError": 0.00001551777547093014
+        },
+        {
+          "name": "reviveRise",
+          "duration": 1.25,
+          "tracks": 4,
+          "finite": true,
+          "targetsExist": true,
+          "maxQuaternionNormalizationError": 0.00001551777547093014
+        },
+        {
+          "name": "victory",
+          "duration": 2.799999952316284,
+          "tracks": 10,
+          "finite": true,
+          "targetsExist": true,
+          "maxQuaternionNormalizationError": 0.00002036845851072222
+        }
+      ]
+    },
+    {
+      "name": "No horizontal root motion",
+      "passed": true,
+      "details": [
+        {
+          "name": "idle",
+          "horizontalTravel": 0
+        },
+        {
+          "name": "walk",
+          "horizontalTravel": 0
+        },
+        {
+          "name": "swing",
+          "horizontalTravel": 0
+        },
+        {
+          "name": "flinch",
+          "horizontalTravel": 0
+        },
+        {
+          "name": "dead",
+          "horizontalTravel": 0
+        },
+        {
+          "name": "reviveRise",
+          "horizontalTravel": 0
+        },
+        {
+          "name": "victory",
+          "horizontalTravel": 0
+        }
+      ]
+    },
+    {
+      "name": "PBR maps present on all model materials",
+      "passed": true,
+      "details": [
+        "staff_wood",
+        "blackened_iron",
+        "aged_brass",
+        "dark_leather",
+        "red_sash_and_tassel",
+        "dark_indigo_pants",
+        "brown_jacket",
+        "warm_skin",
+        "eye_white",
+        "facial_ink",
+        "dark_hair",
+        "indigo_ninja_mask"
+      ]
+    },
+    {
+      "name": "Rest pose grounded and upright",
+      "passed": true,
+      "details": {
+        "min": [
+          -0.4880443811292104,
+          -0.0005000066757203658,
+          -0.19296883115705277
+        ],
+        "max": [
+          0.5527182285572283,
+          2.2562444568196707,
+          0.4768354228889384
+        ],
+        "size": [
+          1.0407626096864386,
+          2.256744463495391,
+          0.6698042540459912
+        ]
+      }
+    },
+    {
+      "name": "Right-hand staff grip stays attached",
+      "passed": true,
+      "details": [
+        {
+          "time": 0,
+          "distances": [
+            0
+          ]
+        },
+        {
+          "time": 0.35200000762939454,
+          "distances": [
+            0
+          ]
+        },
+        {
+          "time": 0.7040000152587891,
+          "distances": [
+            0
+          ]
+        },
+        {
+          "time": 1.0560000228881836,
+          "distances": [
+            0
+          ]
+        },
+        {
+          "time": 1.4080000305175782,
+          "distances": [
+            0
+          ]
+        },
+        {
+          "time": 1.8040000391006468,
+          "distances": [
+            0
+          ]
+        },
+        {
+          "time": 2.200000047683716,
+          "distances": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Revive is exact reverse of death",
+      "passed": true,
+      "details": {
+        "sampleCount": 141,
+        "maxPositionError": 1.2658918663310814e-8,
+        "maxQuaternionError": 2.440738861020364e-8,
+        "maxScaleError": 0
+      }
+    },
+    {
+      "name": "Death and revive do not penetrate ground",
+      "passed": true,
+      "details": {
+        "dead": {
+          "sampleCount": 26,
+          "minY": -0.0005000066757203658,
+          "maxPenetrationMeters": 0.0005000066757203658
+        },
+        "reviveRise": {
+          "sampleCount": 26,
+          "minY": -0.0005000066757203658,
+          "maxPenetrationMeters": 0.0005000066757203658
+        }
+      }
+    },
+    {
+      "name": "Source preview validation matches exported behavior",
+      "passed": true,
+      "details": {
+        "clips": {
+          "idle": {
+            "duration": 4,
+            "tracks": 11
+          },
+          "walk": {
+            "duration": 1,
+            "tracks": 16
+          },
+          "swing": {
+            "duration": 2.2,
+            "tracks": 9
+          },
+          "flinch": {
+            "duration": 0.75,
+            "tracks": 9
+          },
+          "dead": {
+            "duration": 1.25,
+            "tracks": 4
+          },
+          "reviveRise": {
+            "duration": 1.25,
+            "tracks": 4
+          },
+          "victory": {
+            "duration": 2.8,
+            "tracks": 10
+          }
+        },
+        "restBounds": {
+          "min": [
+            -0.48804438114166243,
+            -0.0005000001983717084,
+            -0.19300000369548798
+          ],
+          "max": [
+            0.5527182221412661,
+            2.256244421005249,
+            0.4768787324428558
+          ],
+          "size": [
+            1.0407626032829285,
+            2.2567444212036207,
+            0.6698787361383438
+          ]
+        },
+        "swingGripErrors": [
+          {
+            "time": 0,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 0.35,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 0.7,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 1.05,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 1.4,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 1.8,
+            "distances": [
+              0
+            ]
+          },
+          {
+            "time": 2.2,
+            "distances": [
+              0
+            ]
+          }
+        ],
+        "maxSwingGripError": 0,
+        "reverse": {
+          "sampleCount": 21,
+          "maxPositionError": 1.1731166260631198e-8,
+          "maxQuaternionError": 2.2523790443873537e-8,
+          "maxScaleError": 0
+        },
+        "ground": {
+          "dead": {
+            "sampleCount": 26,
+            "minY": -0.0005000001983717084,
+            "maxPenetrationMeters": 0.0005000001983717084
+          },
+          "reviveRise": {
+            "sampleCount": 26,
+            "minY": -0.0005000001983717084,
+            "maxPenetrationMeters": 0.0005000001983717084
+          }
+        },
+        "deadBounds": {
+          "min": [
+            -2.1979292872719824,
+            0.011933486119366954,
+            -0.19300000369548798
+          ],
+          "max": [
+            0.021377288459964245,
+            1.1061302774497683,
+            0.4768787324428558
+          ],
+          "size": [
+            2.2193065757319466,
+            1.0941967913304014,
+            0.6698787361383438
+          ]
+        },
+        "revivedBounds": {
+          "min": [
+            -0.48804438114166243,
+            -0.0005000001983717084,
+            -0.19300000369548798
+          ],
+          "max": [
+            0.5527182221412661,
+            2.256244421005249,
+            0.4768787324428558
+          ],
+          "size": [
+            1.0407626032829285,
+            2.2567444212036207,
+            0.6698787361383438
+          ]
+        },
+        "renderer": {
+          "calls": 68,
+          "triangles": 33752,
+          "geometries": 54,
+          "textures": 53
+        }
+      }
+    },
+    {
+      "name": "Preview button plays idle",
+      "passed": true,
+      "details": {
+        "current": "idle",
+        "time": 3.1378000000007447
+      }
+    },
+    {
+      "name": "Preview button plays walk",
+      "passed": true,
+      "details": {
+        "current": "walk",
+        "time": 0.13340000000223518
+      }
+    },
+    {
+      "name": "Preview button plays swing",
+      "passed": true,
+      "details": {
+        "current": "swing",
+        "time": 0.16789999999850988
+      }
+    },
+    {
+      "name": "Preview button plays flinch",
+      "passed": true,
+      "details": {
+        "current": "flinch",
+        "time": 0.14569999999925495
+      }
+    },
+    {
+      "name": "Preview button plays dead",
+      "passed": true,
+      "details": {
+        "current": "dead",
+        "time": 0.184
+      }
+    },
+    {
+      "name": "Preview button plays reviveRise",
+      "passed": true,
+      "details": {
+        "current": "reviveRise",
+        "time": 0.1793999999985099
+      }
+    },
+    {
+      "name": "Preview button plays victory",
+      "passed": true,
+      "details": {
+        "current": "victory",
+        "time": 0.1671000000014901
+      }
+    },
+    {
+      "name": "One-shot swing returns to idle",
+      "passed": true
+    },
+    {
+      "name": "Timeline scrubbing seeks current clip",
+      "passed": true
+    },
+    {
+      "name": "390px mobile layout has no horizontal overflow",
+      "passed": true,
+      "details": {
+        "scrollWidth": 390,
+        "innerWidth": 390,
+        "canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 489.515625,
+          "top": 0,
+          "right": 390,
+          "bottom": 489.515625,
+          "left": 0
+        }
+      }
+    },
+    {
+      "name": "Evidence screenshots saved",
+      "passed": true,
+      "details": [
+        {
+          "file": "evidence/preview-idle.png",
+          "bytes": 310597
+        },
+        {
+          "file": "evidence/preview-face.png",
+          "bytes": 983787
+        },
+        {
+          "file": "evidence/preview-back.png",
+          "bytes": 338325
+        },
+        {
+          "file": "evidence/preview-walk.png",
+          "bytes": 337411
+        },
+        {
+          "file": "evidence/preview-swing-windup.png",
+          "bytes": 497014
+        },
+        {
+          "file": "evidence/preview-swing-sweep.png",
+          "bytes": 496085
+        },
+        {
+          "file": "evidence/preview-flinch.png",
+          "bytes": 315186
+        },
+        {
+          "file": "evidence/preview-victory.png",
+          "bytes": 320772
+        },
+        {
+          "file": "evidence/preview-dead.png",
+          "bytes": 242683
+        },
+        {
+          "file": "evidence/preview-revive.png",
+          "bytes": 282397
+        },
+        {
+          "file": "evidence/preview-mobile-390.png",
+          "bytes": 282221
+        }
+      ]
+    },
+    {
+      "name": "No browser page errors",
+      "passed": true,
+      "details": []
+    }
+  ],
+  "summary": {
+    "passed": 30,
+    "total": 30,
+    "passedAll": true
+  },
+  "evidence": [
+    {
+      "file": "evidence/preview-idle.png",
+      "bytes": 310597
+    },
+    {
+      "file": "evidence/preview-face.png",
+      "bytes": 983787
+    },
+    {
+      "file": "evidence/preview-back.png",
+      "bytes": 338325
+    },
+    {
+      "file": "evidence/preview-walk.png",
+      "bytes": 337411
+    },
+    {
+      "file": "evidence/preview-swing-windup.png",
+      "bytes": 497014
+    },
+    {
+      "file": "evidence/preview-swing-sweep.png",
+      "bytes": 496085
+    },
+    {
+      "file": "evidence/preview-flinch.png",
+      "bytes": 315186
+    },
+    {
+      "file": "evidence/preview-victory.png",
+      "bytes": 320772
+    },
+    {
+      "file": "evidence/preview-dead.png",
+      "bytes": 242683
+    },
+    {
+      "file": "evidence/preview-revive.png",
+      "bytes": 282397
+    },
+    {
+      "file": "evidence/preview-mobile-390.png",
+      "bytes": 282221
+    }
+  ]
+}

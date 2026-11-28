@@ -6,7 +6,7 @@
   "workScope": "visual-asset-and-reusable-attachment",
   "source": "src/generate.mjs",
   "generatedAsset": "model/ghost.glb",
-  "sha256": "71a3bc594b0c2bb13d4d69d97247c20408a612965b7463d40c0419c260cb11c2",
+  "sha256": "8847fbd901c47ed7544d8fb379f35a62601bf8a967e435eee024dbc4ccc8364d",
   "validation": "evidence/validation.json",
   "preview": "preview/index.html",
   "assetOrigin": "Original procedural mesh and animation, with no third-party mesh or texture inputs.",
@@ -26,24 +26,52 @@
     "textures": 0,
     "rig": "Articulated glTF node hierarchy with baked TRS channels"
   },
-  "anchors": {
-    "head": "HeadAnchor",
-    "chest": "ChestAnchor",
-    "back": "BackAnchor",
-    "leftHand": "HandAnchorL",
-    "rightHand": "HandAnchorR"
-  },
+  "anchors": {},
   "clips": [
-    { "name": "idle", "seconds": 2.64, "loop": true, "semantic": "idle" },
-    { "name": "attach", "seconds": 0.72, "loop": false, "semantic": "mount transition" },
-    { "name": "attached_idle", "seconds": 2.5, "loop": true, "semantic": "mounted idle" },
-    { "name": "drain", "seconds": 1.5, "loop": false, "semantic": "drain or attackSwing" },
-    { "name": "flinch", "seconds": 0.64, "loop": false, "semantic": "flinch" },
-    { "name": "dead", "seconds": 1.4, "loop": false, "semantic": "dead" }
+    {
+      "name": "idle",
+      "seconds": 2.64,
+      "loop": true,
+      "semantic": "idle"
+    },
+    {
+      "name": "attach",
+      "seconds": 0.72,
+      "loop": false,
+      "semantic": "mount transition"
+    },
+    {
+      "name": "attached_idle",
+      "seconds": 2.5,
+      "loop": true,
+      "semantic": "mounted idle"
+    },
+    {
+      "name": "drain",
+      "seconds": 1.5,
+      "loop": false,
+      "semantic": "drain or attackSwing"
+    },
+    {
+      "name": "flinch",
+      "seconds": 0.64,
+      "loop": false,
+      "semantic": "flinch"
+    },
+    {
+      "name": "dead",
+      "seconds": 1.4,
+      "loop": false,
+      "semantic": "dead"
+    }
   ],
   "attachment": {
     "controller": "src/attachment.mjs",
-    "defaultOffset": [0.38, 0.12, -0.86],
+    "defaultOffset": [
+      0.38,
+      0.12,
+      -0.86
+    ],
     "defaultOpacityMultiplier": 0.36,
     "defaultTransitionSeconds": 0.72,
     "customization": "An optional descendant anchor and an anchor-local offset supplied by each host."
@@ -53,5 +81,6 @@
     "trianglesAllClips": 10734,
     "meshesIncludingEffects": 59,
     "materials": 10
-  }
+  },
+  "anchorContractNote": "原 anchors 指向的结构空节点（HeadAnchor 等 5 个）在 Issue #108 optimize 时被 prune（运行时无引用）；GLB 几何/动画/材质契约不受影响。"
 }

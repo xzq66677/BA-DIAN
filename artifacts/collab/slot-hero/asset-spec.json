@@ -22,9 +22,27 @@
   "artDirection": {
     "style": "stylized art-deco clockwork automaton",
     "silhouette": "slot-machine torso, three front reels, seven-segment 777 marquee, ivory ceramic face, asymmetrical right-side lever",
-    "palette": ["deep teal enamel", "oxblood enamel", "brushed brass", "ivory ceramic", "burgundy fabric", "cyan signal", "red signal"],
-    "symbols": ["money", "bomb", "attack", "key"],
-    "nonGoals": ["photorealistic scanned human", "gameplay rules", "shared character registry", "production runtime integration"]
+    "palette": [
+      "deep teal enamel",
+      "oxblood enamel",
+      "brushed brass",
+      "ivory ceramic",
+      "burgundy fabric",
+      "cyan signal",
+      "red signal"
+    ],
+    "symbols": [
+      "money",
+      "bomb",
+      "attack",
+      "key"
+    ],
+    "nonGoals": [
+      "photorealistic scanned human",
+      "gameplay rules",
+      "shared character registry",
+      "production runtime integration"
+    ]
   },
   "standardization": {
     "units": "meters",
@@ -37,7 +55,12 @@
   },
   "materialContract": {
     "type": "MeshPhysicalMaterial / MeshStandardMaterial",
-    "embeddedMaps": ["baseColor", "roughness", "metalness", "normal"],
+    "embeddedMaps": [
+      "baseColor",
+      "roughness",
+      "metalness",
+      "normal"
+    ],
     "textureSize": {
       "baseColor": 256,
       "roughnessMetalness": 64,
@@ -46,13 +69,25 @@
     "runtimeExternalResources": false
   },
   "animationContract": {
-    "clipNames": ["idle", "walk", "slot_pull", "flinch", "dead", "reviveRise", "victory"],
+    "clipNames": [
+      "idle",
+      "walk",
+      "slot_pull",
+      "flinch",
+      "dead",
+      "reviveRise",
+      "victory"
+    ],
     "skillClip": "slot_pull",
     "victoryClip": "victory",
     "skillDurationSeconds": 2.6,
     "victoryDurationSeconds": 2.8,
     "leverBone": "Lever",
-    "reelBones": ["Reel.1", "Reel.2", "Reel.3"],
+    "reelBones": [
+      "Reel.1",
+      "Reel.2",
+      "Reel.3"
+    ],
     "existingRigMapping": {
       "idle": "idle",
       "walk": "walk",
@@ -81,5 +116,36 @@
     "visualAsset": "HungerG",
     "issueAndGameplay": "MMR12345",
     "runtimeAdapterAndRegistration": "MMR12345 or explicitly assigned integrator"
-  }
+  },
+  "sha256": "d170515cf6d9859342fe59cb7085cd5970e260623e2aeb7d4b8abdd86aa15122",
+  "clips": [
+    {
+      "name": "idle",
+      "seconds": 4
+    },
+    {
+      "name": "walk",
+      "seconds": 1
+    },
+    {
+      "name": "slot_pull",
+      "seconds": 2.6
+    },
+    {
+      "name": "flinch",
+      "seconds": 0.85
+    },
+    {
+      "name": "dead",
+      "seconds": 1
+    },
+    {
+      "name": "reviveRise",
+      "seconds": 1
+    },
+    {
+      "name": "victory",
+      "seconds": 2.8
+    }
+  ]
 }

@@ -15,6 +15,11 @@ const windUrl = new URL('../../../../artifacts/collab/flying-leech/model/wind-vo
 const slotHeroUrl = new URL('../../../../artifacts/collab/slot-hero/model/slot-hero.glb', import.meta.url).href;
 const chuixiaoUrl = new URL('../../../../artifacts/collab/chuixiao/model/chuixiao.glb', import.meta.url).href;
 const wuliuqiUrl = new URL('../../../../artifacts/collab/wuliuqi/model/wuliuqi.glb', import.meta.url).href;
+const bagunUrl = new URL('../../../../artifacts/collab/bagun/model/bagun.glb', import.meta.url).href;
+const ivanGirlUrl = new URL('../../../../artifacts/collab/ivan-girl/model/ivan-girl.glb', import.meta.url).href;
+const dajiankeUrl = new URL('../../../../artifacts/collab/dajianke/model/dajianke.glb', import.meta.url).href;
+const laodayeUrl = new URL('../../../../artifacts/collab/laodaye/model/laodaye.glb', import.meta.url).href;
+const nobodyUrl = new URL('../../../../artifacts/collab/nobody/model/nobody.glb', import.meta.url).href;
 
 type VisualState = Pick<SnapPlayer, 'alive' | 'char' | 'effects'>;
 export interface RoomDecoration {
@@ -57,6 +62,12 @@ const characters: Readonly<Record<string, Options>> = {
   // 吹箫哥/伍六七 GLB 协作资产（Issue #117）：程序化 rig（chuixiao-v1/wuliuqi-v1）保留为加载失败兜底。
   chuixiao: { url: chuixiaoUrl, id: 'chuixiao-glb-v1', height: 2.168, clips: { attackSwing: 'attack' } },
   wuliuqi: { url: wuliuqiUrl, id: 'wuliuqi-glb-v1', height: 2.078, clips: { attackSwing: 'attack' } },
+  // 第二批 GLB 协作资产（Issue #117）：各包 HANDOFF 记录 clip 语义与压缩后自检偏差。
+  bagun: { url: bagunUrl, id: 'bagun-glb-v1', height: 2.257, clips: { attackSwing: 'swing', cheer: 'victory' } },
+  'ivan-girl': { url: ivanGirlUrl, id: 'ivan-girl-glb-v2', height: 1.583, clips: { attackSwing: 'throw', cheer: 'victory' } },
+  dajianke: { url: dajiankeUrl, id: 'dajianke-glb-v1', height: 2.21, clips: { attackSwing: 'swing', cheer: 'victory' } },
+  laodaye: { url: laodayeUrl, id: 'laodaye-glb-v1', height: 2.048, clips: { attackSwing: 'swing', cheer: 'victory' } },
+  default: { url: nobodyUrl, id: 'nobody-glb-v1', height: 1.935, clips: { attackSwing: 'swing', cheer: 'victory' } },
 };
 const urls: Readonly<Record<string, string>> = {
   ...Object.fromEntries(Object.entries(characters).map(([id, opt]) => [id, opt.url])),
