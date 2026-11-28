@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { net, type RoomListEntry } from '../net.js';
 import { MAX_ROOM_SEATS } from '../../../shared/src/room-limits.js';
 import { CHARACTER_LIST } from '../../../shared/src/characters/index.js';
-import { thumbOf, cardMeta } from '../cards.js';
+import { thumbOf, cardMeta, extraCardIds, CARD_META } from '../cards.js';
 
 /** 创建/加入被服务端拒绝时携带的占用房间码（B-029 逃生口） */
 interface RoomOpResult {
@@ -129,6 +129,11 @@ export default function Home({ onEnter, onArena }: {
 
   const detailMeta = detail ? cardMeta(detail) : null;
   const detailChar = detail ? CHARACTER_LIST.find((c) => c.id === detail) : null;
+  // 未入册角色（卡面先行收录）用 CARD_META 自带的名字与面板；入册角色以花名册为准
+  const detailName = detailChar?.name ?? detailMeta?.name ?? detail ?? '';
+  const detailPanel = detailChar
+    ? `（HP ${detailChar.hp ?? 3} / 攻 ${detailChar.attack ?? 1}）`
+    : detailMeta?.panel ? `（${detailMeta.panel}）` : '';
 
   return (
     <div className="tcg-app tcg-lobby">
@@ -152,6 +157,22 @@ export default function Home({ onEnter, onArena }: {
               </div>
             )
           ))}
+          {/* 未实装入册但已收录卡面的角色（图鉴补位，如 Issue #95 水蛭 Q 版） */}
+          {extraCardIds(CHARACTER_LIST.map((c) => c.id)).map((id) => {
+            const m = CARD_META[id];
+            const label = m.name ?? id;
+            return m.thumb ? (
+              <img key={id} src={m.thumb} alt={label} title={label}
+                onClick={() => setDetail(id)}
+                style={{ cursor: 'pointer' }}
+              />
+            ) : (
+              <div key={id} className="showcase-ph" title={label} onClick={() => setDetail(id)}>
+                <span>{label.slice(0, 1)}</span>
+                <small>{label}</small>
+              </div>
+            );
+          })}
         </div>
         <p className="muted" style={{ fontSize: 12 }}>
           ⚔ 每回合所有存活玩家隐藏出拳 → 胜者获得行动资格 → 再判定行动顺序（输者先动）→ 依次移动 / 攻击 / 回复 / 发动技能 → HP归零淘汰 → 最后一人获胜
@@ -259,15 +280,16 @@ export default function Home({ onEnter, onArena }: {
         </div>
       )}
 
-      {detailMeta && detailChar && (
+      {detailMeta && (
         <div className="card-detail" onClick={() => setDetail(null)}>
           <div className="card-detail-inner" onClick={(e) => e.stopPropagation()}>
-            {detailMeta.img && <img src={detailMeta.img} alt={detailChar.name} />}
-            <h3>No.{detailMeta.no} · {detailChar.name}（HP {detailChar.hp ?? 3} / 攻 {detailChar.attack ?? 1}）</h3>
+            {detailMeta.img && <img src={detailMeta.img} alt={detailName} />}
+            <h3>No.{detailMeta.no} · {detailName}{detailPanel}</h3>
             <div className="cd-skills">{detailMeta.skills}</div>
             <div className="cd-mech">{detailMeta.mech}</div>
             {detailMeta.quote && <div className="cd-quote">「{detailMeta.quote}」</div>}
-            {detailChar.dataMissing?.length ? <div className="cd-mech" style={{ color: '#a2651a' }}>⚠ 待确认：{detailChar.dataMissing.join('；')}</div> : null}
+            {detailChar?.dataMissing?.length ? <div className="cd-mech" style={{ color: '#a2651a' }}>⚠ 待确认：{detailChar.dataMissing.join('；')}</div> : null}
+            {!detailChar && <div className="cd-mech" style={{ color: '#a2651a' }}>⚠ 该角色尚未实装入局，卡面先行收录（HP/攻按卡面原文显示）</div>}
             <button className="tcg-btn" style={{ marginTop: 14, width: '100%' }} onClick={() => setDetail(null)}>关闭</button>
           </div>
         </div>
