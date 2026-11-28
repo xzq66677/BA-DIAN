@@ -11,3 +11,13 @@ client/dist-e2e/
 
 # 大贱客专项：行为验证录像只留本地，仓库只收 PNG/JSON 对照素材
 docs/screenshots-djk/**/*.webm
+
+# 离线蒙特卡洛模拟器（scripts/sim）：构建产物与运行结果只留本地
+dist-sim/
+.sim-build/
+.sim-*/
+out-*/
+.exp-90min-extract/
+运行包/
+BA-DIAN-*.zip
+.tmp-esbuild/

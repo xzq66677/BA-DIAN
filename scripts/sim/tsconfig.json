@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "../../.sim-build",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "skipLibCheck": true
+  },
+  "files": [
+    "src/main.ts",
+    "src/verify.ts",
+    "src/replay.ts",
+    "src/merge.ts",
+    "src/rebalance.ts",
+    "src/seed-check.ts",
+    "src/_worker-embedded.ts",
+    "src/_build-version.ts",
+    "../../shared/src/testcases/index.ts"
+  ],
+  "include": ["src/**/*.ts"]
+}
