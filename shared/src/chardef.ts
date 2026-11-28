@@ -33,6 +33,8 @@ export interface GameLike {
   isInTower(pid: PlayerId): boolean;
   /** 高塔墙隔绝：双方分处塔内外且不同侧时为 true（指向性攻击不可穿越，吸/吹与移动不受限） */
   towerWallBetween(a: PlayerId, b: PlayerId): boolean;
+  /** 地图级移动限制（悬浮遗迹等）：能否从当前房间移动到目标房间 */
+  isMoveBlocked(pid: PlayerId, room: RoomId): boolean;
   /**
    * 房间级伤害吸收：让高塔等环境结构优先承受一次房间级效果，返回是否被吸收。
    * 统一入口见 `damage.ts` 的 dealRoomDamage（吸收 + 房间成员结算）。
@@ -161,8 +163,15 @@ export interface JudgeAppendCtx {
 }
 
 export interface CharacterAiContext {
-  game: Pick<GameLike, 'roundNo' | 'players' | 'roomIds' | 'roomMembers' | 'isSameRoom' | 'towerWallBetween' | 'getStatus' | 'hasStatus'>;
-  difficulty: 'normal' | 'hard';
+  /**
+   * 宗师档（expert）的角色专属策略需要读取对手面板、移动限制与规则开关，
+   * 因此这里的可见面比早期钩子更宽；全部字段都是引擎公开信息，不含隐藏数据。
+   */
+  game: Pick<GameLike,
+    | 'roundNo' | 'players' | 'playerIds' | 'roomIds' | 'roomMembers'
+    | 'isSameRoom' | 'towerWallBetween' | 'getStatus' | 'hasStatus'
+    | 'aliveIds' | 'charDef' | 'charState' | 'rules' | 'isMoveBlocked'>;
+  difficulty: 'normal' | 'hard' | 'expert';
   pid: PlayerId;
   me: PlayerState;
   st: CharRuntimeState;
