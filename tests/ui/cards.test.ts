@@ -31,6 +31,17 @@ describe('角色卡注册表（CARD_META）', () => {
     expect(cardMeta('water-snake')?.no).toBe('73');
   });
 
+  it('骷髅弓箭手（资料补录卡 No.89）卡面入册：图、卡号、台词按卡面（Issue #115）', () => {
+    const m = cardMeta('hunchback-archer')!;
+    expect(m.img).toBe('./cards/hunchback-archer.webp');
+    expect(m.thumb).toBe('./cards/hunchback-archer-thumb.webp');
+    expect(m.no).toBe('89'); // 卡面原稿编号 No.89/136
+    expect(m.quote).toBe('你拿火烤我我不散；拿别的打散我，一回合后倒着放回来，还是半血。');
+    expect(m.skills).toContain('燃烧箭');
+    expect(existsSync(path.join(publicDir, m.img!))).toBe(true);
+    expect(existsSync(path.join(publicDir, m.thumb!))).toBe(true);
+  });
+
   it('水蛭（飞天水蛭另一形态，No.70）未入册，作为图鉴条目补位展示', () => {
     const extras = extraCardIds(CHARACTER_LIST.map((c) => c.id));
     expect(extras).toEqual(['leech']);

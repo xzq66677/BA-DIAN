@@ -98,10 +98,10 @@ export const CARD_META: Record<string, CardMeta> = {
     quote: '赢赢赢我炸，赢平输我更炸。',
   },
   'hunchback-archer': {
-    no: '—',
+    img: './cards/hunchback-archer.webp', thumb: './cards/hunchback-archer-thumb.webp', no: '89',
     skills: '【燃烧箭】·【骷髅身躯】·【箭袋】',
     mech: '远程攻击 1 伤并点燃（每回合 0.5，无限持续，直到目标消耗一次行动扑灭；可打同房间）。精神/燃烧之外的伤害致死不会死亡：完整缺席 1 回合（仍参与猜拳）后以半血复原；燃烧致死才彻底死亡；无法主动回复。同房间燃烧者能引燃它；同房间敌人可花 2 次行动取燃烧箭、再花 1 次行动近战（1 伤+点燃，攻击一次后失效），取箭途中被它攻击会中断。',
-    quote: '骨头会散，箭不会。',
+    quote: '你拿火烤我我不散；拿别的打散我，一回合后倒着放回来，还是半血。',
   },
   ghost: {
     img: './cards/ghost.webp', thumb: './cards/ghost-thumb.webp', no: '36',
