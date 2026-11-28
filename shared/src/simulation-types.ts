@@ -1,6 +1,11 @@
 import type { MapId } from './maps.js';
 import type { ActionRequest, GamePlayerConfig, PlayerId, RuleConfig, Throw } from './types.js';
 
+/**
+ * 输入流版本策略（与 wire 协议一致，见 protocol.ts「Version 1 is additive」）：
+ * v1 内增量 —— 新增 kind 不 bump 版本号；但未知 kind 必须大声失败
+ * （simulation.ts 的 applyInput 会 throw），不允许静默吞掉或静默错乱。
+ */
 export const SIMULATION_VERSION = 1;
 
 export type MatchInput =

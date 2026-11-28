@@ -29,6 +29,9 @@ function applyInput(game: Game, input: MatchInput): ActionResult {
     case 'remove':
       game.removeParticipants(input.ids, input.reason, input.host);
       return { ok: true };
+    default:
+      // 未知 kind：大声失败，不允许静默吞掉或静默错乱（版本策略见 simulation-types.ts）。
+      throw new Error(`Unknown simulation input kind: ${(input as { kind?: string }).kind ?? '(missing)'}`);
   }
 }
 
