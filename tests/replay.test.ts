@@ -154,6 +154,26 @@ describe('可重演对局输入', () => {
     }
   });
 
+  it('含未知 kind 的 transcript：重演抛干净错误而非 TypeError（Issue #106）', () => {
+    const room = new Room('GUARD', { submitTimeoutMs: 0, turnTimeoutMs: 0 });
+    const a = room.addSeat('A', 'default', 'human').playerId;
+    const b = room.addSeat('B', 'default', 'human').playerId;
+    try {
+      room.start(42);
+      room.submitThrow(a, 'rock');
+      room.submitThrow(b, 'scissors');
+      room.removeParticipants([b], 'left'); // 终局归档后 transcript 才挂载到 replay 记录
+      expect(room.state).toBe('over');
+      const transcript = structuredClone(room.replays[0].simulation!);
+      expect(transcript.inputs.length).toBeGreaterThan(0);
+      // 模拟未来版本新增的输入 kind：版本号按「v1 内增量」策略未 bump，当前引擎不认识
+      (transcript.inputs[0].input as { kind: string }).kind = 'timeTravel';
+      expect(() => replayMatch(transcript, 1)).toThrow(/Unknown simulation input kind: timeTravel/);
+    } finally {
+      room.dispose();
+    }
+  });
+
   it('可重演技能判定的中间一拳，随后独立重演至终局', () => {
     const room = new Room('JUDGE', { submitTimeoutMs: 0, turnTimeoutMs: 0 });
     const a = room.addSeat('A', 'mabaoguo', 'human').playerId;
