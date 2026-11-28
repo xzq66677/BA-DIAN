@@ -23,7 +23,7 @@ import { gllog } from './gllog.js';
 import { slotMachineDropFx } from './slot-drop-fx.js';
 import { B3D_RESTORE_WAIT_MS } from './gl-policy.js';
 import { loadedCollaborationVisualId, roomDecoration } from './characters/collab-assets.js';
-import { RoomDecorations, windAssetFx, windTravel } from './collaboration-props.js';
+import { RoomDecorations, vortexPull, windAssetFx, windTravel } from './collaboration-props.js';
 import type { AssetCue } from './collaboration-presenters.js';
 export { preloadCollaborationAssets } from './characters/collab-assets.js';
 
@@ -724,7 +724,14 @@ export class BattleScene3D {
       for (const target of cue.targets) {
         const entity = this.entities.get(target);
         if (entity?.walk && cue.moves?.some(move => move.pid === target)) {
-          entity.walk.curve = windTravel(cue.directional, entity.walk.from, entity.walk.to);
+          // 吸：漩涡吸附（螺旋收敛 + 受击姿态，不走路）；吹：保持风道漂移（Issue #99）
+          if (cue.directional === 'inhale') {
+            entity.walk.curve = vortexPull(entity.walk.from, entity.walk.to)
+              ?? windTravel(cue.directional, entity.walk.from, entity.walk.to);
+            entity.pose = { kind: 'flinch', t: 0, dur: Math.max(.4, cue.seconds) };
+          } else {
+            entity.walk.curve = windTravel(cue.directional, entity.walk.from, entity.walk.to);
+          }
           entity.walk.dur = cue.seconds;
         }
         const position = this.worldOf(target);
