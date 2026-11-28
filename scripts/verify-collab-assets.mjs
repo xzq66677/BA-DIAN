@@ -13,7 +13,7 @@ const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'],
 });
 
-const IDS = ['ghost', 'wild-hunt', 'hunchback-archer', 'water-snake', 'slot-hero'];
+const IDS = ['ghost', 'wild-hunt', 'hunchback-archer', 'water-snake', 'slot-hero', 'chuixiao', 'wuliuqi'];
 // 道具资产随 water-snake 的 props 链一起加载；loadedCollaborationVisualId 只覆盖 characters 表，
 // 道具加载失败会以 glb 请求失败 / preload 错误的形式暴露，不在此单独断言。
 const PROP_IDS = ['basalt-tower', 'wind-vortex'];
@@ -33,42 +33,47 @@ try {
     const errors = [];
     await m.preloadCollaborationAssets(ids).catch((e) => errors.push(`preload: ${e?.message ?? e}`));
     const loaded = Object.fromEntries(ids.map((id) => [id, m.loadedCollaborationVisualId(id) ?? null]));
-    // 克隆一份 slot-hero 并校验网格可解析、蒙皮/动画齐全（压缩损坏在此暴露）
-    let meshes = -1;
-    let skinned = -1;
-    let clips = -1;
-    try {
-      const asset = m.cloneAsset('slot-hero');
-      if (asset) {
-        let meshCount = 0;
-        let skinnedCount = 0;
-        asset.scene.traverse((n) => {
-          if (n.isMesh) meshCount += 1;
-          if (n.isSkinnedMesh) skinnedCount += 1;
-          if (n.isMesh) {
-            const pos = n.geometry?.attributes?.position;
-            if (!pos || !(pos.count > 0)) throw new Error('empty position accessor');
-          }
-        });
-        meshes = meshCount;
-        skinned = skinnedCount;
-        clips = asset.clips.size;
-        asset.dispose();
+    // 克隆代表性角色并校验网格可解析、蒙皮/动画齐全（压缩损坏在此暴露）
+    const CLONE_IDS = ['slot-hero', 'chuixiao'];
+    const clones = {};
+    for (const cloneId of CLONE_IDS) {
+      try {
+        const asset = m.cloneAsset(cloneId);
+        if (asset) {
+          let meshCount = 0;
+          let skinnedCount = 0;
+          asset.scene.traverse((n) => {
+            if (n.isMesh) meshCount += 1;
+            if (n.isSkinnedMesh) skinnedCount += 1;
+            if (n.isMesh) {
+              const pos = n.geometry?.attributes?.position;
+              if (!pos || !(pos.count > 0)) throw new Error('empty position accessor');
+            }
+          });
+          clones[cloneId] = { meshes: meshCount, skinned: skinnedCount, clips: asset.clips.size };
+          asset.dispose();
+        }
+      } catch (e) {
+        errors.push(`cloneAsset ${cloneId}: ${e?.message ?? e}`);
       }
-    } catch (e) {
-      errors.push(`cloneAsset: ${e?.message ?? e}`);
     }
-    return { loaded, meshes, skinned, clips, errors };
+    return { loaded, clones, errors };
   }, IDS);
 
   console.log('loaded visual ids:', result.loaded);
-  console.log('slot-hero clone: meshes=', result.meshes, 'skinned=', result.skinned, 'clips=', result.clips);
+  for (const [cloneId, stats] of Object.entries(result.clones)) {
+    console.log(`${cloneId} clone: meshes=`, stats.meshes, 'skinned=', stats.skinned, 'clips=', stats.clips);
+  }
 
   for (const id of IDS) assert.notEqual(result.loaded[id], null, `${id} GLB 未加载成功（MeshoptDecoder 失败或 404）`);
   const propFailures = failures.filter((f) => PROP_IDS.some((p) => f.includes(p)));
   assert.deepEqual(propFailures, [], `道具 GLB 请求失败: ${JSON.stringify(propFailures)}`);
-  assert.ok(result.meshes > 0, 'slot-hero 克隆场景应包含网格');
-  assert.ok(result.clips > 0, 'slot-hero 克隆应携带动画剪辑');
+  for (const cloneId of ['slot-hero', 'chuixiao']) {
+    const stats = result.clones[cloneId];
+    assert.ok(stats, `${cloneId} 克隆应成功`);
+    assert.ok(stats.meshes > 0, `${cloneId} 克隆场景应包含网格`);
+    assert.ok(stats.clips > 0, `${cloneId} 克隆应携带动画剪辑`);
+  }
   assert.deepEqual(result.errors, [], `无加载/解析错误，实际: ${JSON.stringify(result.errors)}`);
   // dev-only 页面没有游戏后端：socket.io 握手失败 / API 404·500 属预期噪音，不在本验证范围；
   // GLB 请求失败已由 requestfailed 单独捕获。
@@ -76,7 +81,7 @@ try {
     || f.includes('Failed to load resource');
   const relevantFailures = failures.filter((f) => !noise(f));
   assert.deepEqual(relevantFailures, [], `无浏览器错误，实际: ${JSON.stringify(relevantFailures)}`);
-  console.log('VERIFY OK: 5 角色 + 2 道具 meshopt 压缩 GLB 全部解码成功');
+  console.log('VERIFY OK: 7 角色 + 2 道具 meshopt 压缩 GLB 全部解码成功');
 } finally {
   await browser.close();
 }

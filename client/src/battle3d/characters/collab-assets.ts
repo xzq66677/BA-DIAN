@@ -13,6 +13,8 @@ const snakeUrl = new URL('../../../../artifacts/collab/flying-leech/model/flying
 const towerUrl = new URL('../../../../artifacts/collab/flying-leech/model/basalt-tower.glb', import.meta.url).href;
 const windUrl = new URL('../../../../artifacts/collab/flying-leech/model/wind-vortex.glb', import.meta.url).href;
 const slotHeroUrl = new URL('../../../../artifacts/collab/slot-hero/model/slot-hero.glb', import.meta.url).href;
+const chuixiaoUrl = new URL('../../../../artifacts/collab/chuixiao/model/chuixiao.glb', import.meta.url).href;
+const wuliuqiUrl = new URL('../../../../artifacts/collab/wuliuqi/model/wuliuqi.glb', import.meta.url).href;
 
 type VisualState = Pick<SnapPlayer, 'alive' | 'char' | 'effects'>;
 export interface RoomDecoration {
@@ -52,6 +54,9 @@ const characters: Readonly<Record<string, Options>> = {
       const machine = slotMachineState({ charId: 'slot-hero', char: state.char });
       if (machine?.landed) return { room: machine.room, asset: 'slot-machine', progress: 1 };
     } },
+  // 吹箫哥/伍六七 GLB 协作资产（Issue #117）：程序化 rig（chuixiao-v1/wuliuqi-v1）保留为加载失败兜底。
+  chuixiao: { url: chuixiaoUrl, id: 'chuixiao-glb-v1', height: 2.168, clips: { attackSwing: 'attack' } },
+  wuliuqi: { url: wuliuqiUrl, id: 'wuliuqi-glb-v1', height: 2.078, clips: { attackSwing: 'attack' } },
 };
 const urls: Readonly<Record<string, string>> = {
   ...Object.fromEntries(Object.entries(characters).map(([id, opt]) => [id, opt.url])),
