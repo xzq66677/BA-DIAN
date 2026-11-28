@@ -278,6 +278,14 @@ export class Game implements GameLike {
     return this.players[pid]?.char.inTower === true;
   }
 
+  /**
+   * 高塔墙隔绝：双方不同侧（任一在塔内且不与对方同侧）时返回 true。
+   * 指向性攻击不可穿越塔墙（吸/吹与移动不受限）；接管攻击（onAttackAction）也必须先过此墙。
+   */
+  towerWallBetween(a: PlayerId, b: PlayerId): boolean {
+    return !this.isSameRoom(a, b) && (this.isInTower(a) || this.isInTower(b));
+  }
+
   isOver(): boolean {
     return this.phase === 'over';
   }

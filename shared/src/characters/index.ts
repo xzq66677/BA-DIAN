@@ -859,10 +859,15 @@ const wildHunt: CharDef = {
     if (!mounted && !game.isSameRoom(actor, targetId)) {
       return { ok: false, error: '未骑乘时只能近战同房间目标' };
     }
+    // 高塔墙隔绝与基础攻击同规则：骑乘冲锋同样不可穿墙进/出高塔（Issue #97）
+    if (game.towerWallBetween(actor, targetId)) {
+      return { ok: false, error: '高塔内外隔绝，无法直接攻击' };
+    }
     if (target.hidden || target.invisible) return { ok: false, error: '目标正在躲藏/隐身，无法锁定' };
 
     const fromRoom = p.room;
-    const moves = mounted ? game.relocatePlayer(actor, target.room, game.isInTower(actor)) : [];
+    // 位移落到目标所在位置：塔状态取目标侧（冲锋只发生在墙的同侧，见上方校验）
+    const moves = mounted ? game.relocatePlayer(actor, target.room, game.isInTower(targetId)) : [];
     const expires = typeof st.mountExpiresRound === 'number' ? st.mountExpiresRound : 0;
     const finalRound = mounted && game.roundNo >= expires;
     const kills = typeof st.kills === 'number' ? st.kills : 0;
@@ -889,7 +894,8 @@ const wildHunt: CharDef = {
   aiStrategy: ({ game, pid, alive, st }) => {
     if (st.mounted !== true) return { type: 'mount' };
     const target = alive
-      .filter((p) => p !== pid && !(game.players[p].hidden || game.players[p].invisible))
+      .filter((p) => p !== pid && !(game.players[p].hidden || game.players[p].invisible)
+        && !game.towerWallBetween(pid, p)) // 塔墙隔绝的目标打不到，别浪费候选
       .sort((a, b) => game.players[a].hp - game.players[b].hp)[0];
     return target ? { type: 'attack', targetId: target } : undefined;
   },
