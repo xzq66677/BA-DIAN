@@ -156,7 +156,7 @@ export interface JudgeAppendCtx {
 }
 
 export interface CharacterAiContext {
-  game: Pick<GameLike, 'roundNo' | 'players' | 'roomIds' | 'roomMembers' | 'isSameRoom' | 'getStatus' | 'hasStatus'>;
+  game: Pick<GameLike, 'roundNo' | 'players' | 'roomIds' | 'roomMembers' | 'isSameRoom' | 'getStatus' | 'hasStatus' | 'towerWallBetween'>;
   difficulty: 'normal' | 'hard';
   pid: PlayerId;
   me: PlayerState;
