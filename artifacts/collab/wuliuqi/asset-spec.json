@@ -1,0 +1,301 @@
+{
+  "schemaVersion": 1,
+  "generatedOn": "2026-11-28",
+  "workScope": "visual-assets-only",
+  "suggestedCharId": "wuliuqi",
+  "visualId": "wuliuqi-v2",
+  "status": "candidate-ready-for-review",
+  "integrationStatus": "not-integrated",
+  "workspaceHead": "354e807",
+  "author": "HungerG local procedural asset pipeline",
+  "source": "preview/wuliuqi.js",
+  "generatedAsset": "model/wuliuqi.glb",
+  "sha256": "d30820514f801945c708e3a5740919a2527340ea4ca4cf033ca92b470d254ed7",
+  "validation": "evidence/validation.json",
+  "validationScript": "validate.mjs",
+  "license": "project-internal procedural source; original stylized approximation with no downloaded meshes, official textures, or externally generated image inputs",
+  "externalCredentials": {
+    "used": false,
+    "reason": "Explicit local procedural workflow; no external generation service required."
+  },
+  "artDirection": {
+    "style": "original stylized low-poly assassin inspired by the public visual identity of 刺客伍六七",
+    "silhouette": "tied three-prong black hair tuft, sharp fringe, oversized off-white hoodie with kangaroo pocket and chest marking, black inner tee, charcoal shorts, slim black Beijing cloth shoes, silver scissors with red grips",
+    "expression": "deadpan narrowed eyes, angled brows and closed mouth",
+    "palette": [
+      "off-white hoodie",
+      "ink black",
+      "charcoal",
+      "warm skin",
+      "black cloth",
+      "red grip",
+      "silver steel",
+      "cool slash white"
+    ],
+    "referenceUse": "The existing wuliuqi card, the user's portrait reference, and public character descriptions informed identity, palette and silhouette only. No reference pixels, official meshes, or franchise textures are embedded.",
+    "v2Refinements": [
+      "Replaced incorrect magenta high-top sneakers with low-profile black cloth shoes, layered charcoal soles, stitched seams and flat laces.",
+      "Strengthened the tied three-prong hair silhouette, sharp fringe and deadpan eye/brow treatment.",
+      "Added hoodie pocket, drawstrings, ribbed collar folds, chest 67 marking, sleeve cuffs and hood seam detail."
+    ],
+    "referenceResearch": {
+      "footwearFinding": "Public character descriptions consistently identify the everyday outfit footwear as black Beijing cloth shoes, not high-top sneakers.",
+      "sources": [
+        "https://m.baike.com/wikiid/154184657818572212?anchor=m1ek4dlw17yg",
+        "https://baike.quark.cn/baike?id=893c15bc8bd54f7fab2c0ed8214cdc6a",
+        "https://www.sohu.com/a/643021709_120610301"
+      ],
+      "embeddedReferenceAssets": false
+    },
+    "nonGoals": [
+      "official or photorealistic franchise asset",
+      "gameplay rules",
+      "shared character registry",
+      "production runtime integration",
+      "sound effects"
+    ]
+  },
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "footY": 0,
+    "measuredFootY": -5.140900483091571e-10,
+    "pivot": "feet center",
+    "rootMotion": false,
+    "verticalGroundCorrection": "idle, walk, flinch, dead and reviveRise use Root.position.y only to keep the skinned bounds on the ground; horizontal root displacement remains zero.",
+    "heightMeters": 2.077779994350159,
+    "widthMeters": 0.7081300022852776,
+    "depthMeters": 0.7600012195885181,
+    "restBounds": {
+      "min": [
+        -0.34396899844916784,
+        -5.140900483091571e-10,
+        -0.18000000715255737
+      ],
+      "max": [
+        0.3641610038361097,
+        2.077779993836069,
+        0.5800012124359607
+      ]
+    }
+  },
+  "materialContract": {
+    "type": "MeshPhysicalMaterial / MeshStandardMaterial",
+    "embeddedMaps": [
+      "baseColor",
+      "roughness",
+      "metalness",
+      "normal"
+    ],
+    "textureSize": {
+      "baseColor": 128,
+      "roughnessMetalness": 64,
+      "normal": 64
+    },
+    "runtimeExternalResources": false,
+    "texturedPbrMaterials": 12,
+    "flatStandardMaterials": 4,
+    "materials": [
+      "white_hoodie",
+      "hoodie_shadow",
+      "black_tee",
+      "charcoal_shorts",
+      "warm_skin",
+      "ink_black_hair",
+      "hair_highlight",
+      "black_cloth_shoes",
+      "charcoal_cloth_sole",
+      "scissor_steel",
+      "scissor_edge",
+      "red_grip",
+      "warm_eye_white",
+      "dark_iris",
+      "closed_lips",
+      "slash_light"
+    ],
+    "loadedTextures": 48,
+    "embeddedImages": 36
+  },
+  "skeletonContract": {
+    "bones": 29,
+    "meshes": 16,
+    "skinnedMeshes": 16,
+    "skins": 16,
+    "jointsPerSkin": 29,
+    "skinIndexEncoding": "UNSIGNED_BYTE",
+    "skinWeightEncoding": "FLOAT",
+    "headRestScale": 0.94,
+    "leftScissorsRestScale": 0.78,
+    "hoodieWeights": "Lower hoodie follows Pelvis, mid hoodie blends Pelvis/Spine, upper hoodie blends Spine/Chest.",
+    "secondaryBones": [
+      "HairTuft"
+    ],
+    "weaponBones": [
+      "ScissorsR",
+      "BladeUpperR",
+      "BladeLowerR",
+      "ScissorsL",
+      "BladeUpperL",
+      "BladeLowerL"
+    ],
+    "importantBones": [
+      "Root",
+      "Pelvis",
+      "Spine",
+      "Chest",
+      "Neck",
+      "Head",
+      "HairTuft",
+      "UpperArmL",
+      "ForearmL",
+      "HandL",
+      "UpperArmR",
+      "ForearmR",
+      "HandR",
+      "ThighL",
+      "ShinL",
+      "FootL",
+      "ThighR",
+      "ShinR",
+      "FootR",
+      "ScissorsR",
+      "BladeUpperR",
+      "BladeLowerR",
+      "ScissorsL",
+      "BladeUpperL",
+      "BladeLowerL"
+    ],
+    "effectBonesHiddenAtRest": [
+      "CutRing",
+      "Slash0",
+      "Slash1",
+      "Slash2"
+    ],
+    "effectRestScale": 0.0001,
+    "deathConstruction": "Root rotates backward with articulated hip, spine, head and limb bends; vertex-sampled Root.position.y correction prevents ground penetration. reviveRise reverses every dead track."
+  },
+  "animationContract": {
+    "clipNames": [
+      "idle",
+      "walk",
+      "cast",
+      "attack",
+      "flinch",
+      "cheer",
+      "dead",
+      "reviveRise"
+    ],
+    "durationsSeconds": {
+      "idle": 4,
+      "walk": 1.2,
+      "cast": 3,
+      "attack": 2.4,
+      "flinch": 0.75,
+      "cheer": 2.4,
+      "dead": 1.5,
+      "reviveRise": 1.5
+    },
+    "tracksByClip": {
+      "idle": 9,
+      "walk": 16,
+      "cast": 12,
+      "attack": 15,
+      "flinch": 9,
+      "cheer": 10,
+      "dead": 18,
+      "reviveRise": 18
+    },
+    "loopingClips": [
+      "idle",
+      "walk",
+      "cast"
+    ],
+    "oneShotClips": [
+      "attack",
+      "flinch",
+      "cheer",
+      "reviveRise"
+    ],
+    "terminalClips": [
+      "dead"
+    ],
+    "castTiming": {
+      "duration": "0.00-3.00s",
+      "effect": "CutRing pulses and travels along +Z while both scissors flourish",
+      "sample": "At 1.50s CutRing has scale 0.35 and world z approximately 0.655m"
+    },
+    "attackTiming": {
+      "windup": "0.00-0.42s",
+      "slashPeakSeconds": [
+        0.58,
+        1.18,
+        1.78
+      ],
+      "slashVisibleWindowSeconds": [
+        "0.42-0.74",
+        "1.02-1.34",
+        "1.62-1.94"
+      ],
+      "bladeMotion": "BladeUpperR/BladeLowerR snap closed at each slash peak and reopen during recovery",
+      "sample": "At 0.58s Slash0 has scale 1.27 and world z approximately 0.955m",
+      "recover": "1.94-2.40s"
+    },
+    "existingRigMapping": {
+      "idle": "idle",
+      "walk": "walk",
+      "cast": "cast",
+      "attackSwing": "attack",
+      "flinch": "flinch",
+      "cheer": "cheer",
+      "dead": "dead",
+      "reviveRise": "reviveRise"
+    },
+    "unsupportedRigMethods": {
+      "drink": "Use a safe idle pose until a dedicated clip exists.",
+      "crouch": "Use a safe idle pose until a dedicated clip exists."
+    }
+  },
+  "budget": {
+    "targetGlbMegabytes": 4,
+    "actualGlbMegabytes": 1.564384,
+    "actualGlbMebibytes": 1.491912841796875,
+    "actualGlbBytes": 1564384,
+    "budgetStatus": "under-target",
+    "targetTriangles": 65000,
+    "actualTriangles": 20974,
+    "triangleBudgetStatus": "under-target",
+    "actualVertices": 14253,
+    "actualModelDrawCalls": 16,
+    "actualLoadedTextures": 48,
+    "actualEmbeddedImages": 36
+  },
+  "validationSummary": {
+    "checksPassed": 26,
+    "checksFailed": 0,
+    "independentGltfLoaderReload": true,
+    "embeddedResourcesOnly": true,
+    "normalizedSkinWeights": true,
+    "minWeightSum": 0.9999999701976776,
+    "maxWeightSum": 1.0000000298023224,
+    "finiteOrderedAnimationTracks": true,
+    "reverseAnimationSampleCount": 141,
+    "maxReversePositionError": 1.0296184703439959e-8,
+    "maxReverseQuaternionError": 3.2626757399768367e-8,
+    "maxReverseScaleError": 1.3552527156068805e-20,
+    "walkHorizontalRootDisplacement": 0,
+    "maxRegularClipGroundPenetrationMeters": 0,
+    "maxDeathClipGroundPenetrationMeters": 0,
+    "mobileViewportWidth": 390,
+    "mobileHorizontalOverflow": false,
+    "pageErrors": 0,
+    "footwearEvidence": "evidence/preview-shoes.png",
+    "facialEvidence": "evidence/preview-face.png",
+    "headlessPreviewNote": "The mobile pass reuses the validated desktop WebGL page at a 390px viewport to avoid creating a second SwiftShader context; layout and canvas metrics are still measured at the narrow viewport. Wall-clock action return can slow under SwiftShader and screenshot load; clip duration, sampled pose, transition and terminal-state checks remain authoritative for this asset report."
+  },
+  "ownership": {
+    "visualAsset": "HungerG",
+    "gameplayAndRegistration": "Unassigned; requires explicit authorization from the relevant owner.",
+    "runtimeAdapter": "Unassigned integrator after asset acceptance."
+  }
+}

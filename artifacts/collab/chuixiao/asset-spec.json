@@ -1,0 +1,267 @@
+{
+  "schemaVersion": 1,
+  "generatedOn": "2026-11-28",
+  "workScope": "visual-assets-only",
+  "suggestedCharId": "chuixiao",
+  "visualId": "chuixiao-v1",
+  "status": "candidate-ready-for-review",
+  "integrationStatus": "not-integrated",
+  "workspaceHead": "354e807",
+  "author": "HungerG local procedural asset pipeline",
+  "source": "preview/chuixiao.js",
+  "generatedAsset": "model/chuixiao.glb",
+  "sha256": "aafd92cc939cb35b5980cde6f2379a3fc03886d3de78438776fa45192cf4dae2",
+  "validation": "evidence/validation.json",
+  "validationScript": "validate.mjs",
+  "license": "project-internal procedural source; no downloaded or externally generated mesh or texture inputs",
+  "externalCredentials": {
+    "used": false,
+    "reason": "Explicit local procedural workflow; no external generation service required."
+  },
+  "artDirection": {
+    "style": "stylized low-poly adult flutist with celadon robes and restrained jade resonance effects",
+    "silhouette": "tied ink-black hair, wide layered green sleeves, pale inner robe, long sash tails, bamboo flute held at the lips",
+    "expression": "serious adult presentation with narrow eyes and thin brows",
+    "palette": [
+      "celadon green",
+      "deep bamboo",
+      "rice linen",
+      "pale jade",
+      "ink black",
+      "warm skin",
+      "resonant mint"
+    ],
+    "referenceUse": "Existing chuixiao card and runtime character informed identity and silhouette only; no reference pixels or external meshes are embedded.",
+    "nonGoals": [
+      "photorealistic scan",
+      "gameplay rules",
+      "shared character registry",
+      "production runtime integration",
+      "sound effects"
+    ]
+  },
+  "standardization": {
+    "units": "meters",
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "footY": 0,
+    "measuredFootY": -5.364417965392221e-9,
+    "pivot": "feet center",
+    "rootMotion": false,
+    "verticalGroundCorrection": "idle, walk, flinch, dead and reviveRise use Root.position.y only to keep the skinned bounds on the ground; horizontal root displacement remains zero.",
+    "heightMeters": 2.1675600455034236,
+    "widthMeters": 0.9323540345356515,
+    "depthMeters": 0.774606924211979,
+    "restBounds": {
+      "min": [
+        -0.32440852707658163,
+        -5.364417965392221e-9,
+        -0.2246057242155075
+      ],
+      "max": [
+        0.6079455074590698,
+        2.167560040139006,
+        0.5500011999964715
+      ]
+    }
+  },
+  "materialContract": {
+    "type": "MeshPhysicalMaterial / MeshStandardMaterial",
+    "embeddedMaps": [
+      "baseColor",
+      "roughness",
+      "metalness",
+      "normal"
+    ],
+    "textureSize": {
+      "baseColor": 128,
+      "roughnessMetalness": 64,
+      "normal": 64
+    },
+    "runtimeExternalResources": false,
+    "texturedPbrMaterials": 12,
+    "flatStandardMaterials": 4,
+    "materials": [
+      "celadon_outer_robe",
+      "deep_bamboo_trim",
+      "rice_linen_inner_robe",
+      "pale_jade_sash",
+      "green_bamboo_flute",
+      "bamboo_nodes",
+      "ink_black_hair",
+      "hair_strand_highlights",
+      "warm_skin",
+      "dark_linen_trousers",
+      "black_green_cloth_boots",
+      "carved_jade",
+      "warm_eye_white",
+      "dark_iris",
+      "closed_lips",
+      "resonant_jade_sound"
+    ],
+    "loadedTextures": 48,
+    "embeddedImages": 36
+  },
+  "skeletonContract": {
+    "bones": 29,
+    "meshes": 16,
+    "skinnedMeshes": 16,
+    "skins": 16,
+    "jointsPerSkin": 29,
+    "skinIndexEncoding": "UNSIGNED_BYTE",
+    "skinWeightEncoding": "NORMALIZED_UNSIGNED_BYTE",
+    "headRestScale": 0.92,
+    "robeWeights": "Lower robe follows Pelvis, mid robe blends Pelvis/Spine, upper robe blends Spine/Chest.",
+    "secondaryBones": [
+      "SashTailL",
+      "SashTailR",
+      "HairTail"
+    ],
+    "importantBones": [
+      "Root",
+      "Pelvis",
+      "Spine",
+      "Chest",
+      "Neck",
+      "Head",
+      "Flute",
+      "UpperArmL",
+      "ForearmL",
+      "HandL",
+      "UpperArmR",
+      "ForearmR",
+      "HandR",
+      "ThighL",
+      "ShinL",
+      "FootL",
+      "ThighR",
+      "ShinR",
+      "FootR",
+      "SashTailL",
+      "SashTailR",
+      "HairTail"
+    ],
+    "effectBonesHiddenAtRest": [
+      "Qi",
+      "SoundRing0",
+      "SoundRing1",
+      "SoundRing2",
+      "Note0",
+      "Note1",
+      "Note2"
+    ],
+    "effectRestScale": 0.0001,
+    "deathConstruction": "Root rotates backward with articulated hip, spine, head and limb bends; vertex-sampled Root.position.y correction prevents ground penetration. reviveRise reverses every dead track."
+  },
+  "animationContract": {
+    "clipNames": [
+      "idle",
+      "walk",
+      "cast",
+      "attack",
+      "flinch",
+      "cheer",
+      "dead",
+      "reviveRise"
+    ],
+    "durationsSeconds": {
+      "idle": 4,
+      "walk": 1.2,
+      "cast": 3,
+      "attack": 2.4,
+      "flinch": 0.75,
+      "cheer": 2.4,
+      "dead": 1.5,
+      "reviveRise": 1.5
+    },
+    "tracksByClip": {
+      "idle": 14,
+      "walk": 19,
+      "cast": 15,
+      "attack": 19,
+      "flinch": 14,
+      "cheer": 14,
+      "dead": 22,
+      "reviveRise": 22
+    },
+    "loopingClips": [
+      "idle",
+      "walk",
+      "cast"
+    ],
+    "oneShotClips": [
+      "attack",
+      "flinch",
+      "cheer",
+      "reviveRise"
+    ],
+    "terminalClips": [
+      "dead"
+    ],
+    "castTiming": {
+      "duration": "0.00-3.00s",
+      "qi": "Continuous breath-like pulse",
+      "soundRings": "Three phase-offset rings expand and travel along +Z",
+      "sample": "At 1.50s SoundRing0 has scale 1.25 and z approximately 1.03m"
+    },
+    "attackTiming": {
+      "windup": "0.00-0.92s",
+      "noteLaunchSeconds": [
+        1.02,
+        1.12,
+        1.22
+      ],
+      "noteVisibleWindowSeconds": "1.02-2.04s",
+      "sample": "At 1.25s Note0 has scale 1 and z approximately 0.8445m",
+      "recover": "2.04-2.40s"
+    },
+    "existingRigMapping": {
+      "idle": "idle",
+      "walk": "walk",
+      "cast": "cast",
+      "attackSwing": "attack",
+      "flinch": "flinch",
+      "cheer": "cheer",
+      "dead": "dead",
+      "reviveRise": "reviveRise"
+    },
+    "unsupportedRigMethods": {
+      "drink": "Use a safe idle pose until a dedicated clip exists.",
+      "crouch": "Use a safe idle pose until a dedicated clip exists."
+    }
+  },
+  "budget": {
+    "targetGlbMegabytes": 4,
+    "actualGlbMegabytes": 1.283488,
+    "actualGlbMebibytes": 1.224029541015625,
+    "actualGlbBytes": 1283488,
+    "budgetStatus": "under-target",
+    "targetTriangles": 65000,
+    "actualTriangles": 17532,
+    "triangleBudgetStatus": "under-target",
+    "actualVertices": 11241,
+    "actualModelDrawCalls": 16,
+    "actualLoadedTextures": 48,
+    "actualEmbeddedImages": 36
+  },
+  "validationSummary": {
+    "independentGltfLoaderReload": true,
+    "embeddedResourcesOnly": true,
+    "normalizedSkinWeights": true,
+    "finiteOrderedAnimationTracks": true,
+    "reverseAnimationSampleCount": 141,
+    "maxReversePositionError": 1.256811964917004e-8,
+    "maxReverseQuaternionError": 3.24527442141509e-8,
+    "maxReverseScaleError": 1.3552527156068805e-20,
+    "walkHorizontalRootDisplacement": 0,
+    "maxRegularClipGroundPenetrationMeters": 0.0008487106426910244,
+    "mobileViewportWidth": 390,
+    "mobileHorizontalOverflow": false,
+    "pageErrors": 0
+  },
+  "ownership": {
+    "visualAsset": "HungerG",
+    "gameplayAndRegistration": "Unassigned; requires explicit authorization from the relevant owner.",
+    "runtimeAdapter": "Unassigned integrator after asset acceptance."
+  }
+}
