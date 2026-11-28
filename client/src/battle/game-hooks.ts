@@ -68,3 +68,25 @@ export function useNarrowScreen(): boolean {
   }, []);
   return on;
 }
+
+/**
+ * 3D 模式行动坞「需要本机输入」判定（Issue #110 回归锁定）。
+ *
+ * battle3d.css 对 `.s3d-mode .action-dock.is-waiting .hand-layout` 施加 display:none——
+ * 凡本机需要操作的面板（出拳/排序/判定/暴走选目标）所属阶段必须判为 is-my-turn，
+ * 否则面板被整体隐藏。暴走触发阶段此前不在清单内，大屁孩持有者看不到目标按钮。
+ */
+export function dockNeedsLocalInput(input: {
+  /** 行动阶段且轮到本机（myTurnId 非空） */
+  myTurn: boolean;
+  /** rps1 全员出拳 */
+  rps1: boolean;
+  /** rps2 排序子轮：本机身份在当前等待组且未提交 */
+  orderPendingLocal: boolean;
+  /** 技能内判定：本机身份在等待出拳 */
+  judgePendingLocal: boolean;
+  /** 暴走触发：本机身份是当前暴走权持有者（Issue #110） */
+  triggerLocalActor: boolean;
+}): boolean {
+  return input.myTurn || input.rps1 || input.orderPendingLocal || input.judgePendingLocal || input.triggerLocalActor;
+}

@@ -30,7 +30,7 @@ import { AnnounceDrawer, GlobalAnnounceBanner } from '../battle/announce-view.js
 import { atkOf, CardDetail, CharCardView, MySeat, RoomSlotMachines } from '../battle/game-cards.js';
 import { BtRoom, IvanProjectile } from '../battle/game-table.js';
 import { ChatDock, InteractFx, LogPanel, StatsPanel } from '../battle/game-panels.js';
-import { useCompactLandscape, useNarrowScreen, useReducedMotion } from '../battle/game-hooks.js';
+import { useCompactLandscape, useNarrowScreen, useReducedMotion, dockNeedsLocalInput } from '../battle/game-hooks.js';
 import {
   hasThrown, namesOf, RevealBoard, throwViewOf, ThrowPrivacy, type ThrowView,
 } from '../battle/throw-view.js';
@@ -514,6 +514,9 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
   // 技能内判定（马保国太极/五连鞭/不讲武德）：只有当前在等出拳的本机身份需要出拳
   const judge = game.judge ?? null;
   const judgePendingLocalIds = judge ? myIds.filter((i) => judge.waitingIds.includes(i.playerId)) : [];
+  // 暴走触发（回合最前）：本机身份是否为当前暴走权持有者（持有者必须能选目标，Issue #110）
+  const triggerLocalActor = game.phase === 'trigger' && !!game.trigger
+    && myIds.some((i) => i.playerId === game.trigger!.actor);
   // 伍六七三刀：下一回合末落于指定房间（回合末结算，先于大伊万爆炸）
   const pendingSlashes = (game.deferred ?? []).filter((d) => d.kind === 'wuliuqi-slash');
   const livingCount = game.players.filter((p) => p.alive).length;
@@ -960,7 +963,13 @@ function GameInner({ lobby, game, session, logs, announces, resync, onExit, onBa
         {announceOpen && <AnnounceDrawer items={announces ?? []} onClose={() => setAnnounceOpen(false)} />}
 
         {/* ── 我的席位 + 手牌（3D 模式：底部悬浮操作坞） ── */}
-        <section className={`action-dock ddz-hand anim-in ${use3d ? ((myTurnId || game.phase === 'rps1' || (game.phase === 'rps2' && orderPendingLocalIds.length > 0) || (game.phase === 'judge' && judgePendingLocalIds.length > 0)) ? 'is-my-turn' : 'is-waiting') : ''}`}>
+        <section className={`action-dock ddz-hand anim-in ${use3d ? (dockNeedsLocalInput({
+          myTurn: !!myTurnId,
+          rps1: game.phase === 'rps1',
+          orderPendingLocal: game.phase === 'rps2' && orderPendingLocalIds.length > 0,
+          judgePendingLocal: game.phase === 'judge' && judgePendingLocalIds.length > 0,
+          triggerLocalActor,
+        }) ? 'is-my-turn' : 'is-waiting') : ''}`}>
           <div className="hand-layout">
             <MySeat p={me} isHost={isHost} acting={game.currentActor === meId} throwView={me ? throwViewOf(game, me.id) : null} hit={pres.hits[meId]} />
             <div className="hand-main">
