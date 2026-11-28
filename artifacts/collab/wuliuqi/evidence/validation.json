@@ -1,0 +1,968 @@
+{
+  "schemaVersion": 2,
+  "generatedOn": "2026-11-28T06:59:49.493Z",
+  "scope": "visual-assets-only",
+  "previewUrl": "http://127.0.0.1:5209/",
+  "asset": {
+    "file": "model/wuliuqi.glb",
+    "bytes": 776196,
+    "megabytes": 0.776196,
+    "mebibytes": 0.7402381896972656,
+    "sha256": "d30820514f801945c708e3a5740919a2527340ea4ca4cf033ca92b470d254ed7",
+    "magic": "glTF",
+    "version": 2,
+    "declaredLength": 776196,
+    "fileLength": 776196,
+    "jsonBytes": 70916,
+    "jsonChunkType": "4e4f534a",
+    "chunks": [
+      {
+        "type": 1313821514,
+        "length": 70916,
+        "offset": 20
+      },
+      {
+        "type": 5130562,
+        "length": 705252,
+        "offset": 70944
+      }
+    ],
+    "externalResources": false,
+    "embeddedImages": 36,
+    "rawSkin": {
+      "passed": false,
+      "issues": [
+        "Invalid inverse bind matrices",
+        "Skin index outside joint range",
+        "Skin weights are not normalized"
+      ],
+      "verticesChecked": 1376
+    }
+  },
+  "model": {
+    "upAxis": "+Y",
+    "forwardAxis": "+Z",
+    "heightMeters": 2.0777799784481523,
+    "widthMeters": 0.7081300281003289,
+    "depthMeters": 0.7599862503389003,
+    "footY": 7.152557435219364e-9,
+    "bones": 29,
+    "meshes": 16,
+    "skinnedMeshes": 16,
+    "skins": 16,
+    "jointsPerSkin": [
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29
+    ],
+    "triangles": 20974,
+    "vertices": 14253,
+    "invalidTopology": 0,
+    "materials": 16,
+    "standardMaterials": 16,
+    "pbrMaterials": [
+      "white_hoodie",
+      "black_tee",
+      "hoodie_shadow",
+      "charcoal_shorts",
+      "warm_skin",
+      "black_cloth_shoes",
+      "charcoal_cloth_sole",
+      "ink_black_hair",
+      "hair_highlight",
+      "red_grip",
+      "scissor_steel",
+      "scissor_edge"
+    ],
+    "untexturedMaterials": [
+      "warm_eye_white",
+      "dark_iris",
+      "closed_lips",
+      "slash_light"
+    ],
+    "loadedTextures": 48,
+    "embeddedImageDimensions": [
+      "map:128x128",
+      "normalMap:64x64",
+      "roughnessMap:64x64",
+      "metalnessMap:64x64"
+    ],
+    "minWeightSum": 1,
+    "maxWeightSum": 1,
+    "invalidWeights": 0,
+    "invalidSkinIndices": 0,
+    "rootNodeName": "Root",
+    "rootRestPosition": [
+      0,
+      0,
+      0
+    ],
+    "restBounds": {
+      "min": [
+        -0.34396900420713467,
+        7.152557435219364e-9,
+        -0.17998503962851214
+      ],
+      "max": [
+        0.36416102389319416,
+        2.07777998560071,
+        0.5800012107103882
+      ],
+      "size": [
+        0.7081300281003289,
+        2.0777799784481523,
+        0.7599862503389003
+      ]
+    },
+    "hiddenAtRest": {
+      "CutRing": {
+        "scale": [
+          0.0001,
+          0.0001,
+          0.0001
+        ],
+        "maxScale": 0.0001,
+        "position": [
+          0,
+          1.28,
+          0.38
+        ],
+        "worldPosition": [
+          0,
+          1.28,
+          0.38
+        ],
+        "maxWorldScale": 0.0001
+      },
+      "Slash0": {
+        "scale": [
+          0.0001,
+          0.0001,
+          0.0001
+        ],
+        "maxScale": 0.0001,
+        "position": [
+          -0.18,
+          1.25,
+          0.42
+        ],
+        "worldPosition": [
+          -0.18,
+          1.25,
+          0.42
+        ],
+        "maxWorldScale": 0.0001
+      },
+      "Slash1": {
+        "scale": [
+          0.0001,
+          0.0001,
+          0.0001
+        ],
+        "maxScale": 0.0001,
+        "position": [
+          0,
+          1.25,
+          0.5
+        ],
+        "worldPosition": [
+          0,
+          1.25,
+          0.5
+        ],
+        "maxWorldScale": 0.0001
+      },
+      "Slash2": {
+        "scale": [
+          0.0001,
+          0.0001,
+          0.0001
+        ],
+        "maxScale": 0.0001,
+        "position": [
+          0.18,
+          1.25,
+          0.58
+        ],
+        "worldPosition": [
+          0.18,
+          1.25,
+          0.58
+        ],
+        "maxWorldScale": 0.0001
+      }
+    },
+    "attackSlash0": {
+      "scale": [
+        1.2695311440703971,
+        1.2695311440703971,
+        1.2695311440703971
+      ],
+      "maxScale": 1.2695311440703971,
+      "position": [
+        -0.1796875,
+        1.2558593730442225,
+        0.9550781729980399
+      ],
+      "worldPosition": [
+        -0.1796875,
+        1.2558593730442225,
+        0.9550781729980399
+      ],
+      "maxWorldScale": 1.2695311440703971
+    },
+    "castCutRing": {
+      "scale": [
+        0.35009765625,
+        0.35009765625,
+        0.35009765625
+      ],
+      "maxScale": 0.35009765625,
+      "position": [
+        0,
+        1.2802734375,
+        0.6552734375
+      ],
+      "worldPosition": [
+        0,
+        1.2802734375,
+        0.6552734375
+      ],
+      "maxWorldScale": 0.35009765625
+    },
+    "reverse": {
+      "sampleCount": 141,
+      "maxPositionError": 1.0287369955896963e-8,
+      "maxQuaternionError": 0.000014496346141638098,
+      "maxScaleError": 1.3552527156068805e-20
+    },
+    "ground": {
+      "dead": {
+        "sampleCount": 141,
+        "minY": -0.00007811784744271577,
+        "closestToGround": 0.000042284377832713105,
+        "maxPenetrationMeters": 0.00007811784744271577
+      },
+      "reviveRise": {
+        "sampleCount": 141,
+        "minY": -0.00007811784744271577,
+        "closestToGround": 0.000042284135624237607,
+        "maxPenetrationMeters": 0.00007811784744271577
+      }
+    },
+    "regularGround": {
+      "idle": {
+        "sampleCount": 161,
+        "minY": -0.00007811784744271577,
+        "closestToGround": 0.00001708269119271577,
+        "maxPenetrationMeters": 0.00007811784744271577
+      },
+      "walk": {
+        "sampleCount": 121,
+        "minY": -0.00007811784744271577,
+        "closestToGround": 0.00003898918718272387,
+        "maxPenetrationMeters": 0.00007811784744271577
+      },
+      "flinch": {
+        "sampleCount": 101,
+        "minY": -0.00007811784744271577,
+        "closestToGround": 0.00002686259506545774,
+        "maxPenetrationMeters": 0.00007811784744271577
+      }
+    },
+    "revivedBounds": {
+      "min": [
+        -0.3439583186229577,
+        -0.00007811784744271577,
+        -0.17998503962851214
+      ],
+      "max": [
+        0.36416093016540635,
+        2.07770186060071,
+        0.5800012109112928
+      ],
+      "size": [
+        0.7081192487883641,
+        2.0777799784481528,
+        0.759986250539805
+      ]
+    },
+    "revivedPoseError": 0.00007812500000003997,
+    "walkRoot": {
+      "sampleCount": 121,
+      "minX": 0,
+      "maxX": 0,
+      "minZ": 0,
+      "maxZ": 0,
+      "xRange": 0,
+      "zRange": 0,
+      "maxHorizontalOffset": 0
+    }
+  },
+  "animations": {
+    "idle": {
+      "duration": 4,
+      "tracks": 9,
+      "finite": true,
+      "targetsExist": true,
+      "orderedTimes": true
+    },
+    "walk": {
+      "duration": 1.2000000476837158,
+      "tracks": 16,
+      "finite": true,
+      "targetsExist": true,
+      "orderedTimes": true
+    },
+    "cast": {
+      "duration": 3,
+      "tracks": 12,
+      "finite": true,
+      "targetsExist": true,
+      "orderedTimes": true
+    },
+    "attack": {
+      "duration": 2.4000000953674316,
+      "tracks": 15,
+      "finite": true,
+      "targetsExist": true,
+      "orderedTimes": true
+    },
+    "flinch": {
+      "duration": 0.75,
+      "tracks": 9,
+      "finite": true,
+      "targetsExist": true,
+      "orderedTimes": true
+    },
+    "cheer": {
+      "duration": 2.4000000953674316,
+      "tracks": 10,
+      "finite": true,
+      "targetsExist": true,
+      "orderedTimes": true
+    },
+    "dead": {
+      "duration": 1.5,
+      "tracks": 18,
+      "finite": true,
+      "targetsExist": true,
+      "orderedTimes": true
+    },
+    "reviveRise": {
+      "duration": 1.5,
+      "tracks": 18,
+      "finite": true,
+      "targetsExist": true,
+      "orderedTimes": true
+    }
+  },
+  "gltfLoaderReload": {
+    "passed": false,
+    "bones": 29,
+    "meshes": 16,
+    "skinnedMeshes": 16,
+    "skins": 16,
+    "materials": 16,
+    "textures": 48,
+    "triangles": 20974,
+    "vertices": 14253,
+    "animationValidation": [
+      {
+        "name": "idle",
+        "duration": 4,
+        "tracks": 9,
+        "expectedDuration": 4,
+        "finite": true,
+        "orderedTimes": true,
+        "targetsExist": true,
+        "validBindings": true,
+        "maxQuaternionNormalizationError": 0.000012857309957148289,
+        "rootTracks": [
+          "Root.position"
+        ]
+      },
+      {
+        "name": "walk",
+        "duration": 1.2000000476837158,
+        "tracks": 16,
+        "expectedDuration": 1.2,
+        "finite": true,
+        "orderedTimes": true,
+        "targetsExist": true,
+        "validBindings": true,
+        "maxQuaternionNormalizationError": 0.000015377420526263563,
+        "rootTracks": [
+          "Root.position"
+        ]
+      },
+      {
+        "name": "cast",
+        "duration": 3,
+        "tracks": 12,
+        "expectedDuration": 3,
+        "finite": true,
+        "orderedTimes": true,
+        "targetsExist": true,
+        "validBindings": true,
+        "maxQuaternionNormalizationError": 0.000017432762422053827,
+        "rootTracks": []
+      },
+      {
+        "name": "attack",
+        "duration": 2.4000000953674316,
+        "tracks": 15,
+        "expectedDuration": 2.4,
+        "finite": true,
+        "orderedTimes": true,
+        "targetsExist": true,
+        "validBindings": true,
+        "maxQuaternionNormalizationError": 0.000017317854221321483,
+        "rootTracks": []
+      },
+      {
+        "name": "flinch",
+        "duration": 0.75,
+        "tracks": 9,
+        "expectedDuration": 0.75,
+        "finite": true,
+        "orderedTimes": true,
+        "targetsExist": true,
+        "validBindings": true,
+        "maxQuaternionNormalizationError": 0.0000138655446053626,
+        "rootTracks": [
+          "Root.position"
+        ]
+      },
+      {
+        "name": "cheer",
+        "duration": 2.4000000953674316,
+        "tracks": 10,
+        "expectedDuration": 2.4,
+        "finite": true,
+        "orderedTimes": true,
+        "targetsExist": true,
+        "validBindings": true,
+        "maxQuaternionNormalizationError": 0.000015245400740937498,
+        "rootTracks": []
+      },
+      {
+        "name": "dead",
+        "duration": 1.5,
+        "tracks": 18,
+        "expectedDuration": 1.5,
+        "finite": true,
+        "orderedTimes": true,
+        "targetsExist": true,
+        "validBindings": true,
+        "maxQuaternionNormalizationError": 0.000016243175183339176,
+        "rootTracks": [
+          "Root.position",
+          "Root.quaternion"
+        ]
+      },
+      {
+        "name": "reviveRise",
+        "duration": 1.5,
+        "tracks": 18,
+        "expectedDuration": 1.5,
+        "finite": true,
+        "orderedTimes": true,
+        "targetsExist": true,
+        "validBindings": true,
+        "maxQuaternionNormalizationError": 0.000016243175183339176,
+        "rootTracks": [
+          "Root.position",
+          "Root.quaternion"
+        ]
+      }
+    ]
+  },
+  "sourcePreviewValidation": {
+    "clips": {
+      "idle": {
+        "duration": 4,
+        "tracks": 9
+      },
+      "walk": {
+        "duration": 1.2,
+        "tracks": 16
+      },
+      "cast": {
+        "duration": 3,
+        "tracks": 12
+      },
+      "attack": {
+        "duration": 2.4,
+        "tracks": 15
+      },
+      "flinch": {
+        "duration": 0.75,
+        "tracks": 9
+      },
+      "cheer": {
+        "duration": 2.4,
+        "tracks": 10
+      },
+      "dead": {
+        "duration": 1.5,
+        "tracks": 18
+      },
+      "reviveRise": {
+        "duration": 1.5,
+        "tracks": 18
+      }
+    },
+    "expectedDurations": {
+      "idle": 4,
+      "walk": 1.2,
+      "cast": 3,
+      "attack": 2.4,
+      "flinch": 0.75,
+      "cheer": 2.4,
+      "dead": 1.5,
+      "reviveRise": 1.5
+    },
+    "restBounds": {
+      "min": [
+        -0.3439690172672272,
+        -2.1606683109354208e-10,
+        -0.18000000715255737
+      ],
+      "max": [
+        0.3641609847545624,
+        2.0777800083160396,
+        0.5800012124342918
+      ],
+      "size": [
+        0.7081300020217896,
+        2.0777800085321063,
+        0.7600012195868492
+      ]
+    },
+    "restPoseError": 2.705015607029371e-8,
+    "hiddenAtRest": {
+      "CutRing": {
+        "scale": [
+          0.0001,
+          0.0001,
+          0.0001
+        ],
+        "maxScale": 0.0001,
+        "position": [
+          0,
+          1.28,
+          0.38
+        ],
+        "worldPosition": [
+          0,
+          1.28,
+          0.38
+        ],
+        "maxWorldScale": 0.0001
+      },
+      "Slash0": {
+        "scale": [
+          0.0001,
+          0.0001,
+          0.0001
+        ],
+        "maxScale": 0.0001,
+        "position": [
+          -0.18,
+          1.25,
+          0.42
+        ],
+        "worldPosition": [
+          -0.18,
+          1.25,
+          0.42
+        ],
+        "maxWorldScale": 0.0001
+      },
+      "Slash1": {
+        "scale": [
+          0.0001,
+          0.0001,
+          0.0001
+        ],
+        "maxScale": 0.0001,
+        "position": [
+          0,
+          1.25,
+          0.5
+        ],
+        "worldPosition": [
+          0,
+          1.25,
+          0.5
+        ],
+        "maxWorldScale": 0.0001
+      },
+      "Slash2": {
+        "scale": [
+          0.0001,
+          0.0001,
+          0.0001
+        ],
+        "maxScale": 0.0001,
+        "position": [
+          0.18,
+          1.25,
+          0.58
+        ],
+        "worldPosition": [
+          0.18,
+          1.25,
+          0.58
+        ],
+        "maxWorldScale": 0.0001
+      }
+    },
+    "attackSlash0": {
+      "scale": [
+        1.2699998749577954,
+        1.2699998749577954,
+        1.2699998749577954
+      ],
+      "maxScale": 1.2699998749577954,
+      "position": [
+        -0.18000000715255737,
+        1.2559812049600183,
+        0.9550000312924403
+      ],
+      "worldPosition": [
+        -0.18000000715255737,
+        1.2559812049600183,
+        0.9550000312924403
+      ],
+      "maxWorldScale": 1.2699998749577954
+    },
+    "castCutRing": {
+      "scale": [
+        0.3499999940395355,
+        0.3499999940395355,
+        0.3499999940395355
+      ],
+      "maxScale": 0.3499999940395355,
+      "position": [
+        0,
+        1.2799999713897705,
+        0.6549999713897705
+      ],
+      "worldPosition": [
+        0,
+        1.2799999713897705,
+        0.6549999713897705
+      ],
+      "maxWorldScale": 0.3499999940395355
+    },
+    "reverse": {
+      "sampleCount": 141,
+      "maxPositionError": 1.0296184703439959e-8,
+      "maxQuaternionError": 3.2626757399768367e-8,
+      "maxScaleError": 1.3552527156068805e-20
+    },
+    "ground": {
+      "dead": {
+        "sampleCount": 141,
+        "minY": 1.6473233666047804e-8,
+        "maxPenetrationMeters": 0
+      },
+      "reviveRise": {
+        "sampleCount": 141,
+        "minY": 1.64732335550255e-8,
+        "maxPenetrationMeters": 0
+      }
+    },
+    "regularGround": {
+      "idle": {
+        "sampleCount": 161,
+        "minY": 1.6473233666047804e-8,
+        "maxPenetrationMeters": 0
+      },
+      "walk": {
+        "sampleCount": 121,
+        "minY": 1.6473233666047804e-8,
+        "maxPenetrationMeters": 0
+      },
+      "flinch": {
+        "sampleCount": 101,
+        "minY": 1.6473233666047804e-8,
+        "maxPenetrationMeters": 0
+      }
+    },
+    "revivedBounds": {
+      "min": [
+        -0.3439690171047108,
+        1.6473233666047804e-8,
+        -0.18000000715255737
+      ],
+      "max": [
+        0.36416098446262135,
+        2.0777800250053398,
+        0.5800012124342612
+      ],
+      "size": [
+        0.7081300015673322,
+        2.0777800085321063,
+        0.7600012195868185
+      ]
+    },
+    "revivedPoseError": 2.705015607029371e-8,
+    "walkRoot": {
+      "xRange": 0,
+      "zRange": 0,
+      "maxHorizontalOffset": 0
+    },
+    "renderer": {
+      "calls": 69,
+      "triangles": 46496
+    }
+  },
+  "previewRegression": {
+    "api": {
+      "ready": true,
+      "functionsPresent": true,
+      "dataPresent": true,
+      "missing": []
+    },
+    "stats": {
+      "meshes": 16,
+      "materials": 16,
+      "bones": 29,
+      "triangles": 20974,
+      "vertices": 14253,
+      "height": 2.0777800085321063,
+      "width": 0.7081300020217896,
+      "depth": 0.7600012195868492,
+      "footY": -2.1606683109354208e-10,
+      "clips": [
+        {
+          "name": "idle",
+          "duration": 4,
+          "tracks": 9
+        },
+        {
+          "name": "walk",
+          "duration": 1.2,
+          "tracks": 16
+        },
+        {
+          "name": "cast",
+          "duration": 3,
+          "tracks": 12
+        },
+        {
+          "name": "attack",
+          "duration": 2.4,
+          "tracks": 15
+        },
+        {
+          "name": "flinch",
+          "duration": 0.75,
+          "tracks": 9
+        },
+        {
+          "name": "cheer",
+          "duration": 2.4,
+          "tracks": 10
+        },
+        {
+          "name": "dead",
+          "duration": 1.5,
+          "tracks": 18
+        },
+        {
+          "name": "reviveRise",
+          "duration": 1.5,
+          "tracks": 18
+        }
+      ]
+    },
+    "textureCount": 48,
+    "pageErrors": [],
+    "animationControls": [
+      "idle",
+      "walk",
+      "cast",
+      "attack",
+      "flinch",
+      "cheer",
+      "dead",
+      "reviveRise"
+    ],
+    "controlResults": {
+      "attack": "attack",
+      "cast": "cast",
+      "cheer": "cheer",
+      "dead": "dead",
+      "flinch": "flinch",
+      "idle": "idle",
+      "reviveRise": "reviveRise",
+      "walk": "walk"
+    },
+    "oneShotReturnWallMilliseconds": {
+      "attack": 2642,
+      "flinch": 1396,
+      "cheer": 3049,
+      "reviveRise": 2138
+    },
+    "deadTerminalMilliseconds": 2151,
+    "deadTerminalState": {
+      "current": "dead",
+      "time": 1.5,
+      "duration": 1.5,
+      "running": false
+    },
+    "renderer": {
+      "calls": 69,
+      "triangles": 46496
+    }
+  },
+  "mobilePreview": {
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "documentScrollWidth": 390,
+    "bodyScrollWidth": 390,
+    "horizontalOverflow": false,
+    "canvasCssSize": [
+      390,
+      456
+    ],
+    "animationButtons": 8,
+    "evidence": "evidence/preview-mobile-390.png"
+  },
+  "finalCaptureSamples": [
+    {
+      "file": "evidence/preview-idle.png",
+      "clip": "idle",
+      "time": 1.6,
+      "view": "front",
+      "stageOnly": false
+    },
+    {
+      "file": "evidence/preview-face.png",
+      "clip": "idle",
+      "time": 0.55,
+      "view": "face",
+      "stageOnly": true
+    },
+    {
+      "file": "evidence/preview-shoes.png",
+      "clip": "idle",
+      "time": 1.6,
+      "view": "feet",
+      "stageOnly": true
+    },
+    {
+      "file": "evidence/preview-walk.png",
+      "clip": "walk",
+      "time": 0.6,
+      "view": "front",
+      "stageOnly": false
+    },
+    {
+      "file": "evidence/preview-cast.png",
+      "clip": "cast",
+      "time": 1.5,
+      "view": "front",
+      "stageOnly": false
+    },
+    {
+      "file": "evidence/preview-attack.png",
+      "clip": "attack",
+      "time": 0.58,
+      "view": "front",
+      "stageOnly": false
+    },
+    {
+      "file": "evidence/preview-flinch.png",
+      "clip": "flinch",
+      "time": 0.3,
+      "view": "front",
+      "stageOnly": false
+    },
+    {
+      "file": "evidence/preview-cheer.png",
+      "clip": "cheer",
+      "time": 1.2,
+      "view": "front",
+      "stageOnly": false
+    },
+    {
+      "file": "evidence/preview-dead.png",
+      "clip": "dead",
+      "time": 1.5,
+      "view": "front",
+      "stageOnly": false
+    },
+    {
+      "file": "evidence/preview-revive.png",
+      "clip": "reviveRise",
+      "time": 0.75,
+      "view": "front",
+      "stageOnly": false
+    },
+    {
+      "file": "evidence/preview-mobile-390.png",
+      "viewport": "390x844"
+    }
+  ],
+  "checks": {
+    "glbHeaderAndChunks": true,
+    "embeddedResources": true,
+    "skeletonAndNormalizedWeights": false,
+    "animationClips": true,
+    "pbrMaterialMaps": true,
+    "loadedTextureObjects": true,
+    "groundedRestFeet": true,
+    "denseRegularGroundContact": true,
+    "deathGroundContact141Points": true,
+    "reverseAnimation141Points": false,
+    "reviveRestoresRest": false,
+    "attackSlash0VisibleAndForward": true,
+    "castCutRingVisible": true,
+    "effectsHiddenAtRest": true,
+    "walkHasNoHorizontalRootDisplacement": true,
+    "allEightAnimationButtons": true,
+    "oneShotReturnsToIdle": true,
+    "deadKeepsTerminalPose": true,
+    "mobile390NoHorizontalOverflow": true,
+    "noPageErrors": true,
+    "glbUnder4MiB": true,
+    "trianglesAtMost65000": true,
+    "sourceStatsMatchReload": true,
+    "previewApiContract": true,
+    "validationEndpointWritable": true,
+    "fatalError": true
+  },
+  "failedChecks": [
+    "skeletonAndNormalizedWeights",
+    "reverseAnimation141Points",
+    "reviveRestoresRest"
+  ],
+  "limitations": [
+    "该报告只验证伍六七视觉资产、动画、预览交互与 GLB 结构，不覆盖游戏规则或生产角色注册。",
+    "接地采样允许 6mm 数值容差；截图与数值采样不能替代人工造型、节奏和美术质量评审。"
+  ],
+  "endpoints": {
+    "validation": {
+      "ok": true,
+      "file": "evidence/validation.json"
+    }
+  }
+}
